@@ -24,6 +24,12 @@ import pandas as pd
 import tensorflow as tf
 from tensorflow.keras import layers
 import matplotlib.pyplot as plt
+from src.data.loading import (  # Commit 3A
+    ALT_RECV, ensure_iq_shape, read_metadata, parse_dist_curr_from_path,
+)
+from src.data.loading import (                          # Commit 3A
+    ensure_iq_shape, read_metadata, parse_dist_curr_from_path,
+)
 
 # ==========================================================
 # 0) BASE PATHS + pick latest run
@@ -110,44 +116,10 @@ print(f"📁 DATASET_ROOT = {DATASET_ROOT}")
 # ==========================================================
 # 1) DATA LOADER (compat)
 # ==========================================================
-ALT_RECV = [
-    "received_data_tuple_sync-phase.npy",
-    "received_data_tuple_sync_phase.npy",
-    "received_data_tuple_sync.npy",
-    "received_data_tuple.npy",
-]
 
-def ensure_iq_shape(arr):
-    arr = np.asarray(arr)
-    if np.iscomplexobj(arr):
-        arr = np.stack([arr.real, arr.imag], axis=-1)
-    if arr.ndim == 2 and arr.shape[1] == 2:
-        pass
-    elif arr.ndim == 2 and arr.shape[0] == 2:
-        arr = arr.T
-    else:
-        raise ValueError(f"Formato inesperado I/Q: shape={arr.shape}, dtype={arr.dtype}")
-    return arr.astype(np.float32, copy=False)
 
-def read_metadata(exp_dir: Path):
-    candidates = [exp_dir / "metadata.json", exp_dir / "IQ_data" / "metadata.json"]
-    candidates += list(exp_dir.glob("*_meta.json"))
-    for p in candidates:
-        if p.exists():
-            for enc in ["utf-8", "latin-1"]:
-                try:
-                    return json.loads(p.read_text(encoding=enc))
-                except Exception:
-                    pass
-    return {}
-
-def parse_dist_curr_from_path(exp_dir: Path):
-    s = str(exp_dir).replace("\\", "/")
-    md = re.search(r"/dist_(\d+(?:\.\d+)?)m(?:/|$)", s)
-    mc = re.search(r"/curr_(\d+)mA(?:/|$)", s)
-    dist = float(md.group(1)) if md else None
-    curr = int(mc.group(1)) if mc else None
-    return dist, curr
+# ensure_iq_shape, read_metadata, parse_dist_curr_from_path
+# -> moved to src.data.loading (Commit 3A)
 
 def discover_experiments(dataset_root: Path):
     exp_dirs = set()

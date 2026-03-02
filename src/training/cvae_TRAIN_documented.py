@@ -123,8 +123,13 @@ import pandas as pd
 import tensorflow as tf
 from tensorflow.keras import layers, models
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, Callback
-
+from src.data.loading import (  # Commit 3A
+    ALT_RECV, ensure_iq_shape, read_metadata, parse_dist_curr_from_path,
+)
 from src.training.logging import bootstrap_run          # Commit 2
+from src.data.loading import (                          # Commit 3A
+    ensure_iq_shape, read_metadata, parse_dist_curr_from_path,
+)
 
 # ==========================================================
 # 0) PATHS + RUN
@@ -325,44 +330,8 @@ print(f"📊 GRID TOTAL (enxuto) = {len(GRID)} runs")
 np.random.seed(TRAINING_CONFIG["seed"])
 tf.random.set_seed(TRAINING_CONFIG["seed"])
 
-ALT_RECV = [
-    "received_data_tuple_sync-phase.npy",
-    "received_data_tuple_sync_phase.npy",
-    "received_data_tuple_sync.npy",
-    "received_data_tuple.npy",
-]
-
-def ensure_iq_shape(arr):
-    arr = np.asarray(arr)
-    if np.iscomplexobj(arr):
-        arr = np.stack([arr.real, arr.imag], axis=-1)
-    if arr.ndim == 2 and arr.shape[1] == 2:
-        pass
-    elif arr.ndim == 2 and arr.shape[0] == 2:
-        arr = arr.T
-    else:
-        raise ValueError(f"Formato inesperado I/Q: shape={arr.shape}, dtype={arr.dtype}")
-    return arr.astype(np.float32, copy=False)
-
-def read_metadata(exp_dir: Path):
-    candidates = [exp_dir / "metadata.json", exp_dir / "IQ_data" / "metadata.json"]
-    candidates += list(exp_dir.glob("*_meta.json"))
-    for meta_path in candidates:
-        if meta_path.exists():
-            for enc in ["utf-8", "latin-1"]:
-                try:
-                    return json.loads(meta_path.read_text(encoding=enc))
-                except Exception:
-                    pass
-    return {}
-
-def parse_dist_curr_from_path(exp_dir: Path):
-    s = str(exp_dir).replace("\\", "/")
-    md = re.search(r"/dist_(\d+(?:\.\d+)?)m(?:/|$)", s)
-    mc = re.search(r"/curr_(\d+)mA(?:/|$)", s)
-    dist = float(md.group(1)) if md else None
-    curr = int(mc.group(1)) if mc else None
-    return dist, curr
+# ensure_iq_shape, read_metadata, parse_dist_curr_from_path
+# -> moved to src.data.loading (Commit 3A)
 
 # ---------------------------------------------------------------------------
 # Descoberta de experimentos (regimes d,c)
