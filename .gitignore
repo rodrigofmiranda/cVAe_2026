@@ -1,0 +1,29 @@
+cat > .gitignore <<'EOF'
+# Outputs / runs (gerados)
+outputs/
+runs/
+logs/
+tables/
+plots/
+events.out.tfevents.*
+
+# Backups locais (não versionar)
+backup/
+*.tar
+*.zip
+
+# Checkpoints (se estiverem fora de outputs)
+*.h5
+*.ckpt
+*.pt
+
+# Python/Jupyter
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+*.swp
+
+# OS
+.DS_Store
+EOF
