@@ -124,6 +124,8 @@ import tensorflow as tf
 from tensorflow.keras import layers, models
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, Callback
 
+from src.training.logging import bootstrap_run          # Commit 2
+
 # ==========================================================
 # 0) PATHS + RUN
 # ==========================================================
@@ -132,19 +134,13 @@ DATASET_ROOT = Path(DATASET_ROOT_ENV)
 
 OUTPUT_BASE = Path(os.environ.get("OUTPUT_BASE", "/workspace/2026/outputs"))
 
-RUN_ID = os.environ.get("RUN_ID", datetime.now().strftime("run_%Y%m%d_%H%M%S"))
-RUN_DIR = OUTPUT_BASE / RUN_ID
-PLOTS_DIR = RUN_DIR / "plots"
-TABLES_DIR = RUN_DIR / "tables"
-MODELS_DIR = RUN_DIR / "models"
-LOGS_DIR = RUN_DIR / "logs"
-for p in [RUN_DIR, PLOTS_DIR, TABLES_DIR, MODELS_DIR, LOGS_DIR]:
-    p.mkdir(parents=True, exist_ok=True)
-
-try:
-    (OUTPUT_BASE / "_last_run.txt").write_text(str(RUN_DIR), encoding="utf-8")
-except Exception:
-    pass
+_run = bootstrap_run(output_base=OUTPUT_BASE)
+RUN_ID    = _run.run_id
+RUN_DIR   = _run.run_dir
+PLOTS_DIR = _run.plots_dir
+TABLES_DIR = _run.tables_dir
+MODELS_DIR = _run.models_dir
+LOGS_DIR  = _run.logs_dir
 
 print(f"📁 DATASET_ROOT (env) = {DATASET_ROOT}")
 print(f"📦 OUTPUT_BASE        = {OUTPUT_BASE}")
