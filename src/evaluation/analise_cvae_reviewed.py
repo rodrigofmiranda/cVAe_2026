@@ -24,11 +24,9 @@ import pandas as pd
 import tensorflow as tf
 from tensorflow.keras import layers
 import matplotlib.pyplot as plt
-from src.data.loading import (  # Commit 3A
-    ALT_RECV, ensure_iq_shape, read_metadata, parse_dist_curr_from_path,
-)
-from src.data.loading import (                          # Commit 3A
+from src.data.loading import (                          # Commits 3A–3B
     ensure_iq_shape, read_metadata, parse_dist_curr_from_path,
+    discover_experiments, load_experiments_as_list,
 )
 
 # ==========================================================
@@ -120,96 +118,8 @@ print(f"📁 DATASET_ROOT = {DATASET_ROOT}")
 
 # ensure_iq_shape, read_metadata, parse_dist_curr_from_path
 # -> moved to src.data.loading (Commit 3A)
-
-def discover_experiments(dataset_root: Path):
-    exp_dirs = set()
-    for iq_dir in dataset_root.rglob("IQ_data"):
-        exp_dir = iq_dir.parent
-        if (iq_dir / "sent_data_tuple.npy").exists() and any((iq_dir / r).exists() for r in ALT_RECV):
-            exp_dirs.add(exp_dir)
-    exp_dirs = sorted(exp_dirs, key=lambda p: str(p))
-    if not exp_dirs:
-        raise ValueError("Nenhum experimento válido encontrado (IQ_data/*.npy).")
-    return exp_dirs
-
-def load_experiments_as_list(dataset_root: Path, verbose=True):
-    """
-    Carrega cada experimento separadamente (sem concatenar),
-    retornando lista: (X, Y, D, C, exp_dir_str) + df_info.
-    """
-    exp_dirs = discover_experiments(dataset_root)
-    exps = []
-    info = []
-
-    for exp_dir in exp_dirs:
-        meta = read_metadata(exp_dir)
-        dist, curr = parse_dist_curr_from_path(exp_dir)
-
-        if dist is None:
-            for k in ["distance_m", "distance", "dist_m", "dist"]:
-                if k in meta:
-                    try:
-                        dist = float(meta[k]); break
-                    except Exception:
-                        pass
-        if curr is None:
-            for k in ["current_mA", "current", "curr_mA", "curr"]:
-                if k in meta:
-                    try:
-                        curr = int(float(meta[k])); break
-                    except Exception:
-                        pass
-
-        iq_dir = exp_dir / "IQ_data"
-        sent_path = iq_dir / "sent_data_tuple.npy"
-        recv_path = None
-        for r in ALT_RECV:
-            p = iq_dir / r
-            if p.exists():
-                recv_path = p
-                break
-
-        if recv_path is None or not sent_path.exists():
-            info.append({"exp_dir": str(exp_dir), "status": "missing_files"})
-            continue
-
-        try:
-            X_raw = np.load(sent_path, allow_pickle=False)
-            Y_raw = np.load(recv_path, allow_pickle=False)
-            X = ensure_iq_shape(X_raw)
-            Y = ensure_iq_shape(Y_raw)
-
-            n = min(X.shape[0], Y.shape[0])
-            X, Y = X[:n], Y[:n]
-
-            if dist is None or curr is None:
-                raise ValueError(f"Não inferiu condições: dist={dist}, curr={curr}")
-
-            D = np.full((n, 1), float(dist), dtype=np.float32)
-            C = np.full((n, 1), float(curr), dtype=np.float32)
-
-            exps.append((X, Y, D, C, str(exp_dir)))
-            info.append({
-                "exp_dir": str(exp_dir),
-                "dist_m": float(dist),
-                "curr_mA": int(curr),
-                "n_samples": int(n),
-                "status": "ok",
-                "sent_path": str(sent_path),
-                "recv_path": str(recv_path),
-            })
-        except Exception as e:
-            info.append({"exp_dir": str(exp_dir), "status": "error", "error": str(e)})
-
-    df_info = pd.DataFrame(info)
-    if (df_info["status"] == "ok").sum() == 0:
-        raise ValueError("Nenhum dataset carregado com sucesso.")
-
-    if verbose:
-        print(f"✅ Experimentos carregados: {(df_info['status']=='ok').sum()}")
-        print(df_info["status"].value_counts())
-
-    return exps, df_info
+# discover_experiments, load_experiments_as_list
+# -> moved to src.data.loading (Commit 3B)
 
 def split_train_val_per_experiment(exps, val_split: float, seed: int,
                                    order_mode: str = "head_tail",
@@ -484,6 +394,7 @@ print("✅ inference_model pronto:", inference_model.name, "| deterministic =", 
 # 6) Load dataset + split CONSISTENTE com treino (per_experiment)
 # ==========================================================
 exps, df_info = load_experiments_as_list(DATASET_ROOT, verbose=True)
+print(f"✅ Experimentos carregados: {(df_info['status']=='ok').sum()}")
 df_info.to_excel(TABLES_DIR / "dataset_inventory.xlsx", index=False)
 print(f"✓ dataset_inventory.xlsx salvo: {TABLES_DIR / 'dataset_inventory.xlsx'}")
 

@@ -123,12 +123,11 @@ import pandas as pd
 import tensorflow as tf
 from tensorflow.keras import layers, models
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, Callback
-from src.data.loading import (  # Commit 3A
-    ALT_RECV, ensure_iq_shape, read_metadata, parse_dist_curr_from_path,
-)
 from src.training.logging import bootstrap_run          # Commit 2
-from src.data.loading import (                          # Commit 3A
+from src.data.loading import (                          # Commits 3A–3B
     ensure_iq_shape, read_metadata, parse_dist_curr_from_path,
+    discover_experiments, is_valid_dataset_root, find_dataset_root,
+    reduce_experiment_xy, load_experiments_as_list,
 )
 
 # ==========================================================
@@ -332,233 +331,9 @@ tf.random.set_seed(TRAINING_CONFIG["seed"])
 
 # ensure_iq_shape, read_metadata, parse_dist_curr_from_path
 # -> moved to src.data.loading (Commit 3A)
-
-# ---------------------------------------------------------------------------
-# Descoberta de experimentos (regimes d,c)
-# ---------------------------------------------------------------------------
-def discover_experiments(dataset_root: Path, verbose=True):
-    exp_dirs = set()
-    for meta in dataset_root.rglob("metadata.json"):
-        if meta.parent.name == "IQ_data":
-            exp_dir = meta.parent.parent
-            iq_dir = meta.parent
-        else:
-            exp_dir = meta.parent
-            iq_dir = exp_dir / "IQ_data"
-        sent_ok = (iq_dir / "sent_data_tuple.npy").exists()
-        recv_ok = any((iq_dir / r).exists() for r in ALT_RECV)
-        if sent_ok and recv_ok:
-            exp_dirs.add(exp_dir)
-    for iq_dir in dataset_root.rglob("IQ_data"):
-        exp_dir = iq_dir.parent
-        sent_ok = (iq_dir / "sent_data_tuple.npy").exists()
-        recv_ok = any((iq_dir / r).exists() for r in ALT_RECV)
-        if sent_ok and recv_ok:
-            exp_dirs.add(exp_dir)
-
-    exp_dirs = sorted(exp_dirs, key=lambda p: str(p))
-    if verbose:
-        print(f"✅ Experimentos válidos encontrados: {len(exp_dirs)}")
-    if not exp_dirs:
-        raise ValueError("Nenhum experimento válido encontrado (IQ_data/*.npy).")
-    return exp_dirs
-
-def is_valid_dataset_root(path: Path, verbose=False) -> bool:
-    try:
-        if not path.exists() or not path.is_dir():
-            return False
-        _ = discover_experiments(path, verbose=verbose)
-        return True
-    except Exception:
-        return False
-
-def find_dataset_root(marker_dirname="dataset_fullsquare_organized", verbose=True):
-    if is_valid_dataset_root(DATASET_ROOT, verbose=False):
-        if verbose:
-            print(f"✅ Dataset root aceito do env: {DATASET_ROOT}")
-        return DATASET_ROOT
-
-    workspace = Path("/workspace")
-    search_bases = [workspace / "2026", workspace / "2025", workspace]
-    search_bases = [p for p in search_bases if p.exists()]
-
-    candidates = []
-    for base in search_bases:
-        for p in base.rglob(marker_dirname):
-            if p.is_dir():
-                candidates.append(p)
-    candidates = sorted(set(candidates))
-    if not candidates:
-        raise FileNotFoundError(f"Não encontrei '{marker_dirname}' em /workspace (e o DATASET_ROOT do env não é válido).")
-
-    best_root = None
-    best_count = -1
-    for root in candidates:
-        try:
-            count = len(discover_experiments(root, verbose=False))
-        except Exception:
-            count = 0
-        if count > best_count:
-            best_count = count
-            best_root = root
-
-    if best_root is None or best_count <= 0:
-        raise ValueError("Encontrei o marker, mas sem experimentos válidos.")
-
-    if verbose:
-        print(f"✅ Dataset root selecionado (auto): {best_root} ({best_count} exps)")
-    return best_root
-
-def reduce_experiment_xy(X, Y, cfg, rng):
-    n = min(len(X), len(Y))
-    X = X[:n]; Y = Y[:n]
-
-    if not cfg.get("enabled", False):
-        return X, Y
-
-    target = int(cfg.get("target_samples_per_experiment", 200_000))
-    minimum = int(cfg.get("min_samples_per_experiment", 80_000))
-
-    if n <= target:
-        return X, Y  # já está dentro do alvo, não corta
-
-    target = max(target, minimum)
-
-    mode = str(cfg.get("mode", "balanced_blocks")).lower()
-
-    # --------------------------------------------------
-    # Modo 1: center_crop — mais rápido, menos robusto
-    # Pega uma janela contígua central de tamanho target.
-    # Preserva continuidade temporal mas pode perder caudas.
-    # --------------------------------------------------
-    if mode == "center_crop":
-        start = (n - target) // 2
-        idx = np.arange(start, start + target, dtype=np.int64)
-        return X[idx], Y[idx]
-
-    # --------------------------------------------------
-    # Modo 2: balanced_blocks (padrão)
-    # Divide o experimento em blocos e amostra uniformemente
-    # ao longo do tempo, preservando spread temporal.
-    # --------------------------------------------------
-    block_len   = int(cfg.get("block_len", 4096))
-    n_blocks    = int(cfg.get("n_blocks", 10))       # blocos a selecionar por bin
-    time_spread = bool(cfg.get("time_spread", True))
-    min_gap     = int(cfg.get("min_gap_blocks", 2))
-
-    # quantos blocos cabem no experimento
-    n_total_blocks = n // block_len
-    if n_total_blocks == 0:
-        # experimento menor que um bloco: retorna tudo
-        return X[:target], Y[:target]
-
-    blocks_needed = target // block_len + 1
-
-    if time_spread:
-        # distribui os blocos escolhidos de forma espaçada
-        # para cobrir toda a duração do experimento
-        max_start = n_total_blocks - 1
-        step = max(1, max_start // max(1, blocks_needed - 1))
-        candidates = np.arange(0, n_total_blocks, step, dtype=np.int64)
-        # adiciona jitter pequeno para não ser completamente periódico
-        jitter = rng.integers(-min_gap, min_gap + 1, size=len(candidates))
-        candidates = np.clip(candidates + jitter, 0, n_total_blocks - 1)
-        candidates = np.unique(candidates)
-    else:
-        candidates = np.arange(n_total_blocks, dtype=np.int64)
-
-    # seleciona blocos_needed blocos sem reposição
-    n_sel = min(blocks_needed, len(candidates))
-    chosen = rng.choice(candidates, size=n_sel, replace=False)
-    chosen = np.sort(chosen)  # mantém ordem temporal
-
-    idx_list = []
-    for b in chosen:
-        start = int(b) * block_len
-        end   = start + block_len
-        idx_list.append(np.arange(start, min(end, n), dtype=np.int64))
-
-    idx = np.concatenate(idx_list)[:target]
-    return X[idx], Y[idx]
-
-# ==========================================================
-# Loader: agora retorna lista por experimento (para split correto)
-# ==========================================================
-# ---------------------------------------------------------------------------
-# Loader por experimento (evita leakage e preserva coerência física)
-# ---------------------------------------------------------------------------
-def load_experiments_as_list(dataset_root: Path, verbose=True):
-    exp_dirs = discover_experiments(dataset_root, verbose=verbose)
-    exps = []
-    info = []
-    rng_global = np.random.default_rng(int(DATA_REDUCTION_CONFIG.get("seed", 42)))
-
-    for exp_dir in exp_dirs:
-        meta = read_metadata(exp_dir)
-        dist, curr = parse_dist_curr_from_path(exp_dir)
-
-        if dist is None:
-            for k in ["distance_m", "distance", "dist_m", "dist"]:
-                if k in meta:
-                    try: dist = float(meta[k]); break
-                    except Exception: pass
-        if curr is None:
-            for k in ["current_mA", "current", "curr_mA", "curr"]:
-                if k in meta:
-                    try: curr = int(float(meta[k])); break
-                    except Exception: pass
-
-        iq_dir = exp_dir / "IQ_data"
-        sent_path = iq_dir / "sent_data_tuple.npy"
-        recv_path = None
-        for r in ALT_RECV:
-            p = iq_dir / r
-            if p.exists():
-                recv_path = p
-                break
-
-        if recv_path is None or not sent_path.exists():
-            info.append({"exp_dir": str(exp_dir), "status": "missing_files"})
-            continue
-
-        try:
-            X_raw = np.load(sent_path, allow_pickle=False)
-            Y_raw = np.load(recv_path, allow_pickle=False)
-            X = ensure_iq_shape(X_raw)
-            Y = ensure_iq_shape(Y_raw)
-
-            n0 = min(X.shape[0], Y.shape[0])
-            X = X[:n0]; Y = Y[:n0]
-
-            rng = np.random.default_rng(rng_global.integers(0, 2**32 - 1))
-            X, Y = reduce_experiment_xy(X, Y, DATA_REDUCTION_CONFIG, rng)
-            n = len(X)
-
-            if dist is None or curr is None:
-                raise ValueError(f"Não inferiu condições: dist={dist}, curr={curr}")
-
-            D = np.full((n, 1), float(dist), dtype=np.float32)
-            C = np.full((n, 1), float(curr), dtype=np.float32)
-
-            exps.append((X, Y, D, C, str(exp_dir)))
-            info.append({
-                "exp_dir": str(exp_dir),
-                "dist_m": float(dist),
-                "curr_mA": int(curr),
-                "n_samples": int(n),
-                "status": "ok",
-                "sent_path": str(sent_path),
-                "recv_path": str(recv_path),
-            })
-        except Exception as e:
-            info.append({"exp_dir": str(exp_dir), "status": "error", "error": str(e)})
-
-    df_info = pd.DataFrame(info)
-    if (df_info["status"] == "ok").sum() == 0:
-        raise ValueError("Nenhum dataset carregado com sucesso.")
-    if verbose:
-        print(df_info["status"].value_counts())
-    return exps, df_info
+# discover_experiments, is_valid_dataset_root, find_dataset_root,
+# reduce_experiment_xy, load_experiments_as_list
+# -> moved to src.data.loading (Commit 3B)
 
 # ---------------------------------------------------------------------------
 # Split por experimento (head_tail): treino no início, validação no fim.
@@ -997,10 +772,16 @@ def checklist_table():
 # 6) PIPELINE: carregar dataset por experimento + split correto
 # ==========================================================
 print("\n🔎 Localizando dataset...")
-dataset_root = find_dataset_root(marker_dirname="dataset_fullsquare_organized", verbose=True)
+dataset_root = find_dataset_root(
+    marker_dirname="dataset_fullsquare_organized",
+    dataset_root_hint=DATASET_ROOT,
+    verbose=True,
+)
 
 print("\n📦 Carregando experimentos (sem redução; split por experimento)...")
-exps, df_info = load_experiments_as_list(dataset_root, verbose=True)
+exps, df_info = load_experiments_as_list(
+    dataset_root, verbose=True, reduction_config=DATA_REDUCTION_CONFIG,
+)
 
 inv_path = TABLES_DIR / "dataset_inventory.xlsx"
 with pd.ExcelWriter(inv_path, engine="openpyxl") as w:
