@@ -33,6 +33,9 @@ from src.evaluation.metrics import (                    # Commit 3E
     calculate_evm, calculate_snr,
     _skew_kurt, _psd_log, residual_distribution_metrics,
 )
+from src.models.cvae_components import (                # Commit 3F
+    Sampling, CondPriorVAELoss,
+)
 
 # ==========================================================
 # 0) BASE PATHS + pick latest run
@@ -131,33 +134,8 @@ print(f"📁 DATASET_ROOT = {DATASET_ROOT}")
 # calculate_evm, calculate_snr, _skew_kurt, _psd_log,
 # residual_distribution_metrics -> moved to src.evaluation.metrics (Commit 3E)
 
-# ==========================================================
-# 3) CUSTOM OBJECTS p/ LOAD
-# ==========================================================
-@tf.keras.utils.register_keras_serializable(package="VLC")
-class Sampling(layers.Layer):
-    def call(self, inputs):
-        z_mean, z_log_var = inputs
-        eps = tf.random.normal(tf.shape(z_mean))
-        return z_mean + tf.exp(0.5 * z_log_var) * eps
-
-@tf.keras.utils.register_keras_serializable(package="VLC")
-class CondPriorVAELoss(layers.Layer):
-    def __init__(self, beta=1.0, free_bits=0.0, **kwargs):
-        super().__init__(**kwargs)
-        self.beta_init = float(beta)
-        self.free_bits = float(free_bits)
-        self.beta = tf.Variable(self.beta_init, trainable=False, dtype=tf.float32, name="beta")
-        self.recon_loss_tracker = tf.keras.metrics.Mean(name="recon_loss")
-        self.kl_loss_tracker = tf.keras.metrics.Mean(name="kl_loss")
-
-    def call(self, inputs):
-        return inputs[0]
-
-    def get_config(self):
-        cfg = super().get_config()
-        cfg.update({"beta": self.beta_init, "free_bits": self.free_bits})
-        return cfg
+# Sampling, CondPriorVAELoss
+# -> moved to src.models.cvae_components (Commit 3F)
 
 custom_objects = {"Sampling": Sampling, "CondPriorVAELoss": CondPriorVAELoss}
 
