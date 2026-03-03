@@ -29,6 +29,10 @@ from src.data.loading import (                          # Commits 3A–3B
     discover_experiments, load_experiments_as_list,
 )
 from src.data.splits import split_train_val_per_experiment  # Commit 3D
+from src.evaluation.metrics import (                    # Commit 3E
+    calculate_evm, calculate_snr,
+    _skew_kurt, _psd_log, residual_distribution_metrics,
+)
 
 # ==========================================================
 # 0) BASE PATHS + pick latest run
@@ -124,100 +128,8 @@ print(f"📁 DATASET_ROOT = {DATASET_ROOT}")
 
 # split_train_val_per_experiment -> moved to src.data.splits (Commit 3D)
 
-# ==========================================================
-# 2) MÉTRICAS
-# ==========================================================
-def calculate_evm(ref, test):
-    ref = np.asarray(ref)
-    test = np.asarray(test)
-    rc = ref[:, 0] + 1j * ref[:, 1]
-    tc = test[:, 0] + 1j * test[:, 1]
-    mean_power = np.mean(np.abs(rc) ** 2)
-    if mean_power == 0:
-        return float("inf"), float("-inf")
-    evm = np.sqrt(np.mean(np.abs(tc - rc) ** 2) / mean_power)
-    return float(evm * 100), float(20 * np.log10(max(evm, 1e-12)))
-
-def calculate_snr(ref, test):
-    ref = np.asarray(ref)
-    test = np.asarray(test)
-    rc = ref[:, 0] + 1j * ref[:, 1]
-    tc = test[:, 0] + 1j * test[:, 1]
-    sp = np.mean(np.abs(rc) ** 2)
-    npow = np.mean(np.abs(rc - tc) ** 2)
-    if npow == 0:
-        return float("inf")
-    return float(10 * np.log10(max(sp / npow, 1e-12)))
-
-def _skew_kurt(x: np.ndarray, eps: float = 1e-12):
-    x = np.asarray(x, dtype=np.float64)
-    m = np.mean(x, axis=0)
-    v = np.var(x, axis=0)
-    s = np.sqrt(v + eps)
-    z = (x - m) / s
-    skew = np.mean(z ** 3, axis=0)
-    kurt = np.mean(z ** 4, axis=0) - 3.0
-    return skew, kurt
-
-def _psd_log(xc: np.ndarray, nfft: int = 2048, eps: float = 1e-12):
-    xc = np.asarray(xc, dtype=np.complex128).ravel()
-    n = len(xc)
-    nfft = int(min(max(256, nfft), n)) if n > 0 else int(nfft)
-    if nfft < 256 or n < 256:
-        nfft = max(1, n)
-    win = np.hanning(nfft) if nfft >= 8 else np.ones(nfft)
-
-    nseg = 4
-    hop = max(1, (n - nfft) // max(1, nseg - 1)) if n > nfft else nfft
-    acc = None
-    cnt = 0
-    for start in range(0, max(1, n - nfft + 1), hop):
-        seg = xc[start : start + nfft]
-        if len(seg) < nfft:
-            break
-        segw = seg * win
-        Xf = np.fft.fft(segw, n=nfft)
-        P = (np.abs(Xf) ** 2) / (np.sum(win ** 2) + eps)
-        acc = P if acc is None else (acc + P)
-        cnt += 1
-        if cnt >= nseg:
-            break
-    if acc is None:
-        acc = (np.abs(np.fft.fft(xc, n=nfft)) ** 2) / max(1, nfft)
-        cnt = 1
-    psd = acc / max(1, cnt)
-    return np.log10(psd + eps)
-
-def residual_distribution_metrics(X: np.ndarray, Y: np.ndarray, Yp: np.ndarray, psd_nfft: int = 2048):
-    d_real = np.asarray(Y) - np.asarray(X)
-    d_pred = np.asarray(Yp) - np.asarray(X)
-
-    mean_l2 = float(np.linalg.norm(np.mean(d_pred, axis=0) - np.mean(d_real, axis=0)))
-    cov_fro = float(np.linalg.norm(np.cov(d_pred.T) - np.cov(d_real.T), ord="fro"))
-
-    var_real = float(np.mean(np.var(d_real, axis=0)))
-    var_pred = float(np.mean(np.var(d_pred, axis=0)))
-
-    skew_r, kurt_r = _skew_kurt(d_real)
-    skew_p, kurt_p = _skew_kurt(d_pred)
-    skew_l2 = float(np.linalg.norm(skew_p - skew_r))
-    kurt_l2 = float(np.linalg.norm(kurt_p - kurt_r))
-
-    cr = d_real[:, 0] + 1j * d_real[:, 1]
-    cp = d_pred[:, 0] + 1j * d_pred[:, 1]
-    psd_r = _psd_log(cr, nfft=int(psd_nfft))
-    psd_p = _psd_log(cp, nfft=int(psd_nfft))
-    psd_l2 = float(np.linalg.norm(psd_p - psd_r) / np.sqrt(len(psd_r) if len(psd_r) else 1))
-
-    return {
-        "delta_mean_l2": mean_l2,
-        "delta_cov_fro": cov_fro,
-        "var_real_delta": var_real,
-        "var_pred_delta": var_pred,
-        "delta_skew_l2": skew_l2,
-        "delta_kurt_l2": kurt_l2,
-        "delta_psd_l2": psd_l2,
-    }
+# calculate_evm, calculate_snr, _skew_kurt, _psd_log,
+# residual_distribution_metrics -> moved to src.evaluation.metrics (Commit 3E)
 
 # ==========================================================
 # 3) CUSTOM OBJECTS p/ LOAD
