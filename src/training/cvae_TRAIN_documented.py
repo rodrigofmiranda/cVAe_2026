@@ -684,7 +684,7 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
                 epochs=int(TRAINING_CONFIG["epochs"]),
                 batch_size=int(cfg["batch_size"]),
                 callbacks=callbacks,
-                verbose=1,
+                verbose=2,
                 shuffle=bool(TRAINING_CONFIG["shuffle_train_batches"]),
             )
             train_time_s = float(time.time() - t0)

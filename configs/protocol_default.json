@@ -1,0 +1,35 @@
+{
+    "_comment": "Default protocol for reproducible cVAE evaluation across VLC regimes.",
+    "protocol_version": "1.0",
+    "description": "Baseline + cVAE training & evaluation over selected regimes.",
+
+    "global_settings": {
+        "seed": 42,
+        "val_split": 0.2,
+        "max_epochs": 500,
+        "max_grids": null,
+        "grid_group": null,
+        "grid_tag": null,
+        "max_experiments": null,
+        "max_samples_per_exp": null,
+        "psd_nfft": 2048
+    },
+
+    "regimes": [
+        {
+            "regime_id": "near_low",
+            "description": "0.8 m / 200 mA — near distance, low current",
+            "experiment_paths": ["dist_0.8m/curr_200mA"]
+        },
+        {
+            "regime_id": "near_high",
+            "description": "0.8 m / 800 mA — near distance, high current",
+            "experiment_paths": ["dist_0.8m/curr_800mA"]
+        },
+        {
+            "regime_id": "far_low",
+            "description": "1.5 m / 200 mA — far distance, low current",
+            "experiment_paths": ["dist_1.5m/curr_200mA"]
+        }
+    ]
+}
