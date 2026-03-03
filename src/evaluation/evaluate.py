@@ -1,29 +1,44 @@
-#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-CLI entrypoint (stub) for future modular evaluation pipeline.
+CLI entrypoint for evaluation.
 
-Commit 1: scaffolding only.
-Evaluation still runs via src/evaluation/analise_cvae_reviewed.py (called by scripts/eval.sh).
+Wraps analise_cvae_reviewed.py into explicit execution.
+
+Usage
+-----
+    python -m src.evaluation.evaluate \\
+        --dataset_root /path/to/dataset \\
+        --run_dir /path/to/outputs/run_x
 """
-from __future__ import annotations
 
 import argparse
+import os
 
 
-def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(
-        prog="python -m src.evaluation.evaluate",
-        description="Evaluation CLI (stub). Not wired in Commit 1."
-    )
-    p.add_argument("--run_dir", type=str, required=False, help="Path to outputs/run_... (future).")
-    return p
+def parse_args():
+    parser = argparse.ArgumentParser(description="Evaluate trained cVAE")
+    parser.add_argument("--dataset_root", type=str, required=True)
+    parser.add_argument("--run_dir", type=str, required=True)
+    return parser.parse_args()
 
 
-def main(argv: list[str] | None = None) -> int:
-    _ = build_parser().parse_args(argv)
-    print("evaluate.py is a stub (Commit 1). Use: python -u src/evaluation/analise_cvae_reviewed.py")
-    return 0
+def main():
+    args = parse_args()
+
+    os.environ["DATASET_ROOT"] = args.dataset_root
+
+    # analise_cvae_reviewed reads RUN_ID from env; extract from run_dir path
+    run_dir_name = os.path.basename(args.run_dir.rstrip("/"))
+    output_base = os.path.dirname(args.run_dir.rstrip("/"))
+
+    os.environ["OUTPUT_BASE"] = output_base
+    os.environ["RUN_ID"] = run_dir_name
+
+    # Import here to avoid triggering heavy TF initialization on module load
+    from src.evaluation import analise_cvae_reviewed as eval_module
+
+    eval_module.main()
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()
