@@ -9,6 +9,12 @@ Usage
     python -m src.evaluation.evaluate \\
         --dataset_root /path/to/dataset \\
         --run_dir /path/to/outputs/run_x
+
+    # Smoke-test (Commit 3H):
+    python -m src.evaluation.evaluate \\
+        --dataset_root /path/to/dataset \\
+        --run_dir /path/to/outputs/run_x \\
+        --max_experiments 1 --max_samples_per_exp 200000
 """
 
 import argparse
@@ -19,6 +25,15 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate trained cVAE")
     parser.add_argument("--dataset_root", type=str, required=True)
     parser.add_argument("--run_dir", type=str, required=True)
+    # --- Commit 3H: optional smoke-test flags ---
+    parser.add_argument("--max_experiments", type=int, default=None,
+                        help="Limit number of experiments loaded (default: all)")
+    parser.add_argument("--max_samples_per_exp", type=int, default=None,
+                        help="Truncate samples per experiment (default: all)")
+    parser.add_argument("--psd_nfft", type=int, default=None,
+                        help="Override PSD NFFT size (default: use state config)")
+    parser.add_argument("--dry_run", action="store_true",
+                        help="Load+split+load model+build inference graph, then exit")
     return parser.parse_args()
 
 
@@ -34,10 +49,21 @@ def main():
     os.environ["OUTPUT_BASE"] = output_base
     os.environ["RUN_ID"] = run_dir_name
 
+    # Commit 3H: build overrides dict from CLI flags
+    overrides = {}
+    if args.max_experiments is not None:
+        overrides["max_experiments"] = args.max_experiments
+    if args.max_samples_per_exp is not None:
+        overrides["max_samples_per_exp"] = args.max_samples_per_exp
+    if args.psd_nfft is not None:
+        overrides["psd_nfft"] = args.psd_nfft
+    if args.dry_run:
+        overrides["dry_run"] = True
+
     # Import here to avoid triggering heavy TF initialization on module load
     from src.evaluation import analise_cvae_reviewed as eval_module
 
-    eval_module.main()
+    eval_module.main(overrides=overrides)
 
 
 if __name__ == "__main__":

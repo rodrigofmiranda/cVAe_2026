@@ -14,3 +14,14 @@ export PYTHONPATH="$REPO_ROOT"
 python -u -m src.training.train \
     --dataset_root "$DATASET_ROOT" \
     --output_base  "$OUTPUT_BASE"
+
+# --- Commit 3H: smoke-test examples (uncomment to use) ---
+# python -u -m src.training.train \
+#     --dataset_root "$DATASET_ROOT" --output_base "$OUTPUT_BASE" \
+#     --max_epochs 2 --max_experiments 1 --max_samples_per_exp 200000
+# python -u -m src.training.train \
+#     --dataset_root "$DATASET_ROOT" --output_base "$OUTPUT_BASE" --dry_run
+# --- Commit 3I: limit grid configs ---
+# python -u -m src.training.train \
+#     --dataset_root "$DATASET_ROOT" --output_base "$OUTPUT_BASE" \
+#     --max_epochs 2 --max_experiments 1 --max_grids 1

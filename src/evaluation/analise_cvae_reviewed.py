@@ -38,7 +38,9 @@ from src.models.cvae_components import (                # Commit 3F
 )
 
 
-def main():
+def main(overrides=None):  # Commit 3H: optional CLI overrides dict
+    _ov = overrides or {}
+
     # ==========================================================
     # 0) BASE PATHS + pick latest run
     # ==========================================================
@@ -230,11 +232,32 @@ def main():
 
     inference_model = create_inference_model_from_full(prior, decoder, deterministic=det_inf)
     print("✅ inference_model pronto:", inference_model.name, "| deterministic =", det_inf, "| mc_samples =", mc_samples, "| rank_mode =", rank_mode)
-
+    # --- Commit 3H: dry_run --- stop after loading model + building inference graph ---
+    if _ov.get("dry_run", False):
+        import json as _json
+        _dry_info = {
+            "dry_run": True,
+            "overrides": {k: v for k, v in _ov.items()},
+            "inference_model": inference_model.name,
+            "deterministic": det_inf,
+            "model_path": str(best_model_path),
+        }
+        (LOGS_DIR / "dry_run_eval.json").write_text(_json.dumps(_dry_info, indent=2))
+        print(f"\u2705 dry_run complete \u2014 wrote {LOGS_DIR / 'dry_run_eval.json'}")
+        return
     # ==========================================================
     # 6) Load dataset + split CONSISTENTE com treino (per_experiment)
     # ==========================================================
     exps, df_info = load_experiments_as_list(DATASET_ROOT, verbose=True)
+    # --- Commit 3H: limit experiments / samples if requested ---
+    if "max_experiments" in _ov:
+        _me = int(_ov["max_experiments"])
+        exps = exps[:_me]
+        print(f"\u26a1 Commit 3H: limited to {len(exps)} experiment(s)")
+    if "max_samples_per_exp" in _ov:
+        _ms = int(_ov["max_samples_per_exp"])
+        exps = [(X[:_ms], Y[:_ms], D[:_ms], C[:_ms], p) for X, Y, D, C, p in exps]
+        print(f"\u26a1 Commit 3H: truncated to \u2264{_ms} samples/exp")
     print(f"✅ Experimentos carregados: {(df_info['status']=='ok').sum()}")
     df_info.to_excel(TABLES_DIR / "dataset_inventory.xlsx", index=False)
     print(f"✓ dataset_inventory.xlsx salvo: {TABLES_DIR / 'dataset_inventory.xlsx'}")
@@ -320,6 +343,9 @@ def main():
     analysis_quick = state.get("analysis_quick", {}) if isinstance(state.get("analysis_quick", {}), dict) else {}
     dist_on = bool(analysis_quick.get("dist_metrics", True))
     psd_nfft = int(analysis_quick.get("psd_nfft", 2048))
+    # --- Commit 3H: allow CLI override for psd_nfft ---
+    if "psd_nfft" in _ov:
+        psd_nfft = int(_ov["psd_nfft"])
 
     if dist_on:
         distm = residual_distribution_metrics(Xv, Yv, Yp, psd_nfft=psd_nfft)

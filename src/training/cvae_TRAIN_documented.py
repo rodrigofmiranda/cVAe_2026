@@ -167,7 +167,9 @@ from src.models.cvae_components import (                # Commit 3F
 )
 
 
-def main():
+def main(overrides=None):  # Commit 3H: optional CLI overrides dict
+    _ov = overrides or {}
+
     # ==========================================================
     # 0) PATHS + RUN
     # ==========================================================
@@ -246,6 +248,14 @@ def main():
 
         "seed": 42,
     }
+
+    # --- Commit 3H: apply CLI overrides to configs ---
+    if "val_split" in _ov:
+        TRAINING_CONFIG["validation_split"] = float(_ov["val_split"])
+    if "seed" in _ov:
+        TRAINING_CONFIG["seed"] = int(_ov["seed"])
+    if "max_epochs" in _ov:
+        TRAINING_CONFIG["epochs"] = int(_ov["max_epochs"])
 
     ANALYSIS_QUICK = {
         "n_eval_samples": 40_000,
@@ -361,6 +371,12 @@ def main():
 
     print(f"📊 GRID TOTAL (enxuto) = {len(GRID)} runs")
 
+    # --- Commit 3I: limit number of grid configs for smoke-tests ---
+    if "max_grids" in _ov and _ov["max_grids"] is not None:
+        _mg = int(_ov["max_grids"])
+        GRID = GRID[:max(1, _mg)]
+        print(f"⚡ Commit 3I: limited grid to {len(GRID)} run(s)")
+
     # ==========================================================
     # Seeds
     # ==========================================================
@@ -468,6 +484,16 @@ def main():
         dataset_root, verbose=True, reduction_config=DATA_REDUCTION_CONFIG,
     )
 
+    # --- Commit 3H: limit experiments / samples if requested ---
+    if "max_experiments" in _ov:
+        _me = int(_ov["max_experiments"])
+        exps = exps[:_me]
+        print(f"⚡ Commit 3H: limited to {len(exps)} experiment(s)")
+    if "max_samples_per_exp" in _ov:
+        _ms = int(_ov["max_samples_per_exp"])
+        exps = [(X[:_ms], Y[:_ms], D[:_ms], C[:_ms], p) for X, Y, D, C, p in exps]
+        print(f"⚡ Commit 3H: truncated to ≤{_ms} samples/exp")
+
     inv_path = TABLES_DIR / "dataset_inventory.xlsx"
     with pd.ExcelWriter(inv_path, engine="openpyxl") as w:
         df_info.to_excel(w, index=False, sheet_name="inventory")
@@ -517,6 +543,26 @@ def main():
 
     results = []
     best_score = None
+
+    # --- Commit 3H: dry_run — stop before training ---
+    if _ov.get("dry_run", False):
+        _first_cfg = GRID[0]["cfg"] if GRID else {}
+        if _first_cfg:
+            _vae, _ = build_condprior_cvae(_first_cfg)
+            print(f"🔍 dry_run: model built | params={_vae.count_params():,}")
+            _vae.summary(print_fn=lambda s: print("  " + s))
+            del _vae
+        import json as _json
+        _dry_info = {
+            "dry_run": True,
+            "overrides": {k: v for k, v in _ov.items()},
+            "n_train": int(len(X_train)),
+            "n_val": int(len(X_val)),
+            "n_grid": int(len(GRID)),
+        }
+        (LOGS_DIR / "dry_run.json").write_text(_json.dumps(_dry_info, indent=2))
+        print(f"✅ dry_run complete — wrote {LOGS_DIR / 'dry_run.json'}")
+        return
 
     GRID_SAVE = {"save_each_model": True}
 

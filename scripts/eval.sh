@@ -27,3 +27,10 @@ else
         --dataset_root "$DATASET_ROOT" \
         --run_dir      "$LATEST_RUN"
 fi
+
+# --- Commit 3H: smoke-test examples (uncomment to use) ---
+# python -u -m src.evaluation.evaluate \
+#     --dataset_root "$DATASET_ROOT" --run_dir /path/to/outputs/run_x \
+#     --max_experiments 1 --max_samples_per_exp 200000
+# python -u -m src.evaluation.evaluate \
+#     --dataset_root "$DATASET_ROOT" --run_dir /path/to/outputs/run_x --dry_run
