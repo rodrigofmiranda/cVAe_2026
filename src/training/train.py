@@ -43,6 +43,10 @@ def parse_args():
                         help="Override random seed (default: use TRAINING_CONFIG)")
     parser.add_argument("--max_grids", type=int, default=None,
                         help="Limit number of grid configurations executed (default: all)")
+    parser.add_argument("--grid_group", type=str, default=None,
+                        help="Regex filter: keep grids whose group matches (default: all)")
+    parser.add_argument("--grid_tag", type=str, default=None,
+                        help="Regex filter: keep grids whose tag matches (default: all)")
     parser.add_argument("--dry_run", action="store_true",
                         help="Load+split+build model+print shapes, then exit without training")
     return parser.parse_args()
@@ -71,6 +75,10 @@ def main():
         overrides["seed"] = args.seed
     if args.max_grids is not None:
         overrides["max_grids"] = args.max_grids
+    if args.grid_group is not None:
+        overrides["grid_group"] = args.grid_group
+    if args.grid_tag is not None:
+        overrides["grid_tag"] = args.grid_tag
     if args.dry_run:
         overrides["dry_run"] = True
 

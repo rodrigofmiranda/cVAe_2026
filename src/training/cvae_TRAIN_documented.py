@@ -371,11 +371,19 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
 
     print(f"📊 GRID TOTAL (enxuto) = {len(GRID)} runs")
 
-    # --- Commit 3I: limit number of grid configs for smoke-tests ---
-    if "max_grids" in _ov and _ov["max_grids"] is not None:
-        _mg = int(_ov["max_grids"])
-        GRID = GRID[:max(1, _mg)]
-        print(f"⚡ Commit 3I: limited grid to {len(GRID)} run(s)")
+    # --- Commit 3I: grid selection controls (group/tag filter + max_grids) ---
+    _grid_orig = len(GRID)
+    if _ov.get("grid_group") is not None:
+        GRID = [g for g in GRID if re.search(_ov["grid_group"], g.get("group", ""))]
+    if _ov.get("grid_tag") is not None:
+        GRID = [g for g in GRID if re.search(_ov["grid_tag"], g.get("tag", ""))]
+    if _ov.get("max_grids") is not None:
+        GRID = GRID[:max(1, int(_ov["max_grids"]))]
+    if len(GRID) != _grid_orig:
+        _tags_preview = ", ".join(g["tag"] for g in GRID[:5])
+        if len(GRID) > 5:
+            _tags_preview += f" … (+{len(GRID) - 5} more)"
+        print(f"⚡ Commit 3I: grid {_grid_orig} → {len(GRID)} | [{_tags_preview}]")
 
     # ==========================================================
     # Seeds

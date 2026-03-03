@@ -21,7 +21,13 @@ python -u -m src.training.train \
 #     --max_epochs 2 --max_experiments 1 --max_samples_per_exp 200000
 # python -u -m src.training.train \
 #     --dataset_root "$DATASET_ROOT" --output_base "$OUTPUT_BASE" --dry_run
-# --- Commit 3I: limit grid configs ---
+# --- Commit 3I: grid selection controls ---
 # python -u -m src.training.train \
 #     --dataset_root "$DATASET_ROOT" --output_base "$OUTPUT_BASE" \
 #     --max_epochs 2 --max_experiments 1 --max_grids 1
+# python -u -m src.training.train \
+#     --dataset_root "$DATASET_ROOT" --output_base "$OUTPUT_BASE" \
+#     --max_epochs 2 --grid_group "G1_core"
+# python -u -m src.training.train \
+#     --dataset_root "$DATASET_ROOT" --output_base "$OUTPUT_BASE" \
+#     --max_epochs 2 --grid_tag "lat4.*b0p001"
