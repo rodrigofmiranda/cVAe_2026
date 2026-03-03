@@ -105,6 +105,32 @@ Referências (sugestões)
 - Modelagem data-driven de canal VLC e canais desconhecidos via modelos generativos (2020+).
 
 Última atualização: 2026-03-01
+
+Digital Twin Channel Modeling Constraints (MUST READ)
+-----------------------------------------------------
+These invariants MUST hold for every architectural change:
+
+1. **Decoder inputs = [x, d, c, z] only.**
+   The received signal y MUST NEVER be fed to the decoder under any
+   circumstances.  If y reaches the decoder, the model degenerates to
+   an identity map and is useless at inference (where y is unknown).
+
+2. **Encoder inputs = [x, d, c, y].**
+   y enters ONLY the encoder (approximate posterior), which is
+   discarded at inference and replaced by the conditional prior.
+
+3. **Prior inputs = [x, d, c].**
+   The prior network must predict z from observable conditions alone.
+
+4. **Split = per-experiment head_tail.**
+   No global shuffle.  Temporal order within each (d,c) regime is
+   preserved to avoid leakage.
+
+5. **Heteroscedastic decoder.**
+   The decoder outputs both μ and log σ² (diagonal Gaussian).
+   Log-variance is clipped to prevent numerical instability.
+
+See also: docs/MODELING_ASSUMPTIONS.md for formal derivations.
 """
 
 # ---------------------------------------------------------------------------
