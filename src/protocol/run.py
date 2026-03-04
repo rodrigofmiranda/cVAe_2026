@@ -41,6 +41,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from src.config.overrides import RunOverrides
+
 
 # ---------------------------------------------------------------------------
 # CLI
@@ -355,44 +357,16 @@ def _load_protocol_yaml(path: str) -> dict:
     return proto
 
 
-def _merge_overrides(protocol_globals: dict, cli_args: argparse.Namespace) -> dict:
+def _merge_overrides(protocol_globals: dict, cli_args: argparse.Namespace) -> RunOverrides:
     """
-    Build the overrides dict for a single regime by layering:
+    Build the overrides for a single regime by layering:
         protocol global_settings  <  CLI flags (explicit wins)
+
+    Returns a :class:`RunOverrides` dataclass (call ``.to_dict()``
+    when a plain dict is needed by legacy consumers).
     """
-    ov = {}
-    pg = protocol_globals or {}
-
-    # mapping: override_key -> (protocol_key, cli_attr, cast)
-    _MAP = [
-        ("seed",                "seed",                "seed",                int),
-        ("val_split",           "val_split",           "val_split",           float),
-        ("max_epochs",          "max_epochs",          "max_epochs",          int),
-        ("max_grids",           "max_grids",           "max_grids",          int),
-        ("grid_group",          "grid_group",          "grid_group",          str),
-        ("grid_tag",            "grid_tag",            "grid_tag",            str),
-        ("max_experiments",     "max_experiments",     "max_experiments",     int),
-        ("max_samples_per_exp", "max_samples_per_exp", "max_samples_per_exp", int),
-        ("psd_nfft",            "psd_nfft",            "psd_nfft",            int),
-        ("max_dist_samples",    "max_dist_samples",    "max_dist_samples",    int),
-        ("gauss_alpha",         "gauss_alpha",         "gauss_alpha",         float),
-        ("dist_tol_m",          "dist_tol_m",          "dist_tol_m",          float),
-        ("curr_tol_mA",         "curr_tol_mA",         "curr_tol_mA",         float),
-        ("keras_verbose",       "keras_verbose",       "keras_verbose",       int),
-    ]
-
-    for ov_key, pg_key, cli_attr, cast in _MAP:
-        # CLI takes precedence
-        cli_val = getattr(cli_args, cli_attr, None)
-        if cli_val is not None:
-            ov[ov_key] = cast(cli_val)
-        elif pg.get(pg_key) is not None:
-            ov[ov_key] = cast(pg[pg_key])
-
-    if cli_args.dry_run:
-        ov["dry_run"] = True
-
-    return ov
+    cli_ov = RunOverrides.from_namespace(cli_args)
+    return RunOverrides.merge(protocol_globals, cli_ov)
 
 
 def _git_commit_hash() -> str:
@@ -1007,8 +981,9 @@ def main():
     proto_globals = protocol.get("global_settings", {})
     regimes = protocol["regimes"]
 
-    # Merge protocol globals + CLI overrides
+    # Merge protocol globals + CLI overrides → typed RunOverrides
     base_overrides = _merge_overrides(proto_globals, args)
+    base_overrides_dict = base_overrides.to_dict()          # legacy compat
 
     # Experiment output directory (single folder per protocol run)
     exp_dir = Path(args.output_base) / f"exp_{ts_label}"
@@ -1056,7 +1031,7 @@ def main():
             r = run_regime(
                 regime=regime,
                 dataset_root=args.dataset_root,
-                base_overrides=base_overrides,
+                base_overrides=base_overrides_dict,
                 protocol_dir=regimes_dir,
                 skip_eval=args.skip_eval,
                 run_baseline=not args.no_baseline,
@@ -1077,9 +1052,9 @@ def main():
 
     # ---- Write manifest ----
     ts_end = datetime.now()
-    _psd_nfft_eff = int(base_overrides.get("psd_nfft", 2048))
-    _ga_eff = float(base_overrides.get("gauss_alpha", 0.01))
-    _mds_eff = int(base_overrides.get("max_dist_samples", 200_000))
+    _psd_nfft_eff = base_overrides.psd_nfft or 2048
+    _ga_eff = base_overrides.gauss_alpha or 0.01
+    _mds_eff = base_overrides.max_dist_samples or 200_000
     manifest = {
         "protocol_version": protocol.get("protocol_version", "1.0"),
         "timestamp_start": ts_start.isoformat(timespec="seconds"),
@@ -1110,7 +1085,7 @@ def main():
             "gauss_alpha": _ga_eff,
             "max_dist_samples": _mds_eff,
         },
-        "base_overrides": base_overrides,
+        "base_overrides": base_overrides_dict,
         "n_studies": len(studies_meta),
         "studies": [
             {

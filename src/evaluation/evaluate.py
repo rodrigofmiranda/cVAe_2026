@@ -20,6 +20,8 @@ Usage
 import argparse
 import os
 
+from src.config.overrides import RunOverrides
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate trained cVAE")
@@ -58,16 +60,9 @@ def main():
         _state = _json.loads(_state_path.read_text(encoding="utf-8"))
         ensure_state_run_compat(_state)  # mutates in-place, logs warnings
 
-    # Commit 3H: build overrides dict from CLI flags
-    overrides = {}
-    if args.max_experiments is not None:
-        overrides["max_experiments"] = args.max_experiments
-    if args.max_samples_per_exp is not None:
-        overrides["max_samples_per_exp"] = args.max_samples_per_exp
-    if args.psd_nfft is not None:
-        overrides["psd_nfft"] = args.psd_nfft
-    if args.dry_run:
-        overrides["dry_run"] = True
+    # Build typed overrides from CLI flags
+    overrides_obj = RunOverrides.from_namespace(args)
+    overrides = overrides_obj.to_dict()
 
     # Import here to avoid triggering heavy TF initialization on module load
     from src.evaluation import analise_cvae_reviewed as eval_module

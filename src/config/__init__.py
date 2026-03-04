@@ -14,4 +14,4 @@ from src.config.io import (  # noqa: F401
     merge_overrides,
     ensure_state_run_compat,
 )
-from src.config.schema import TrainConfig, DataConfig, RunMeta  # noqa: F401
+from src.config.schema import TrainConfig, DataConfig, RunMeta  # noqa: F401\nfrom src.config.overrides import RunOverrides  # noqa: F401
