@@ -156,6 +156,10 @@ from src.data.loading import (                          # Commits 3A–3B
     reduce_experiment_xy, load_experiments_as_list,
 )
 from src.data.splits import split_train_val_per_experiment  # Commit 3D
+from src.data.normalization import (                    # refactor(step2)
+    normalize_conditions, compute_condition_norm_params,
+    apply_condition_norm,
+)
 from src.evaluation.metrics import (                    # Commit 3E
     calculate_evm, calculate_snr,
     _skew_kurt, _psd_log, residual_distribution_metrics,
@@ -546,15 +550,12 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         f"D={len(D_val)} C={len(C_val)}"
     )
 
-    # Normalização (recomendado: baseada no TREINO, para evitar leakage)
-    D_min, D_max = float(D_train.min()), float(D_train.max())
-    C_min, C_max = float(C_train.min()), float(C_train.max())
-
-    Dn_train = (D_train - D_min) / (D_max - D_min) if D_max > D_min else np.zeros_like(D_train)
-    Cn_train = (C_train - C_min) / (C_max - C_min) if C_max > C_min else np.full_like(C_train, 0.5)
-
-    Dn_val = (D_val - D_min) / (D_max - D_min) if D_max > D_min else np.zeros_like(D_val)
-    Cn_val = (C_val - C_min) / (C_max - C_min) if C_max > C_min else np.full_like(C_val, 0.5)
+    # Normalização (refactor step2: delegated to src.data.normalization)
+    Dn_train, Cn_train, Dn_val, Cn_val, _norm_params = normalize_conditions(
+        D_train, C_train, D_val, C_val,
+    )
+    D_min, D_max = _norm_params["D_min"], _norm_params["D_max"]
+    C_min, C_max = _norm_params["C_min"], _norm_params["C_max"]
 
     # --- Commit 3R: log actual D/C ranges + unique values ---
     _d_unique = sorted(np.unique(D_train).tolist())

@@ -2,8 +2,9 @@
 """
 CLI entrypoint for training.
 
-This module wraps the existing training monolith logic
-into an explicit command-line executable.
+Routes through :func:`src.training.engine.train_engine`, which
+currently delegates to the monolith but provides a clean API
+surface for future refactoring.
 
 No architectural or loss changes.
 
@@ -86,10 +87,16 @@ def main():
     if args.dry_run:
         overrides["dry_run"] = True
 
-    # Import here to avoid triggering heavy TF initialization on module load
-    from src.training import cvae_TRAIN_documented as train_module
+    # Route through the training engine (which currently delegates to the monolith)
+    from src.training.engine import train_engine
 
-    train_module.main(overrides=overrides)
+    summary = train_engine(
+        dataset_root=args.dataset_root,
+        output_base=args.output_base,
+        run_id=args.run_id,
+        overrides=overrides,
+    )
+    print(f"\n🏁 train_engine status: {summary.get('status', '?')}")
 
 
 if __name__ == "__main__":
