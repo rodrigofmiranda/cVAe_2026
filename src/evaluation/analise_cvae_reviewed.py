@@ -37,6 +37,16 @@ from src.models.cvae_components import (                # Commit 3F
     Sampling, CondPriorVAELoss,
 )
 from src.training.logging import RunPaths                # refactor(core)
+from src.evaluation.plots import (                       # refactor(step4)
+    plot_overlay, plot_residual_overlay, plot_histograms,
+    plot_psd, plot_latent_activity, plot_latent_kl,
+    plot_training_history, plot_summary_report,
+)
+from src.evaluation.report import (                      # refactor(step4)
+    build_global_metrics, compute_latent_diagnostics,
+    decoder_sensitivity, load_training_history,
+    build_summary_text,
+)
 
 
 def main(overrides=None):  # Commit 3H: optional CLI overrides dict
@@ -343,7 +353,7 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         var_mc = float(np.mean(np.var(Ys, axis=0)))
 
     # ==========================================================
-    # 7) Métricas globais + salvar JSON/CSV
+    # 7) Métricas globais + salvar JSON/CSV  (refactor step 4: report module)
     # ==========================================================
     evmi_real, _ = calculate_evm(Xv, Yv)
     evmi_pred, _ = calculate_evm(Xv, Yp)
@@ -363,110 +373,61 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         distm = {k: float("nan") for k in ["delta_mean_l2", "delta_cov_fro", "var_real_delta", "var_pred_delta",
                                            "delta_skew_l2", "delta_kurt_l2", "delta_psd_l2"]}
 
-    global_metrics = {
-        "timestamp": datetime.now().isoformat(timespec="seconds"),
-        "run_id": state.get("run_id", RUN_DIR.name),
-        "model_path": str(best_model_path),
-        "split_mode": split_mode,
-        "N_eval": int(N),
-        "evm_real_%": float(evmi_real),
-        "evm_pred_%": float(evmi_pred),
-        "delta_evm_%": float(evmi_pred - evmi_real),
-        "snr_real_db": float(snr_real),
-        "snr_pred_db": float(snr_pred),
-        "delta_snr_db": float(snr_pred - snr_real),
-        **{k: float(v) for k, v in distm.items()},
-        "deterministic_inference": bool(det_inf),
-        "rank_mode": str(rank_mode),
-        "mc_samples": int(mc_samples),
-        "var_mc_gen": (float(var_mc) if not np.isnan(var_mc) else float("nan")),
-    }
+    global_metrics = build_global_metrics(
+        run_id=state.get("run_id", RUN_DIR.name),
+        model_path=str(best_model_path),
+        split_mode=split_mode,
+        N_eval=int(N),
+        evm_real=float(evmi_real),
+        evm_pred=float(evmi_pred),
+        snr_real=float(snr_real),
+        snr_pred=float(snr_pred),
+        distm=distm,
+        det_inf=bool(det_inf),
+        rank_mode=str(rank_mode),
+        mc_samples=int(mc_samples),
+        var_mc=float(var_mc) if not np.isnan(var_mc) else float("nan"),
+    )
 
     _rp.write_json("logs/metricas_globais_reanalysis.json", global_metrics)
     print(f"✓ metricas_globais_reanalysis.json salvo: {LOGS_DIR / 'metricas_globais_reanalysis.json'}")
     _rp.write_table("tables/metricas_globais_reanalysis.csv", pd.DataFrame([global_metrics]))
 
     # ==========================================================
-    # 8) Diagnósticos do latente
+    # 8) Diagnósticos do latente (refactor step 4: report module)
     # ==========================================================
     enc_out = encoder.predict([Xv, Dv, Cv, Yv], batch_size=bs_inf, verbose=0)
     pri_out = prior.predict([Xv, Dv, Cv], batch_size=bs_inf, verbose=0)
     z_mean_q, z_log_var_q = _first2(enc_out)
     z_mean_p, z_log_var_p = _first2(pri_out)
 
-    z_std_p = np.std(z_mean_p, axis=0)
-    active_dims = int(np.sum(z_std_p > 0.05))
+    lat_diag = compute_latent_diagnostics(z_mean_q, z_log_var_q, z_mean_p, z_log_var_p)
+    df_lat = lat_diag["df_lat"]
+    lat_summary = lat_diag["lat_summary"]
+    z_std_p = lat_diag["z_std_p"]
+    active_dims = lat_diag["active_dims"]
+    kl_qp_total_mean = lat_diag["kl_qp_total_mean"]
+    kl_pN_total_mean = lat_diag["kl_pN_total_mean"]
 
-    vq = np.exp(np.clip(z_log_var_q, -20, 20))
-    vp = np.exp(np.clip(z_log_var_p, -20, 20))
-
-    kl_qp_dim = 0.5 * (
-        np.log(vp + 1e-12)
-        - np.log(vq + 1e-12)
-        + (vq + (z_mean_q - z_mean_p) ** 2) / (vp + 1e-12)
-        - 1.0
-    )
-    kl_qp_dim_mean = np.mean(kl_qp_dim, axis=0)
-    kl_qp_total_mean = float(np.mean(np.sum(kl_qp_dim, axis=1)))
-
-    lv_p_clip = np.clip(z_log_var_p, -20, 20)
-    kl_pN_dim = 0.5 * (np.exp(lv_p_clip) + z_mean_p ** 2 - 1.0 - lv_p_clip)
-    kl_pN_dim_mean = np.mean(kl_pN_dim, axis=0)
-    kl_pN_total_mean = float(np.mean(np.sum(kl_pN_dim, axis=1)))
-
-    df_lat = pd.DataFrame({
-        "dim": np.arange(z_std_p.shape[0]),
-        "std_mu_p": z_std_p.astype(float),
-        "kl_q_to_p_dim_mean": kl_qp_dim_mean.astype(float),
-        "kl_p_to_N0I_dim_mean": kl_pN_dim_mean.astype(float),
-    })
     _rp.write_table("tables/latent_diagnostics.xlsx", df_lat)
     print(f"✓ latent_diagnostics.xlsx salvo: {TABLES_DIR / 'latent_diagnostics.xlsx'}")
-
-    lat_summary = {
-        "active_dims_std_mu_p_gt_0p05": int(active_dims),
-        "kl_q_to_p_total_mean": float(kl_qp_total_mean),
-        "kl_p_to_N0I_total_mean": float(kl_pN_total_mean),
-    }
     _rp.write_json("logs/latent_summary.json", lat_summary)
 
     # ==========================================================
-    # 9) Sensibilidade do decoder ao z (teste de colapso)
+    # 9) Sensibilidade do decoder ao z (refactor step 4: report module)
     # ==========================================================
-    def decoder_sensitivity(prior_net, decoder_net, Xb, Db, Cb, n_mc_z=16):
-        mu_p, lv_p = prior_net.predict([Xb, Db, Cb], batch_size=bs_inf, verbose=0)
-        lv_p = np.clip(lv_p, -10, 10)
-        std_p = np.exp(0.5 * lv_p)
-
-        cond = np.concatenate([Xb, Db, Cb], axis=1)
-
-        outs = []
-        for _ in range(int(n_mc_z)):
-            eps = np.random.randn(*mu_p.shape).astype(np.float32)
-            z = mu_p + std_p * eps
-            out_params = decoder_net.predict([z, cond], batch_size=bs_inf, verbose=0)
-            y_mean = out_params[:, :2]
-            outs.append(y_mean)
-
-        outs = np.stack(outs, axis=0)  # [K,N,2]
-        v = np.var(outs, axis=0)       # [N,2]
-        return float(np.mean(v)), float(np.mean(np.sqrt(np.sum(v, axis=1))))
-
     Nb = min(20000, N)
-    sens_var_mean, sens_rms = decoder_sensitivity(prior, decoder, Xv[:Nb], Dv[:Nb], Cv[:Nb], n_mc_z=16)
-
-    sens = {"decoder_output_variance_mean": float(sens_var_mean), "decoder_output_rms_std": float(sens_rms)}
+    sens = decoder_sensitivity(prior, decoder, Xv[:Nb], Dv[:Nb], Cv[:Nb],
+                               n_mc_z=16, batch_size=bs_inf)
+    sens_var_mean = sens["decoder_output_variance_mean"]
+    sens_rms = sens["decoder_output_rms_std"]
     _rp.write_json("logs/decoder_sensitivity.json", sens)
 
     # ==========================================================
-    # 10) Plots
+    # 10) Plots (refactor step 4: plots module)
     # ==========================================================
-    def _savefig(path: Path):
-        plt.tight_layout()
-        plt.savefig(path, dpi=180)
-        plt.close()
 
-    # 10.1 Loss curves (training_history.json)
+    # 10.1 Loss curves
     train_hist_path = None
     cand = state.get("artifacts", {}).get("training_history_json", "")
     if cand:
@@ -476,124 +437,48 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
 
     if train_hist_path is not None and Path(train_hist_path).exists():
         try:
-            hist = json.loads(Path(train_hist_path).read_text(encoding="utf-8"))
-
-            # aceita payload do treino (com "history") ou dict keras puro
-            if isinstance(hist, dict) and "history" in hist and isinstance(hist["history"], dict):
-                dfh = pd.DataFrame(hist["history"])
-            elif isinstance(hist, dict) and "loss" in hist:
-                dfh = pd.DataFrame(hist)
-            elif isinstance(hist, list):
-                dfh = pd.DataFrame(hist)
-            else:
-                dfh = None
-
-            if dfh is not None and len(dfh) > 0:
+            dfh = load_training_history(train_hist_path)
+            if dfh is not None:
                 _rp.write_table("tables/training_history.xlsx", dfh)
-
-                plt.figure()
-                for col in ["loss", "val_loss", "recon_loss", "val_recon_loss", "kl_loss", "val_kl_loss"]:
-                    if col in dfh.columns:
-                        plt.plot(dfh[col].values, label=col)
-                plt.xlabel("epoch")
-                plt.ylabel("value")
-                plt.title("Training history")
-                plt.legend()
-                _savefig(PLOTS_DIR / "training_history.png")
+                plot_training_history(
+                    {c: dfh[c].values.tolist() for c in dfh.columns},
+                    PLOTS_DIR / "training_history.png",
+                )
         except Exception as e:
             print(f"⚠ Falha ao ler/plotar training_history: {e}")
 
-    # 10.2 Constellation overlay (Y real vs Y pred)
-    Ns = min(80000, N)
-    Xps = Xv[:Ns]
-    Yrs = Yv[:Ns]
-    Yps = Yp[:Ns]
-
-    plt.figure()
-    plt.scatter(Yrs[:, 0], Yrs[:, 1], s=2, alpha=0.35, label="Y real")
-    plt.scatter(Yps[:, 0], Yps[:, 1], s=2, alpha=0.35, label="Y pred")
-    plt.xlabel("I")
-    plt.ylabel("Q")
-    plt.title("Constellation overlay: Y real vs Y pred")
-    plt.legend(markerscale=4)
-    _savefig(PLOTS_DIR / "overlay_constellation.png")
+    # 10.2 Constellation overlay
+    plot_overlay(Yv, Yp, PLOTS_DIR / "overlay_constellation.png", max_points=80_000)
 
     # 10.3 Residual Δ overlay
-    Dr = (Yrs - Xps)
-    Dp = (Yps - Xps)
-    plt.figure()
-    plt.scatter(Dr[:, 0], Dr[:, 1], s=2, alpha=0.35, label="Δ real = Y-X")
-    plt.scatter(Dp[:, 0], Dp[:, 1], s=2, alpha=0.35, label="Δ pred = Ŷ-X")
-    plt.xlabel("ΔI")
-    plt.ylabel("ΔQ")
-    plt.title("Residual constellation overlay (Δ)")
-    plt.legend(markerscale=4)
-    _savefig(PLOTS_DIR / "overlay_residual_delta.png")
+    plot_residual_overlay(Xv, Yv, Yp, PLOTS_DIR / "overlay_residual_delta.png", max_points=80_000)
 
-    # 10.4 Hist2D density comparison
-    bins = 160
-    plt.figure()
-    plt.hist2d(Yrs[:, 0], Yrs[:, 1], bins=bins)
-    plt.xlabel("I")
-    plt.ylabel("Q")
-    plt.title("Density: Y real (hist2d)")
-    _savefig(PLOTS_DIR / "density_y_real.png")
+    # 10.4 Hist2D density
+    plot_histograms(Yv, PLOTS_DIR / "density_y_real.png", title="Density: Y real (hist2d)")
+    plot_histograms(Yp, PLOTS_DIR / "density_y_pred.png", title="Density: Y pred (hist2d)")
 
-    plt.figure()
-    plt.hist2d(Yps[:, 0], Yps[:, 1], bins=bins)
-    plt.xlabel("I")
-    plt.ylabel("Q")
-    plt.title("Density: Y pred (hist2d)")
-    _savefig(PLOTS_DIR / "density_y_pred.png")
-
-    # 10.5 PSD residual (log)
-    cr = Dr[:, 0] + 1j * Dr[:, 1]
-    cp = Dp[:, 0] + 1j * Dp[:, 1]
-    psd_r = _psd_log(cr, nfft=psd_nfft)
-    psd_p = _psd_log(cp, nfft=psd_nfft)
-
-    plt.figure()
-    plt.plot(psd_r, label="Δ real")
-    plt.plot(psd_p, label="Δ pred")
-    plt.xlabel("freq bin")
-    plt.ylabel("log10 PSD")
-    plt.title("Residual PSD comparison")
-    plt.legend()
-    _savefig(PLOTS_DIR / "psd_residual_delta.png")
+    # 10.5 PSD residual
+    plot_psd(Xv, Yv, Yp, PLOTS_DIR / "psd_residual_delta.png", nfft=psd_nfft)
 
     # 10.6 Latent diagnostics plots
-    plt.figure()
-    plt.bar(df_lat["dim"].values, df_lat["std_mu_p"].values)
-    plt.xlabel("latent dim")
-    plt.ylabel("std(μ_p)")
-    plt.title(f"Latent activity (active dims={active_dims})")
-    _savefig(PLOTS_DIR / "latent_activity_std_mu_p.png")
-
-    plt.figure()
-    plt.plot(df_lat["dim"].values, df_lat["kl_q_to_p_dim_mean"].values, label="KL(q||p)")
-    plt.plot(df_lat["dim"].values, df_lat["kl_p_to_N0I_dim_mean"].values, label="KL(p||N)")
-    plt.xlabel("latent dim")
-    plt.ylabel("KL mean")
-    plt.title("Latent KL per dimension")
-    plt.legend()
-    _savefig(PLOTS_DIR / "latent_kl_per_dim.png")
+    plot_latent_activity(z_std_p, PLOTS_DIR / "latent_activity_std_mu_p.png",
+                         active_dims=active_dims)
+    plot_latent_kl(df_lat["dim"].values, df_lat["kl_q_to_p_dim_mean"].values,
+                   df_lat["kl_p_to_N0I_dim_mean"].values,
+                   PLOTS_DIR / "latent_kl_per_dim.png")
 
     # 10.7 Summary figure
-    plt.figure()
-    plt.axis("off")
-    text = (
-        f"Run: {state.get('run_id', RUN_DIR.name)}\n"
-        f"Split mode: {split_mode}\n"
-        f"N_eval: {N}\n"
-        f"EVM real: {evmi_real:.3f}% | EVM pred: {evmi_pred:.3f}% | ΔEVM: {evmi_pred-evmi_real:+.3f} p.p.\n"
-        f"SNR real: {snr_real:.3f} dB | SNR pred: {snr_pred:.3f} dB | ΔSNR: {snr_pred-snr_real:+.3f} dB\n"
-        f"Δ mean L2: {distm['delta_mean_l2']:.4g} | Δ cov Fro: {distm['delta_cov_fro']:.4g} | Δ PSD L2: {distm['delta_psd_l2']:.4g}\n"
-        f"Latent active dims (std μ_p>0.05): {active_dims}\n"
-        f"KL(q||p) total mean: {kl_qp_total_mean:.4g} | KL(p||N) total mean: {kl_pN_total_mean:.4g}\n"
-        f"Decoder sensitivity var_mean: {sens_var_mean:.4g} | rms_std: {sens_rms:.4g}\n"
+    summary_text = build_summary_text(
+        run_id=state.get("run_id", RUN_DIR.name),
+        split_mode=split_mode, N_eval=N,
+        evm_real=evmi_real, evm_pred=evmi_pred,
+        snr_real=snr_real, snr_pred=snr_pred,
+        distm=distm, active_dims=active_dims,
+        kl_qp_total_mean=kl_qp_total_mean,
+        kl_pN_total_mean=kl_pN_total_mean,
+        sens_var_mean=sens_var_mean, sens_rms=sens_rms,
     )
-    plt.text(0.02, 0.98, text, va="top", family="monospace")
-    _savefig(PLOTS_DIR / "summary_report.png")
+    plot_summary_report(summary_text, PLOTS_DIR / "summary_report.png")
 
     print("\n✅ Análise concluída.")
     print(f"📌 Figuras em: {PLOTS_DIR}")
