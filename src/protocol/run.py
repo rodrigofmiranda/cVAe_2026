@@ -110,6 +110,32 @@ def _load_protocol(path: Optional[str]) -> dict:
     proto = json.loads(Path(path).read_text(encoding="utf-8"))
     if "regimes" not in proto or not proto["regimes"]:
         raise ValueError("Protocol JSON must contain a non-empty 'regimes' list.")
+    # Tag regimes with implicit within_regime study (Commit 3X)
+    proto = _ensure_studies(proto)
+    return proto
+
+
+def _ensure_studies(proto: dict) -> dict:
+    """Ensure protocol dict has ``_studies`` metadata.
+
+    When the protocol was loaded from JSON (no ``_studies`` key),
+    wraps all regimes into a single ``within_regime`` study with
+    ``per_experiment`` split.  This keeps the JSON path fully
+    backward-compatible.
+
+    Commit 3X.
+    """
+    if "_studies" in proto:
+        return proto
+    regimes = proto["regimes"]
+    for r in regimes:
+        r.setdefault("_study", "within_regime")
+        r.setdefault("_split_strategy", "per_experiment")
+    proto["_studies"] = [{
+        "name": "within_regime",
+        "split_strategy": "per_experiment",
+        "regime_ids": [r["regime_id"] for r in regimes],
+    }]
     return proto
 
 
@@ -123,48 +149,94 @@ def _regime_id_from_point(distance_m: float, current_mA: float) -> str:
 def _load_protocol_yaml(path: str) -> dict:
     """Load protocol config from YAML and return the same dict structure as _load_protocol.
 
-    The YAML file must contain a top-level ``regimes`` list.  Each entry
-    requires ``distance_m`` and ``current_mA``; ``regime_id`` and
-    ``description`` are auto-generated when absent.
+    Supports two YAML layouts:
 
-    Commit 3U.
+    1. **studies** (new — Commit 3X):
+       Top-level ``studies`` list.  Each study has ``name``,
+       ``split_strategy``, and ``selectors``.  Selectors are expanded
+       into regime dicts with ``_study`` and ``_split_strategy`` tags.
+
+    2. **regimes** (legacy — Commit 3U):
+       Top-level ``regimes`` list, auto-wrapped into a single
+       ``within_regime`` study.
+
+    Returns the canonical protocol dict consumed by ``main()``.
     """
     import yaml
 
     raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
-    if not isinstance(raw, dict) or "regimes" not in raw or not raw["regimes"]:
-        raise ValueError(f"Protocol YAML '{path}' must contain a non-empty 'regimes' list.")
+    if not isinstance(raw, dict):
+        raise ValueError(f"Protocol YAML '{path}' must be a mapping.")
 
-    regimes = []
+    # --- Normalise to studies list ---
+    raw_studies = raw.get("studies")
+    if raw_studies:
+        studies = list(raw_studies)
+    elif raw.get("regimes"):
+        # Legacy: bare regimes → wrap into a single study
+        studies = [{
+            "name": "within_regime",
+            "split_strategy": "per_experiment",
+            "selectors": list(raw["regimes"]),
+        }]
+    else:
+        raise ValueError(
+            f"Protocol YAML '{path}' must contain 'studies' or 'regimes'."
+        )
+
+    # --- Expand studies into flat regimes list (tagged) ---
+    regimes: List[dict] = []
     seen_ids: set = set()
-    for entry in raw["regimes"]:
-        dist = float(entry["distance_m"])
-        curr = float(entry["current_mA"])
+    resolved_studies: List[dict] = []
 
-        rid = entry.get("regime_id") or _regime_id_from_point(dist, curr)
-        if rid in seen_ids:
-            raise ValueError(f"Duplicate regime_id '{rid}' in YAML config.")
-        seen_ids.add(rid)
+    for study in studies:
+        sname = str(study.get("name", "default"))
+        split_strat = str(study.get("split_strategy", "per_experiment"))
+        selectors = study.get("selectors", [])
+        if not selectors:
+            raise ValueError(f"Study '{sname}' has no selectors.")
 
-        desc = entry.get("description", f"{dist} m / {int(curr)} mA")
+        study_regime_ids: List[str] = []
+        for entry in selectors:
+            dist = float(entry["distance_m"])
+            curr = float(entry["current_mA"])
 
-        regime = {
-            "regime_id": rid,
-            "description": desc,
-            "distance_m": dist,
-            "current_mA": curr,
-        }
-        # forward any extra per-regime keys
-        for k, v in entry.items():
-            if k not in regime:
-                regime[k] = v
-        regimes.append(regime)
+            rid = entry.get("regime_id") or _regime_id_from_point(dist, curr)
+            # Prefix with study name to avoid cross-study collisions
+            full_rid = f"{sname}/{rid}" if len(studies) > 1 else rid
+            if full_rid in seen_ids:
+                raise ValueError(f"Duplicate regime_id '{full_rid}' in YAML config.")
+            seen_ids.add(full_rid)
+
+            desc = entry.get("description", f"{dist} m / {int(curr)} mA")
+
+            regime: Dict[str, object] = {
+                "regime_id": full_rid,
+                "description": desc,
+                "distance_m": dist,
+                "current_mA": curr,
+                "_study": sname,
+                "_split_strategy": split_strat,
+            }
+            # Forward any extra per-selector keys
+            for k, v in entry.items():
+                if k not in regime:
+                    regime[k] = v
+            regimes.append(regime)
+            study_regime_ids.append(full_rid)
+
+        resolved_studies.append({
+            "name": sname,
+            "split_strategy": split_strat,
+            "regime_ids": study_regime_ids,
+        })
 
     proto = {
         "protocol_version": str(raw.get("protocol_version", "1.0")),
         "description": raw.get("description", ""),
         "global_settings": raw.get("global_settings", {}),
         "regimes": regimes,
+        "_studies": resolved_studies,
     }
     return proto
 
@@ -711,6 +783,7 @@ def build_summary_table(results: List[dict]) -> "pd.DataFrame":
         bd = r.get("baseline_dist", {})
         cd = r.get("cvae_dist", {})
         row = {
+            "study": r.get("_study", "within_regime"),
             "regime_id": r["regime_id"],
             "description": r.get("description", ""),
             "run_id": r["run_id"],
@@ -819,7 +892,10 @@ def main():
     (protocol_dir / "tables").mkdir(exist_ok=True)
     (protocol_dir / "logs").mkdir(exist_ok=True)
 
-    print(f"🚀 Protocol runner — {len(regimes)} regime(s)")
+    studies_meta = protocol.get("_studies", [])
+    multi_study = len(studies_meta) > 1
+
+    print(f"🚀 Protocol runner — {len(studies_meta)} study(ies), {len(regimes)} regime(s)")
     print(f"📁 Protocol dir: {protocol_dir}")
     print(f"🔧 Base overrides: {base_overrides}")
 
@@ -832,22 +908,40 @@ def main():
         import shutil
         shutil.copy2(_proto_config_path, protocol_dir / "logs" / "protocol_input.yaml")
 
-    # ---- Run each regime ----
+    # ---- Run studies → regimes ----
     results = []
-    for i, regime in enumerate(regimes, 1):
-        print(f"\n{'#'*70}")
-        print(f"# REGIME {i}/{len(regimes)}: {regime['regime_id']}")
-        print(f"{'#'*70}")
-        r = run_regime(
-            regime=regime,
-            dataset_root=args.dataset_root,
-            base_overrides=base_overrides,
-            protocol_dir=protocol_dir,
-            skip_eval=args.skip_eval,
-            run_baseline=not args.no_baseline,
-            run_dist_metrics=not args.no_dist_metrics,
-        )
-        results.append(r)
+    for si, study_info in enumerate(studies_meta, 1):
+        sname = study_info["name"]
+        study_rids = set(study_info["regime_ids"])
+        study_regimes = [r for r in regimes if r["regime_id"] in study_rids]
+
+        # Study output directory — single study keeps flat layout
+        study_dir = protocol_dir / sname if multi_study else protocol_dir
+
+        if multi_study:
+            study_dir.mkdir(parents=True, exist_ok=True)
+            print(f"\n{'='*70}")
+            print(f"= STUDY {si}/{len(studies_meta)}: {sname}")
+            print(f"= Split strategy: {study_info.get('split_strategy', 'per_experiment')}")
+            print(f"{'='*70}")
+
+        for ri, regime in enumerate(study_regimes, 1):
+            print(f"\n{'#'*70}")
+            print(f"# REGIME {ri}/{len(study_regimes)}: {regime['regime_id']}")
+            if multi_study:
+                print(f"# Study: {sname}")
+            print(f"{'#'*70}")
+            r = run_regime(
+                regime=regime,
+                dataset_root=args.dataset_root,
+                base_overrides=base_overrides,
+                protocol_dir=study_dir,
+                skip_eval=args.skip_eval,
+                run_baseline=not args.no_baseline,
+                run_dist_metrics=not args.no_dist_metrics,
+            )
+            r["_study"] = sname
+            results.append(r)
 
     # ---- Build summary table ----
     import pandas as pd
@@ -895,10 +989,21 @@ def main():
             "max_dist_samples": _mds_eff,
         },
         "base_overrides": base_overrides,
+        "n_studies": len(studies_meta),
+        "studies": [
+            {
+                "name": s["name"],
+                "split_strategy": s.get("split_strategy", "per_experiment"),
+                "n_regimes": len(s["regime_ids"]),
+                "regime_ids": s["regime_ids"],
+            }
+            for s in studies_meta
+        ],
         "n_regimes": len(regimes),
         "regimes": [
             {
                 "regime_id": r["regime_id"],
+                "study": r.get("_study", "within_regime"),
                 "run_id": r["run_id"],
                 "run_dir": r.get("run_dir", ""),
                 "train_status": r["train_status"],
@@ -922,10 +1027,11 @@ def main():
 
     # ---- Final summary to stdout ----
     print(f"\n{'='*70}")
-    print(f"✅ Protocol complete — {len(results)} regime(s)")
+    print(f"✅ Protocol complete — {len(studies_meta)} study(ies), {len(results)} regime(s)")
     print(f"   Duration: {ts_end - ts_start}")
     print(f"   Output:   {protocol_dir}")
     for r in results:
+        slab = f"[{r.get('_study', '?')}] " if multi_study else ""
         status = f"train={r['train_status']}, eval={r['eval_status']}"
         delta = ""
         m = r.get("metrics", {})
@@ -940,7 +1046,7 @@ def main():
             delta += f" | bl_Δmean={bd['delta_mean_l2']:.4f}"
         if cd.get("delta_mean_l2") is not None:
             delta += f" | cv_Δmean={cd['delta_mean_l2']:.4f}"
-        print(f"   • {r['regime_id']}: {status}{delta}")
+        print(f"   • {slab}{r['regime_id']}: {status}{delta}")
     print(f"{'='*70}")
 
 
