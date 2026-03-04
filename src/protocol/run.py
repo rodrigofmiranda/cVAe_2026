@@ -405,6 +405,48 @@ def run_regime(
         "error": None,
     }
 
+    # ---- Commit 3R: compute selected experiments early ----
+    # Needed by BOTH shared data loading AND training code.
+    _sel_paths = []         # populated below
+    _sel_criteria = {}      # populated below
+    try:
+        from src.data.loading import load_experiments_as_list as _leal
+        _ds = Path(dataset_root)
+        _dist_tol = float(ov.get("dist_tol_m", 0.05))
+        _curr_tol = float(ov.get("curr_tol_mA", 25.0))
+        _max_exp = ov.get("max_experiments")
+
+        print(f"\n📦 Loading data from {_ds}")
+        _all_exps, _ = _leal(_ds, verbose=False, reduction_config=None)
+        _filt_exps = _filter_experiments_for_regime(
+            _all_exps, regime, dist_tol_m=_dist_tol, curr_tol_mA=_curr_tol,
+        )
+        print(f"   🎯 After regime filter: {len(_filt_exps)} experiment(s) "
+              f"(dist_tol={_dist_tol}, curr_tol={_curr_tol})")
+        if _max_exp is not None:
+            _filt_exps = _filt_exps[:int(_max_exp)]
+
+        _sel_paths = [str(t[4]) for t in _filt_exps]
+        _sel_criteria = {
+            "distance_m": regime.get("distance_m"),
+            "current_mA": regime.get("current_mA"),
+            "dist_tol_m": _dist_tol,
+            "curr_tol_mA": _curr_tol,
+            "max_experiments": int(_max_exp) if _max_exp is not None else None,
+        }
+        print(f"   ✅ Selected experiments ({len(_sel_paths)}): {_sel_paths}")
+        del _all_exps  # free memory; _filt_exps kept for shared loading
+    except Exception as e:
+        print(f"⚠️  Experiment selection failed for regime '{regime_id}': {e}")
+        _filt_exps = []
+
+    result["selected_experiments"] = _sel_paths
+    result["selection_criteria"] = _sel_criteria
+    # Inject into overrides so training code uses the same selection (Commit 3R)
+    ov["_selected_experiments"] = _sel_paths
+    ov["_regime_distance_m"] = regime.get("distance_m")
+    ov["_regime_current_mA"] = regime.get("current_mA")
+
     # ---- SHARED DATA LOADING (Commit 3O) ----
     # Loaded once, shared by baseline + dist-metrics + quick cVAE inference.
     _val_data = None   # (X_va, Y_va, D_va, C_va) or None
@@ -416,39 +458,12 @@ def run_regime(
             from src.data.loading import load_experiments_as_list
             from src.data.splits import split_train_val_per_experiment
 
-            _ds = Path(dataset_root)
             _val_split = float(ov.get("val_split", 0.2))
             _seed = int(ov.get("seed", 42))
-            _max_exp = ov.get("max_experiments")
             _max_spe = ov.get("max_samples_per_exp")
 
-            print(f"\n📦 Loading data from {_ds}")
-            exps, _ = load_experiments_as_list(_ds, verbose=False, reduction_config=None)
-
-            # --- Commit 3Q: regime-aware experiment filtering ---
-            _dist_tol = float(ov.get("dist_tol_m", 0.05))
-            _curr_tol = float(ov.get("curr_tol_mA", 25.0))
-            exps = _filter_experiments_for_regime(
-                exps, regime, dist_tol_m=_dist_tol, curr_tol_mA=_curr_tol,
-            )
-            print(f"   🎯 After regime filter: {len(exps)} experiment(s) "
-                  f"(dist_tol={_dist_tol}, curr_tol={_curr_tol})")
-
-            if _max_exp is not None:
-                exps = exps[:int(_max_exp)]
-
-            # Record what was selected (Commit 3Q)
-            _sel_paths = [str(t[4]) for t in exps]
-            result["selected_experiments"] = _sel_paths
-            _sel_criteria = {
-                "distance_m": regime.get("distance_m"),
-                "current_mA": regime.get("current_mA"),
-                "dist_tol_m": _dist_tol,
-                "curr_tol_mA": _curr_tol,
-                "max_experiments": int(_max_exp) if _max_exp is not None else None,
-            }
-            result["selection_criteria"] = _sel_criteria
-            print(f"   ✅ Selected experiments ({len(_sel_paths)}): {_sel_paths}")
+            # Use already-filtered experiments from above
+            exps = list(_filt_exps)
             if _max_spe is not None:
                 _ms = int(_max_spe)
                 exps = [(X[:_ms], Y[:_ms], D[:_ms], C[:_ms], p) for X, Y, D, C, p in exps]
@@ -474,6 +489,8 @@ def run_regime(
             del _D_tr, _C_tr, exps, X_tr, Y_tr, X_va, Y_va, D_va, C_va
         except Exception as e:
             print(f"⚠️  Data loading failed for regime '{regime_id}': {e}")
+
+    del _filt_exps  # Commit 3R: free filtered arrays
 
     # ---- BASELINE (Commit 3N) + dist-metrics (Commit 3O) ----
     if run_baseline and _val_data is not None:

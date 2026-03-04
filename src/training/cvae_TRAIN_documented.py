@@ -492,6 +492,20 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         dataset_root, verbose=True, reduction_config=DATA_REDUCTION_CONFIG,
     )
 
+    # --- Commit 3R: filter to selected experiments from protocol runner ---
+    _sel_exps = _ov.get("_selected_experiments")
+    if _sel_exps:
+        _sel_set = set(str(p) for p in _sel_exps)
+        _before = len(exps)
+        exps = [(X, Y, D, C, p) for X, Y, D, C, p in exps if str(p) in _sel_set]
+        print(f"⚡ Commit 3R: filtered {_before} → {len(exps)} experiment(s) "
+              f"(selected_experiments={list(_sel_set)})")
+        if len(exps) == 0:
+            raise RuntimeError(
+                f"No loaded experiments match _selected_experiments. "
+                f"Available paths: {[p for *_, p in exps]}"
+            )
+
     # --- Commit 3H: limit experiments / samples if requested ---
     if "max_experiments" in _ov:
         _me = int(_ov["max_experiments"])
@@ -522,6 +536,16 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
 
     print(f"\n✓ Dados (por experimento): {len(X_train):,} treino | {len(X_val):,} validação")
 
+    # --- Commit 3R: alignment assertions ---
+    assert len(X_train) == len(Y_train) == len(D_train) == len(C_train), (
+        f"Train alignment mismatch: X={len(X_train)} Y={len(Y_train)} "
+        f"D={len(D_train)} C={len(C_train)}"
+    )
+    assert len(X_val) == len(Y_val) == len(D_val) == len(C_val), (
+        f"Val alignment mismatch: X={len(X_val)} Y={len(Y_val)} "
+        f"D={len(D_val)} C={len(C_val)}"
+    )
+
     # Normalização (recomendado: baseada no TREINO, para evitar leakage)
     D_min, D_max = float(D_train.min()), float(D_train.max())
     C_min, C_max = float(C_train.min()), float(C_train.max())
@@ -532,8 +556,28 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
     Dn_val = (D_val - D_min) / (D_max - D_min) if D_max > D_min else np.zeros_like(D_val)
     Cn_val = (C_val - C_min) / (C_max - C_min) if C_max > C_min else np.full_like(C_val, 0.5)
 
-    print(f"✓ Distância (treino): [{D_min:.3f}, {D_max:.3f}] m")
-    print(f"✓ Corrente  (treino): [{C_min:.1f}, {C_max:.1f}] mA")
+    # --- Commit 3R: log actual D/C ranges + unique values ---
+    _d_unique = sorted(np.unique(D_train).tolist())
+    _c_unique = sorted(np.unique(C_train).tolist())
+    print(f"✓ Distância (treino): [{D_min:.3f}, {D_max:.3f}] m  unique={_d_unique}")
+    print(f"✓ Corrente  (treino): [{C_min:.1f}, {C_max:.1f}] mA  unique={_c_unique}")
+
+    # --- Commit 3R: tolerance smoke check ---
+    if _sel_exps:
+        _tgt_d = _ov.get("_regime_distance_m")
+        _tgt_c = _ov.get("_regime_current_mA")
+        _tol_d = float(_ov.get("dist_tol_m", 0.05))
+        _tol_c = float(_ov.get("curr_tol_mA", 25.0))
+        if _tgt_d is not None:
+            for _du in _d_unique:
+                if abs(_du - float(_tgt_d)) > _tol_d:
+                    print(f"⚠️  D={_du:.3f}m exceeds tolerance of regime target "
+                          f"{_tgt_d}m ± {_tol_d}m")
+        if _tgt_c is not None:
+            for _cu in _c_unique:
+                if abs(_cu - float(_tgt_c)) > _tol_c:
+                    print(f"⚠️  C={_cu:.1f}mA exceeds tolerance of regime target "
+                          f"{_tgt_c}mA ± {_tol_c}mA")
 
     # ==========================================================
     # 7) GRID SEARCH
