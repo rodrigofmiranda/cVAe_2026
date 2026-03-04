@@ -705,10 +705,14 @@ def run_regime(
             _keras_v = int(ov.get("keras_verbose", 0))
             X_va, Y_va, D_va, C_va = _val_data
 
+            _bl_cfg = {"verbose": _keras_v, "return_predictions": run_dist_metrics}
+            if "max_epochs" in ov:
+                _bl_cfg["epochs"] = int(ov["max_epochs"])
+
             _bl_t0 = _time.time()
             bl_metrics = run_deterministic_baseline(
                 _X_tr, _Y_tr, X_va, Y_va,
-                config={"verbose": _keras_v, "return_predictions": run_dist_metrics},
+                config=_bl_cfg,
             )
             result["baseline_time_s"] = round(_time.time() - _bl_t0, 2)
 

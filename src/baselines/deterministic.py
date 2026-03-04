@@ -100,6 +100,7 @@ def run_deterministic_baseline(
         monitor="val_loss", patience=10, restore_best_weights=True,
     )
 
+    print(f"Baseline effective_epochs={epochs}")
     t0 = time.time()
     hist = model.fit(
         X_train, Y_train,
