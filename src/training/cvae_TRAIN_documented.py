@@ -148,7 +148,6 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 from tensorflow.keras import layers, models
-from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, Callback
 from src.training.logging import bootstrap_run          # Commit 2
 from src.data.loading import (                          # Commits 3A–3B
     ensure_iq_shape, read_metadata, parse_dist_curr_from_path,
@@ -164,11 +163,13 @@ from src.evaluation.metrics import (                    # Commit 3E
     calculate_evm, calculate_snr,
     _skew_kurt, _psd_log, residual_distribution_metrics,
 )
-from src.models.cvae_components import (                # Commit 3F
-    Sampling, CondPriorVAELoss, KLAnnealingCallback,
-    build_mlp, build_decoder, build_condprior_cvae,
+from src.models.cvae import (                           # refactor(step3)
+    build_cvae,
     create_inference_model_from_full,
 )
+from src.models.callbacks import build_callbacks         # refactor(step3)
+from src.models.sampling import Sampling                 # refactor(step3)
+from src.models.losses import CondPriorVAELoss           # refactor(step3)
 
 
 def main(overrides=None):  # Commit 3H: optional CLI overrides dict
@@ -410,63 +411,9 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
     # build_mlp, build_decoder, build_condprior_cvae,
     # create_inference_model_from_full
     # -> moved to src.models.cvae_components (Commit 3F)
+    # -> split into src.models.{sampling,losses,cvae,callbacks} (refactor step3)
 
-    class EarlyStoppingAfterWarmup(tf.keras.callbacks.Callback):
-        """
-        EarlyStopping que só começa a contar 'patience' após um warmup de N épocas.
-        Evita parar cedo demais em modelos com KL/annealing instável no início.
-
-        >> C1 FIX: best_weights é salvo desde a época 1 (não só após o warmup).
-           O warmup apenas atrasa a PARADA — o checkpoint do melhor val_recon
-           é gravado continuamente, garantindo restore correto mesmo quando o
-           pico ocorre antes do fim do annealing.
-        """
-        def __init__(self, monitor="val_recon_loss", patience=20, warmup_epochs=0,
-                     min_delta=0.0, restore_best_weights=True, verbose=1):
-            super().__init__()
-            self.monitor = monitor
-            self.patience = int(patience)
-            self.warmup_epochs = int(warmup_epochs)
-            self.min_delta = float(min_delta)
-            self.restore_best_weights = bool(restore_best_weights)
-            self.verbose = int(verbose)
-
-            self.wait = 0
-            self.best = np.inf
-            self.best_weights = None
-            self.best_epoch = 0  # rastreamento para log
-
-        def on_epoch_end(self, epoch, logs=None):
-            logs = logs or {}
-            current = logs.get(self.monitor, None)
-            if current is None:
-                return
-
-            # >> C1 FIX: checkpoint gravado SEMPRE que há melhora, independente do warmup
-            if current < (self.best - self.min_delta):
-                self.best = current
-                self.best_epoch = epoch + 1
-                self.wait = 0
-                if self.restore_best_weights:
-                    self.best_weights = self.model.get_weights()
-                return  # melhora: não incrementa wait, não para
-
-            # warmup: incrementa wait mas não para
-            if epoch + 1 <= self.warmup_epochs:
-                self.wait += 1  # conta mas não para — impede que KL instável no início
-                return          # produza parada prematura
-
-            # pós-warmup: lógica normal de parada
-            self.wait += 1
-            if self.wait >= self.patience:
-                if self.verbose:
-                    print(f"\nEarlyStoppingAfterWarmup: parando em epoch {epoch+1} "
-                          f"(best {self.monitor}={self.best:.6f} @ epoch {self.best_epoch})")
-                if self.restore_best_weights and (self.best_weights is not None):
-                    self.model.set_weights(self.best_weights)
-                    if self.verbose:
-                        print(f"  → pesos restaurados para epoch {self.best_epoch}")
-                self.model.stop_training = True
+    # EarlyStoppingAfterWarmup -> moved to src.models.callbacks (refactor step3)
     # ==========================================================
     # 5) CHECKLIST (colapso vs funcionando)
     # ==========================================================
@@ -601,7 +548,7 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
     if _ov.get("dry_run", False):
         _first_cfg = GRID[0]["cfg"] if GRID else {}
         if _first_cfg:
-            _vae, _ = build_condprior_cvae(_first_cfg)
+            _vae, _ = build_cvae(_first_cfg)
             print(f"🔍 dry_run: model built | params={_vae.count_params():,}")
             _vae.summary(print_fn=lambda s: print("  " + s))
             del _vae
@@ -696,31 +643,8 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         gc.collect()
 
         try:
-            vae, kl_cb = build_condprior_cvae(cfg)
-
-    # >> C1 FIX: warmup por modelo = kl_anneal_epochs (razão real do warmup).
-            #    ReduceLROnPlateau monitora val_loss (total) — métrica DISTINTA do
-            #    EarlyStopping (val_recon_loss), eliminando o acoplamento destrutivo.
-            _warmup = int(cfg.get("kl_anneal_epochs", 80))
-
-            callbacks = [
-                EarlyStoppingAfterWarmup(
-                    monitor="val_recon_loss",
-                    patience=TRAINING_CONFIG["patience"],
-                    warmup_epochs=_warmup,
-                    min_delta=1e-5,
-                    restore_best_weights=True,
-                    verbose=1,
-                ),
-                ReduceLROnPlateau(
-                    monitor="val_loss",          # >> C1 FIX: monitor distinto do EarlyStopping
-                    factor=0.5,
-                    patience=TRAINING_CONFIG["reduce_lr_patience"],
-                    min_lr=1e-6,
-                    verbose=1,
-                ),
-                kl_cb,
-            ]
+            vae, kl_cb = build_cvae(cfg)
+            callbacks = build_callbacks(TRAINING_CONFIG, cfg, kl_cb)
 
             t0 = time.time()
             _keras_verbose = int(_ov.get("keras_verbose", 2))  # Commit 3M

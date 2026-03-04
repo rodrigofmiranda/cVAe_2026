@@ -7,11 +7,15 @@ Provides :func:`train_engine`, the single entry-point that future code
 run.
 
 Current implementation delegates to the training monolith
-(``cvae_TRAIN_documented.main``).  As modules are extracted from the
-monolith in subsequent refactoring steps, the delegation will be
-replaced by direct calls.
+(``cvae_TRAIN_documented.main``).  The monolith itself now uses the
+modular model API (refactor step 3):
 
-Commit: refactor(step2).
+    src.models.cvae       → build_cvae, create_inference_model_from_full
+    src.models.losses     → CondPriorVAELoss, compute_total_loss
+    src.models.sampling   → Sampling, reparameterize
+    src.models.callbacks  → build_callbacks
+
+Commits: refactor(step2), refactor(step3).
 """
 
 from __future__ import annotations
