@@ -140,10 +140,13 @@ def _ensure_studies(proto: dict) -> dict:
 
 
 def _regime_id_from_point(distance_m: float, current_mA: float) -> str:
-    """Generate a filesystem-safe regime_id from physical operating point."""
+    """Generate a filesystem-safe regime_id from physical operating point.
+
+    Examples: 0.8m / 200mA → ``d0p8_i200``, 1.5m / 800mA → ``d1p5_i800``.
+    """
     d_str = f"{distance_m:.1f}".replace(".", "p")
     c_str = str(int(current_mA))
-    return f"d{d_str}m_c{c_str}mA"
+    return f"d{d_str}_i{c_str}"
 
 
 def _load_protocol_yaml(path: str) -> dict:
@@ -886,27 +889,26 @@ def main():
     # Merge protocol globals + CLI overrides
     base_overrides = _merge_overrides(proto_globals, args)
 
-    # Protocol output directory
-    protocol_dir = Path(args.output_base) / f"protocol_{ts_label}"
-    protocol_dir.mkdir(parents=True, exist_ok=True)
-    (protocol_dir / "tables").mkdir(exist_ok=True)
-    (protocol_dir / "logs").mkdir(exist_ok=True)
+    # Experiment output directory (single folder per protocol run)
+    exp_dir = Path(args.output_base) / f"exp_{ts_label}"
+    exp_dir.mkdir(parents=True, exist_ok=True)
+    (exp_dir / "tables").mkdir(exist_ok=True)
+    (exp_dir / "logs").mkdir(exist_ok=True)
 
     studies_meta = protocol.get("_studies", [])
-    multi_study = len(studies_meta) > 1
 
     print(f"🚀 Protocol runner — {len(studies_meta)} study(ies), {len(regimes)} regime(s)")
-    print(f"📁 Protocol dir: {protocol_dir}")
+    print(f"📁 Experiment dir: {exp_dir}")
     print(f"🔧 Base overrides: {base_overrides}")
 
     # Save a copy of the protocol used (always the resolved dict as JSON)
-    (protocol_dir / "logs" / "protocol_input.json").write_text(
+    (exp_dir / "logs" / "protocol_input.json").write_text(
         json.dumps(protocol, indent=2, ensure_ascii=False), encoding="utf-8"
     )
     # Also save original YAML when applicable
     if _proto_config_path is not None:
         import shutil
-        shutil.copy2(_proto_config_path, protocol_dir / "logs" / "protocol_input.yaml")
+        shutil.copy2(_proto_config_path, exp_dir / "logs" / "protocol_input.yaml")
 
     # ---- Run studies → regimes ----
     results = []
@@ -915,27 +917,26 @@ def main():
         study_rids = set(study_info["regime_ids"])
         study_regimes = [r for r in regimes if r["regime_id"] in study_rids]
 
-        # Study output directory — single study keeps flat layout
-        study_dir = protocol_dir / sname if multi_study else protocol_dir
+        # Regime output directory: exp_dir/studies/<study>/regimes/
+        regimes_dir = exp_dir / "studies" / sname / "regimes"
+        regimes_dir.mkdir(parents=True, exist_ok=True)
 
-        if multi_study:
-            study_dir.mkdir(parents=True, exist_ok=True)
-            print(f"\n{'='*70}")
-            print(f"= STUDY {si}/{len(studies_meta)}: {sname}")
-            print(f"= Split strategy: {study_info.get('split_strategy', 'per_experiment')}")
-            print(f"{'='*70}")
+        print(f"\n{'='*70}")
+        print(f"= STUDY {si}/{len(studies_meta)}: {sname}")
+        print(f"= Split strategy: {study_info.get('split_strategy', 'per_experiment')}")
+        print(f"= Regimes dir:    {regimes_dir}")
+        print(f"{'='*70}")
 
         for ri, regime in enumerate(study_regimes, 1):
             print(f"\n{'#'*70}")
             print(f"# REGIME {ri}/{len(study_regimes)}: {regime['regime_id']}")
-            if multi_study:
-                print(f"# Study: {sname}")
+            print(f"# Study: {sname}")
             print(f"{'#'*70}")
             r = run_regime(
                 regime=regime,
                 dataset_root=args.dataset_root,
                 base_overrides=base_overrides,
-                protocol_dir=study_dir,
+                protocol_dir=regimes_dir,
                 skip_eval=args.skip_eval,
                 run_baseline=not args.no_baseline,
                 run_dist_metrics=not args.no_dist_metrics,
@@ -947,8 +948,8 @@ def main():
     import pandas as pd
     df_summary = build_summary_table(results)
 
-    summary_csv = protocol_dir / "tables" / "summary_by_regime.csv"
-    summary_xlsx = protocol_dir / "tables" / "summary_by_regime.xlsx"
+    summary_csv = exp_dir / "tables" / "summary_by_regime.csv"
+    summary_xlsx = exp_dir / "tables" / "summary_by_regime.xlsx"
     df_summary.to_csv(summary_csv, index=False)
     df_summary.to_excel(summary_xlsx, index=False)
     print(f"\n📊 Summary table: {summary_csv}")
@@ -1021,7 +1022,7 @@ def main():
             for r in results
         ],
     }
-    manifest_path = protocol_dir / "manifest.json"
+    manifest_path = exp_dir / "manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"📋 Manifest: {manifest_path}")
 
@@ -1029,9 +1030,9 @@ def main():
     print(f"\n{'='*70}")
     print(f"✅ Protocol complete — {len(studies_meta)} study(ies), {len(results)} regime(s)")
     print(f"   Duration: {ts_end - ts_start}")
-    print(f"   Output:   {protocol_dir}")
+    print(f"   Output:   {exp_dir}")
     for r in results:
-        slab = f"[{r.get('_study', '?')}] " if multi_study else ""
+        slab = f"[{r.get('_study', '?')}] "
         status = f"train={r['train_status']}, eval={r['eval_status']}"
         delta = ""
         m = r.get("metrics", {})

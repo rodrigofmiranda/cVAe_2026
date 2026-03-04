@@ -9,16 +9,16 @@
 #   4) selected_experiments appears in the manifest per regime (Commit 3Q)
 #   5) n_experiments_selected is populated in the CSV (Commit 3Q)
 #   6) baseline_delta_mean_l2 is populated (same val split, Commit 3S)
-#   7) regime subdirectories exist under protocol dir (Commit 3T)
+#   7) regime subdirectories exist under studies/<study>/regimes/ (Phase 5)
 #
 # Usage:
 #   bash scripts/smoke_dist_metrics.sh
 #
-# Commit 3T.
+# Phase 5.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-echo "=== Smoke: dist-metrics (Commit 3T — nested layout) ==="
+echo "=== Smoke: dist-metrics (Phase 5 — exp_<ts> / studies layout) ==="
 
 OUT_BASE="outputs"
 
@@ -31,10 +31,10 @@ python -m src.protocol.run \
     --keras_verbose 0 \
     --dist_tol_m 0.01 --curr_tol_mA 1
 
-# Find latest protocol dir
-PROTO_DIR=$(ls -td "$OUT_BASE"/protocol_2* | head -1)
+# Find latest experiment dir
+EXP_DIR=$(ls -td "$OUT_BASE"/exp_2* | head -1)
 echo ""
-echo "Protocol dir: $PROTO_DIR"
+echo "Experiment dir: $EXP_DIR"
 
 FAIL=0
 
@@ -43,19 +43,19 @@ echo ""
 echo "--- Check 1: dist_metrics_source == 'eval' for all regimes ---"
 N_EVAL=$(python -c "
 import json
-m = json.load(open('$PROTO_DIR/manifest.json'))
+m = json.load(open('$EXP_DIR/manifest.json'))
 vals = [r.get('dist_metrics_source') for r in m['regimes']]
 print(sum(1 for v in vals if v == 'eval'))
 ")
 N_REG=$(python -c "
-import json; m = json.load(open('$PROTO_DIR/manifest.json')); print(len(m['regimes']))
+import json; m = json.load(open('$EXP_DIR/manifest.json')); print(len(m['regimes']))
 ")
 if [ "$N_EVAL" -eq "$N_REG" ]; then
     echo "  ✓ All $N_REG regimes have dist_metrics_source='eval'"
 else
     echo "  ✗ Only $N_EVAL / $N_REG regimes have 'eval' source"
     python -c "
-import json; m = json.load(open('$PROTO_DIR/manifest.json'))
+import json; m = json.load(open('$EXP_DIR/manifest.json'))
 for r in m['regimes']:
     print(f\"    {r['regime_id']}: {r.get('dist_metrics_source')}\")"
     FAIL=1
@@ -64,12 +64,12 @@ fi
 # --- Check 2: cvae_delta_mean_l2 in CSV ---
 echo ""
 echo "--- Check 2: cvae_delta_mean_l2 in CSV ---"
-HEADER=$(head -1 "$PROTO_DIR/tables/summary_by_regime.csv")
+HEADER=$(head -1 "$EXP_DIR/tables/summary_by_regime.csv")
 if echo "$HEADER" | grep -q "cvae_delta_mean_l2"; then
     echo "  ✓ cvae_delta_mean_l2 column present"
     VAL=$(python -c "
 import csv
-with open('$PROTO_DIR/tables/summary_by_regime.csv') as f:
+with open('$EXP_DIR/tables/summary_by_regime.csv') as f:
     r = next(csv.DictReader(f))
     v = r.get('cvae_delta_mean_l2', '')
     print(v if v else 'EMPTY')
@@ -90,7 +90,7 @@ echo ""
 echo "--- Check 3: delta_mean_l2 populated ---"
 LEGACY=$(python -c "
 import csv
-with open('$PROTO_DIR/tables/summary_by_regime.csv') as f:
+with open('$EXP_DIR/tables/summary_by_regime.csv') as f:
     r = next(csv.DictReader(f))
     v = r.get('delta_mean_l2', '')
     print(v if v else 'EMPTY')
@@ -105,11 +105,11 @@ fi
 # --- Check 4: selected_experiments in manifest (Commit 3Q) ---
 echo ""
 echo "--- Check 4: selected_experiments in manifest ---"
-if grep -q '"selected_experiments"' "$PROTO_DIR/manifest.json"; then
+if grep -q '"selected_experiments"' "$EXP_DIR/manifest.json"; then
     echo "  ✓ selected_experiments found in manifest"
     N_SEL=$(python -c "
 import json
-m = json.load(open('$PROTO_DIR/manifest.json'))
+m = json.load(open('$EXP_DIR/manifest.json'))
 for r in m['regimes']:
     n = len(r.get('selected_experiments', []))
     if n > 0:
@@ -131,11 +131,11 @@ fi
 # --- Check 5: n_experiments_selected in CSV (Commit 3Q) ---
 echo ""
 echo "--- Check 5: n_experiments_selected in CSV ---"
-HEADER=$(head -1 "$PROTO_DIR/tables/summary_by_regime.csv")
+HEADER=$(head -1 "$EXP_DIR/tables/summary_by_regime.csv")
 if echo "$HEADER" | grep -q "n_experiments_selected"; then
     N_EXP=$(python -c "
 import csv
-with open('$PROTO_DIR/tables/summary_by_regime.csv') as f:
+with open('$EXP_DIR/tables/summary_by_regime.csv') as f:
     r = next(csv.DictReader(f))
     v = r.get('n_experiments_selected', '')
     print(v if v else 'EMPTY')
@@ -156,7 +156,7 @@ echo ""
 echo "--- Check 6: baseline_delta_mean_l2 populated ---"
 BL_DM=$(python -c "
 import csv
-with open('$PROTO_DIR/tables/summary_by_regime.csv') as f:
+with open('$EXP_DIR/tables/summary_by_regime.csv') as f:
     r = next(csv.DictReader(f))
     v = r.get('baseline_delta_mean_l2', '')
     print(v if v else 'EMPTY')
@@ -168,25 +168,26 @@ else
     FAIL=1
 fi
 
-# --- Check 7: regime subdirectories under protocol dir (Commit 3T) ---
+# --- Check 7: regime subdirectories under studies/<study>/regimes/ (Phase 5) ---
 echo ""
-echo "--- Check 7: regime subdirectories nested under protocol_dir ---"
-REGIME_IDS=$(python -c "
+echo "--- Check 7: regime dirs nested under studies/<study>/regimes/ ---"
+REGIME_INFO=$(python -c "
 import json
-m = json.load(open('$PROTO_DIR/manifest.json'))
+m = json.load(open('$EXP_DIR/manifest.json'))
 for r in m['regimes']:
-    print(r['regime_id'])
+    print(r['study'] + '/regimes/' + r['regime_id'])
 ")
 NEST_OK=1
-while IFS= read -r rid; do
-    REGIME_SUBDIR="$PROTO_DIR/$rid"
+while IFS= read -r entry; do
+    REGIME_SUBDIR="$EXP_DIR/studies/$entry"
+    rid="${entry##*/}"
     if [ -d "$REGIME_SUBDIR/models" ] && [ -d "$REGIME_SUBDIR/logs" ]; then
-        echo "  ✓ $rid/ exists with models/ and logs/"
+        echo "  ✓ studies/$entry/ exists with models/ and logs/"
     else
-        echo "  ✗ $rid/ missing or incomplete (expected $REGIME_SUBDIR)"
+        echo "  ✗ studies/$entry/ missing or incomplete (expected $REGIME_SUBDIR)"
         NEST_OK=0
     fi
-done <<< "$REGIME_IDS"
+done <<< "$REGIME_INFO"
 if [ "$NEST_OK" -eq 0 ]; then
     FAIL=1
 fi
@@ -194,8 +195,8 @@ fi
 # --- Cleanup ---
 echo ""
 echo "--- Cleanup ---"
-rm -rf "$PROTO_DIR"
-echo "  Removed $PROTO_DIR"
+rm -rf "$EXP_DIR"
+echo "  Removed $EXP_DIR"
 
 # --- Result ---
 echo ""
