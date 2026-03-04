@@ -472,7 +472,7 @@ def run_regime(
     if _need_data:
         try:
             from src.data.loading import load_experiments_as_list
-            from src.data.splits import split_train_val_per_experiment
+            from src.protocol.split_strategies import apply_split
 
             _val_split = float(ov.get("val_split", 0.2))
             _seed = int(ov.get("seed", 42))
@@ -485,7 +485,8 @@ def run_regime(
                 exps = [(X[:_ms], Y[:_ms], D[:_ms], C[:_ms], p) for X, Y, D, C, p in exps]
 
             X_tr, Y_tr, _D_tr, _C_tr, X_va, Y_va, D_va, C_va, _ = \
-                split_train_val_per_experiment(exps, val_split=_val_split, seed=_seed)
+                apply_split(exps, strategy="per_experiment",
+                            val_split=_val_split, seed=_seed)
 
             # --- Commit 3P: shape guard ---
             assert X_va.shape[0] == Y_va.shape[0] == D_va.shape[0] == C_va.shape[0], (
