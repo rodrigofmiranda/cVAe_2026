@@ -9,15 +9,16 @@
 #   4) selected_experiments appears in the manifest per regime (Commit 3Q)
 #   5) n_experiments_selected is populated in the CSV (Commit 3Q)
 #   6) baseline_delta_mean_l2 is populated (same val split, Commit 3S)
+#   7) regime subdirectories exist under protocol dir (Commit 3T)
 #
 # Usage:
 #   bash scripts/smoke_dist_metrics.sh
 #
-# Commit 3S.
+# Commit 3T.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-echo "=== Smoke: dist-metrics (Commit 3S — eval ON) ==="
+echo "=== Smoke: dist-metrics (Commit 3T — nested layout) ==="
 
 OUT_BASE="outputs"
 
@@ -164,6 +165,29 @@ if [ "$BL_DM" != "EMPTY" ]; then
     echo "  ✓ baseline_delta_mean_l2 = $BL_DM"
 else
     echo "  ✗ baseline_delta_mean_l2 is EMPTY"
+    FAIL=1
+fi
+
+# --- Check 7: regime subdirectories under protocol dir (Commit 3T) ---
+echo ""
+echo "--- Check 7: regime subdirectories nested under protocol_dir ---"
+REGIME_IDS=$(python -c "
+import json
+m = json.load(open('$PROTO_DIR/manifest.json'))
+for r in m['regimes']:
+    print(r['regime_id'])
+")
+NEST_OK=1
+while IFS= read -r rid; do
+    REGIME_SUBDIR="$PROTO_DIR/$rid"
+    if [ -d "$REGIME_SUBDIR/models" ] && [ -d "$REGIME_SUBDIR/logs" ]; then
+        echo "  ✓ $rid/ exists with models/ and logs/"
+    else
+        echo "  ✗ $rid/ missing or incomplete (expected $REGIME_SUBDIR)"
+        NEST_OK=0
+    fi
+done <<< "$REGIME_IDS"
+if [ "$NEST_OK" -eq 0 ]; then
     FAIL=1
 fi
 

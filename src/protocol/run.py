@@ -350,7 +350,6 @@ def _quick_cvae_predict(run_dir: Path, X_va, D_va, C_va, batch_size: int = 4096)
 def run_regime(
     regime: dict,
     dataset_root: str,
-    output_base: str,
     base_overrides: dict,
     protocol_dir: Path,
     skip_eval: bool = False,
@@ -360,11 +359,11 @@ def run_regime(
     """
     Execute train + evaluate for one regime.
 
+    Regime artefacts are written to ``protocol_dir / regime_id``.
     Returns a result dict with run_dir, metrics, and status.
     """
     regime_id = regime["regime_id"]
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_id = f"protocol_{regime_id}_{ts}"
+    run_id = regime_id   # lives under protocol_dir/<regime_id>/
 
     # --- Resolve experiment filter ---
     # Option A: explicit experiment_paths
@@ -548,7 +547,7 @@ def run_regime(
     # --- Commit 3M: always use absolute path for DATASET_ROOT ---
     _ds_root = str(Path(dataset_root).resolve())
     os.environ["DATASET_ROOT"] = _ds_root
-    os.environ["OUTPUT_BASE"] = str(Path(output_base).resolve())
+    os.environ["OUTPUT_BASE"] = str(protocol_dir.resolve())
     os.environ["RUN_ID"] = run_id
 
     _cvae_t0 = time.time()
@@ -563,7 +562,7 @@ def run_regime(
         print(f"❌ Training failed for regime '{regime_id}': {e}")
 
     result["cvae_time_s"] = round(time.time() - _cvae_t0, 2)
-    run_dir = Path(output_base) / run_id
+    run_dir = protocol_dir / run_id
     result["run_dir"] = str(run_dir)
 
     # Read train state
@@ -584,7 +583,7 @@ def run_regime(
     else:
         try:
             os.environ["DATASET_ROOT"] = _ds_root
-            os.environ["OUTPUT_BASE"] = str(Path(output_base).resolve())
+            os.environ["OUTPUT_BASE"] = str(protocol_dir.resolve())
             os.environ["RUN_ID"] = run_id
 
             eval_ov = {}
@@ -814,7 +813,6 @@ def main():
         r = run_regime(
             regime=regime,
             dataset_root=args.dataset_root,
-            output_base=args.output_base,
             base_overrides=base_overrides,
             protocol_dir=protocol_dir,
             skip_eval=args.skip_eval,
