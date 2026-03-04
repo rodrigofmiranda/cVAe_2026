@@ -91,6 +91,94 @@ def parse_args():
 # Helpers
 # ---------------------------------------------------------------------------
 
+def discover_regimes(dataset_root: str) -> List[dict]:
+    """Scan *dataset_root* for ``dist_<X>m/curr_<Y>mA/`` directories.
+
+    Returns a sorted list of regime dicts (by distance then current),
+    each containing ``regime_id``, ``description``, ``distance_m``,
+    ``current_mA``, and study tags ready for the protocol runner.
+
+    The naming convention ``dist_<X>m/curr_<Y>mA`` is the only
+    assumption — every pair found becomes a regime.  This makes the
+    protocol fully dataset-agnostic.
+    """
+    root = Path(dataset_root)
+    if not root.is_dir():
+        raise FileNotFoundError(f"dataset_root not found: {root}")
+
+    _dist_re = re.compile(r"^dist_([\d.]+)m$")
+    _curr_re = re.compile(r"^curr_(\d+)mA$")
+
+    points: List[tuple] = []  # (distance_m, current_mA)
+    for dist_dir in sorted(root.iterdir()):
+        if not dist_dir.is_dir():
+            continue
+        dm = _dist_re.match(dist_dir.name)
+        if dm is None:
+            continue
+        dist_val = float(dm.group(1))
+        for curr_dir in sorted(dist_dir.iterdir()):
+            if not curr_dir.is_dir():
+                continue
+            cm = _curr_re.match(curr_dir.name)
+            if cm is None:
+                continue
+            curr_val = float(cm.group(1))
+            points.append((dist_val, curr_val))
+
+    # Deduplicate & sort deterministically
+    points = sorted(set(points))
+
+    if not points:
+        raise RuntimeError(
+            f"No dist_<X>m/curr_<Y>mA directories found under {root}. "
+            "Check the dataset layout."
+        )
+
+    regimes: List[dict] = []
+    for dist_val, curr_val in points:
+        regimes.append({
+            "regime_id": make_regime_id(dist_val, curr_val),
+            "description": f"{dist_val} m / {int(curr_val)} mA",
+            "distance_m": dist_val,
+            "current_mA": curr_val,
+            "_study": "within_regime",
+            "_split_strategy": "per_experiment",
+        })
+
+    return regimes
+
+
+def _build_discovered_protocol(dataset_root: str) -> dict:
+    """Build a complete protocol dict from filesystem discovery.
+
+    Equivalent to loading a config file, but no config needed — regimes
+    are enumerated by scanning ``dataset_root`` for the standard
+    ``dist_<X>m/curr_<Y>mA/`` layout.
+    """
+    regimes = discover_regimes(dataset_root)
+    regime_ids = [r["regime_id"] for r in regimes]
+
+    # Quality-gate: log first 3 discovered regimes
+    print(f"🔍 Auto-discovered {len(regimes)} regime(s) from dataset:")
+    for r in regimes[:3]:
+        print(f"   • {r['regime_id']}  ({r['distance_m']} m, {r['current_mA']} mA)")
+    if len(regimes) > 3:
+        print(f"   … and {len(regimes) - 3} more")
+
+    return {
+        "protocol_version": "1.0",
+        "description": "Auto-discovered from dataset directory structure.",
+        "global_settings": {},
+        "regimes": regimes,
+        "_studies": [{
+            "name": "within_regime",
+            "split_strategy": "per_experiment",
+            "regime_ids": regime_ids,
+        }],
+    }
+
+
 def _load_protocol(path: Optional[str]) -> dict:
     """Load protocol JSON, falling back to the default bundled config."""
     if path is None:
@@ -900,14 +988,18 @@ def main():
     args.dataset_root = str(Path(args.dataset_root).resolve())
     args.output_base = str(Path(args.output_base).resolve())
 
-    # Load protocol (YAML takes precedence over JSON)
+    # Load protocol (YAML > JSON > auto-discovery from dataset)
     _proto_config_path: Optional[str] = None
     if args.protocol_config is not None:
         _proto_config_path = str(Path(args.protocol_config).resolve())
         protocol = _load_protocol_yaml(_proto_config_path)
         print(f"📄 Loaded protocol YAML: {_proto_config_path}")
-    else:
+    elif args.protocol is not None:
         protocol = _load_protocol(args.protocol)
+    else:
+        # No config given → auto-discover regimes from dataset layout
+        protocol = _build_discovered_protocol(args.dataset_root)
+        print("📄 No --protocol / --protocol_config given — using auto-discovery")
     proto_globals = protocol.get("global_settings", {})
     regimes = protocol["regimes"]
 
