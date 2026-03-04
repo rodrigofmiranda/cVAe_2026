@@ -467,9 +467,7 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         exps = [(X[:_ms], Y[:_ms], D[:_ms], C[:_ms], p) for X, Y, D, C, p in exps]
         print(f"⚡ Commit 3H: truncated to ≤{_ms} samples/exp")
 
-    inv_path = TABLES_DIR / "dataset_inventory.xlsx"
-    with pd.ExcelWriter(inv_path, engine="openpyxl") as w:
-        df_info.to_excel(w, index=False, sheet_name="inventory")
+    inv_path = _run.write_table("tables/dataset_inventory.xlsx", df_info, sheet_name="inventory")
     print(f"🧾 Inventário salvo: {inv_path}")
 
     # split por experimento (head=train, tail=val)
@@ -481,8 +479,7 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         within_exp_shuffle=bool(TRAINING_CONFIG["within_experiment_shuffle"]),
     )
 
-    split_path = TABLES_DIR / "split_by_experiment.xlsx"
-    df_split.to_excel(split_path, index=False)
+    split_path = _run.write_table("tables/split_by_experiment.xlsx", df_split)
     print(f"✓ Split por experimento salvo: {split_path}")
 
     print(f"\n✓ Dados (por experimento): {len(X_train):,} treino | {len(X_val):,} validação")
@@ -530,7 +527,6 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
     # ==========================================================
     # 7) GRID SEARCH
     # ==========================================================
-    plan_path = TABLES_DIR / "gridsearch_plan.xlsx"
     df_plan = pd.DataFrame([{
         "grid_id": i + 1,
         "group": g["group"],
@@ -538,7 +534,7 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         "cfg_json": json.dumps(g["cfg"], ensure_ascii=False),
         **g["cfg"],
     } for i, g in enumerate(GRID)])
-    df_plan.to_excel(plan_path, index=False)
+    plan_path = _run.write_table("tables/gridsearch_plan.xlsx", df_plan)
     print(f"📌 Grid plan salvo: {plan_path}")
 
     results = []
@@ -560,7 +556,7 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
             "n_val": int(len(X_val)),
             "n_grid": int(len(GRID)),
         }
-        (LOGS_DIR / "dry_run.json").write_text(_json.dumps(_dry_info, indent=2))
+        _run.write_json("logs/dry_run.json", _dry_info)
         print(f"✅ dry_run complete — wrote {LOGS_DIR / 'dry_run.json'}")
         return
 
@@ -838,7 +834,6 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
                 vae.get_layer("decoder").save(str(MODELS_DIR / "best_decoder.keras"), include_optimizer=False)
                 vae.get_layer("prior_net").save(str(MODELS_DIR / "best_prior_net.keras"), include_optimizer=False)
 
-                hist_path = LOGS_DIR / "training_history.json"
                 payload = {
                     "history": {k: [float(x) for x in v] for k, v in hist.history.items()},
                     "train_time_s": train_time_s,
@@ -855,7 +850,7 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
                     "delta_mean_l2": float(mean_l2),
                     "delta_cov_fro": float(cov_fro),
                 }
-                hist_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+                hist_path = _run.write_json("logs/training_history.json", payload)
                 print(f"✓ training_history.json salvo: {hist_path}")
 
         except Exception as e:
@@ -958,8 +953,7 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         }
     }
 
-    state_path = RUN_DIR / "state_run.json"
-    state_path.write_text(json.dumps(state, indent=2), encoding="utf-8")
+    state_path = _run.write_json("state_run.json", state)
     print(f"✓ state_run.json salvo: {state_path}")
 
 if __name__ == "__main__":

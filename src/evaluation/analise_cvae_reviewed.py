@@ -36,6 +36,7 @@ from src.evaluation.metrics import (                    # Commit 3E
 from src.models.cvae_components import (                # Commit 3F
     Sampling, CondPriorVAELoss,
 )
+from src.training.logging import RunPaths                # refactor(core)
 
 
 def main(overrides=None):  # Commit 3H: optional CLI overrides dict
@@ -56,12 +57,11 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
     RUN_DIR = (OUTPUT_BASE / RUN_ID_ENV) if RUN_ID_ENV else pick_latest_run(OUTPUT_BASE)
     if RUN_ID_ENV and not RUN_DIR.exists():
         raise FileNotFoundError(f"RUN_ID={RUN_ID_ENV} não encontrado em {OUTPUT_BASE}")
-    PLOTS_DIR = RUN_DIR / "plots"
-    TABLES_DIR = RUN_DIR / "tables"
-    MODELS_DIR = RUN_DIR / "models"
-    LOGS_DIR = RUN_DIR / "logs"
-    for d in [PLOTS_DIR, TABLES_DIR, MODELS_DIR, LOGS_DIR]:
-        d.mkdir(parents=True, exist_ok=True)
+    _rp = RunPaths.from_existing(RUN_DIR)
+    PLOTS_DIR = _rp.plots_dir
+    TABLES_DIR = _rp.tables_dir
+    MODELS_DIR = _rp.models_dir
+    LOGS_DIR = _rp.logs_dir
 
     print(f"📁 OUTPUT_BASE = {OUTPUT_BASE}")
     print(f"✅ RUN_DIR selecionado: {RUN_DIR}")
@@ -242,7 +242,7 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
             "deterministic": det_inf,
             "model_path": str(best_model_path),
         }
-        (LOGS_DIR / "dry_run_eval.json").write_text(_json.dumps(_dry_info, indent=2))
+        _rp.write_json("logs/dry_run_eval.json", _dry_info)
         print(f"\u2705 dry_run complete \u2014 wrote {LOGS_DIR / 'dry_run_eval.json'}")
         return
     # ==========================================================
@@ -269,7 +269,7 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         exps = [(X[:_ms], Y[:_ms], D[:_ms], C[:_ms], p) for X, Y, D, C, p in exps]
         print(f"\u26a1 Commit 3H: truncated to \u2264{_ms} samples/exp")
     print(f"✅ Experimentos carregados: {(df_info['status']=='ok').sum()}")
-    df_info.to_excel(TABLES_DIR / "dataset_inventory.xlsx", index=False)
+    _rp.write_table("tables/dataset_inventory.xlsx", df_info)
     print(f"✓ dataset_inventory.xlsx salvo: {TABLES_DIR / 'dataset_inventory.xlsx'}")
 
     # decide split_mode
@@ -284,7 +284,7 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         X_train, Y_train, D_train, C_train, X_val, Y_val, D_val, C_val, df_split = split_train_val_per_experiment(
             exps, val_split=val_split, seed=seed0, order_mode=order_mode, within_exp_shuffle=within_shuffle
         )
-        df_split.to_excel(TABLES_DIR / "split_by_experiment.xlsx", index=False)
+        _rp.write_table("tables/split_by_experiment.xlsx", df_split)
         print(f"✓ split_by_experiment.xlsx salvo: {TABLES_DIR / 'split_by_experiment.xlsx'}")
     else:
         # fallback (não recomendado): concatena e faz split global
@@ -382,9 +382,9 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         "var_mc_gen": (float(var_mc) if not np.isnan(var_mc) else float("nan")),
     }
 
-    (LOGS_DIR / "metricas_globais_reanalysis.json").write_text(json.dumps(global_metrics, indent=2), encoding="utf-8")
+    _rp.write_json("logs/metricas_globais_reanalysis.json", global_metrics)
     print(f"✓ metricas_globais_reanalysis.json salvo: {LOGS_DIR / 'metricas_globais_reanalysis.json'}")
-    pd.DataFrame([global_metrics]).to_csv(TABLES_DIR / "metricas_globais_reanalysis.csv", index=False)
+    _rp.write_table("tables/metricas_globais_reanalysis.csv", pd.DataFrame([global_metrics]))
 
     # ==========================================================
     # 8) Diagnósticos do latente
@@ -420,7 +420,7 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         "kl_q_to_p_dim_mean": kl_qp_dim_mean.astype(float),
         "kl_p_to_N0I_dim_mean": kl_pN_dim_mean.astype(float),
     })
-    df_lat.to_excel(TABLES_DIR / "latent_diagnostics.xlsx", index=False)
+    _rp.write_table("tables/latent_diagnostics.xlsx", df_lat)
     print(f"✓ latent_diagnostics.xlsx salvo: {TABLES_DIR / 'latent_diagnostics.xlsx'}")
 
     lat_summary = {
@@ -428,7 +428,7 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         "kl_q_to_p_total_mean": float(kl_qp_total_mean),
         "kl_p_to_N0I_total_mean": float(kl_pN_total_mean),
     }
-    (LOGS_DIR / "latent_summary.json").write_text(json.dumps(lat_summary, indent=2), encoding="utf-8")
+    _rp.write_json("logs/latent_summary.json", lat_summary)
 
     # ==========================================================
     # 9) Sensibilidade do decoder ao z (teste de colapso)
@@ -456,7 +456,7 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
     sens_var_mean, sens_rms = decoder_sensitivity(prior, decoder, Xv[:Nb], Dv[:Nb], Cv[:Nb], n_mc_z=16)
 
     sens = {"decoder_output_variance_mean": float(sens_var_mean), "decoder_output_rms_std": float(sens_rms)}
-    (LOGS_DIR / "decoder_sensitivity.json").write_text(json.dumps(sens, indent=2), encoding="utf-8")
+    _rp.write_json("logs/decoder_sensitivity.json", sens)
 
     # ==========================================================
     # 10) Plots
@@ -489,7 +489,7 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
                 dfh = None
 
             if dfh is not None and len(dfh) > 0:
-                dfh.to_excel(TABLES_DIR / "training_history.xlsx", index=False)
+                _rp.write_table("tables/training_history.xlsx", dfh)
 
                 plt.figure()
                 for col in ["loss", "val_loss", "recon_loss", "val_recon_loss", "kl_loss", "val_kl_loss"]:

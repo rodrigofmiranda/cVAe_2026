@@ -1,16 +1,17 @@
 # -*- coding: utf-8 -*-
 """
-src.training.logging — Run bootstrap utilities and state_run writer.
+src.training.logging — RunPaths and artifact-writing utilities.
 
 Responsible for:
 - Resolving OUTPUT_BASE from environment.
 - Generating or reading RUN_ID.
-- Creating RUN_DIR and its canonical subdirectories
-  (plots, tables, models, logs).
+- Creating canonical subdirectories (plots, tables, models, logs).
 - Writing ``_last_run.txt`` pointer.
+- Artifact-writer helpers (:meth:`RunPaths.write_json`,
+  :meth:`RunPaths.write_table`, :meth:`RunPaths.write_text`).
 - Writing the official ``state_run.json`` (see :func:`write_state_run`).
 
-Commit: refactor(step1).
+Commit: refactor(step1) → refactor(core): RunPaths class.
 """
 
 from __future__ import annotations
@@ -19,18 +20,172 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, NamedTuple, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 
-class RunPaths(NamedTuple):
-    """Immutable bundle of canonical run directory paths."""
-    run_id: str
-    run_dir: Path
-    plots_dir: Path
-    tables_dir: Path
-    models_dir: Path
-    logs_dir: Path
+# =====================================================================
+# RunPaths — single source of truth for run-directory layout
+# =====================================================================
 
+class RunPaths:
+    """Canonical run directory paths with artifact-writing helpers.
+
+    Attributes
+    ----------
+    run_id : str
+    run_dir : Path
+    plots_dir : Path
+    tables_dir : Path
+    models_dir : Path
+    logs_dir : Path
+
+    The five subdirectories are created automatically on construction
+    (unless ``_mkdir=False``).
+    """
+
+    __slots__ = ("run_id", "run_dir", "plots_dir", "tables_dir",
+                 "models_dir", "logs_dir")
+
+    def __init__(
+        self,
+        run_id: str,
+        run_dir: Union[str, Path],
+        *,
+        _mkdir: bool = True,
+    ) -> None:
+        self.run_id: str = run_id
+        self.run_dir: Path = Path(run_dir)
+        self.plots_dir: Path = self.run_dir / "plots"
+        self.tables_dir: Path = self.run_dir / "tables"
+        self.models_dir: Path = self.run_dir / "models"
+        self.logs_dir: Path = self.run_dir / "logs"
+        if _mkdir:
+            for p in (self.run_dir, self.plots_dir, self.tables_dir,
+                      self.models_dir, self.logs_dir):
+                p.mkdir(parents=True, exist_ok=True)
+
+    # ----------------------------------------------------------
+    # Internal
+    # ----------------------------------------------------------
+
+    def _resolve(self, filename: Union[str, Path]) -> Path:
+        """Resolve *filename* relative to *run_dir*.  Creates parents."""
+        p = Path(filename)
+        if not p.is_absolute():
+            p = self.run_dir / p
+        p.parent.mkdir(parents=True, exist_ok=True)
+        return p
+
+    # ----------------------------------------------------------
+    # Artifact writers
+    # ----------------------------------------------------------
+
+    def write_json(
+        self,
+        filename: Union[str, Path],
+        obj: Any,
+        *,
+        indent: int = 2,
+    ) -> Path:
+        """Pretty-print *obj* as JSON inside the run directory.
+
+        Parameters
+        ----------
+        filename : str or Path
+            Relative to *run_dir* (e.g. ``"logs/dry_run.json"``).
+        obj : any JSON-serialisable object
+        indent : int
+            JSON indentation (default 2).
+
+        Returns
+        -------
+        Path
+            The written file path.
+        """
+        p = self._resolve(filename)
+        p.write_text(
+            json.dumps(obj, indent=indent, default=str, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        return p
+
+    def write_table(
+        self,
+        filename: Union[str, Path],
+        df: "pd.DataFrame",
+        **kwargs: Any,
+    ) -> Path:
+        """Write a DataFrame as CSV or single-sheet Excel.
+
+        The format is inferred from the file extension:
+        ``.csv`` → ``to_csv``, ``.xlsx`` / ``.xls`` → ``to_excel``.
+
+        Parameters
+        ----------
+        filename : str or Path
+            Relative to *run_dir* (e.g. ``"tables/inventory.xlsx"``).
+        df : pandas.DataFrame
+        **kwargs
+            Forwarded to the underlying pandas writer.
+            ``index`` defaults to ``False`` if not specified.
+
+        Returns
+        -------
+        Path
+            The written file path.
+        """
+        p = self._resolve(filename)
+        kwargs.setdefault("index", False)
+        suffix = p.suffix.lower()
+        if suffix == ".csv":
+            df.to_csv(p, **kwargs)
+        elif suffix in (".xlsx", ".xls"):
+            df.to_excel(p, **kwargs)
+        else:
+            df.to_csv(p, **kwargs)
+        return p
+
+    def write_text(
+        self,
+        filename: Union[str, Path],
+        text: str,
+        *,
+        encoding: str = "utf-8",
+    ) -> Path:
+        """Write raw text inside the run directory.
+
+        Parameters
+        ----------
+        filename : str or Path
+            Relative to *run_dir*.
+        text : str
+
+        Returns
+        -------
+        Path
+            The written file path.
+        """
+        p = self._resolve(filename)
+        p.write_text(text, encoding=encoding)
+        return p
+
+    # ----------------------------------------------------------
+    # Convenience constructors
+    # ----------------------------------------------------------
+
+    @classmethod
+    def from_existing(cls, run_dir: Union[str, Path]) -> "RunPaths":
+        """Wrap an existing run directory (run_id = dir name)."""
+        run_dir = Path(run_dir)
+        return cls(run_id=run_dir.name, run_dir=run_dir)
+
+    def __repr__(self) -> str:
+        return f"RunPaths(run_id={self.run_id!r}, run_dir={self.run_dir})"
+
+
+# =====================================================================
+# bootstrap_run — create a new timestamped run
+# =====================================================================
 
 def bootstrap_run(
     output_base: Path | str | None = None,
@@ -51,8 +206,9 @@ def bootstrap_run(
     Returns
     -------
     RunPaths
-        Named tuple with *run_id*, *run_dir*, *plots_dir*,
-        *tables_dir*, *models_dir*, *logs_dir*.
+        Instance with *run_id*, *run_dir*, *plots_dir*,
+        *tables_dir*, *models_dir*, *logs_dir* — directories
+        already created on disk.
     """
     if output_base is None:
         output_base = Path(os.environ.get("OUTPUT_BASE", "/workspace/2026/outputs"))
@@ -62,29 +218,15 @@ def bootstrap_run(
     if run_id is None:
         run_id = os.environ.get("RUN_ID", "").strip() or datetime.now().strftime("run_%Y%m%d_%H%M%S")
 
-    run_dir = output_base / run_id
-    plots_dir = run_dir / "plots"
-    tables_dir = run_dir / "tables"
-    models_dir = run_dir / "models"
-    logs_dir = run_dir / "logs"
-
-    for p in [run_dir, plots_dir, tables_dir, models_dir, logs_dir]:
-        p.mkdir(parents=True, exist_ok=True)
+    rp = RunPaths(run_id=run_id, run_dir=output_base / run_id)
 
     # Pointer file so that evaluation can find the latest run.
     try:
-        (output_base / "_last_run.txt").write_text(str(run_dir), encoding="utf-8")
+        (output_base / "_last_run.txt").write_text(str(rp.run_dir), encoding="utf-8")
     except Exception:
         pass
 
-    return RunPaths(
-        run_id=run_id,
-        run_dir=run_dir,
-        plots_dir=plots_dir,
-        tables_dir=tables_dir,
-        models_dir=models_dir,
-        logs_dir=logs_dir,
-    )
+    return rp
 
 
 # ------------------------------------------------------------------

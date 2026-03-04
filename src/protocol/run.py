@@ -42,6 +42,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from src.config.overrides import RunOverrides
+from src.training.logging import RunPaths
 
 
 # ---------------------------------------------------------------------------
@@ -986,10 +987,9 @@ def main():
     base_overrides_dict = base_overrides.to_dict()          # legacy compat
 
     # Experiment output directory (single folder per protocol run)
-    exp_dir = Path(args.output_base) / f"exp_{ts_label}"
-    exp_dir.mkdir(parents=True, exist_ok=True)
-    (exp_dir / "tables").mkdir(exist_ok=True)
-    (exp_dir / "logs").mkdir(exist_ok=True)
+    exp_paths = RunPaths(run_id=f"exp_{ts_label}",
+                         run_dir=Path(args.output_base) / f"exp_{ts_label}")
+    exp_dir = exp_paths.run_dir                         # backward compat
 
     studies_meta = protocol.get("_studies", [])
 
@@ -998,9 +998,7 @@ def main():
     print(f"🔧 Base overrides: {base_overrides}")
 
     # Save a copy of the protocol used (always the resolved dict as JSON)
-    (exp_dir / "logs" / "protocol_input.json").write_text(
-        json.dumps(protocol, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    exp_paths.write_json("logs/protocol_input.json", protocol)
     # Also save original YAML when applicable
     if _proto_config_path is not None:
         import shutil
@@ -1044,10 +1042,8 @@ def main():
     import pandas as pd
     df_summary = build_summary_table(results)
 
-    summary_csv = exp_dir / "tables" / "summary_by_regime.csv"
-    summary_xlsx = exp_dir / "tables" / "summary_by_regime.xlsx"
-    df_summary.to_csv(summary_csv, index=False)
-    df_summary.to_excel(summary_xlsx, index=False)
+    summary_csv = exp_paths.write_table("tables/summary_by_regime.csv", df_summary)
+    exp_paths.write_table("tables/summary_by_regime.xlsx", df_summary)
     print(f"\n📊 Summary table: {summary_csv}")
 
     # ---- Write manifest ----
@@ -1119,8 +1115,7 @@ def main():
             for r in results
         ],
     }
-    manifest_path = exp_dir / "manifest.json"
-    manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
+    manifest_path = exp_paths.write_json("manifest.json", manifest)
     print(f"📋 Manifest: {manifest_path}")
 
     # ---- Final summary to stdout ----
