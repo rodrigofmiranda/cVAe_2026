@@ -19,16 +19,22 @@
         {
             "regime_id": "near_low",
             "description": "0.8 m / 200 mA — near distance, low current",
+            "distance_m": 0.8,
+            "current_mA": 200,
             "experiment_paths": ["dist_0.8m/curr_200mA"]
         },
         {
             "regime_id": "near_high",
             "description": "0.8 m / 800 mA — near distance, high current",
+            "distance_m": 0.8,
+            "current_mA": 800,
             "experiment_paths": ["dist_0.8m/curr_800mA"]
         },
         {
             "regime_id": "far_low",
             "description": "1.5 m / 200 mA — far distance, low current",
+            "distance_m": 1.5,
+            "current_mA": 200,
             "experiment_paths": ["dist_1.5m/curr_200mA"]
         }
     ]

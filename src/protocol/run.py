@@ -70,6 +70,10 @@ def parse_args():
                    help="Max validation samples for distribution metrics (default: 200000)")
     p.add_argument("--gauss_alpha", type=float, default=None,
                    help="Significance level for Gaussianity test (default: 0.01)")
+    p.add_argument("--dist_tol_m", type=float, default=None,
+                   help="Distance tolerance in metres for regime experiment filtering (default: 0.05)")
+    p.add_argument("--curr_tol_mA", type=float, default=None,
+                   help="Current tolerance in mA for regime experiment filtering (default: 25)")
     p.add_argument("--no_baseline", action="store_true",
                    help="Skip deterministic baseline (default: run baseline before cVAE)")
     p.add_argument("--no_dist_metrics", action="store_true",
@@ -128,6 +132,8 @@ def _merge_overrides(protocol_globals: dict, cli_args: argparse.Namespace) -> di
         ("psd_nfft",            "psd_nfft",            "psd_nfft",            int),
         ("max_dist_samples",    "max_dist_samples",    "max_dist_samples",    int),
         ("gauss_alpha",         "gauss_alpha",         "gauss_alpha",         float),
+        ("dist_tol_m",          "dist_tol_m",          "dist_tol_m",          float),
+        ("curr_tol_mA",         "curr_tol_mA",         "curr_tol_mA",         float),
         ("keras_verbose",       "keras_verbose",       "keras_verbose",       int),
     ]
 
@@ -201,6 +207,76 @@ def _extract_best_grid_tag(state: dict) -> str:
     except Exception:
         pass
     return ""
+
+
+def _filter_experiments_for_regime(
+    exps: list,
+    regime: dict,
+    dist_tol_m: float = 0.05,
+    curr_tol_mA: float = 25.0,
+) -> list:
+    """
+    Filter loaded experiments to those matching the regime's distance/current.
+
+    When a regime specifies ``distance_m`` and/or ``current_mA``, only
+    experiments whose metadata falls within the given tolerances are kept.
+    Filtering is skipped (all experiments returned) when the regime does
+    not define targets.
+
+    Parameters
+    ----------
+    exps : list of (X, Y, D, C, exp_path_str)
+    regime : dict — regime definition from protocol JSON
+    dist_tol_m, curr_tol_mA : float — matching tolerances
+
+    Returns
+    -------
+    list  (filtered, deterministic order: sorted by (dist, curr, path))
+    """
+    import numpy as np
+
+    target_dist = regime.get("distance_m")
+    target_curr = regime.get("current_mA")
+
+    # No targets → no filtering
+    if target_dist is None and target_curr is None:
+        return exps
+
+    target_dist = float(target_dist) if target_dist is not None else None
+    target_curr = float(target_curr) if target_curr is not None else None
+
+    filtered = []
+    for (X, Y, D, C, pth) in exps:
+        # Extract per-experiment dist/curr from the condition arrays
+        exp_dist = float(np.mean(D))
+        exp_curr = float(np.mean(C))
+
+        dist_ok = (target_dist is None
+                   or abs(exp_dist - target_dist) <= dist_tol_m)
+        curr_ok = (target_curr is None
+                   or abs(exp_curr - target_curr) <= curr_tol_mA)
+
+        if dist_ok and curr_ok:
+            filtered.append((X, Y, D, C, pth))
+
+    # Deterministic sort: (distance, current, path)
+    def _sort_key(t):
+        return (float(np.mean(t[2])), float(np.mean(t[3])), str(t[4]))
+    filtered.sort(key=_sort_key)
+
+    if len(filtered) == 0:
+        # Collect available pairs for the error message
+        avail = sorted(set(
+            (float(np.mean(D)), float(np.mean(C))) for (_, _, D, C, _) in exps
+        ))
+        raise RuntimeError(
+            f"No experiments match regime '{regime.get('regime_id', '?')}' "
+            f"(target dist={target_dist}, curr={target_curr}, "
+            f"tol_dist={dist_tol_m}, tol_curr={curr_tol_mA}).  "
+            f"Available (dist, curr) pairs: {avail}"
+        )
+
+    return filtered
 
 
 def _quick_cvae_predict(run_dir: Path, X_va, D_va, C_va, batch_size: int = 4096):
@@ -324,6 +400,8 @@ def run_regime(
         "baseline_dist": {},
         "cvae_dist": {},
         "dist_metrics_source": None,      # Commit 3P: "eval" | "quick" | None
+        "selected_experiments": [],        # Commit 3Q: paths of selected exps
+        "selection_criteria": {},          # Commit 3Q: filter params used
         "error": None,
     }
 
@@ -346,8 +424,31 @@ def run_regime(
 
             print(f"\n📦 Loading data from {_ds}")
             exps, _ = load_experiments_as_list(_ds, verbose=False, reduction_config=None)
+
+            # --- Commit 3Q: regime-aware experiment filtering ---
+            _dist_tol = float(ov.get("dist_tol_m", 0.05))
+            _curr_tol = float(ov.get("curr_tol_mA", 25.0))
+            exps = _filter_experiments_for_regime(
+                exps, regime, dist_tol_m=_dist_tol, curr_tol_mA=_curr_tol,
+            )
+            print(f"   🎯 After regime filter: {len(exps)} experiment(s) "
+                  f"(dist_tol={_dist_tol}, curr_tol={_curr_tol})")
+
             if _max_exp is not None:
                 exps = exps[:int(_max_exp)]
+
+            # Record what was selected (Commit 3Q)
+            _sel_paths = [str(t[4]) for t in exps]
+            result["selected_experiments"] = _sel_paths
+            _sel_criteria = {
+                "distance_m": regime.get("distance_m"),
+                "current_mA": regime.get("current_mA"),
+                "dist_tol_m": _dist_tol,
+                "curr_tol_mA": _curr_tol,
+                "max_experiments": int(_max_exp) if _max_exp is not None else None,
+            }
+            result["selection_criteria"] = _sel_criteria
+            print(f"   ✅ Selected experiments ({len(_sel_paths)}): {_sel_paths}")
             if _max_spe is not None:
                 _ms = int(_max_spe)
                 exps = [(X[:_ms], Y[:_ms], D[:_ms], C[:_ms], p) for X, Y, D, C, p in exps]
@@ -612,6 +713,10 @@ def build_summary_table(results: List[dict]) -> "pd.DataFrame":
             "cvae_psd_l2": cd.get("psd_l2"),
             "cvae_jb_p_min": cd.get("jb_p_min"),
             "cvae_reject_gauss": cd.get("reject_gaussian"),
+            # Commit 3Q: regime-aware experiment selection
+            "n_experiments_selected": len(r.get("selected_experiments", [])),
+            "dist_target_m": r.get("selection_criteria", {}).get("distance_m"),
+            "curr_target_mA": r.get("selection_criteria", {}).get("current_mA"),
         }
 
         # Commit 3P: backfill legacy delta_* columns from cvae_dist when eval
@@ -752,6 +857,8 @@ def main():
                 "baseline_dist": r.get("baseline_dist", {}),
                 "cvae_dist": r.get("cvae_dist", {}),
                 "dist_metrics_source": r.get("dist_metrics_source"),
+                "selected_experiments": r.get("selected_experiments", []),
+                "selection_criteria": r.get("selection_criteria", {}),
                 "error": r.get("error"),
             }
             for r in results

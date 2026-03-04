@@ -6,11 +6,13 @@
 #   1) dist_metrics_source appears in the manifest per regime
 #   2) cvae_delta_mean_l2 is populated in the summary CSV
 #   3) Legacy delta_mean_l2 is backfilled when eval is skipped
+#   4) selected_experiments appears in the manifest per regime (Commit 3Q)
+#   5) n_experiments_selected is populated in the CSV (Commit 3Q)
 #
 # Usage:
 #   bash scripts/smoke_dist_metrics.sh
 #
-# Commit 3P.
+# Commit 3P + 3Q updates.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -25,6 +27,7 @@ python -m src.protocol.run \
     --max_epochs 1 --max_grids 1 --max_experiments 1 \
     --max_samples_per_exp 2000 \
     --keras_verbose 0 \
+    --dist_tol_m 0.01 --curr_tol_mA 1 \
     --skip_eval
 
 # Find latest protocol dir
@@ -84,6 +87,56 @@ if [ "$LEGACY" != "EMPTY" ]; then
     echo "  ✓ delta_mean_l2 backfilled: $LEGACY"
 else
     echo "  ✗ delta_mean_l2 NOT backfilled"
+    FAIL=1
+fi
+
+# --- Check 4: selected_experiments in manifest (Commit 3Q) ---
+echo ""
+echo "--- Check 4: selected_experiments in manifest ---"
+if grep -q '"selected_experiments"' "$PROTO_DIR/manifest.json"; then
+    echo "  ✓ selected_experiments found in manifest"
+    # Verify it's a non-empty list for at least one regime
+    N_SEL=$(python -c "
+import json
+m = json.load(open('$PROTO_DIR/manifest.json'))
+for r in m['regimes']:
+    n = len(r.get('selected_experiments', []))
+    if n > 0:
+        print(n); break
+else:
+    print(0)
+")
+    if [ "$N_SEL" -gt 0 ]; then
+        echo "  ✓ At least one regime has $N_SEL selected experiment(s)"
+    else
+        echo "  ✗ selected_experiments is empty for all regimes"
+        FAIL=1
+    fi
+else
+    echo "  ✗ selected_experiments NOT found in manifest"
+    FAIL=1
+fi
+
+# --- Check 5: n_experiments_selected in CSV (Commit 3Q) ---
+echo ""
+echo "--- Check 5: n_experiments_selected in CSV ---"
+HEADER=$(head -1 "$PROTO_DIR/tables/summary_by_regime.csv")
+if echo "$HEADER" | grep -q "n_experiments_selected"; then
+    N_EXP=$(python -c "
+import csv
+with open('$PROTO_DIR/tables/summary_by_regime.csv') as f:
+    r = next(csv.DictReader(f))
+    v = r.get('n_experiments_selected', '')
+    print(v if v else 'EMPTY')
+")
+    if [ "$N_EXP" != "EMPTY" ] && [ "$N_EXP" != "0" ]; then
+        echo "  ✓ n_experiments_selected = $N_EXP"
+    else
+        echo "  ✗ n_experiments_selected is EMPTY or 0"
+        FAIL=1
+    fi
+else
+    echo "  ✗ n_experiments_selected column NOT in CSV"
     FAIL=1
 fi
 
