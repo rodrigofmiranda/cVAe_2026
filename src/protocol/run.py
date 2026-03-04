@@ -205,24 +205,30 @@ def _extract_best_grid_tag(state: dict) -> str:
 
 def _quick_cvae_predict(run_dir: Path, X_va, D_va, C_va, batch_size: int = 4096):
     """
-    Load best_model_full.keras from *run_dir*, build a deterministic
-    inference model (prior → decoder → y_mean), and predict on
-    the given validation arrays.
+    Load best_model_full.keras **strictly** from *run_dir*/models/,
+    build a deterministic inference model (prior → decoder → y_mean),
+    and predict on the given validation arrays.
+
+    Commit 3P: removed fallback to state_run.json to avoid cross-regime
+    model leakage.  Fails loudly if model is missing.
 
     Returns Y_pred (ndarray) or None on failure.
     """
     import numpy as _np
 
     model_path = run_dir / "models" / "best_model_full.keras"
-    # Fallback: check state_run.json for the path
     if not model_path.exists():
-        state = _read_train_state(run_dir)
-        alt = state.get("artifacts", {}).get("best_model_full", "")
-        if alt and Path(alt).exists():
-            model_path = Path(alt)
-        else:
-            print(f"⚠️  best_model_full.keras not found in {run_dir / 'models'}")
-            return None
+        print(f"⚠️  best_model_full.keras not found at {model_path}")
+        return None
+    print(f"   📂 Loading model: {model_path}")
+
+    # --- Shape guard (Commit 3P) ---
+    for name, arr in [("X_va", X_va), ("D_va", D_va), ("C_va", C_va)]:
+        assert arr is not None, f"_quick_cvae_predict: {name} is None"
+    n = X_va.shape[0]
+    assert D_va.shape[0] == n and C_va.shape[0] == n, (
+        f"Shape mismatch: X_va={X_va.shape}, D_va={D_va.shape}, C_va={C_va.shape}"
+    )
 
     try:
         import tensorflow as tf
@@ -317,6 +323,7 @@ def run_regime(
         "cvae_time_s": 0.0,
         "baseline_dist": {},
         "cvae_dist": {},
+        "dist_metrics_source": None,      # Commit 3P: "eval" | "quick" | None
         "error": None,
     }
 
@@ -347,10 +354,23 @@ def run_regime(
 
             X_tr, Y_tr, _D_tr, _C_tr, X_va, Y_va, D_va, C_va, _ = \
                 split_train_val_per_experiment(exps, val_split=_val_split, seed=_seed)
-            _val_data = (X_va, Y_va, D_va, C_va)
+
+            # --- Commit 3P: shape guard ---
+            assert X_va.shape[0] == Y_va.shape[0] == D_va.shape[0] == C_va.shape[0], (
+                f"Shape mismatch after split: X_va={X_va.shape}, Y_va={Y_va.shape}, "
+                f"D_va={D_va.shape}, C_va={C_va.shape}"
+            )
+
+            _val_data = (X_va.copy(), Y_va.copy(), D_va.copy(), C_va.copy())  # Commit 3P: isolate
             _X_tr, _Y_tr = X_tr, Y_tr
             print(f"   train={len(X_tr):,}  val={len(X_va):,}")
-            del _D_tr, _C_tr, exps
+
+            # Commit 3P: data fingerprint for debugging
+            import numpy as _np_fp
+            print(f"   🔑 val fingerprint: X mean={_np_fp.mean(X_va):.6f} "
+                  f"std={_np_fp.std(X_va):.6f} D_unique={_np_fp.unique(D_va).tolist()} "
+                  f"C_unique={_np_fp.unique(C_va).tolist()}")
+            del _D_tr, _C_tr, exps, X_tr, Y_tr, X_va, Y_va, D_va, C_va
         except Exception as e:
             print(f"⚠️  Data loading failed for regime '{regime_id}': {e}")
 
@@ -398,7 +418,7 @@ def run_regime(
             print(f"⚠️  Baseline failed for regime '{regime_id}': {e}")
 
     # Free training arrays (val data kept for cVAE dist metrics)
-    del _X_tr, _Y_tr
+    _X_tr = _Y_tr = None  # Commit 3P: explicit None for safety
     import gc; gc.collect()
 
     # ---- TRAINING ----
@@ -468,9 +488,10 @@ def run_regime(
     # Read eval metrics
     result["metrics"] = _read_eval_metrics(run_dir)
 
-    # ---- cVAE DISTRIBUTION-FIDELITY METRICS (Commit 3O) ----
+    # ---- cVAE DISTRIBUTION-FIDELITY METRICS (Commit 3O, fixed 3P) ----
     if run_dist_metrics and result["train_status"] == "completed":
         try:
+            import numpy as _np_dm
             _psd_nfft = int(ov.get("psd_nfft", 2048))
             _max_ds = int(ov.get("max_dist_samples", 200_000))
             _g_alpha = float(ov.get("gauss_alpha", 0.01))
@@ -488,31 +509,48 @@ def run_regime(
                     "jb_p_min": None,
                     "reject_gaussian": None,
                 }
+                result["dist_metrics_source"] = "eval"
                 print(f"   📐 cVAE dist (from eval): "
                       f"Δmean_l2={m.get('delta_mean_l2', '?')}  "
                       f"psd_l2={m.get('delta_psd_l2', '?')}")
             elif _val_data is not None:
                 # Quick inference path (--skip_eval or eval failed)
-                X_va, Y_va, D_va, C_va = _val_data
-                print(f"\n🔍 Quick cVAE inference for dist metrics ({len(X_va):,} val pts)")
-                Y_pred_cvae = _quick_cvae_predict(run_dir, X_va, D_va, C_va)
+                # Commit 3P: unpack fresh copies and assert model is in THIS run_dir
+                _X_va, _Y_va, _D_va, _C_va = _val_data
+                model_check = run_dir / "models" / "best_model_full.keras"
+                assert model_check.exists(), (
+                    f"Cannot run quick cVAE dist metrics: model not found at {model_check}"
+                )
+                print(f"\n🔍 Quick cVAE inference for regime '{regime_id}' "
+                      f"({len(_X_va):,} val pts, model={model_check})")
+                Y_pred_cvae = _quick_cvae_predict(run_dir, _X_va, _D_va, _C_va)
                 if Y_pred_cvae is not None:
                     from src.metrics.distribution import residual_fidelity_metrics
-                    res_real = Y_va - X_va
-                    res_pred_cvae = Y_pred_cvae - X_va
-                    result["cvae_dist"] = residual_fidelity_metrics(
+                    res_real = _Y_va - _X_va
+                    res_pred_cvae = Y_pred_cvae - _X_va
+                    cvae_dm = residual_fidelity_metrics(
                         res_real, res_pred_cvae,
                         psd_nfft=_psd_nfft, max_samples=_max_ds, gauss_alpha=_g_alpha,
                     )
-                    print(f"   📐 cVAE dist: Δmean_l2={result['cvae_dist']['delta_mean_l2']:.4f}  "
-                          f"psd_l2={result['cvae_dist']['psd_l2']:.4f}  "
-                          f"reject_gauss={result['cvae_dist']['reject_gaussian']}")
-                    del Y_pred_cvae, res_pred_cvae
+                    # --- Commit 3P: finiteness guard ---
+                    _finite_keys = ["delta_mean_l2", "delta_cov_fro", "delta_skew_l2",
+                                    "delta_kurt_l2", "psd_l2"]
+                    for _fk in _finite_keys:
+                        v = cvae_dm.get(_fk)
+                        if v is not None and not _np_dm.isfinite(v):
+                            print(f"⚠️  Non-finite dist metric {_fk}={v} for regime '{regime_id}'")
+                    result["cvae_dist"] = cvae_dm
+                    result["dist_metrics_source"] = "quick"
+                    print(f"   📐 cVAE dist: Δmean_l2={cvae_dm['delta_mean_l2']:.4f}  "
+                          f"psd_l2={cvae_dm['psd_l2']:.4f}  "
+                          f"reject_gauss={cvae_dm['reject_gaussian']}")
+                    del Y_pred_cvae, res_pred_cvae, cvae_dm
+                del _X_va, _Y_va, _D_va, _C_va
         except Exception as e:
             result["cvae_dist"] = {"error": str(e)}
             print(f"⚠️  cVAE dist metrics failed for regime '{regime_id}': {e}")
 
-    # Free val data
+    # Commit 3P: aggressively free val data; prevent cross-regime leakage
     _val_data = None
     gc.collect()
 
@@ -575,6 +613,15 @@ def build_summary_table(results: List[dict]) -> "pd.DataFrame":
             "cvae_jb_p_min": cd.get("jb_p_min"),
             "cvae_reject_gauss": cd.get("reject_gaussian"),
         }
+
+        # Commit 3P: backfill legacy delta_* columns from cvae_dist when eval
+        # was skipped (backward compatibility)
+        if row["delta_mean_l2"] is None and cd.get("delta_mean_l2") is not None:
+            row["delta_mean_l2"] = cd["delta_mean_l2"]
+            row["delta_cov_fro"] = cd.get("delta_cov_fro")
+            row["delta_skew_l2"] = cd.get("delta_skew_l2")
+            row["delta_kurt_l2"] = cd.get("delta_kurt_l2")
+            row["delta_psd_l2"] = cd.get("psd_l2")
 
         # Try to enrich with latent summary from eval run
         run_dir = Path(r.get("run_dir", ""))
@@ -704,6 +751,7 @@ def main():
                 "cvae_time_s": r.get("cvae_time_s", 0.0),
                 "baseline_dist": r.get("baseline_dist", {}),
                 "cvae_dist": r.get("cvae_dist", {}),
+                "dist_metrics_source": r.get("dist_metrics_source"),
                 "error": r.get("error"),
             }
             for r in results
