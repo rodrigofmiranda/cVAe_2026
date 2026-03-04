@@ -1,4 +1,4 @@
-# Protocol Runner (Commit 3J)
+# Protocol Runner
 
 Reproducible orchestration of **train + evaluate** across VLC regimes.
 
@@ -8,7 +8,7 @@ Reproducible orchestration of **train + evaluate** across VLC regimes.
 cd /workspace/2026
 export PYTHONPATH="$PWD"
 
-# Run default protocol (3 regimes: near/low, near/high, far/low)
+# Auto-discover all regimes from dataset (default — no config needed)
 python -m src.protocol.run \
     --dataset_root data/dataset_fullsquare_organized \
     --output_base  outputs
@@ -25,97 +25,179 @@ python -m src.protocol.run \
     --output_base  outputs \
     --dry_run
 
-# Custom protocol file
+# Custom protocol file (explicit regime subset)
 python -m src.protocol.run \
     --dataset_root data/dataset_fullsquare_organized \
     --output_base  outputs \
-    --protocol configs/my_protocol.json
+    --protocol configs/protocol_default.json
+
+# YAML protocol config
+python -m src.protocol.run \
+    --dataset_root data/dataset_fullsquare_organized \
+    --output_base  outputs \
+    --protocol_config configs/protocol_default.yaml
 ```
 
-## Protocol JSON format
+## Default behaviour — auto-discovery
+
+When **neither** `--protocol` nor `--protocol_config` is provided, the
+runner scans `dataset_root` for the standard directory layout:
+
+```
+dataset_root/
+  dist_0.8m/
+    curr_200mA/<experiment>/...
+    curr_400mA/<experiment>/...
+  dist_1.0m/
+    curr_200mA/...
+  ...
+```
+
+Every unique `(distance, current)` pair found becomes a regime.
+Regimes are sorted deterministically by distance then current.
+
+**Regime ID format:** `dist_{D}m__curr_{C}mA`
+
+- Decimals use `p` instead of `.` (e.g. `0.8` → `0p8`)
+- Trailing fractional zeros are stripped (`1.00` → `1`, `0.80` → `0p8`)
+- Current is integer mA (`200`, not `200.0`)
+
+Examples:
+
+| Distance | Current | regime_id |
+|---|---|---|
+| 0.8 m | 200 mA | `dist_0p8m__curr_200mA` |
+| 1.0 m | 400 mA | `dist_1m__curr_400mA` |
+| 1.5 m | 800 mA | `dist_1p5m__curr_800mA` |
+
+On startup the runner logs the first discovered regimes:
+
+```
+🔍 Auto-discovered 12 regime(s) from dataset:
+   • dist_0p8m__curr_200mA  (0.8 m, 200.0 mA)
+   • dist_0p8m__curr_400mA  (0.8 m, 400.0 mA)
+   • dist_0p8m__curr_600mA  (0.8 m, 600.0 mA)
+   … and 9 more
+```
+
+## Protocol config formats
+
+### JSON (`--protocol`)
 
 ```json
 {
     "protocol_version": "1.0",
-    "description": "My experiment protocol",
+    "description": "Custom 3-regime protocol",
     "global_settings": {
         "seed": 42,
         "val_split": 0.2,
         "max_epochs": 500,
-        "max_grids": null,
-        "grid_group": null,
-        "grid_tag": null,
-        "max_experiments": null,
-        "max_samples_per_exp": null,
         "psd_nfft": 2048
     },
     "regimes": [
         {
-            "regime_id": "near_low",
+            "regime_id": "dist_0p8m__curr_200mA",
             "description": "0.8 m / 200 mA",
-            "experiment_paths": ["dist_0.8m/curr_200mA"]
+            "distance_m": 0.8,
+            "current_mA": 200
         },
         {
-            "regime_id": "custom_regex",
-            "description": "All 400 mA experiments",
-            "experiment_regex": "curr_400mA"
+            "regime_id": "dist_1p5m__curr_800mA",
+            "description": "1.5 m / 800 mA",
+            "distance_m": 1.5,
+            "current_mA": 800
         }
     ]
 }
 ```
 
-### Regime definition
+When `distance_m` and `current_mA` are present, `regime_id` is
+automatically rewritten to the canonical physical format — any custom
+name is preserved as `regime_label`.
 
-Each regime supports two modes:
+### YAML (`--protocol_config`)
 
-| Field | Type | Description |
-|---|---|---|
-| `experiment_paths` | `list[str]` | Explicit relative paths under `DATASET_ROOT` |
-| `experiment_regex` | `str` | Regex matched against discovered experiment paths |
+```yaml
+studies:
+  - name: within_regime
+    split_strategy: per_experiment
+    selectors:
+      - distance_m: 0.8
+        current_mA: 200
+      - distance_m: 1.5
+        current_mA: 800
+```
 
-Use `experiment_paths` for deterministic, reproducible protocols.
+### Regime selection
+
+Experiments are matched to regimes by `distance_m` / `current_mA`
+with tolerances controlled by `--dist_tol_m` (default 0.05) and
+`--curr_tol_mA` (default 25).
 
 ## Outputs
 
 ```
-outputs/protocol_YYYYMMDD_HHMMSS/
-├── manifest.json              # git hash, versions, args, regime statuses
+outputs/exp_YYYYMMDD_HHMMSS/
+├── manifest.json
 ├── logs/
-│   └── protocol_input.json    # copy of the protocol JSON used
-└── tables/
-    ├── summary_by_regime.csv  # consolidated metrics per regime
-    └── summary_by_regime.xlsx
+│   ├── protocol_input.json
+│   └── protocol_input.yaml   (when YAML config used)
+├── tables/
+│   ├── summary_by_regime.csv
+│   └── summary_by_regime.xlsx
+└── studies/
+    └── within_regime/
+        └── regimes/
+            ├── dist_0p8m__curr_200mA/
+            │   ├── models/
+            │   ├── logs/
+            │   └── tables/
+            ├── dist_0p8m__curr_400mA/
+            └── ...
 ```
-
-Each regime's training run is stored separately under `outputs/protocol_<regime_id>_<ts>/`.
 
 ### Summary table columns
 
 | Column | Description |
 |---|---|
-| `regime_id` | Identifier from protocol |
+| `study` | Study name |
+| `regime_id` | Physical regime ID (`dist_…m__curr_…mA`) |
+| `regime_label` | Original human name (if any) |
+| `description` | Human-readable description |
+| `dist_target_m` | Target distance (m) |
+| `curr_target_mA` | Target current (mA) |
 | `best_grid_tag` | Best grid configuration tag (from training) |
 | `evm_real_%`, `evm_pred_%`, `delta_evm_%` | EVM metrics |
 | `snr_real_db`, `snr_pred_db`, `delta_snr_db` | SNR metrics |
 | `delta_mean_l2`, `delta_cov_fro` | Residual distribution metrics |
 | `delta_skew_l2`, `delta_kurt_l2`, `delta_psd_l2` | Higher-order stats |
 | `kl_q_to_p_total`, `kl_p_to_N_total` | Latent KL diagnostics |
+| `baseline_evm_pred_%`, `baseline_snr_pred_db` | Baseline signal-quality |
+| `baseline_delta_mean_l2` | Baseline distribution-fidelity |
+| `cvae_delta_mean_l2`, `cvae_psd_l2` | cVAE distribution-fidelity |
+| `n_experiments_selected` | How many experiments matched this regime |
 
 ## CLI flags
 
-All flags override values from `global_settings` in the protocol JSON.
+All flags override values from `global_settings` in the protocol config.
 CLI flags take precedence.
 
 | Flag | Effect |
 |---|---|
+| `--protocol PATH` | Explicit JSON protocol (default: auto-discover) |
+| `--protocol_config PATH` | YAML protocol config (takes precedence over `--protocol`) |
 | `--max_epochs N` | Limit training epochs |
 | `--max_grids N` | Limit grid configurations per regime |
 | `--grid_group REGEX` | Filter grids by group |
 | `--grid_tag REGEX` | Filter grids by tag |
-| `--max_experiments N` | Limit experiments loaded |
+| `--max_experiments N` | Limit experiments loaded per regime |
 | `--max_samples_per_exp N` | Truncate samples per experiment |
 | `--val_split F` | Override validation split |
 | `--seed N` | Override random seed |
 | `--psd_nfft N` | Override PSD FFT size |
-| `--skip_eval` | Run training only |
+| `--dist_tol_m F` | Distance tolerance for regime matching (default: 0.05 m) |
+| `--curr_tol_mA F` | Current tolerance for regime matching (default: 25 mA) |
+| `--no_baseline` | Skip deterministic baseline |
+| `--no_dist_metrics` | Skip distribution-fidelity metrics |
+| `--skip_eval` | Run training only, skip evaluation |
 | `--dry_run` | Validate + build model, no training |
