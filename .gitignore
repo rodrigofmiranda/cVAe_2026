@@ -6,25 +6,34 @@ tables/
 plots/
 events.out.tfevents.*
 
+# Datasets (never commit — large binary data)
+data/
+
 # Backups locais (não versionar)
 backup/
 *.tar
 *.zip
 
-# Checkpoints (se estiverem fora de outputs)
+# Checkpoints / model weights (se estiverem fora de outputs)
 *.h5
 *.ckpt
 *.pt
+*.keras
+*.weights.h5
 
-# Python/Jupyter
+# Python / Jupyter
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
 .venv/
 *.swp
 
+# Temporary / log files
+*.tmp
+*.log
+
 # OS
 .DS_Store
 
-# Local dataset (never commit)
-data/dataset_fullsquare_organized/
+# Accidental CLI artifact files (multiline paste mistakes)
+--*
