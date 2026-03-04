@@ -35,6 +35,7 @@ import json
 import os
 import re
 import sys
+import time
 import traceback
 from datetime import datetime
 from pathlib import Path
@@ -65,6 +66,8 @@ def parse_args():
     p.add_argument("--psd_nfft", type=int, default=None)
     p.add_argument("--keras_verbose", type=int, default=2, choices=[0, 1, 2],
                    help="Keras fit verbosity: 0=silent, 1=progress bar, 2=one line/epoch (default: 2)")
+    p.add_argument("--no_baseline", action="store_true",
+                   help="Skip deterministic baseline (default: run baseline before cVAE)")
     p.add_argument("--skip_eval", action="store_true",
                    help="Run training only, skip evaluation step")
     p.add_argument("--dry_run", action="store_true",
@@ -203,6 +206,7 @@ def run_regime(
     base_overrides: dict,
     protocol_dir: Path,
     skip_eval: bool = False,
+    run_baseline: bool = True,
 ) -> dict:
     """
     Execute train + evaluate for one regime.
@@ -241,8 +245,56 @@ def run_regime(
         "eval_status": "skipped",
         "metrics": {},
         "best_grid_tag": "",
+        "baseline": {},
+        "baseline_time_s": 0.0,
+        "cvae_time_s": 0.0,
         "error": None,
     }
+
+    # ---- BASELINE (Commit 3N) ----
+    if run_baseline and not ov.get("dry_run", False):
+        try:
+            import time as _time
+            from src.data.loading import load_experiments_as_list
+            from src.data.splits import split_train_val_per_experiment
+            from src.baselines.deterministic import run_deterministic_baseline
+
+            _ds = Path(dataset_root)
+            _val_split = float(ov.get("val_split", 0.2))
+            _seed = int(ov.get("seed", 42))
+            _max_exp = ov.get("max_experiments")
+            _max_spe = ov.get("max_samples_per_exp")
+            _keras_v = int(ov.get("keras_verbose", 0))
+
+            print(f"\n📏 Baseline: loading data from {_ds}")
+            exps, _ = load_experiments_as_list(_ds, verbose=False, reduction_config=None)
+            if _max_exp is not None:
+                exps = exps[:int(_max_exp)]
+            if _max_spe is not None:
+                _ms = int(_max_spe)
+                exps = [(X[:_ms], Y[:_ms], D[:_ms], C[:_ms], p) for X, Y, D, C, p in exps]
+
+            X_tr, Y_tr, _, _, X_va, Y_va, _, _, _ = split_train_val_per_experiment(
+                exps, val_split=_val_split, seed=_seed,
+            )
+            print(f"   train={len(X_tr):,}  val={len(X_va):,}")
+
+            _bl_t0 = _time.time()
+            bl_metrics = run_deterministic_baseline(
+                X_tr, Y_tr, X_va, Y_va,
+                config={"verbose": _keras_v},
+            )
+            result["baseline_time_s"] = round(_time.time() - _bl_t0, 2)
+            result["baseline"] = bl_metrics
+            print(f"   ✅ Baseline: EVM={bl_metrics['evm_pred_%']:.3f}%  "
+                  f"SNR={bl_metrics['snr_pred_db']:.2f}dB  "
+                  f"({bl_metrics['train_time_s']:.1f}s)")
+
+            del X_tr, Y_tr, X_va, Y_va, exps
+            import gc; gc.collect()
+        except Exception as e:
+            result["baseline"] = {"error": str(e)}
+            print(f"⚠️  Baseline failed for regime '{regime_id}': {e}")
 
     # ---- TRAINING ----
     print(f"\n{'='*70}")
@@ -256,6 +308,7 @@ def run_regime(
     os.environ["OUTPUT_BASE"] = str(Path(output_base).resolve())
     os.environ["RUN_ID"] = run_id
 
+    _cvae_t0 = time.time()
     try:
         from src.training import cvae_TRAIN_documented as train_module
         print(f"\n📦 Training regime '{regime_id}' → run_id={run_id}")
@@ -266,6 +319,7 @@ def run_regime(
         result["error"] = f"train: {e}\n{traceback.format_exc()}"
         print(f"❌ Training failed for regime '{regime_id}': {e}")
 
+    result["cvae_time_s"] = round(time.time() - _cvae_t0, 2)
     run_dir = Path(output_base) / run_id
     result["run_dir"] = str(run_dir)
 
@@ -320,6 +374,7 @@ def build_summary_table(results: List[dict]) -> "pd.DataFrame":
     rows = []
     for r in results:
         m = r.get("metrics", {})
+        bl = r.get("baseline", {})
         row = {
             "regime_id": r["regime_id"],
             "description": r.get("description", ""),
@@ -342,6 +397,13 @@ def build_summary_table(results: List[dict]) -> "pd.DataFrame":
             "kl_q_to_p_total": None,
             "kl_p_to_N_total": None,
             "var_mc_gen": m.get("var_mc_gen"),
+            # Commit 3N: baseline columns
+            "baseline_evm_pred_%": bl.get("evm_pred_%"),
+            "baseline_snr_pred_db": bl.get("snr_pred_db"),
+            "baseline_delta_evm_%": bl.get("delta_evm_%"),
+            "baseline_delta_snr_db": bl.get("delta_snr_db"),
+            "baseline_time_s": r.get("baseline_time_s", 0.0),
+            "cvae_time_s": r.get("cvae_time_s", 0.0),
         }
 
         # Try to enrich with latent summary from eval run
@@ -409,6 +471,7 @@ def main():
             base_overrides=base_overrides,
             protocol_dir=protocol_dir,
             skip_eval=args.skip_eval,
+            run_baseline=not args.no_baseline,
         )
         results.append(r)
 
@@ -436,7 +499,15 @@ def main():
             "output_base": args.output_base,
             "protocol": args.protocol,
             "skip_eval": args.skip_eval,
+            "no_baseline": args.no_baseline,
             "dry_run": args.dry_run,
+        },
+        "baseline_config": {
+            "model": "deterministic_mlp",
+            "hidden": [128, 64],
+            "epochs": 50,
+            "loss": "mse",
+            "enabled": not args.no_baseline,
         },
         "base_overrides": base_overrides,
         "n_regimes": len(regimes),
@@ -448,6 +519,8 @@ def main():
                 "train_status": r["train_status"],
                 "eval_status": r["eval_status"],
                 "best_grid_tag": r.get("best_grid_tag", ""),
+                "baseline_time_s": r.get("baseline_time_s", 0.0),
+                "cvae_time_s": r.get("cvae_time_s", 0.0),
                 "error": r.get("error"),
             }
             for r in results
@@ -466,8 +539,11 @@ def main():
         status = f"train={r['train_status']}, eval={r['eval_status']}"
         delta = ""
         m = r.get("metrics", {})
+        bl = r.get("baseline", {})
         if m.get("delta_evm_%") is not None:
             delta = f" | ΔEVM={m['delta_evm_%']:+.3f}pp ΔSNR={m.get('delta_snr_db', 0):+.3f}dB"
+        if bl.get("evm_pred_%") is not None:
+            delta += f" | baseline EVM={bl['evm_pred_%']:.3f}%"
         print(f"   • {r['regime_id']}: {status}{delta}")
     print(f"{'='*70}")
 
