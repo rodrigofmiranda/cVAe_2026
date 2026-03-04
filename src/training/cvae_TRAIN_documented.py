@@ -678,13 +678,14 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
             ]
 
             t0 = time.time()
+            _keras_verbose = int(_ov.get("keras_verbose", 2))  # Commit 3M
             hist = vae.fit(
                 [X_train, Dn_train, Cn_train, Y_train], Y_train,
                 validation_data=([X_val, Dn_val, Cn_val, Y_val], Y_val),
                 epochs=int(TRAINING_CONFIG["epochs"]),
                 batch_size=int(cfg["batch_size"]),
                 callbacks=callbacks,
-                verbose=2,
+                verbose=_keras_verbose,
                 shuffle=bool(TRAINING_CONFIG["shuffle_train_batches"]),
             )
             train_time_s = float(time.time() - t0)

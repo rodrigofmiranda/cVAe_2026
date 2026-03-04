@@ -63,6 +63,8 @@ def parse_args():
     p.add_argument("--val_split", type=float, default=None)
     p.add_argument("--seed", type=int, default=None)
     p.add_argument("--psd_nfft", type=int, default=None)
+    p.add_argument("--keras_verbose", type=int, default=2, choices=[0, 1, 2],
+                   help="Keras fit verbosity: 0=silent, 1=progress bar, 2=one line/epoch (default: 2)")
     p.add_argument("--skip_eval", action="store_true",
                    help="Run training only, skip evaluation step")
     p.add_argument("--dry_run", action="store_true",
@@ -115,6 +117,7 @@ def _merge_overrides(protocol_globals: dict, cli_args: argparse.Namespace) -> di
         ("max_experiments",     "max_experiments",     "max_experiments",     int),
         ("max_samples_per_exp", "max_samples_per_exp", "max_samples_per_exp", int),
         ("psd_nfft",            "psd_nfft",            "psd_nfft",            int),
+        ("keras_verbose",       "keras_verbose",       "keras_verbose",       int),
     ]
 
     for ov_key, pg_key, cli_attr, cast in _MAP:
@@ -244,10 +247,13 @@ def run_regime(
     # ---- TRAINING ----
     print(f"\n{'='*70}")
     print(f"🔬 REGIME: {regime_id} — {regime.get('description', '')}")
+    print(f"📁 DATASET_ROOT (effective) = {dataset_root}")
     print(f"{'='*70}")
 
-    os.environ["DATASET_ROOT"] = dataset_root
-    os.environ["OUTPUT_BASE"] = output_base
+    # --- Commit 3M: always use absolute path for DATASET_ROOT ---
+    _ds_root = str(Path(dataset_root).resolve())
+    os.environ["DATASET_ROOT"] = _ds_root
+    os.environ["OUTPUT_BASE"] = str(Path(output_base).resolve())
     os.environ["RUN_ID"] = run_id
 
     try:
@@ -282,8 +288,8 @@ def run_regime(
         return result
 
     try:
-        os.environ["DATASET_ROOT"] = dataset_root
-        os.environ["OUTPUT_BASE"] = output_base
+        os.environ["DATASET_ROOT"] = _ds_root
+        os.environ["OUTPUT_BASE"] = str(Path(output_base).resolve())
         os.environ["RUN_ID"] = run_id
 
         eval_ov = {}
@@ -362,6 +368,10 @@ def main():
     args = parse_args()
     ts_start = datetime.now()
     ts_label = ts_start.strftime("%Y%m%d_%H%M%S")
+
+    # --- Commit 3M: resolve dataset_root to absolute path ---
+    args.dataset_root = str(Path(args.dataset_root).resolve())
+    args.output_base = str(Path(args.output_base).resolve())
 
     # Load protocol
     protocol = _load_protocol(args.protocol)

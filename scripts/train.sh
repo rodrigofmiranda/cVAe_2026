@@ -31,3 +31,7 @@ python -u -m src.training.train \
 # python -u -m src.training.train \
 #     --dataset_root "$DATASET_ROOT" --output_base "$OUTPUT_BASE" \
 #     --max_epochs 2 --grid_tag "lat4.*b0p001"
+# --- Commit 3M: keras verbosity control ---
+# python -u -m src.protocol.run \
+#     --dataset_root "$DATASET_ROOT" --output_base "$OUTPUT_BASE" \
+#     --max_epochs 1 --max_grids 1 --keras_verbose 2

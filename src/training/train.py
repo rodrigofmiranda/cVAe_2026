@@ -47,6 +47,8 @@ def parse_args():
                         help="Regex filter: keep grids whose group matches (default: all)")
     parser.add_argument("--grid_tag", type=str, default=None,
                         help="Regex filter: keep grids whose tag matches (default: all)")
+    parser.add_argument("--keras_verbose", type=int, default=2, choices=[0, 1, 2],
+                        help="Keras fit verbosity: 0=silent, 1=progress bar, 2=one line/epoch (default: 2)")
     parser.add_argument("--dry_run", action="store_true",
                         help="Load+split+build model+print shapes, then exit without training")
     return parser.parse_args()
@@ -79,6 +81,8 @@ def main():
         overrides["grid_group"] = args.grid_group
     if args.grid_tag is not None:
         overrides["grid_tag"] = args.grid_tag
+    if args.keras_verbose is not None:
+        overrides["keras_verbose"] = args.keras_verbose
     if args.dry_run:
         overrides["dry_run"] = True
 
