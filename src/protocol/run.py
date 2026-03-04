@@ -276,65 +276,24 @@ def _filter_experiments_for_regime(
     """
     Filter loaded experiments to those matching the regime's distance/current.
 
-    When a regime specifies ``distance_m`` and/or ``current_mA``, only
-    experiments whose metadata falls within the given tolerances are kept.
-    Filtering is skipped (all experiments returned) when the regime does
-    not define targets.
+    Thin wrapper around :func:`selector_engine.select_experiments` so that
+    existing call-sites in *run_regime* keep working unchanged.
 
-    Parameters
-    ----------
-    exps : list of (X, Y, D, C, exp_path_str)
-    regime : dict — regime definition from protocol JSON
-    dist_tol_m, curr_tol_mA : float — matching tolerances
-
-    Returns
-    -------
-    list  (filtered, deterministic order: sorted by (dist, curr, path))
+    Commit 3V: delegates to selector_engine.
     """
-    import numpy as np
+    from src.protocol.selector_engine import select_experiments
 
-    target_dist = regime.get("distance_m")
-    target_curr = regime.get("current_mA")
-
-    # No targets → no filtering
-    if target_dist is None and target_curr is None:
-        return exps
-
-    target_dist = float(target_dist) if target_dist is not None else None
-    target_curr = float(target_curr) if target_curr is not None else None
-
-    filtered = []
-    for (X, Y, D, C, pth) in exps:
-        # Extract per-experiment dist/curr from the condition arrays
-        exp_dist = float(np.mean(D))
-        exp_curr = float(np.mean(C))
-
-        dist_ok = (target_dist is None
-                   or abs(exp_dist - target_dist) <= dist_tol_m)
-        curr_ok = (target_curr is None
-                   or abs(exp_curr - target_curr) <= curr_tol_mA)
-
-        if dist_ok and curr_ok:
-            filtered.append((X, Y, D, C, pth))
-
-    # Deterministic sort: (distance, current, path)
-    def _sort_key(t):
-        return (float(np.mean(t[2])), float(np.mean(t[3])), str(t[4]))
-    filtered.sort(key=_sort_key)
-
-    if len(filtered) == 0:
-        # Collect available pairs for the error message
-        avail = sorted(set(
-            (float(np.mean(D)), float(np.mean(C))) for (_, _, D, C, _) in exps
-        ))
-        raise RuntimeError(
-            f"No experiments match regime '{regime.get('regime_id', '?')}' "
-            f"(target dist={target_dist}, curr={target_curr}, "
-            f"tol_dist={dist_tol_m}, tol_curr={curr_tol_mA}).  "
-            f"Available (dist, curr) pairs: {avail}"
-        )
-
-    return filtered
+    selector = {
+        "distance_m": regime.get("distance_m"),
+        "current_mA": regime.get("current_mA"),
+    }
+    return select_experiments(
+        inventory=exps,
+        selector=selector,
+        dist_tol=dist_tol_m,
+        curr_tol=curr_tol_mA,
+        label=regime.get("regime_id", "?"),
+    )
 
 
 def _quick_cvae_predict(run_dir: Path, X_va, D_va, C_va, batch_size: int = 4096):
