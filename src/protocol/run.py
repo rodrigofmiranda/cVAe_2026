@@ -120,15 +120,22 @@ def _ensure_studies(proto: dict) -> dict:
 
     When the protocol was loaded from JSON (no ``_studies`` key),
     wraps all regimes into a single ``within_regime`` study with
-    ``per_experiment`` split.  This keeps the JSON path fully
-    backward-compatible.
+    ``per_experiment`` split.
 
-    Commit 3X.
+    Also overrides each regime's ``regime_id`` with the canonical
+    physical ID (``dist_…m__curr_…mA``) so that folder names are
+    always dataset-agnostic.  The original human-friendly id is
+    kept as ``regime_label``.
     """
     if "_studies" in proto:
         return proto
     regimes = proto["regimes"]
     for r in regimes:
+        # Derive physical ID; keep old name as label
+        if r.get("distance_m") is not None and r.get("current_mA") is not None:
+            old_id = r["regime_id"]
+            r["regime_id"] = make_regime_id(r["distance_m"], r["current_mA"])
+            r.setdefault("regime_label", old_id)
         r.setdefault("_study", "within_regime")
         r.setdefault("_split_strategy", "per_experiment")
     proto["_studies"] = [{
@@ -139,14 +146,30 @@ def _ensure_studies(proto: dict) -> dict:
     return proto
 
 
-def _regime_id_from_point(distance_m: float, current_mA: float) -> str:
-    """Generate a filesystem-safe regime_id from physical operating point.
+def _fmt_number(x: float, nd: int) -> str:
+    """Format *x* with *nd* decimal places, strip trailing fractional zeros, replace '.' with 'p'."""
+    s = f"{x:.{nd}f}"
+    if "." in s:
+        s = s.rstrip("0").rstrip(".")
+    return s.replace(".", "p") if s else "0"
 
-    Examples: 0.8m / 200mA → ``d0p8_i200``, 1.5m / 800mA → ``d1p5_i800``.
+
+def make_regime_id(distance_m: float, current_mA: float) -> str:
+    """Deterministic, filesystem-safe regime ID from physical operating point.
+
+    Format: ``dist_{D}m__curr_{C}mA``
+
+    Examples:
+        >>> make_regime_id(0.8, 200)
+        'dist_0p8m__curr_200mA'
+        >>> make_regime_id(1.5, 800)
+        'dist_1p5m__curr_800mA'
+        >>> make_regime_id(1.0, 100.0)
+        'dist_1m__curr_100mA'
     """
-    d_str = f"{distance_m:.1f}".replace(".", "p")
-    c_str = str(int(current_mA))
-    return f"d{d_str}_i{c_str}"
+    d = _fmt_number(distance_m, 2)
+    c = _fmt_number(current_mA, 0)
+    return f"dist_{d}m__curr_{c}mA"
 
 
 def _load_protocol_yaml(path: str) -> dict:
@@ -204,7 +227,7 @@ def _load_protocol_yaml(path: str) -> dict:
             dist = float(entry["distance_m"])
             curr = float(entry["current_mA"])
 
-            rid = entry.get("regime_id") or _regime_id_from_point(dist, curr)
+            rid = entry.get("regime_id") or make_regime_id(dist, curr)
             # Prefix with study name to avoid cross-study collisions
             full_rid = f"{sname}/{rid}" if len(studies) > 1 else rid
             if full_rid in seen_ids:
@@ -478,6 +501,7 @@ def run_regime(
 
     result = {
         "regime_id": regime_id,
+        "regime_label": regime.get("regime_label", ""),
         "description": regime.get("description", ""),
         "run_id": run_id,
         "run_dir": None,
@@ -788,6 +812,7 @@ def build_summary_table(results: List[dict]) -> "pd.DataFrame":
         row = {
             "study": r.get("_study", "within_regime"),
             "regime_id": r["regime_id"],
+            "regime_label": r.get("regime_label", ""),
             "description": r.get("description", ""),
             "run_id": r["run_id"],
             "run_dir": r.get("run_dir", ""),
@@ -1004,6 +1029,7 @@ def main():
         "regimes": [
             {
                 "regime_id": r["regime_id"],
+                "regime_label": r.get("regime_label", ""),
                 "study": r.get("_study", "within_regime"),
                 "run_id": r["run_id"],
                 "run_dir": r.get("run_dir", ""),
