@@ -1,0 +1,21 @@
+# Default protocol configuration for reproducible cVAE evaluation.
+#
+# Each regime is defined by its physical operating point (distance_m,
+# current_mA).  The protocol engine auto-generates regime_id and
+# description from these fields.
+#
+# Optional per-regime keys:
+#   regime_id    — override auto-generated id  (str)
+#   description  — override auto-generated description  (str)
+#
+# Commit 3U.
+
+regimes:
+  - distance_m: 0.8
+    current_mA: 200
+
+  - distance_m: 0.8
+    current_mA: 800
+
+  - distance_m: 1.5
+    current_mA: 200

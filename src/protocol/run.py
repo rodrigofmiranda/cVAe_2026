@@ -54,6 +54,8 @@ def parse_args():
     p.add_argument("--output_base", type=str, required=True)
     p.add_argument("--protocol", type=str, default=None,
                    help="Path to protocol JSON (default: configs/protocol_default.json)")
+    p.add_argument("--protocol_config", type=str, default=None,
+                   help="Path to protocol YAML config (takes precedence over --protocol)")
     # --- global overrides (applied to every regime; override protocol JSON) ---
     p.add_argument("--max_epochs", type=int, default=None)
     p.add_argument("--max_grids", type=int, default=None)
@@ -108,6 +110,62 @@ def _load_protocol(path: Optional[str]) -> dict:
     proto = json.loads(Path(path).read_text(encoding="utf-8"))
     if "regimes" not in proto or not proto["regimes"]:
         raise ValueError("Protocol JSON must contain a non-empty 'regimes' list.")
+    return proto
+
+
+def _regime_id_from_point(distance_m: float, current_mA: float) -> str:
+    """Generate a filesystem-safe regime_id from physical operating point."""
+    d_str = f"{distance_m:.1f}".replace(".", "p")
+    c_str = str(int(current_mA))
+    return f"d{d_str}m_c{c_str}mA"
+
+
+def _load_protocol_yaml(path: str) -> dict:
+    """Load protocol config from YAML and return the same dict structure as _load_protocol.
+
+    The YAML file must contain a top-level ``regimes`` list.  Each entry
+    requires ``distance_m`` and ``current_mA``; ``regime_id`` and
+    ``description`` are auto-generated when absent.
+
+    Commit 3U.
+    """
+    import yaml
+
+    raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(raw, dict) or "regimes" not in raw or not raw["regimes"]:
+        raise ValueError(f"Protocol YAML '{path}' must contain a non-empty 'regimes' list.")
+
+    regimes = []
+    seen_ids: set = set()
+    for entry in raw["regimes"]:
+        dist = float(entry["distance_m"])
+        curr = float(entry["current_mA"])
+
+        rid = entry.get("regime_id") or _regime_id_from_point(dist, curr)
+        if rid in seen_ids:
+            raise ValueError(f"Duplicate regime_id '{rid}' in YAML config.")
+        seen_ids.add(rid)
+
+        desc = entry.get("description", f"{dist} m / {int(curr)} mA")
+
+        regime = {
+            "regime_id": rid,
+            "description": desc,
+            "distance_m": dist,
+            "current_mA": curr,
+        }
+        # forward any extra per-regime keys
+        for k, v in entry.items():
+            if k not in regime:
+                regime[k] = v
+        regimes.append(regime)
+
+    proto = {
+        "protocol_version": str(raw.get("protocol_version", "1.0")),
+        "description": raw.get("description", ""),
+        "global_settings": raw.get("global_settings", {}),
+        "regimes": regimes,
+    }
     return proto
 
 
@@ -781,8 +839,14 @@ def main():
     args.dataset_root = str(Path(args.dataset_root).resolve())
     args.output_base = str(Path(args.output_base).resolve())
 
-    # Load protocol
-    protocol = _load_protocol(args.protocol)
+    # Load protocol (YAML takes precedence over JSON)
+    _proto_config_path: Optional[str] = None
+    if args.protocol_config is not None:
+        _proto_config_path = str(Path(args.protocol_config).resolve())
+        protocol = _load_protocol_yaml(_proto_config_path)
+        print(f"📄 Loaded protocol YAML: {_proto_config_path}")
+    else:
+        protocol = _load_protocol(args.protocol)
     proto_globals = protocol.get("global_settings", {})
     regimes = protocol["regimes"]
 
@@ -799,10 +863,14 @@ def main():
     print(f"📁 Protocol dir: {protocol_dir}")
     print(f"🔧 Base overrides: {base_overrides}")
 
-    # Save a copy of the protocol used
+    # Save a copy of the protocol used (always the resolved dict as JSON)
     (protocol_dir / "logs" / "protocol_input.json").write_text(
         json.dumps(protocol, indent=2, ensure_ascii=False), encoding="utf-8"
     )
+    # Also save original YAML when applicable
+    if _proto_config_path is not None:
+        import shutil
+        shutil.copy2(_proto_config_path, protocol_dir / "logs" / "protocol_input.yaml")
 
     # ---- Run each regime ----
     results = []
@@ -847,6 +915,7 @@ def main():
             "dataset_root": args.dataset_root,
             "output_base": args.output_base,
             "protocol": args.protocol,
+            "protocol_config": _proto_config_path,
             "skip_eval": args.skip_eval,
             "no_baseline": args.no_baseline,
             "no_dist_metrics": args.no_dist_metrics,
