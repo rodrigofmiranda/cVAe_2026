@@ -66,8 +66,14 @@ def parse_args():
     p.add_argument("--psd_nfft", type=int, default=None)
     p.add_argument("--keras_verbose", type=int, default=2, choices=[0, 1, 2],
                    help="Keras fit verbosity: 0=silent, 1=progress bar, 2=one line/epoch (default: 2)")
+    p.add_argument("--max_dist_samples", type=int, default=None,
+                   help="Max validation samples for distribution metrics (default: 200000)")
+    p.add_argument("--gauss_alpha", type=float, default=None,
+                   help="Significance level for Gaussianity test (default: 0.01)")
     p.add_argument("--no_baseline", action="store_true",
                    help="Skip deterministic baseline (default: run baseline before cVAE)")
+    p.add_argument("--no_dist_metrics", action="store_true",
+                   help="Skip distribution-fidelity metrics (moments, PSD, Gaussianity)")
     p.add_argument("--skip_eval", action="store_true",
                    help="Run training only, skip evaluation step")
     p.add_argument("--dry_run", action="store_true",
@@ -120,6 +126,8 @@ def _merge_overrides(protocol_globals: dict, cli_args: argparse.Namespace) -> di
         ("max_experiments",     "max_experiments",     "max_experiments",     int),
         ("max_samples_per_exp", "max_samples_per_exp", "max_samples_per_exp", int),
         ("psd_nfft",            "psd_nfft",            "psd_nfft",            int),
+        ("max_dist_samples",    "max_dist_samples",    "max_dist_samples",    int),
+        ("gauss_alpha",         "gauss_alpha",         "gauss_alpha",         float),
         ("keras_verbose",       "keras_verbose",       "keras_verbose",       int),
     ]
 
@@ -195,6 +203,64 @@ def _extract_best_grid_tag(state: dict) -> str:
     return ""
 
 
+def _quick_cvae_predict(run_dir: Path, X_va, D_va, C_va, batch_size: int = 4096):
+    """
+    Load best_model_full.keras from *run_dir*, build a deterministic
+    inference model (prior → decoder → y_mean), and predict on
+    the given validation arrays.
+
+    Returns Y_pred (ndarray) or None on failure.
+    """
+    import numpy as _np
+
+    model_path = run_dir / "models" / "best_model_full.keras"
+    # Fallback: check state_run.json for the path
+    if not model_path.exists():
+        state = _read_train_state(run_dir)
+        alt = state.get("artifacts", {}).get("best_model_full", "")
+        if alt and Path(alt).exists():
+            model_path = Path(alt)
+        else:
+            print(f"⚠️  best_model_full.keras not found in {run_dir / 'models'}")
+            return None
+
+    try:
+        import tensorflow as tf
+        from src.models.cvae_components import Sampling, CondPriorVAELoss
+
+        custom_objects = {"Sampling": Sampling, "CondPriorVAELoss": CondPriorVAELoss}
+        vae = tf.keras.models.load_model(str(model_path), custom_objects=custom_objects, compile=False)
+
+        prior = vae.get_layer("prior_net")
+        decoder = vae.get_layer("decoder")
+
+        layers = tf.keras.layers
+        x_in = layers.Input(shape=(2,), name="x_input")
+        d_in = layers.Input(shape=(1,), name="distance_input")
+        c_in = layers.Input(shape=(1,), name="current_input")
+
+        prior_out = prior([x_in, d_in, c_in])
+        z_mean_p = prior_out[0] if isinstance(prior_out, (list, tuple)) else prior_out
+        z = z_mean_p  # deterministic
+
+        cond = layers.Concatenate()([x_in, d_in, c_in])
+        out_params = decoder([z, cond])
+        y_mean = layers.Lambda(lambda t: t[:, :2], name="y_mean_quick")(out_params)
+
+        inference_model = tf.keras.Model([x_in, d_in, c_in], y_mean, name="quick_infer_det")
+        Y_pred = inference_model.predict([X_va, D_va, C_va], batch_size=batch_size, verbose=0)
+
+        del vae, inference_model, prior, decoder
+        try:
+            tf.keras.backend.clear_session()
+        except Exception:
+            pass
+        return Y_pred
+    except Exception as e:
+        print(f"⚠️  Quick cVAE inference failed: {e}")
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Core runner
 # ---------------------------------------------------------------------------
@@ -207,6 +273,7 @@ def run_regime(
     protocol_dir: Path,
     skip_eval: bool = False,
     run_baseline: bool = True,
+    run_dist_metrics: bool = True,
 ) -> dict:
     """
     Execute train + evaluate for one regime.
@@ -248,25 +315,29 @@ def run_regime(
         "baseline": {},
         "baseline_time_s": 0.0,
         "cvae_time_s": 0.0,
+        "baseline_dist": {},
+        "cvae_dist": {},
         "error": None,
     }
 
-    # ---- BASELINE (Commit 3N) ----
-    if run_baseline and not ov.get("dry_run", False):
+    # ---- SHARED DATA LOADING (Commit 3O) ----
+    # Loaded once, shared by baseline + dist-metrics + quick cVAE inference.
+    _val_data = None   # (X_va, Y_va, D_va, C_va) or None
+    _X_tr = _Y_tr = None
+    _need_data = (run_baseline or run_dist_metrics) and not ov.get("dry_run", False)
+
+    if _need_data:
         try:
-            import time as _time
             from src.data.loading import load_experiments_as_list
             from src.data.splits import split_train_val_per_experiment
-            from src.baselines.deterministic import run_deterministic_baseline
 
             _ds = Path(dataset_root)
             _val_split = float(ov.get("val_split", 0.2))
             _seed = int(ov.get("seed", 42))
             _max_exp = ov.get("max_experiments")
             _max_spe = ov.get("max_samples_per_exp")
-            _keras_v = int(ov.get("keras_verbose", 0))
 
-            print(f"\n📏 Baseline: loading data from {_ds}")
+            print(f"\n📦 Loading data from {_ds}")
             exps, _ = load_experiments_as_list(_ds, verbose=False, reduction_config=None)
             if _max_exp is not None:
                 exps = exps[:int(_max_exp)]
@@ -274,27 +345,61 @@ def run_regime(
                 _ms = int(_max_spe)
                 exps = [(X[:_ms], Y[:_ms], D[:_ms], C[:_ms], p) for X, Y, D, C, p in exps]
 
-            X_tr, Y_tr, _, _, X_va, Y_va, _, _, _ = split_train_val_per_experiment(
-                exps, val_split=_val_split, seed=_seed,
-            )
+            X_tr, Y_tr, _D_tr, _C_tr, X_va, Y_va, D_va, C_va, _ = \
+                split_train_val_per_experiment(exps, val_split=_val_split, seed=_seed)
+            _val_data = (X_va, Y_va, D_va, C_va)
+            _X_tr, _Y_tr = X_tr, Y_tr
             print(f"   train={len(X_tr):,}  val={len(X_va):,}")
+            del _D_tr, _C_tr, exps
+        except Exception as e:
+            print(f"⚠️  Data loading failed for regime '{regime_id}': {e}")
+
+    # ---- BASELINE (Commit 3N) + dist-metrics (Commit 3O) ----
+    if run_baseline and _val_data is not None:
+        try:
+            import time as _time
+            from src.baselines.deterministic import run_deterministic_baseline
+
+            _keras_v = int(ov.get("keras_verbose", 0))
+            X_va, Y_va, D_va, C_va = _val_data
 
             _bl_t0 = _time.time()
             bl_metrics = run_deterministic_baseline(
-                X_tr, Y_tr, X_va, Y_va,
-                config={"verbose": _keras_v},
+                _X_tr, _Y_tr, X_va, Y_va,
+                config={"verbose": _keras_v, "return_predictions": run_dist_metrics},
             )
             result["baseline_time_s"] = round(_time.time() - _bl_t0, 2)
+
+            # Pop large prediction array before storing metrics
+            Y_pred_bl = bl_metrics.pop("_Y_pred", None)
             result["baseline"] = bl_metrics
             print(f"   ✅ Baseline: EVM={bl_metrics['evm_pred_%']:.3f}%  "
                   f"SNR={bl_metrics['snr_pred_db']:.2f}dB  "
                   f"({bl_metrics['train_time_s']:.1f}s)")
 
-            del X_tr, Y_tr, X_va, Y_va, exps
-            import gc; gc.collect()
+            # Distribution-fidelity metrics for baseline
+            if run_dist_metrics and Y_pred_bl is not None:
+                from src.metrics.distribution import residual_fidelity_metrics
+                _psd_nfft = int(ov.get("psd_nfft", 2048))
+                _max_ds = int(ov.get("max_dist_samples", 200_000))
+                _g_alpha = float(ov.get("gauss_alpha", 0.01))
+                res_real = Y_va - X_va
+                res_pred_bl = Y_pred_bl - X_va
+                result["baseline_dist"] = residual_fidelity_metrics(
+                    res_real, res_pred_bl,
+                    psd_nfft=_psd_nfft, max_samples=_max_ds, gauss_alpha=_g_alpha,
+                )
+                print(f"   📐 Baseline dist: Δmean_l2={result['baseline_dist']['delta_mean_l2']:.4f}  "
+                      f"psd_l2={result['baseline_dist']['psd_l2']:.4f}  "
+                      f"reject_gauss={result['baseline_dist']['reject_gaussian']}")
+                del Y_pred_bl, res_pred_bl
         except Exception as e:
-            result["baseline"] = {"error": str(e)}
+            result["baseline"] = result.get("baseline") or {"error": str(e)}
             print(f"⚠️  Baseline failed for regime '{regime_id}': {e}")
+
+    # Free training arrays (val data kept for cVAE dist metrics)
+    del _X_tr, _Y_tr
+    import gc; gc.collect()
 
     # ---- TRAINING ----
     print(f"\n{'='*70}")
@@ -333,36 +438,83 @@ def run_regime(
         return result
 
     # ---- EVALUATION ----
+    _eval_ran = False
     if skip_eval:
         print(f"⏭️  Skipping evaluation for regime '{regime_id}' (--skip_eval)")
-        return result
-
-    if result["train_status"] != "completed":
+    elif result["train_status"] != "completed":
         print(f"⏭️  Skipping evaluation for regime '{regime_id}' (training failed)")
-        return result
+    else:
+        try:
+            os.environ["DATASET_ROOT"] = _ds_root
+            os.environ["OUTPUT_BASE"] = str(Path(output_base).resolve())
+            os.environ["RUN_ID"] = run_id
 
-    try:
-        os.environ["DATASET_ROOT"] = _ds_root
-        os.environ["OUTPUT_BASE"] = str(Path(output_base).resolve())
-        os.environ["RUN_ID"] = run_id
+            eval_ov = {}
+            for k in ("max_experiments", "max_samples_per_exp", "psd_nfft"):
+                if k in ov:
+                    eval_ov[k] = ov[k]
 
-        eval_ov = {}
-        for k in ("max_experiments", "max_samples_per_exp", "psd_nfft"):
-            if k in ov:
-                eval_ov[k] = ov[k]
-
-        from src.evaluation import analise_cvae_reviewed as eval_module
-        print(f"\n📊 Evaluating regime '{regime_id}' → {run_dir}")
-        eval_module.main(overrides=eval_ov)
-        result["eval_status"] = "completed"
-    except Exception as e:
-        result["eval_status"] = "failed"
-        err_msg = f"eval: {e}\n{traceback.format_exc()}"
-        result["error"] = (result.get("error") or "") + err_msg
-        print(f"❌ Evaluation failed for regime '{regime_id}': {e}")
+            from src.evaluation import analise_cvae_reviewed as eval_module
+            print(f"\n📊 Evaluating regime '{regime_id}' → {run_dir}")
+            eval_module.main(overrides=eval_ov)
+            result["eval_status"] = "completed"
+            _eval_ran = True
+        except Exception as e:
+            result["eval_status"] = "failed"
+            err_msg = f"eval: {e}\n{traceback.format_exc()}"
+            result["error"] = (result.get("error") or "") + err_msg
+            print(f"❌ Evaluation failed for regime '{regime_id}': {e}")
 
     # Read eval metrics
     result["metrics"] = _read_eval_metrics(run_dir)
+
+    # ---- cVAE DISTRIBUTION-FIDELITY METRICS (Commit 3O) ----
+    if run_dist_metrics and result["train_status"] == "completed":
+        try:
+            _psd_nfft = int(ov.get("psd_nfft", 2048))
+            _max_ds = int(ov.get("max_dist_samples", 200_000))
+            _g_alpha = float(ov.get("gauss_alpha", 0.01))
+
+            if _eval_ran and result["eval_status"] == "completed":
+                # Reuse distribution metrics already produced by the evaluation
+                m = result["metrics"]
+                result["cvae_dist"] = {
+                    "delta_mean_l2": m.get("delta_mean_l2"),
+                    "delta_cov_fro": m.get("delta_cov_fro"),
+                    "delta_skew_l2": m.get("delta_skew_l2"),
+                    "delta_kurt_l2": m.get("delta_kurt_l2"),
+                    "psd_l2": m.get("delta_psd_l2"),
+                    # JB not available from eval — leave None
+                    "jb_p_min": None,
+                    "reject_gaussian": None,
+                }
+                print(f"   📐 cVAE dist (from eval): "
+                      f"Δmean_l2={m.get('delta_mean_l2', '?')}  "
+                      f"psd_l2={m.get('delta_psd_l2', '?')}")
+            elif _val_data is not None:
+                # Quick inference path (--skip_eval or eval failed)
+                X_va, Y_va, D_va, C_va = _val_data
+                print(f"\n🔍 Quick cVAE inference for dist metrics ({len(X_va):,} val pts)")
+                Y_pred_cvae = _quick_cvae_predict(run_dir, X_va, D_va, C_va)
+                if Y_pred_cvae is not None:
+                    from src.metrics.distribution import residual_fidelity_metrics
+                    res_real = Y_va - X_va
+                    res_pred_cvae = Y_pred_cvae - X_va
+                    result["cvae_dist"] = residual_fidelity_metrics(
+                        res_real, res_pred_cvae,
+                        psd_nfft=_psd_nfft, max_samples=_max_ds, gauss_alpha=_g_alpha,
+                    )
+                    print(f"   📐 cVAE dist: Δmean_l2={result['cvae_dist']['delta_mean_l2']:.4f}  "
+                          f"psd_l2={result['cvae_dist']['psd_l2']:.4f}  "
+                          f"reject_gauss={result['cvae_dist']['reject_gaussian']}")
+                    del Y_pred_cvae, res_pred_cvae
+        except Exception as e:
+            result["cvae_dist"] = {"error": str(e)}
+            print(f"⚠️  cVAE dist metrics failed for regime '{regime_id}': {e}")
+
+    # Free val data
+    _val_data = None
+    gc.collect()
 
     return result
 
@@ -375,6 +527,8 @@ def build_summary_table(results: List[dict]) -> "pd.DataFrame":
     for r in results:
         m = r.get("metrics", {})
         bl = r.get("baseline", {})
+        bd = r.get("baseline_dist", {})
+        cd = r.get("cvae_dist", {})
         row = {
             "regime_id": r["regime_id"],
             "description": r.get("description", ""),
@@ -397,13 +551,29 @@ def build_summary_table(results: List[dict]) -> "pd.DataFrame":
             "kl_q_to_p_total": None,
             "kl_p_to_N_total": None,
             "var_mc_gen": m.get("var_mc_gen"),
-            # Commit 3N: baseline columns
+            # Commit 3N: baseline signal-quality
             "baseline_evm_pred_%": bl.get("evm_pred_%"),
             "baseline_snr_pred_db": bl.get("snr_pred_db"),
             "baseline_delta_evm_%": bl.get("delta_evm_%"),
             "baseline_delta_snr_db": bl.get("delta_snr_db"),
             "baseline_time_s": r.get("baseline_time_s", 0.0),
             "cvae_time_s": r.get("cvae_time_s", 0.0),
+            # Commit 3O: distribution-fidelity — baseline
+            "baseline_delta_mean_l2": bd.get("delta_mean_l2"),
+            "baseline_delta_cov_fro": bd.get("delta_cov_fro"),
+            "baseline_delta_skew_l2": bd.get("delta_skew_l2"),
+            "baseline_delta_kurt_l2": bd.get("delta_kurt_l2"),
+            "baseline_psd_l2": bd.get("psd_l2"),
+            "baseline_jb_p_min": bd.get("jb_p_min"),
+            "baseline_reject_gauss": bd.get("reject_gaussian"),
+            # Commit 3O: distribution-fidelity — cVAE
+            "cvae_delta_mean_l2": cd.get("delta_mean_l2"),
+            "cvae_delta_cov_fro": cd.get("delta_cov_fro"),
+            "cvae_delta_skew_l2": cd.get("delta_skew_l2"),
+            "cvae_delta_kurt_l2": cd.get("delta_kurt_l2"),
+            "cvae_psd_l2": cd.get("psd_l2"),
+            "cvae_jb_p_min": cd.get("jb_p_min"),
+            "cvae_reject_gauss": cd.get("reject_gaussian"),
         }
 
         # Try to enrich with latent summary from eval run
@@ -472,6 +642,7 @@ def main():
             protocol_dir=protocol_dir,
             skip_eval=args.skip_eval,
             run_baseline=not args.no_baseline,
+            run_dist_metrics=not args.no_dist_metrics,
         )
         results.append(r)
 
@@ -487,6 +658,9 @@ def main():
 
     # ---- Write manifest ----
     ts_end = datetime.now()
+    _psd_nfft_eff = int(base_overrides.get("psd_nfft", 2048))
+    _ga_eff = float(base_overrides.get("gauss_alpha", 0.01))
+    _mds_eff = int(base_overrides.get("max_dist_samples", 200_000))
     manifest = {
         "protocol_version": protocol.get("protocol_version", "1.0"),
         "timestamp_start": ts_start.isoformat(timespec="seconds"),
@@ -500,6 +674,7 @@ def main():
             "protocol": args.protocol,
             "skip_eval": args.skip_eval,
             "no_baseline": args.no_baseline,
+            "no_dist_metrics": args.no_dist_metrics,
             "dry_run": args.dry_run,
         },
         "baseline_config": {
@@ -508,6 +683,12 @@ def main():
             "epochs": 50,
             "loss": "mse",
             "enabled": not args.no_baseline,
+        },
+        "dist_metrics_config": {
+            "enabled": not args.no_dist_metrics,
+            "psd_nfft": _psd_nfft_eff,
+            "gauss_alpha": _ga_eff,
+            "max_dist_samples": _mds_eff,
         },
         "base_overrides": base_overrides,
         "n_regimes": len(regimes),
@@ -521,6 +702,8 @@ def main():
                 "best_grid_tag": r.get("best_grid_tag", ""),
                 "baseline_time_s": r.get("baseline_time_s", 0.0),
                 "cvae_time_s": r.get("cvae_time_s", 0.0),
+                "baseline_dist": r.get("baseline_dist", {}),
+                "cvae_dist": r.get("cvae_dist", {}),
                 "error": r.get("error"),
             }
             for r in results
@@ -540,10 +723,16 @@ def main():
         delta = ""
         m = r.get("metrics", {})
         bl = r.get("baseline", {})
+        bd = r.get("baseline_dist", {})
+        cd = r.get("cvae_dist", {})
         if m.get("delta_evm_%") is not None:
             delta = f" | ΔEVM={m['delta_evm_%']:+.3f}pp ΔSNR={m.get('delta_snr_db', 0):+.3f}dB"
         if bl.get("evm_pred_%") is not None:
             delta += f" | baseline EVM={bl['evm_pred_%']:.3f}%"
+        if bd.get("delta_mean_l2") is not None:
+            delta += f" | bl_Δmean={bd['delta_mean_l2']:.4f}"
+        if cd.get("delta_mean_l2") is not None:
+            delta += f" | cv_Δmean={cd['delta_mean_l2']:.4f}"
         print(f"   • {r['regime_id']}: {status}{delta}")
     print(f"{'='*70}")
 

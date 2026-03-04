@@ -59,6 +59,7 @@ def run_deterministic_baseline(
         - batch_size: int (default 1024)
         - learning_rate: float (default 1e-3)
         - verbose: int, keras verbose (default 0)
+        - return_predictions: bool, if True include '_Y_pred' key (default False)
 
     Returns
     -------
@@ -68,6 +69,7 @@ def run_deterministic_baseline(
         - snr_real_db, snr_pred_db, delta_snr_db
         - residual_mean_l2, residual_std_l2
         - best_val_loss, epochs_run, train_time_s
+        - _Y_pred (ndarray, only when return_predictions=True)
     """
     import tensorflow as tf
     from src.evaluation.metrics import calculate_evm, calculate_snr
@@ -78,6 +80,7 @@ def run_deterministic_baseline(
     epochs = int(cfg.get("epochs", 50))
     batch_size = int(cfg.get("batch_size", 1024))
     lr = float(cfg.get("learning_rate", 1e-3))
+    _return_preds = bool(cfg.get("return_predictions", False))
     verbose = int(cfg.get("verbose", 0))
 
     # ---- Build & compile ----
@@ -128,14 +131,8 @@ def run_deterministic_baseline(
     res_mean_l2 = float(np.mean(np.sqrt(np.sum(diff ** 2, axis=1))))
     res_std_l2 = float(np.std(np.sqrt(np.sum(diff ** 2, axis=1))))
 
-    # ---- Cleanup ----
-    del model
-    try:
-        tf.keras.backend.clear_session()
-    except Exception:
-        pass
-
-    return {
+    # ---- Build result ----
+    out = {
         "evm_real_%": float(evm_real),
         "evm_pred_%": float(evm_pred),
         "delta_evm_%": float(evm_pred - evm_real),
@@ -148,3 +145,14 @@ def run_deterministic_baseline(
         "epochs_run": epochs_run,
         "train_time_s": round(train_time, 2),
     }
+    if _return_preds:
+        out["_Y_pred"] = Y_pred  # large array — caller should pop()
+
+    # ---- Cleanup ----
+    del model
+    try:
+        tf.keras.backend.clear_session()
+    except Exception:
+        pass
+
+    return out
