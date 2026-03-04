@@ -249,6 +249,16 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
     # 6) Load dataset + split CONSISTENTE com treino (per_experiment)
     # ==========================================================
     exps, df_info = load_experiments_as_list(DATASET_ROOT, verbose=True)
+
+    # --- Commit 3S: filter to selected experiments from protocol runner ---
+    _sel_exps = _ov.get("_selected_experiments")
+    if _sel_exps:
+        _sel_set = set(str(p) for p in _sel_exps)
+        _before = len(exps)
+        exps = [(X, Y, D, C, p) for X, Y, D, C, p in exps if str(p) in _sel_set]
+        print(f"\u26a1 Commit 3S: filtered {_before} \u2192 {len(exps)} experiment(s) "
+              f"(selected_experiments)")
+
     # --- Commit 3H: limit experiments / samples if requested ---
     if "max_experiments" in _ov:
         _me = int(_ov["max_experiments"])

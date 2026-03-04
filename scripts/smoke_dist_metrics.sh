@@ -1,22 +1,23 @@
 #!/usr/bin/env bash
 # scripts/smoke_dist_metrics.sh — Smoke-test for distribution-fidelity metrics.
 #
-# Runs the protocol runner with minimal training (1 epoch, 1 grid, 1 experiment,
-# 2000 samples, skip_eval) and verifies that:
-#   1) dist_metrics_source appears in the manifest per regime
+# Runs the protocol runner with eval ON (fast: 1 epoch, 1 grid, 1 experiment,
+# 2000 samples) and verifies that:
+#   1) dist_metrics_source == "eval" in manifest for all regimes (Commit 3S)
 #   2) cvae_delta_mean_l2 is populated in the summary CSV
-#   3) Legacy delta_mean_l2 is backfilled when eval is skipped
+#   3) delta_mean_l2 is populated (from eval or backfill)
 #   4) selected_experiments appears in the manifest per regime (Commit 3Q)
 #   5) n_experiments_selected is populated in the CSV (Commit 3Q)
+#   6) baseline_delta_mean_l2 is populated (same val split, Commit 3S)
 #
 # Usage:
 #   bash scripts/smoke_dist_metrics.sh
 #
-# Commit 3P + 3Q updates.
+# Commit 3S.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-echo "=== Smoke: dist-metrics (Commit 3P) ==="
+echo "=== Smoke: dist-metrics (Commit 3S — eval ON) ==="
 
 OUT_BASE="outputs"
 
@@ -27,8 +28,7 @@ python -m src.protocol.run \
     --max_epochs 1 --max_grids 1 --max_experiments 1 \
     --max_samples_per_exp 2000 \
     --keras_verbose 0 \
-    --dist_tol_m 0.01 --curr_tol_mA 1 \
-    --skip_eval
+    --dist_tol_m 0.01 --curr_tol_mA 1
 
 # Find latest protocol dir
 PROTO_DIR=$(ls -td "$OUT_BASE"/protocol_2* | head -1)
@@ -37,14 +37,26 @@ echo "Protocol dir: $PROTO_DIR"
 
 FAIL=0
 
-# --- Check 1: dist_metrics_source in manifest ---
+# --- Check 1: dist_metrics_source == "eval" in manifest ---
 echo ""
-echo "--- Check 1: dist_metrics_source in manifest ---"
-if grep -q '"dist_metrics_source"' "$PROTO_DIR/manifest.json"; then
-    echo "  ✓ dist_metrics_source found in manifest"
-    grep '"dist_metrics_source"' "$PROTO_DIR/manifest.json" | head -3
+echo "--- Check 1: dist_metrics_source == 'eval' for all regimes ---"
+N_EVAL=$(python -c "
+import json
+m = json.load(open('$PROTO_DIR/manifest.json'))
+vals = [r.get('dist_metrics_source') for r in m['regimes']]
+print(sum(1 for v in vals if v == 'eval'))
+")
+N_REG=$(python -c "
+import json; m = json.load(open('$PROTO_DIR/manifest.json')); print(len(m['regimes']))
+")
+if [ "$N_EVAL" -eq "$N_REG" ]; then
+    echo "  ✓ All $N_REG regimes have dist_metrics_source='eval'"
 else
-    echo "  ✗ dist_metrics_source NOT found in manifest"
+    echo "  ✗ Only $N_EVAL / $N_REG regimes have 'eval' source"
+    python -c "
+import json; m = json.load(open('$PROTO_DIR/manifest.json'))
+for r in m['regimes']:
+    print(f\"    {r['regime_id']}: {r.get('dist_metrics_source')}\")"
     FAIL=1
 fi
 
@@ -54,7 +66,6 @@ echo "--- Check 2: cvae_delta_mean_l2 in CSV ---"
 HEADER=$(head -1 "$PROTO_DIR/tables/summary_by_regime.csv")
 if echo "$HEADER" | grep -q "cvae_delta_mean_l2"; then
     echo "  ✓ cvae_delta_mean_l2 column present"
-    # Verify it's populated (not empty) for first row
     VAL=$(python -c "
 import csv
 with open('$PROTO_DIR/tables/summary_by_regime.csv') as f:
@@ -73,9 +84,9 @@ else
     FAIL=1
 fi
 
-# --- Check 3: legacy backfill (delta_mean_l2) ---
+# --- Check 3: delta_mean_l2 populated (eval or backfill) ---
 echo ""
-echo "--- Check 3: legacy delta_mean_l2 backfill (eval skipped) ---"
+echo "--- Check 3: delta_mean_l2 populated ---"
 LEGACY=$(python -c "
 import csv
 with open('$PROTO_DIR/tables/summary_by_regime.csv') as f:
@@ -84,9 +95,9 @@ with open('$PROTO_DIR/tables/summary_by_regime.csv') as f:
     print(v if v else 'EMPTY')
 ")
 if [ "$LEGACY" != "EMPTY" ]; then
-    echo "  ✓ delta_mean_l2 backfilled: $LEGACY"
+    echo "  ✓ delta_mean_l2 = $LEGACY"
 else
-    echo "  ✗ delta_mean_l2 NOT backfilled"
+    echo "  ✗ delta_mean_l2 is EMPTY"
     FAIL=1
 fi
 
@@ -95,7 +106,6 @@ echo ""
 echo "--- Check 4: selected_experiments in manifest ---"
 if grep -q '"selected_experiments"' "$PROTO_DIR/manifest.json"; then
     echo "  ✓ selected_experiments found in manifest"
-    # Verify it's a non-empty list for at least one regime
     N_SEL=$(python -c "
 import json
 m = json.load(open('$PROTO_DIR/manifest.json'))
@@ -137,6 +147,23 @@ with open('$PROTO_DIR/tables/summary_by_regime.csv') as f:
     fi
 else
     echo "  ✗ n_experiments_selected column NOT in CSV"
+    FAIL=1
+fi
+
+# --- Check 6: baseline_delta_mean_l2 populated (Commit 3S) ---
+echo ""
+echo "--- Check 6: baseline_delta_mean_l2 populated ---"
+BL_DM=$(python -c "
+import csv
+with open('$PROTO_DIR/tables/summary_by_regime.csv') as f:
+    r = next(csv.DictReader(f))
+    v = r.get('baseline_delta_mean_l2', '')
+    print(v if v else 'EMPTY')
+")
+if [ "$BL_DM" != "EMPTY" ]; then
+    echo "  ✓ baseline_delta_mean_l2 = $BL_DM"
+else
+    echo "  ✗ baseline_delta_mean_l2 is EMPTY"
     FAIL=1
 fi
 

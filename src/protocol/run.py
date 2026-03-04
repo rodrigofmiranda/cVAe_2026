@@ -399,7 +399,7 @@ def run_regime(
         "cvae_time_s": 0.0,
         "baseline_dist": {},
         "cvae_dist": {},
-        "dist_metrics_source": None,      # Commit 3P: "eval" | "quick" | None
+        "dist_metrics_source": None,      # Commit 3S: "eval" | "quick" | "quick_fallback" | None
         "selected_experiments": [],        # Commit 3Q: paths of selected exps
         "selection_criteria": {},          # Commit 3Q: filter params used
         "error": None,
@@ -588,7 +588,8 @@ def run_regime(
             os.environ["RUN_ID"] = run_id
 
             eval_ov = {}
-            for k in ("max_experiments", "max_samples_per_exp", "psd_nfft"):
+            for k in ("max_experiments", "max_samples_per_exp", "psd_nfft",
+                      "_selected_experiments"):
                 if k in ov:
                     eval_ov[k] = ov[k]
 
@@ -606,66 +607,73 @@ def run_regime(
     # Read eval metrics
     result["metrics"] = _read_eval_metrics(run_dir)
 
-    # ---- cVAE DISTRIBUTION-FIDELITY METRICS (Commit 3O, fixed 3P) ----
+    # ---- cVAE DISTRIBUTION-FIDELITY METRICS (Commit 3O, 3P, 3S) ----
+    # Commit 3S: always use shared _val_data + _quick_cvae_predict so
+    # baseline and cVAE are evaluated on the SAME validation split.
+    # When eval ran successfully → dist_metrics_source="eval".
+    # When eval skipped/failed  → dist_metrics_source="quick".
+    # Guardrail: if eval ran but model is missing → "quick_fallback".
     if run_dist_metrics and result["train_status"] == "completed":
+        _dm_source = None  # will be set below
         try:
             import numpy as _np_dm
             _psd_nfft = int(ov.get("psd_nfft", 2048))
             _max_ds = int(ov.get("max_dist_samples", 200_000))
             _g_alpha = float(ov.get("gauss_alpha", 0.01))
 
+            if _val_data is None:
+                raise RuntimeError("Shared validation data not available")
+
+            _X_va, _Y_va, _D_va, _C_va = _val_data
+            model_check = run_dir / "models" / "best_model_full.keras"
+
+            if not model_check.exists():
+                raise FileNotFoundError(
+                    f"Model not found at {model_check}")
+
+            # Decide dist_metrics_source label
             if _eval_ran and result["eval_status"] == "completed":
-                # Reuse distribution metrics already produced by the evaluation
-                m = result["metrics"]
-                result["cvae_dist"] = {
-                    "delta_mean_l2": m.get("delta_mean_l2"),
-                    "delta_cov_fro": m.get("delta_cov_fro"),
-                    "delta_skew_l2": m.get("delta_skew_l2"),
-                    "delta_kurt_l2": m.get("delta_kurt_l2"),
-                    "psd_l2": m.get("delta_psd_l2"),
-                    # JB not available from eval — leave None
-                    "jb_p_min": None,
-                    "reject_gaussian": None,
-                }
-                result["dist_metrics_source"] = "eval"
-                print(f"   📐 cVAE dist (from eval): "
-                      f"Δmean_l2={m.get('delta_mean_l2', '?')}  "
-                      f"psd_l2={m.get('delta_psd_l2', '?')}")
-            elif _val_data is not None:
-                # Quick inference path (--skip_eval or eval failed)
-                # Commit 3P: unpack fresh copies and assert model is in THIS run_dir
-                _X_va, _Y_va, _D_va, _C_va = _val_data
-                model_check = run_dir / "models" / "best_model_full.keras"
-                assert model_check.exists(), (
-                    f"Cannot run quick cVAE dist metrics: model not found at {model_check}"
+                _dm_source = "eval"
+            elif skip_eval:
+                _dm_source = "quick"
+            else:
+                # eval was enabled but failed
+                _dm_source = "quick_fallback"
+                print(f"⚠️  Eval enabled but status={result['eval_status']} "
+                      f"for regime '{regime_id}' — falling back to quick dist-metrics")
+
+            print(f"\n🔍 cVAE dist-metrics for regime '{regime_id}' "
+                  f"({len(_X_va):,} val pts, source={_dm_source}, model={model_check})")
+            Y_pred_cvae = _quick_cvae_predict(run_dir, _X_va, _D_va, _C_va)
+            if Y_pred_cvae is not None:
+                from src.metrics.distribution import residual_fidelity_metrics
+                res_real = _Y_va - _X_va
+                res_pred_cvae = Y_pred_cvae - _X_va
+                cvae_dm = residual_fidelity_metrics(
+                    res_real, res_pred_cvae,
+                    psd_nfft=_psd_nfft, max_samples=_max_ds, gauss_alpha=_g_alpha,
                 )
-                print(f"\n🔍 Quick cVAE inference for regime '{regime_id}' "
-                      f"({len(_X_va):,} val pts, model={model_check})")
-                Y_pred_cvae = _quick_cvae_predict(run_dir, _X_va, _D_va, _C_va)
-                if Y_pred_cvae is not None:
-                    from src.metrics.distribution import residual_fidelity_metrics
-                    res_real = _Y_va - _X_va
-                    res_pred_cvae = Y_pred_cvae - _X_va
-                    cvae_dm = residual_fidelity_metrics(
-                        res_real, res_pred_cvae,
-                        psd_nfft=_psd_nfft, max_samples=_max_ds, gauss_alpha=_g_alpha,
-                    )
-                    # --- Commit 3P: finiteness guard ---
-                    _finite_keys = ["delta_mean_l2", "delta_cov_fro", "delta_skew_l2",
-                                    "delta_kurt_l2", "psd_l2"]
-                    for _fk in _finite_keys:
-                        v = cvae_dm.get(_fk)
-                        if v is not None and not _np_dm.isfinite(v):
-                            print(f"⚠️  Non-finite dist metric {_fk}={v} for regime '{regime_id}'")
-                    result["cvae_dist"] = cvae_dm
-                    result["dist_metrics_source"] = "quick"
-                    print(f"   📐 cVAE dist: Δmean_l2={cvae_dm['delta_mean_l2']:.4f}  "
-                          f"psd_l2={cvae_dm['psd_l2']:.4f}  "
-                          f"reject_gauss={cvae_dm['reject_gaussian']}")
-                    del Y_pred_cvae, res_pred_cvae, cvae_dm
-                del _X_va, _Y_va, _D_va, _C_va
+                # --- Commit 3P: finiteness guard ---
+                _finite_keys = ["delta_mean_l2", "delta_cov_fro", "delta_skew_l2",
+                                "delta_kurt_l2", "psd_l2"]
+                for _fk in _finite_keys:
+                    v = cvae_dm.get(_fk)
+                    if v is not None and not _np_dm.isfinite(v):
+                        print(f"⚠️  Non-finite dist metric {_fk}={v} for regime '{regime_id}'")
+                result["cvae_dist"] = cvae_dm
+                result["dist_metrics_source"] = _dm_source
+                print(f"   📐 cVAE dist ({_dm_source}): "
+                      f"Δmean_l2={cvae_dm['delta_mean_l2']:.4f}  "
+                      f"psd_l2={cvae_dm['psd_l2']:.4f}  "
+                      f"reject_gauss={cvae_dm['reject_gaussian']}")
+                del Y_pred_cvae, res_pred_cvae, cvae_dm
+            else:
+                print(f"⚠️  cVAE quick_predict returned None for regime '{regime_id}'")
+            del _X_va, _Y_va, _D_va, _C_va
         except Exception as e:
             result["cvae_dist"] = {"error": str(e)}
+            if _dm_source is not None:
+                result["dist_metrics_source"] = _dm_source
             print(f"⚠️  cVAE dist metrics failed for regime '{regime_id}': {e}")
 
     # Commit 3P: aggressively free val data; prevent cross-regime leakage
