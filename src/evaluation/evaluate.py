@@ -49,6 +49,15 @@ def main():
     os.environ["OUTPUT_BASE"] = output_base
     os.environ["RUN_ID"] = run_dir_name
 
+    # ---- backward-compat: patch state_run.json if keys are missing ----
+    from pathlib import Path as _Path
+    _state_path = _Path(args.run_dir) / "state_run.json"
+    if _state_path.exists():
+        import json as _json
+        from src.config.io import ensure_state_run_compat
+        _state = _json.loads(_state_path.read_text(encoding="utf-8"))
+        ensure_state_run_compat(_state)  # mutates in-place, logs warnings
+
     # Commit 3H: build overrides dict from CLI flags
     overrides = {}
     if args.max_experiments is not None:
