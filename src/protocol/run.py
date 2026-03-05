@@ -87,6 +87,17 @@ def parse_args():
                    help="Run training only, skip evaluation step")
     p.add_argument("--dry_run", action="store_true",
                    help="Validate protocol + build model summary, no training")
+    # --- Statistical Fidelity Suite (Etapa A2) ---
+    p.add_argument("--stat_tests", action="store_true",
+                   help="Run two-sample statistical tests (MMD, Energy, PSD) per regime")
+    p.add_argument("--stat_mode", type=str, default="quick", choices=["quick", "full"],
+                   help="quick = fewer permutations (200); full = 2000 (default: quick)")
+    p.add_argument("--stat_n_perm", type=int, default=None,
+                   help="Explicit number of permutations (overrides --stat_mode default)")
+    p.add_argument("--stat_seed", type=int, default=42,
+                   help="RNG seed for stat tests (default: 42)")
+    p.add_argument("--stat_max_n", type=int, default=50_000,
+                   help="Max validation samples for stat tests (default: 50000)")
     return p.parse_args()
 
 
@@ -533,6 +544,11 @@ def run_regime(
     skip_eval: bool = False,
     run_baseline: bool = True,
     run_dist_metrics: bool = True,
+    run_stat_fidelity: bool = False,
+    stat_mode: str = "quick",
+    stat_n_perm: Optional[int] = None,
+    stat_seed: int = 42,
+    stat_max_n: int = 50_000,
 ) -> dict:
     """
     Execute train + evaluate for one regime.
@@ -578,6 +594,7 @@ def run_regime(
         "baseline_dist": {},
         "cvae_dist": {},
         "dist_metrics_source": None,      # Commit 3S: "eval" | "quick" | "quick_fallback" | None
+        "stat_fidelity": {},               # Etapa A2: stat tests per regime
         "selected_experiments": [],        # Commit 3Q: paths of selected exps
         "selection_criteria": {},          # Commit 3Q: filter params used
         "error": None,
@@ -629,7 +646,7 @@ def run_regime(
     # Loaded once, shared by baseline + dist-metrics + quick cVAE inference.
     _val_data = None   # (X_va, Y_va, D_va, C_va) or None
     _X_tr = _Y_tr = None
-    _need_data = (run_baseline or run_dist_metrics) and not ov.get("dry_run", False)
+    _need_data = (run_baseline or run_dist_metrics or run_stat_fidelity) and not ov.get("dry_run", False)
 
     if _need_data:
         try:
@@ -859,6 +876,73 @@ def run_regime(
                 result["dist_metrics_source"] = _dm_source
             print(f"⚠️  cVAE dist metrics failed for regime '{regime_id}': {e}")
 
+    # ---- STATISTICAL FIDELITY TESTS (Etapa A2) ----
+    # Runs MMD², Energy distance, and PSD L2 on residuals (Y - X) for cVAE.
+    # p-values are stored per regime; global FDR correction is applied in main().
+    if run_stat_fidelity and result["train_status"] == "completed":
+        try:
+            import numpy as _np_sf
+            from src.evaluation.stat_tests import mmd_rbf, energy_test, psd_distance
+
+            if _val_data is None:
+                raise RuntimeError("Shared validation data not available for stat tests")
+
+            _X_va, _Y_va, _D_va, _C_va = _val_data
+
+            model_check = run_dir / "models" / "best_model_full.keras"
+            if not model_check.exists():
+                raise FileNotFoundError(f"Model not found at {model_check}")
+
+            # Reuse Y_pred from quick predict
+            Y_pred_sf = _quick_cvae_predict(run_dir, _X_va, _D_va, _C_va)
+            if Y_pred_sf is None:
+                raise RuntimeError("cVAE quick_predict returned None")
+
+            # Compute residuals
+            res_real = _Y_va - _X_va
+            res_pred = Y_pred_sf - _X_va
+
+            # Sub-sample for computational efficiency
+            _n_sf = min(stat_max_n, res_real.shape[0])
+            if _n_sf < res_real.shape[0]:
+                rng = _np_sf.random.RandomState(stat_seed)
+                idx = rng.choice(res_real.shape[0], _n_sf, replace=False)
+                res_real = res_real[idx]
+                res_pred = res_pred[idx]
+
+            _n_perm = stat_n_perm if stat_n_perm is not None else (200 if stat_mode == "quick" else 2000)
+            _psd_nfft_sf = int(ov.get("psd_nfft", 2048))
+
+            print(f"\n🧪 Stat fidelity for regime '{regime_id}' "
+                  f"(n={_n_sf:,}, n_perm={_n_perm}, mode={stat_mode})")
+
+            sf_mmd = mmd_rbf(res_real, res_pred, n_perm=_n_perm, seed=stat_seed)
+            sf_energy = energy_test(res_real, res_pred, n_perm=_n_perm, seed=stat_seed)
+            sf_psd = psd_distance(res_real, res_pred, nfft=_psd_nfft_sf, seed=stat_seed)
+
+            result["stat_fidelity"] = {
+                "mmd2": sf_mmd["mmd2"],
+                "mmd_pval": sf_mmd["pval"],
+                "mmd_bandwidth": sf_mmd["bandwidth"],
+                "energy": sf_energy["energy"],
+                "energy_pval": sf_energy["pval"],
+                "psd_dist": sf_psd["psd_dist"],
+                "psd_ci_low": sf_psd["psd_ci_low"],
+                "psd_ci_high": sf_psd["psd_ci_high"],
+                "n_samples": _n_sf,
+                "n_perm": _n_perm,
+                "stat_mode": stat_mode,
+                "stat_seed": stat_seed,
+            }
+            print(f"   📐 MMD²={sf_mmd['mmd2']:.6f} (p={sf_mmd['pval']:.4f})  "
+                  f"Energy={sf_energy['energy']:.6f} (p={sf_energy['pval']:.4f})  "
+                  f"PSD_L2={sf_psd['psd_dist']:.4f} "
+                  f"[{sf_psd['psd_ci_low']:.4f}, {sf_psd['psd_ci_high']:.4f}]")
+            del Y_pred_sf, res_real, res_pred, sf_mmd, sf_energy, sf_psd
+        except Exception as e:
+            result["stat_fidelity"] = {"error": str(e)}
+            print(f"⚠️  Stat fidelity failed for regime '{regime_id}': {e}")
+
     # Commit 3P: aggressively free val data; prevent cross-regime leakage
     _val_data = None
     gc.collect()
@@ -876,6 +960,7 @@ def build_summary_table(results: List[dict]) -> "pd.DataFrame":
         bl = r.get("baseline", {})
         bd = r.get("baseline_dist", {})
         cd = r.get("cvae_dist", {})
+        sf = r.get("stat_fidelity", {})
         row = {
             "study": r.get("_study", "within_regime"),
             "regime_id": r["regime_id"],
@@ -927,6 +1012,16 @@ def build_summary_table(results: List[dict]) -> "pd.DataFrame":
             "n_experiments_selected": len(r.get("selected_experiments", [])),
             "dist_target_m": r.get("selection_criteria", {}).get("distance_m"),
             "curr_target_mA": r.get("selection_criteria", {}).get("current_mA"),
+            # Etapa A2: statistical fidelity tests
+            "stat_mmd2": sf.get("mmd2"),
+            "stat_mmd_pval": sf.get("mmd_pval"),
+            "stat_energy": sf.get("energy"),
+            "stat_energy_pval": sf.get("energy_pval"),
+            "stat_psd_dist": sf.get("psd_dist"),
+            "stat_psd_ci_low": sf.get("psd_ci_low"),
+            "stat_psd_ci_high": sf.get("psd_ci_high"),
+            "stat_n_samples": sf.get("n_samples"),
+            "stat_mode": sf.get("stat_mode"),
         }
 
         # Commit 3P: backfill legacy delta_* columns from cvae_dist when eval
@@ -1034,6 +1129,11 @@ def main():
                 skip_eval=args.skip_eval,
                 run_baseline=not args.no_baseline,
                 run_dist_metrics=not args.no_dist_metrics,
+                run_stat_fidelity=args.stat_tests,
+                stat_mode=args.stat_mode,
+                stat_n_perm=args.stat_n_perm,
+                stat_seed=args.stat_seed,
+                stat_max_n=args.stat_max_n,
             )
             r["_study"] = sname
             results.append(r)
@@ -1045,6 +1145,52 @@ def main():
     summary_csv = exp_paths.write_table("tables/summary_by_regime.csv", df_summary)
     exp_paths.write_table("tables/summary_by_regime.xlsx", df_summary)
     print(f"\n📊 Summary table: {summary_csv}")
+
+    # ---- Etapa A2: Global FDR-corrected stat fidelity table ----
+    if args.stat_tests:
+        try:
+            from src.evaluation.stat_tests import benjamini_hochberg
+            import numpy as _np_fdr
+
+            sf_rows = []
+            for r in results:
+                sf = r.get("stat_fidelity", {})
+                if sf and "error" not in sf and sf.get("mmd_pval") is not None:
+                    sf_rows.append({
+                        "study": r.get("_study", "within_regime"),
+                        "regime_id": r["regime_id"],
+                        "regime_label": r.get("regime_label", ""),
+                        "mmd2": sf["mmd2"],
+                        "mmd_pval": sf["mmd_pval"],
+                        "mmd_bandwidth": sf.get("mmd_bandwidth"),
+                        "energy": sf["energy"],
+                        "energy_pval": sf["energy_pval"],
+                        "psd_dist": sf["psd_dist"],
+                        "psd_ci_low": sf["psd_ci_low"],
+                        "psd_ci_high": sf["psd_ci_high"],
+                        "n_samples": sf["n_samples"],
+                        "n_perm": sf["n_perm"],
+                        "stat_mode": sf["stat_mode"],
+                    })
+
+            if sf_rows:
+                df_sf = pd.DataFrame(sf_rows)
+                # Collect all p-values for FDR (MMD + Energy = 2 per regime)
+                pvals_mmd = df_sf["mmd_pval"].values
+                pvals_energy = df_sf["energy_pval"].values
+                all_pvals = _np_fdr.concatenate([pvals_mmd, pvals_energy])
+                all_qvals = benjamini_hochberg(all_pvals)
+                n_reg = len(pvals_mmd)
+                df_sf["mmd_qval"] = all_qvals[:n_reg]
+                df_sf["energy_qval"] = all_qvals[n_reg:]
+
+                sf_csv = exp_paths.write_table("tables/stat_fidelity_by_regime.csv", df_sf)
+                exp_paths.write_table("tables/stat_fidelity_by_regime.xlsx", df_sf)
+                print(f"📊 Stat fidelity table (FDR-corrected): {sf_csv}")
+            else:
+                print("⚠️  No valid stat fidelity results to aggregate")
+        except Exception as e:
+            print(f"⚠️  FDR aggregation failed: {e}")
 
     # ---- Write manifest ----
     ts_end = datetime.now()
@@ -1067,6 +1213,7 @@ def main():
             "no_baseline": args.no_baseline,
             "no_dist_metrics": args.no_dist_metrics,
             "dry_run": args.dry_run,
+            "stat_tests": args.stat_tests,
         },
         "baseline_config": {
             "model": "deterministic_mlp",
@@ -1080,6 +1227,13 @@ def main():
             "psd_nfft": _psd_nfft_eff,
             "gauss_alpha": _ga_eff,
             "max_dist_samples": _mds_eff,
+        },
+        "stat_fidelity_config": {
+            "enabled": args.stat_tests,
+            "stat_mode": args.stat_mode,
+            "stat_n_perm": args.stat_n_perm,
+            "stat_seed": args.stat_seed,
+            "stat_max_n": args.stat_max_n,
         },
         "base_overrides": base_overrides_dict,
         "n_studies": len(studies_meta),
@@ -1108,6 +1262,7 @@ def main():
                 "baseline_dist": r.get("baseline_dist", {}),
                 "cvae_dist": r.get("cvae_dist", {}),
                 "dist_metrics_source": r.get("dist_metrics_source"),
+                "stat_fidelity": r.get("stat_fidelity", {}),
                 "selected_experiments": r.get("selected_experiments", []),
                 "selection_criteria": r.get("selection_criteria", {}),
                 "error": r.get("error"),
@@ -1139,6 +1294,9 @@ def main():
             delta += f" | bl_Δmean={bd['delta_mean_l2']:.4f}"
         if cd.get("delta_mean_l2") is not None:
             delta += f" | cv_Δmean={cd['delta_mean_l2']:.4f}"
+        sf = r.get("stat_fidelity", {})
+        if sf.get("mmd2") is not None:
+            delta += f" | MMD²={sf['mmd2']:.6f}(p={sf['mmd_pval']:.3f})"
         print(f"   • {slab}{r['regime_id']}: {status}{delta}")
     print(f"{'='*70}")
 
