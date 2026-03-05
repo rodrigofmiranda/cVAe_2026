@@ -64,78 +64,202 @@ be predicted from $(x, d, c)$ alone.
 ## Repository layout
 
 ```
-data/                     Dataset (Git LFS)
+configs/
+  protocol_default.json       Default protocol definition (regimes × studies)
+  protocol_default.yaml       YAML variant
+conftest.py                   Pytest root config (makes `import src.*` work)
+data/                         Dataset (Git LFS)
   dataset_fullsquare_organized/
     dist_*/curr_*/IQ_data/
-docker/                   Dockerfile
-docs/                     Technical documentation
-notebooks/                Exploratory notebooks
-outputs/                  Run artifacts (run_YYYYMMDD_HHMMSS/)
+docker/                       Dockerfile + container configs
+docs/
+  MODELING_ASSUMPTIONS.md     Core modeling decisions
+  PROTOCOL.md                 Protocol runner reference
+  SESSION_STATE.md            Session/run state schema
+  smoke_b2_notes.txt          Single-regime full stat-fidelity smoke results
+notebooks/                    Exploratory Jupyter notebooks
+outputs/                      Run artifacts (exp_YYYYMMDD_HHMMSS/)
 scripts/
-  train.sh                Training wrapper
-  eval.sh                 Evaluation wrapper
+  train.sh                    Training wrapper
+  eval.sh                     Evaluation wrapper
+  smoke_dist_metrics.sh       Quick smoke test for distribution metrics
+tests/
+  test_stat_tests.py          18 unit tests for MMD, Energy, PSD, FDR
+  test_stat_plots.py          11 unit tests for stat fidelity plots
 src/
-  config/                 Defaults, IO, schemas (stubs)
+  baselines/
+    deterministic.py          Deterministic regression baseline
+  config/
+    defaults.py               Default values, key names
+    io.py                     Load/save config (YAML/JSON)
+    overrides.py              RunOverrides dataclass (CLI → per-regime)
+    schema.py                 Dataclasses for run configuration
   data/
-    channel_dataset.py    GNU Radio capture block
-    loading.py            Dataset IO, discovery, experiment loading
-    splits.py             (stub)
-    normalization.py      (stub)
-  models/                 Model definitions (stubs)
+    channel_dataset.py        GNU Radio capture block
+    loading.py                Dataset IO, discovery, experiment loading
+    splits.py                 Train/val split by experiment (no global shuffle)
+    normalization.py          Peak/power normalization, sync rules
+  metrics/
+    distribution.py           Distribution-fidelity metrics (moments, PSD, Gaussianity)
+  models/
+    cvae.py                   cVAE encoder/decoder/prior architecture
+    cvae_components.py        Sub-network building blocks
+    callbacks.py              Early stopping, ReduceLR, logging
+    losses.py                 Reconstruction, KL, free-bits, β schedule
+    sampling.py               Reparameterization trick, prior sampling
   training/
-    cvae_TRAIN_documented.py   Main training + grid search script
-    logging.py            Run bootstrap (RUN_DIR, _last_run.txt)
+    train.py                  Training entrypoint CLI
+    engine.py                 Training loop: build, compile, fit, save
+    gridsearch.py             Grid-search combinatorics + execution
+    logging.py                state_run.json writer, RUN_DIR creation
+    cvae_TRAIN_documented.py  Legacy monolithic training script (reference)
   evaluation/
-    analise_cvae_reviewed.py   Evaluation + metrics + plots
+    evaluate.py               Evaluation entrypoint CLI
+    metrics.py                EVM, SNR, KL diagnostics, active dims
+    plots.py                  Constellation overlays, histograms, scatter
+    report.py                 CSV/JSON summary tables
+    analise_cvae_reviewed.py  Legacy monolithic evaluation script (reference)
     non_gaussianity_by_regime.py
+    stat_tests/               Statistical Fidelity Suite
+      __init__.py             Convenience imports (mmd_rbf, energy_test, etc.)
+      mmd.py                  Two-sample MMD test (RBF kernel, BLAS-optimised permutations)
+      energy.py               Energy distance test (BLAS-optimised permutations)
+      psd.py                  Power Spectral Density distance + bootstrap CI
+      fdr.py                  Benjamini–Hochberg FDR correction
+      plots.py                Heatmaps + scatter plots for stat results
+  protocol/
+    run.py                    Protocol runner — orchestrates train+eval across regimes
+    selector_engine.py        Regime × experiment selection logic
+    split_strategies.py       Within-regime / cross-regime split strategies
 ```
 
 ## Quick start
 
+### Protocol runner (recommended)
+
+The protocol runner is the main entrypoint. It orchestrates training,
+evaluation, baseline comparison, distribution metrics, and statistical
+fidelity tests for one or more $(d, c)$ regimes in a single reproducible
+run.
+
 ```bash
-# Train (grid search over ~48 configurations)
+# Full 27-regime run (3 distances × 9 currents)
+python -m src.protocol.run \
+  --dataset_root data/dataset_fullsquare_organized \
+  --output_base outputs \
+  --max_epochs 200
+
+# Single-regime smoke test with stat fidelity
+python -m src.protocol.run \
+  --dataset_root data/dataset_fullsquare_organized \
+  --output_base outputs \
+  --protocol path/to/one_regime.json \
+  --max_epochs 30 --max_grids 1 --max_experiments 1 \
+  --stat_tests --stat_mode full --stat_max_n 5000
+
+# Dry run (validate protocol + model summary, no training)
+python -m src.protocol.run \
+  --dataset_root data/dataset_fullsquare_organized \
+  --output_base outputs \
+  --dry_run
+```
+
+### Legacy wrappers
+
+```bash
+# Train (grid search over ~42 configurations)
 bash scripts/train.sh
 
 # Evaluate the latest (or a specific) run
 bash scripts/eval.sh
-# or: RUN_ID=run_20260301_120000 bash scripts/eval.sh
 ```
 
-### Environment variables
+### CLI flags reference
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `DATASET_ROOT` | `data/dataset_fullsquare_organized` | Path to organized dataset |
-| `OUTPUT_BASE` | `outputs/` | Root for run artifacts |
-| `RUN_ID` | auto (`run_YYYYMMDD_HHMMSS`) | Explicit run identifier |
+| Flag | Default | Purpose |
+|------|---------|---------|
+| `--dataset_root` | *(required)* | Path to organized dataset |
+| `--output_base` | *(required)* | Root for run artifacts |
+| `--protocol` | `configs/protocol_default.json` | Protocol JSON defining regimes |
+| `--max_epochs` | per-protocol | Maximum training epochs |
+| `--max_grids` | all | Limit grid-search configs to N |
+| `--max_experiments` | all | Limit experiments per regime |
+| `--max_samples_per_exp` | all | Cap samples per experiment |
+| `--skip_eval` | `false` | Train only, skip evaluation |
+| `--dry_run` | `false` | Validate + model summary, no training |
+| `--no_baseline` | `false` | Skip deterministic baseline |
+| `--no_dist_metrics` | `false` | Skip distribution-fidelity metrics |
+| `--stat_tests` | `false` | Run MMD/Energy/PSD stat tests per regime |
+| `--stat_mode` | `quick` | `quick` (200 perms) or `full` (2000 perms) |
+| `--stat_max_n` | `50000` | Max samples for stat tests |
+| `--keras_verbose` | `2` | Keras fit verbosity (0/1/2) |
 
 ## Run artifacts
 
 Each run produces:
 
 ```
-outputs/run_YYYYMMDD_HHMMSS/
-  state_run.json            Config snapshot + normalization + split info
-  models/
-    best_model_full.keras   Best cVAE (full encoder+prior+decoder)
-    best_decoder.keras
-    best_prior_net.keras
-  logs/
-    training_history.json
-  plots/                    Constellation overlays, PSD, latent diagnostics
-  tables/                   Grid results, dataset inventory, split tables
+outputs/exp_YYYYMMDD_HHMMSS/
+  manifest.json                 Full run manifest (config, acceptance, timing)
+  tables/
+    summary_by_regime.csv       All metrics for every regime (one row each)
+    stat_fidelity_by_regime.*   FDR-corrected stat test results (csv + xlsx)
+  plots/
+    stat_tests/                 Heatmaps + scatter plots (MMD, q-val, PSD)
+  studies/
+    within_regime/regimes/
+      <regime_id>/
+        state_run.json          Config snapshot + normalization + split info
+        models/
+          best_model_full.keras Best cVAE (encoder + prior + decoder)
+          best_decoder.keras
+          best_prior_net.keras
+        logs/
+          training_history.json
+          metricas_globais_reanalysis.json
+        plots/                  Constellation overlays, PSD, latent diagnostics
+        tables/                 Grid results, dataset inventory, split tables
 ```
 
 ## Key metrics
 
-- **EVM (%)** and **SNR (dB)** — physical signal quality.
-- **Residual distribution**: mean/covariance distance, skewness, kurtosis,
-  PSD of $\Delta = y - x$.
-- **Latent diagnostics**: active dimensions, KL per dimension, decoder
-  sensitivity to $z$.
+### Signal quality
+- **EVM (%)** and **SNR (dB)** — physical signal quality (real vs. predicted).
+- **ΔEVM / ΔSNR** — gap between cVAE and baseline.
+
+### Distribution fidelity
+- **Δmean\_l2, Δcov\_fro, Δskew\_l2, Δkurt\_l2** — moment-level distance
+  between real and synthetic residuals.
+- **PSD\_L2** — spectral distance of residual $\Delta = y - x$.
+- **Gaussianity rejection** — Jarque–Bera test on residuals.
+
+### Statistical Fidelity Suite (`--stat_tests`)
+- **MMD²** (Maximum Mean Discrepancy, RBF kernel) + permutation p-value.
+- **Energy distance** (Székely & Rizzo) + permutation p-value.
+- **PSD distance** + bootstrap 95% confidence interval.
+- **FDR correction** (Benjamini–Hochberg) across all regimes → q-values.
+- **Acceptance verdict**: PASS / PARTIAL / FAIL based on q-values and PSD
+  ratio relative to baseline.
+
+### Latent diagnostics
+- Active dimensions, KL per dimension, decoder sensitivity to $z$.
 - **score\_v2**: composite ranking metric for grid search.
+
+## Testing
+
+```bash
+# Run all stat tests (29 tests, ~6 s)
+pytest tests/ -v
+
+# Specific test file
+pytest tests/test_stat_tests.py -v    # 18 tests: MMD, Energy, PSD, FDR
+pytest tests/test_stat_plots.py -v    # 11 tests: heatmaps, scatter, generate_all
+```
 
 ## References
 
 - Kingma & Welling, "Auto-Encoding Variational Bayes", 2014.
+- Gretton et al., "A Kernel Two-Sample Test", JMLR 2012 (MMD).
+- Székely & Rizzo, "Testing for Equal Distributions in High Dimension", 2004 (Energy distance).
+- Benjamini & Hochberg, "Controlling the False Discovery Rate", 1995 (FDR).
 - Surveys on data-driven VLC channel modeling (2020–2025).
