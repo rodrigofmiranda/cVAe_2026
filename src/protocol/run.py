@@ -1199,10 +1199,57 @@ def main():
                         print(f"📈 Stat fidelity plots ({len(_sf_created)}): {_plot_dir}")
                 except Exception as _pe:
                     print(f"⚠️  Stat fidelity plots failed: {_pe}")
+
+                # ---- Etapa A4: acceptance summary ("strong check") ----
+                _n_sf = len(df_sf)
+                _q_alpha = 0.05
+                _psd_ratio_limit = 1.2
+                _pass_mmd = (df_sf["mmd_qval"] > _q_alpha).sum()
+                _pass_energy = (df_sf["energy_qval"] > _q_alpha).sum()
+                _pass_both = ((df_sf["mmd_qval"] > _q_alpha) &
+                              (df_sf["energy_qval"] > _q_alpha)).sum()
+
+                # PSD ratio check: cVAE stat psd_dist <= _psd_ratio_limit × baseline_psd_l2
+                _psd_check_df = df_sf[["regime_id", "psd_dist"]].copy()
+                _pass_psd = _n_sf  # default: all pass if baseline unavailable
+                _psd_checked = False
+                if "baseline_psd_l2" in df_summary.columns:
+                    _bl_psd = df_summary[["regime_id", "baseline_psd_l2"]].drop_duplicates("regime_id")
+                    _psd_check_df = _psd_check_df.merge(_bl_psd, on="regime_id", how="left")
+                    _has_both = _psd_check_df.dropna(subset=["psd_dist", "baseline_psd_l2"])
+                    if not _has_both.empty:
+                        _psd_checked = True
+                        _pass_psd = int((_has_both["psd_dist"] <=
+                                         _psd_ratio_limit * _has_both["baseline_psd_l2"]).sum())
+                        _n_sf_psd = len(_has_both)
+                    else:
+                        _n_sf_psd = _n_sf
+                else:
+                    _n_sf_psd = _n_sf
+
+                _stat_acceptance = {
+                    "q_alpha": _q_alpha,
+                    "psd_ratio_limit": _psd_ratio_limit,
+                    "n_regimes_tested": _n_sf,
+                    "pass_mmd_qval": int(_pass_mmd),
+                    "pass_energy_qval": int(_pass_energy),
+                    "pass_both_qval": int(_pass_both),
+                    "pct_pass_mmd": round(100 * _pass_mmd / _n_sf, 1) if _n_sf else 0,
+                    "pct_pass_energy": round(100 * _pass_energy / _n_sf, 1) if _n_sf else 0,
+                    "pct_pass_both": round(100 * _pass_both / _n_sf, 1) if _n_sf else 0,
+                    "psd_ratio_checked": _psd_checked,
+                    "pass_psd_ratio": int(_pass_psd),
+                    "n_regimes_psd_checked": int(_n_sf_psd) if _psd_checked else 0,
+                    "pct_pass_psd_ratio": round(100 * _pass_psd / _n_sf_psd, 1) if _psd_checked and _n_sf_psd else None,
+                }
             else:
+                _stat_acceptance = None
                 print("⚠️  No valid stat fidelity results to aggregate")
         except Exception as e:
+            _stat_acceptance = None
             print(f"⚠️  FDR aggregation failed: {e}")
+    else:
+        _stat_acceptance = None
 
     # ---- Write manifest ----
     ts_end = datetime.now()
@@ -1247,6 +1294,7 @@ def main():
             "stat_seed": args.stat_seed,
             "stat_max_n": args.stat_max_n,
         },
+        "stat_acceptance": _stat_acceptance,
         "base_overrides": base_overrides_dict,
         "n_studies": len(studies_meta),
         "studies": [
@@ -1310,6 +1358,30 @@ def main():
         if sf.get("mmd2") is not None:
             delta += f" | MMD²={sf['mmd2']:.6f}(p={sf['mmd_pval']:.3f})"
         print(f"   • {slab}{r['regime_id']}: {status}{delta}")
+
+    # ---- Etapa A4: acceptance summary ----
+    if _stat_acceptance is not None:
+        sa = _stat_acceptance
+        print(f"\n{'─'*70}")
+        print(f"🧪 STAT FIDELITY ACCEPTANCE  (q_α={sa['q_alpha']}, "
+              f"PSD ratio ≤ {sa['psd_ratio_limit']}×baseline)")
+        print(f"   Regimes tested:  {sa['n_regimes_tested']}")
+        print(f"   q_MMD  > α:      {sa['pass_mmd_qval']}/{sa['n_regimes_tested']} "
+              f"({sa['pct_pass_mmd']:.1f}%)")
+        print(f"   q_Energy > α:    {sa['pass_energy_qval']}/{sa['n_regimes_tested']} "
+              f"({sa['pct_pass_energy']:.1f}%)")
+        print(f"   Both > α:        {sa['pass_both_qval']}/{sa['n_regimes_tested']} "
+              f"({sa['pct_pass_both']:.1f}%)")
+        if sa["psd_ratio_checked"]:
+            print(f"   PSD ≤ {sa['psd_ratio_limit']}×bl:   "
+                  f"{sa['pass_psd_ratio']}/{sa['n_regimes_psd_checked']} "
+                  f"({sa['pct_pass_psd_ratio']:.1f}%)")
+        else:
+            print(f"   PSD ratio:       not checked (baseline PSD unavailable)")
+        _verdict = "PASS ✅" if sa["pct_pass_both"] == 100.0 else "PARTIAL ⚠️"
+        print(f"   Verdict:         {_verdict}")
+        print(f"{'─'*70}")
+
     print(f"{'='*70}")
 
 
