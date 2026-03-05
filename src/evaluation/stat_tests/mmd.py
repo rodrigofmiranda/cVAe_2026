@@ -114,6 +114,7 @@ def mmd_rbf(
 
     m, n = len(X), len(Y)
     Z = np.concatenate([X, Y], axis=0)  # pooled
+    N = m + n
 
     # Pre-compute full Gram on pooled data (symmetric)
     K = _gram_rbf(Z, Z, bw)
@@ -124,15 +125,40 @@ def mmd_rbf(
     Kxy = K[:m, m:]
     mmd2_obs = _mmd2_unbiased(Kxx, Kyy, Kxy)
 
-    # Permutation null distribution
+    # ----- Optimised permutation null distribution -----
+    # Instead of fancy-indexing K per permutation (cache-hostile, O(m²)
+    # copies), we use a BLAS matrix-vector product: K @ e_a runs as
+    # dgemv and is orders of magnitude faster.
+    diag_K = np.diag(K).copy()   # (N,)
+    row_sums = K.sum(axis=1)     # (N,)  — precompute once
     rng = np.random.default_rng(seed)
     count_ge = 0
+    e = np.empty(N, dtype=np.float64)
     for _ in range(n_perm):
-        idx = rng.permutation(m + n)
-        Ki_xx = K[np.ix_(idx[:m], idx[:m])].copy()
-        Ki_yy = K[np.ix_(idx[m:], idx[m:])].copy()
-        Ki_xy = K[np.ix_(idx[:m], idx[m:])]
-        mmd2_perm = _mmd2_unbiased(Ki_xx, Ki_yy, Ki_xy)
+        idx = rng.permutation(N)
+        a = idx[:m]
+        b = idx[m:]
+
+        # Indicator vector: 1 for group-a, 0 for group-b
+        e[:] = 0.0
+        e[a] = 1.0
+
+        Ke = K @ e                          # O(N²)  — BLAS dgemv
+        s_a = float(Ke[a].sum())            # Σ K[i,j] for i,j ∈ a
+        s_ab = float(Ke[b].sum())           # Σ K[i,j] for i∈a, j∈b
+
+        # s_b = Σ K[i,j] for i,j ∈ b  (via complement of K @ e)
+        s_b = float((row_sums[b] - Ke[b]).sum())
+
+        # Diagonal corrections (unbiased estimator zeroes the diagonal)
+        da = float(diag_K[a].sum())
+        db = float(diag_K[b].sum())
+
+        term_xx = (s_a - da) / max(1, m * (m - 1))
+        term_yy = (s_b - db) / max(1, n * (n - 1))
+        term_xy = s_ab / max(1, m * n)
+        mmd2_perm = term_xx + term_yy - 2.0 * term_xy
+
         if mmd2_perm >= mmd2_obs:
             count_ge += 1
 

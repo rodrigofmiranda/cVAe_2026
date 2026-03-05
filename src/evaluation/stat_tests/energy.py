@@ -105,15 +105,53 @@ def energy_test(
     # Observed statistic (sub-sampled if large)
     e_obs = _energy_statistic_fast(X, Y, max_pairs=max_pairs)
 
-    # Permutation null
+    # ----- Optimised permutation null -----
+    # Pre-compute the full pairwise-distance matrix D on the pooled
+    # data *once*, then derive per-permutation sums via a single
+    # BLAS dgemv (D @ indicator) instead of recomputing cdist every
+    # iteration.  This turns O(n_perm·n²) cdist calls into one
+    # cdist + O(n_perm) dgemv calls — orders of magnitude faster.
+    from scipy.spatial.distance import cdist as _cdist
+
     rng = np.random.default_rng(seed)
     Z = np.concatenate([X, Y], axis=0)
+    N = m + n
+
+    # Sub-sample the pool if needed (same budget as the statistic)
+    _ms = min(m, max_pairs)
+    _ns = min(n, max_pairs)
+    _Ns = _ms + _ns
+    if N > _Ns:
+        _pool_idx = rng.choice(N, _Ns, replace=False)
+        Z_sub = Z[_pool_idx]
+    else:
+        _Ns = N
+        _ms, _ns = m, n
+        Z_sub = Z
+
+    D = _cdist(Z_sub, Z_sub, metric="euclidean").astype(np.float64)
+    row_sums_D = D.sum(axis=1)   # precompute for complement trick
+
     count_ge = 0
+    e = np.empty(_Ns, dtype=np.float64)
     for _ in range(n_perm):
-        idx = rng.permutation(m + n)
-        Xp = Z[idx[:m]]
-        Yp = Z[idx[m:]]
-        e_perm = _energy_statistic_fast(Xp, Yp, max_pairs=max_pairs)
+        idx = rng.permutation(_Ns)
+        a = idx[:_ms]
+        b = idx[_ms:]
+
+        e[:] = 0.0
+        e[a] = 1.0
+
+        De = D @ e                                  # BLAS dgemv
+        sum_xy = float(De[b].sum())                 # Σ D[i,j] i∈a, j∈b
+        sum_xx = float(De[a].sum())                 # Σ D[i,j] i,j∈a
+        sum_yy = float((row_sums_D[b] - De[b]).sum())  # Σ D[i,j] i,j∈b
+
+        mean_xy = sum_xy / max(1, _ms * _ns)
+        mean_xx = sum_xx / max(1, _ms * _ms)
+        mean_yy = sum_yy / max(1, _ns * _ns)
+        e_perm = 2.0 * mean_xy - mean_xx - mean_yy
+
         if e_perm >= e_obs:
             count_ge += 1
 
