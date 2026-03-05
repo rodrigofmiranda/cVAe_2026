@@ -1,2 +1,4 @@
 dataset_fullsquare_organized/** filter=lfs diff=lfs merge=lfs -text
 data/** filter=lfs diff=lfs merge=lfs -text
+data/dataset_fullsquare_organized/**/*.npy filter=lfs diff=lfs merge=lfs -text
+data/dataset_fullsquare_organized/**/*.json filter=lfs diff=lfs merge=lfs -text

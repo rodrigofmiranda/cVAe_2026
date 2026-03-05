@@ -6,8 +6,10 @@ tables/
 plots/
 events.out.tfevents.*
 
-# Datasets (never commit — large binary data)
+# Datasets (large binary data — only LFS-tracked files are allowed)
 data/
+!data/dataset_fullsquare_organized/**/*.npy
+!data/dataset_fullsquare_organized/**/*.json
 
 # Backups locais (não versionar)
 backup/
