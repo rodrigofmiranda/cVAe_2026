@@ -1081,6 +1081,12 @@ def main():
     base_overrides = _merge_overrides(proto_globals, args)
     base_overrides_dict = base_overrides.to_dict()          # legacy compat
 
+    # ---- Etapa A5: guard incompatible flag combos ----
+    if args.dry_run and args.stat_tests:
+        print("⚠️  --stat_tests requires a trained model for Y_pred — "
+              "incompatible with --dry_run.  Disabling --stat_tests.")
+        args.stat_tests = False
+
     # Experiment output directory (single folder per protocol run)
     exp_paths = RunPaths(run_id=f"exp_{ts_label}",
                          run_dir=Path(args.output_base) / f"exp_{ts_label}")
