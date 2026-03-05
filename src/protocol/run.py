@@ -1187,6 +1187,18 @@ def main():
                 sf_csv = exp_paths.write_table("tables/stat_fidelity_by_regime.csv", df_sf)
                 exp_paths.write_table("tables/stat_fidelity_by_regime.xlsx", df_sf)
                 print(f"📊 Stat fidelity table (FDR-corrected): {sf_csv}")
+
+                # ---- Etapa A3: stat fidelity plots ----
+                try:
+                    from src.evaluation.stat_tests.plots import generate_all as _sf_plots
+                    _plot_dir = exp_dir / "plots" / "stat_tests"
+                    _sf_created = _sf_plots(
+                        df_sf, _plot_dir, df_summary=df_summary,
+                    )
+                    if _sf_created:
+                        print(f"📈 Stat fidelity plots ({len(_sf_created)}): {_plot_dir}")
+                except Exception as _pe:
+                    print(f"⚠️  Stat fidelity plots failed: {_pe}")
             else:
                 print("⚠️  No valid stat fidelity results to aggregate")
         except Exception as e:
