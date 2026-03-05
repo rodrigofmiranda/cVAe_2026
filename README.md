@@ -256,6 +256,93 @@ pytest tests/test_stat_tests.py -v    # 18 tests: MMD, Energy, PSD, FDR
 pytest tests/test_stat_plots.py -v    # 11 tests: heatmaps, scatter, generate_all
 ```
 
+## Dataset (Git LFS)
+
+The experimental I/Q dataset is stored in this repository via **Git LFS**.
+It contains synchronized baseband captures from a real VLC channel
+(LED → free-space → photodetector) across 27 operating regimes.
+
+### Requirements
+
+```bash
+# Install Git LFS (if not already available)
+sudo apt install git-lfs   # Debian/Ubuntu
+brew install git-lfs        # macOS
+
+git lfs install
+```
+
+### Cloning with data
+
+```bash
+# Full clone (downloads all LFS objects — ~288 MB)
+git clone https://github.com/rodrigofmiranda/cVAe_2026.git
+cd cVAe_2026
+
+# If you already cloned without LFS, pull the data:
+git lfs pull
+```
+
+### Dataset structure
+
+```
+data/dataset_fullsquare_organized/
+  dist_0.8m/                      Distance = 0.8 m
+    curr_100mA/                   LED current = 100 mA
+      full_square_0.8m_100mA_001_YYYYMMDD_HHMMSS/
+        full_square_…/
+          IQ_data/
+            sent_data_tuple.npy                   Transmitted I/Q (N×2, float32)
+            received_data_tuple_sync-phase.npy    Received I/Q (N×2, float32)
+            metadata.json                         Capture metadata
+          full_square_…_meta.json                 Experiment-level metadata
+    curr_200mA/
+    …
+    curr_900mA/
+  dist_1.0m/                      Distance = 1.0 m
+    curr_100mA/ … curr_900mA/
+  dist_1.5m/                      Distance = 1.5 m
+    curr_100mA/ … curr_900mA/
+```
+
+| Dimension | Value |
+|-----------|-------|
+| Distances | 0.8 m, 1.0 m, 1.5 m |
+| Currents | 100, 200, 300, 400, 500, 600, 700, 800, 900 mA |
+| Regimes | 3 × 9 = **27** |
+| Samples per regime | ~900,000 I/Q pairs |
+| Array shape | `(N, 2)` — columns are `[I, Q]` (in-phase, quadrature) |
+| Dtype | `float32` |
+| Total LFS files | 80 (40 `.npy` + 40 `.json`), ~288 MB |
+
+### Loading data in Python
+
+```python
+import numpy as np, json
+
+base = "data/dataset_fullsquare_organized/dist_0.8m/curr_200mA"
+exp  = "full_square_0.8m_200mA_001_20260211_153502/full_square_0.8m_200mA_001_20260211_153502"
+
+X = np.load(f"{base}/{exp}/IQ_data/sent_data_tuple.npy")          # (900000, 2)
+Y = np.load(f"{base}/{exp}/IQ_data/received_data_tuple_sync-phase.npy")  # (900000, 2)
+meta = json.load(open(f"{base}/{exp}/IQ_data/metadata.json"))
+
+print(f"Sent: {X.shape}  Received: {Y.shape}")
+print(f"EVM: {meta['EVM_percentage']:.2f}%  SNR: {meta['SNR_dB']:.2f} dB")
+```
+
+### metadata.json keys
+
+| Key | Description |
+|-----|-------------|
+| `EVM_percentage` | Error Vector Magnitude (%) |
+| `EVM_dB` | EVM in decibels |
+| `SNR_dB` | Signal-to-Noise Ratio (dB) |
+| `noise_power` | Estimated noise power |
+| `normalization_factor` | Peak normalization constant |
+| `samp_rate` | Sample rate (Hz) |
+| `sync_info` | Synchronization parameters |
+
 ## References
 
 - Kingma & Welling, "Auto-Encoding Variational Bayes", 2014.
