@@ -434,7 +434,7 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
 
     print("\n📦 Carregando experimentos (sem redução; split por experimento)...")
     exps, df_info = load_experiments_as_list(
-        dataset_root, verbose=True, reduction_config=DATA_REDUCTION_CONFIG,
+        dataset_root, verbose=True, reduction_config=None,
     )
 
     # --- Commit 3R: filter to selected experiments from protocol runner ---
@@ -477,6 +477,19 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
     print(f"✓ Split por experimento salvo: {split_path}")
 
     print(f"\n✓ Dados (por experimento): {len(X_train):,} treino | {len(X_val):,} validação")
+
+    # Redução aplicada APÓS split — garante que val nunca é afetado
+    _red_cfg = DATA_REDUCTION_CONFIG
+    if _red_cfg.get("enabled", False):
+        from src.data.loading import reduce_experiment_xy
+        _rng_red = np.random.default_rng(int(TRAINING_CONFIG.get("seed", 42)))
+        # Reduz train como um único bloco (já concatenado)
+        X_train, Y_train = reduce_experiment_xy(
+            X_train, Y_train, _red_cfg, _rng_red
+        )
+        D_train = D_train[:len(X_train)]
+        C_train = C_train[:len(X_train)]
+        print(f"✓ Data reduction pós-split: train={len(X_train):,} | val={len(X_val):,} (val intocado)")
 
     # --- Commit 3R: alignment assertions ---
     assert len(X_train) == len(Y_train) == len(D_train) == len(C_train), (

@@ -222,7 +222,7 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         y_log_var = layers.Lambda(lambda t: t[:, 2:], name="y_log_var_raw")(out_params)
 
         # Clipping do log-var do decoder (controle indireto das caudas)
-        y_log_var = layers.Lambda(lambda t: tf.clip_by_value(t, -6.0, 1.0), name="clip_y_log_var")(y_log_var)
+        y_log_var = layers.Lambda(lambda t: tf.clip_by_value(t, -5.82, -0.69), name="clip_y_log_var")(y_log_var)  # clamp calibrado empiricamente: log(var) do resíduo VLC, 27 regimes, q1%-1nat / q99%+1nat
 
         if deterministic:
             y = y_mean
