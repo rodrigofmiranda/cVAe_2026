@@ -1,4 +1,7 @@
-dataset_fullsquare_organized/** filter=lfs diff=lfs merge=lfs -text
-data/** filter=lfs diff=lfs merge=lfs -text
+# ── Git LFS tracking ──────────────────────────────────────
+# Binary / heavy files in dataset_fullsquare_organized
 data/dataset_fullsquare_organized/**/*.npy filter=lfs diff=lfs merge=lfs -text
-data/dataset_fullsquare_organized/**/*.json filter=lfs diff=lfs merge=lfs -text
+data/dataset_fullsquare_organized/**/*.png filter=lfs diff=lfs merge=lfs -text
+# Other large data folders
+data/multimodality_results/**/*.npy filter=lfs diff=lfs merge=lfs -text
+data/multimodality_results/**/*.png filter=lfs diff=lfs merge=lfs -text

@@ -265,7 +265,7 @@ def create_inference_model_from_full(
 
     y_mean = layers.Lambda(lambda t: t[:, :2], name="y_mean")(out_params)
     y_log_var = layers.Lambda(
-        lambda t: tf.clip_by_value(t[:, 2:], -6.0, 1.0), name="y_logvar",
+        lambda t: tf.clip_by_value(t[:, 2:], -5.82, -0.69), name="y_logvar",  # clamp calibrado empiricamente: log(var) do resíduo VLC, 27 regimes, q1%-1nat / q99%+1nat
     )(out_params)
 
     if deterministic:

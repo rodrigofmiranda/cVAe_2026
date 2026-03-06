@@ -77,7 +77,7 @@ TRAINING_DEFAULTS: dict = {
     K_SPLIT_MODE: "per_experiment",
     K_SPLIT_ORDER: "head_tail",
     K_WITHIN_EXP_SHUFFLE: False,
-    K_SHUFFLE_TRAIN_BATCHES: False,
+    K_SHUFFLE_TRAIN_BATCHES: True,  # True: entrelaça amostras de todos os 27 regimes por epoch (evita viés de gradiente)
     K_EARLY_STOP_WARMUP: 0,
     K_SEED: 42,
 }
