@@ -275,7 +275,7 @@ git lfs install
 ### Cloning with data
 
 ```bash
-# Full clone (downloads all LFS objects — ~288 MB)
+# Full clone (downloads all LFS objects — ~1.1 GB)
 git clone https://github.com/rodrigofmiranda/cVAe_2026.git
 cd cVAe_2026
 
@@ -287,15 +287,22 @@ git lfs pull
 
 ```
 data/dataset_fullsquare_organized/
+  _report/                        Dataset-level quality report
+    REPORT.md                     Summary with plots and tables
+    summary_by_regime.csv         Per-regime statistics
+    heatmap_*.png, line_*.png     Diagnostic plots
   dist_0.8m/                      Distance = 0.8 m
     curr_100mA/                   LED current = 100 mA
       full_square_0.8m_100mA_001_YYYYMMDD_HHMMSS/
-        full_square_…/
-          IQ_data/
-            sent_data_tuple.npy                   Transmitted I/Q (N×2, float32)
-            received_data_tuple_sync-phase.npy    Received I/Q (N×2, float32)
-            metadata.json                         Capture metadata
-          full_square_…_meta.json                 Experiment-level metadata
+        IQ_data/
+          X.npy                   Transmitted I/Q (N×2, float32) — cVAE input
+          Y.npy                   Received I/Q (N×2, float32)   — cVAE target
+          x_sent.npy              Raw sent (intermediate, not used by cVAE)
+          y_recv.npy              Raw received (intermediate)
+          y_recv_sync.npy         Sync without normalization (intermediate)
+          y_recv_norm.npy         Normalized without phase (intermediate)
+        metadata.json             Experiment metadata (conversion params)
+        report.json               Per-experiment quality metrics
     curr_200mA/
     …
     curr_900mA/
@@ -305,6 +312,9 @@ data/dataset_fullsquare_organized/
     curr_100mA/ … curr_900mA/
 ```
 
+> **Note:** The cVAE uses **only** `X.npy` (input) and `Y.npy` (target).
+> The other `.npy` files are intermediate pipeline outputs — ignore them.
+
 | Dimension | Value |
 |-----------|-------|
 | Distances | 0.8 m, 1.0 m, 1.5 m |
@@ -313,7 +323,9 @@ data/dataset_fullsquare_organized/
 | Samples per regime | ~900,000 I/Q pairs |
 | Array shape | `(N, 2)` — columns are `[I, Q]` (in-phase, quadrature) |
 | Dtype | `float32` |
-| Total LFS files | 80 (40 `.npy` + 40 `.json`), ~288 MB |
+| Total files | 309 (162 `.npy` + 91 `.png` + 54 `.json` + 1 `.md` + 1 `.csv`) |
+| LFS-tracked | `.npy` and `.png` files (~1.1 GB) |
+| Git-tracked | `.json`, `.md`, `.csv` files (small, human-readable) |
 
 ### Loading data in Python
 
@@ -321,27 +333,45 @@ data/dataset_fullsquare_organized/
 import numpy as np, json
 
 base = "data/dataset_fullsquare_organized/dist_0.8m/curr_200mA"
-exp  = "full_square_0.8m_200mA_001_20260211_153502/full_square_0.8m_200mA_001_20260211_153502"
+exp  = "full_square_0.8m_200mA_001_20260211_153502"
 
-X = np.load(f"{base}/{exp}/IQ_data/sent_data_tuple.npy")          # (900000, 2)
-Y = np.load(f"{base}/{exp}/IQ_data/received_data_tuple_sync-phase.npy")  # (900000, 2)
-meta = json.load(open(f"{base}/{exp}/IQ_data/metadata.json"))
+# cVAE arrays
+X = np.load(f"{base}/{exp}/IQ_data/X.npy")   # (N, 2) — transmitted
+Y = np.load(f"{base}/{exp}/IQ_data/Y.npy")   # (N, 2) — received (sync+phase+norm)
+
+# Metadata & quality metrics
+meta   = json.load(open(f"{base}/{exp}/metadata.json"))
+report = json.load(open(f"{base}/{exp}/report.json"))
 
 print(f"Sent: {X.shape}  Received: {Y.shape}")
-print(f"EVM: {meta['EVM_percentage']:.2f}%  SNR: {meta['SNR_dB']:.2f} dB")
+print(f"EVM: {report['evm_pct']:.2f}%  SNR: {report['snr_dB']:.2f} dB")
 ```
 
 ### metadata.json keys
 
 | Key | Description |
 |-----|-------------|
-| `EVM_percentage` | Error Vector Magnitude (%) |
-| `EVM_dB` | EVM in decibels |
-| `SNR_dB` | Signal-to-Noise Ratio (dB) |
-| `noise_power` | Estimated noise power |
-| `normalization_factor` | Peak normalization constant |
-| `samp_rate` | Sample rate (Hz) |
-| `sync_info` | Synchronization parameters |
+| `dist_m` | Distance in meters |
+| `curr_mA` | LED forward current in milliamps |
+| `regime_id` | Unique regime identifier (e.g. `dist_0p8m__curr_100mA`) |
+| `conversion.factor_ref` | Amplitude normalization factor (anchor-based) |
+| `conversion.estimated_lag_samples` | Sync delay in samples |
+| `conversion.estimated_phase_rad` | Estimated carrier phase offset (rad) |
+| `conversion.anchor` | Reference regime used for normalization |
+
+### report.json keys
+
+| Key | Description |
+|-----|-------------|
+| `evm_pct` | Error Vector Magnitude (%) |
+| `snr_dB` | Signal-to-Noise Ratio (dB) |
+| `n_samples` | Number of I/Q samples |
+| `lag_samples` | Synchronization lag (samples) |
+| `phase_rad` | Estimated phase (radians) |
+| `factor_ref` | Normalization factor |
+| `var_I`, `var_Q` | Noise variance per quadrature |
+| `log_var_I`, `log_var_Q` | Log-variance per quadrature |
+| `skew_I`, `kurt_excess_I` | Higher-order statistics (I channel) |
 
 ## References
 
