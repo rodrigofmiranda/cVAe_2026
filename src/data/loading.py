@@ -21,10 +21,17 @@ import pandas as pd
 
 # Accepted filenames for the received-signal array (tried in order).
 ALT_RECV: list[str] = [
-    "received_data_tuple_sync-phase.npy",
-    "received_data_tuple_sync_phase.npy",
-    "received_data_tuple_sync.npy",
-    "received_data_tuple.npy",
+    "Y.npy",                                   # novo formato (dataset 2026)
+    "received_data_tuple_sync-phase.npy",       # legado
+    "received_data_tuple_sync_phase.npy",       # legado variante
+    "received_data_tuple_sync.npy",             # legado
+    "received_data_tuple.npy",                  # legado
+]
+
+# Accepted filenames for the sent-signal array (tried in order).
+ALT_SENT: list[str] = [
+    "X.npy",                   # novo formato (dataset 2026)
+    "sent_data_tuple.npy",     # legado
 ]
 
 
@@ -102,8 +109,8 @@ def discover_experiments(dataset_root: Path, verbose=True):
     """Scan *dataset_root* for valid experiment directories.
 
     An experiment is valid when its ``IQ_data/`` sub-folder contains both
-    ``sent_data_tuple.npy`` and one of the accepted received filenames
-    listed in :pydata:`ALT_RECV`.
+    a sent-signal file (see :pydata:`ALT_SENT`) and one of the accepted
+    received filenames listed in :pydata:`ALT_RECV`.
 
     Two discovery strategies are combined (metadata.json scan +
     IQ_data directory scan) for maximum recall.
@@ -116,13 +123,13 @@ def discover_experiments(dataset_root: Path, verbose=True):
         else:
             exp_dir = meta.parent
             iq_dir = exp_dir / "IQ_data"
-        sent_ok = (iq_dir / "sent_data_tuple.npy").exists()
+        sent_ok = any((iq_dir / s).exists() for s in ALT_SENT)
         recv_ok = any((iq_dir / r).exists() for r in ALT_RECV)
         if sent_ok and recv_ok:
             exp_dirs.add(exp_dir)
     for iq_dir in dataset_root.rglob("IQ_data"):
         exp_dir = iq_dir.parent
-        sent_ok = (iq_dir / "sent_data_tuple.npy").exists()
+        sent_ok = any((iq_dir / s).exists() for s in ALT_SENT)
         recv_ok = any((iq_dir / r).exists() for r in ALT_RECV)
         if sent_ok and recv_ok:
             exp_dirs.add(exp_dir)
@@ -328,7 +335,12 @@ def load_experiments_as_list(
                     except Exception: pass
 
         iq_dir = exp_dir / "IQ_data"
-        sent_path = iq_dir / "sent_data_tuple.npy"
+        sent_path = None
+        for s in ALT_SENT:
+            p = iq_dir / s
+            if p.exists():
+                sent_path = p
+                break
         recv_path = None
         for r in ALT_RECV:
             p = iq_dir / r
@@ -336,7 +348,7 @@ def load_experiments_as_list(
                 recv_path = p
                 break
 
-        if recv_path is None or not sent_path.exists():
+        if recv_path is None or sent_path is None:
             info.append({"exp_dir": str(exp_dir), "status": "missing_files"})
             continue
 
@@ -361,6 +373,15 @@ def load_experiments_as_list(
             D = np.full((n, 1), float(dist), dtype=np.float32)
             C = np.full((n, 1), float(curr), dtype=np.float32)
 
+            # Leitura opcional do report.json (métricas de qualidade do canal)
+            report_path = exp_dir / "report.json"
+            report_data = {}
+            if report_path.exists():
+                try:
+                    report_data = json.loads(report_path.read_text(encoding="utf-8"))
+                except Exception:
+                    pass
+
             exps.append((X, Y, D, C, str(exp_dir)))
             info.append({
                 "exp_dir": str(exp_dir),
@@ -370,6 +391,11 @@ def load_experiments_as_list(
                 "status": "ok",
                 "sent_path": str(sent_path),
                 "recv_path": str(recv_path),
+                "evm_pct":    float(report_data.get("evm_pct",    float("nan"))),
+                "snr_dB":     float(report_data.get("snr_dB",     float("nan"))),
+                "log_var_I":  float(report_data.get("log_var_I",  float("nan"))),
+                "log_var_Q":  float(report_data.get("log_var_Q",  float("nan"))),
+                "factor_ref": float(report_data.get("factor_ref", float("nan"))),
             })
         except Exception as e:
             info.append({"exp_dir": str(exp_dir), "status": "error", "error": str(e)})
