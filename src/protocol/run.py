@@ -519,7 +519,25 @@ def _quick_cvae_predict(run_dir: Path, X_va, D_va, C_va, batch_size: int = 4096)
         y_mean = layers.Lambda(lambda t: t[:, :2], name="y_mean_quick")(out_params)
 
         inference_model = tf.keras.Model([x_in, d_in, c_in], y_mean, name="quick_infer_det")
-        Y_pred = inference_model.predict([X_va, D_va, C_va], batch_size=batch_size, verbose=0)
+
+        # --- Normalizar D e C antes de alimentar o modelo ---
+        # (modelo foi treinado com D,C em [0,1])
+        try:
+            _state = json.loads((run_dir / "state_run.json").read_text())
+            _norm = _state.get("normalization", {})
+            _D_min = float(_norm.get("D_min", D_va.min()))
+            _D_max = float(_norm.get("D_max", D_va.max()))
+            _C_min = float(_norm.get("C_min", C_va.min()))
+            _C_max = float(_norm.get("C_max", C_va.max()))
+        except Exception:
+            # fallback: normalizar pelo próprio batch (menos preciso)
+            _D_min, _D_max = float(D_va.min()), float(D_va.max())
+            _C_min, _C_max = float(C_va.min()), float(C_va.max())
+
+        _D_norm = (D_va - _D_min) / (_D_max - _D_min + 1e-8)
+        _C_norm = (C_va - _C_min) / (_C_max - _C_min + 1e-8)
+
+        Y_pred = inference_model.predict([X_va, _D_norm, _C_norm], batch_size=batch_size, verbose=0)
 
         del vae, inference_model, prior, decoder
         try:
