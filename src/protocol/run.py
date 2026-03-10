@@ -522,20 +522,26 @@ def _quick_cvae_predict(run_dir: Path, X_va, D_va, C_va, batch_size: int = 4096)
 
         # --- Normalizar D e C antes de alimentar o modelo ---
         # (modelo foi treinado com D,C em [0,1])
+        # Usa apply_condition_norm para reproduzir a lógica exata do treino,
+        # incluindo o fallback D_max==D_min → 0.0, C_max==C_min → 0.5.
+        from src.data.normalization import apply_condition_norm
         try:
             _state = json.loads((run_dir / "state_run.json").read_text())
             _norm = _state.get("normalization", {})
-            _D_min = float(_norm.get("D_min", D_va.min()))
-            _D_max = float(_norm.get("D_max", D_va.max()))
-            _C_min = float(_norm.get("C_min", C_va.min()))
-            _C_max = float(_norm.get("C_max", C_va.max()))
+            _norm_params = {
+                "D_min": float(_norm.get("D_min", D_va.min())),
+                "D_max": float(_norm.get("D_max", D_va.max())),
+                "C_min": float(_norm.get("C_min", C_va.min())),
+                "C_max": float(_norm.get("C_max", C_va.max())),
+            }
         except Exception:
             # fallback: normalizar pelo próprio batch (menos preciso)
-            _D_min, _D_max = float(D_va.min()), float(D_va.max())
-            _C_min, _C_max = float(C_va.min()), float(C_va.max())
+            _norm_params = {
+                "D_min": float(D_va.min()), "D_max": float(D_va.max()),
+                "C_min": float(C_va.min()), "C_max": float(C_va.max()),
+            }
 
-        _D_norm = (D_va - _D_min) / (_D_max - _D_min + 1e-8)
-        _C_norm = (C_va - _C_min) / (_C_max - _C_min + 1e-8)
+        _D_norm, _C_norm = apply_condition_norm(D_va, C_va, _norm_params)
 
         Y_pred = inference_model.predict([X_va, _D_norm, _C_norm], batch_size=batch_size, verbose=0)
 
