@@ -249,7 +249,9 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         "within_experiment_shuffle": False,
 
         # IMPORTANTES:
-        "shuffle_train_batches": False,
+        "shuffle_train_batches": True,
+        # True: entrelaça amostras dos 27 regimes por epoch (evita viés de gradiente)
+        # Corrigido: False era hardcode que sobrepunha src/config/defaults.py
         # >> C1: warmup=0 aqui — cada modelo usa seu próprio kl_anneal_epochs como warmup
         #        (ver callbacks no loop do grid)
         "early_stop_warmup": 0,
