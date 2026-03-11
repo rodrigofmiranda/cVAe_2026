@@ -126,3 +126,20 @@ FALLBACK_STATE_RUN: dict = {
         K_SEED: 42,
     },
 }
+
+# =====================================================================
+# Canonical scalar aliases (used across modules to avoid magic numbers)
+# =====================================================================
+SPLIT_MODE = TRAINING_DEFAULTS[K_SPLIT_MODE]
+PER_EXPERIMENT_SPLIT_ORDER = TRAINING_DEFAULTS[K_SPLIT_ORDER]
+VALIDATION_SPLIT = TRAINING_DEFAULTS[K_VALIDATION_SPLIT]
+WITHIN_EXPERIMENT_SHUFFLE = TRAINING_DEFAULTS[K_WITHIN_EXP_SHUFFLE]
+SHUFFLE_TRAIN_BATCHES = TRAINING_DEFAULTS[K_SHUFFLE_TRAIN_BATCHES]
+REDUCTION_TARGET = DATA_REDUCTION_DEFAULTS[K_TARGET_SAMPLES]
+N_EVAL_SAMPLES_STRATIFIED = ANALYSIS_DEFAULTS[K_N_EVAL_SAMPLES]
+SEED = TRAINING_DEFAULTS[K_SEED]
+
+# Decoder log-variance clamp calibrated from dataset residual statistics:
+# q1%(log(var_real_delta)) - 1 nat / q99%(log(var_real_delta)) + 1 nat.
+DECODER_LOGVAR_CLAMP_LO = -5.82
+DECODER_LOGVAR_CLAMP_HI = -0.69

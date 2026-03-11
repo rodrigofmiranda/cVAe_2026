@@ -674,8 +674,8 @@ def run_regime(
 
     if _need_data:
         try:
-            from src.data.loading import load_experiments_as_list
             from src.protocol.split_strategies import apply_split
+            from src.data.splits import cap_train_samples_per_experiment
 
             _val_split = float(ov.get("val_split", 0.2))
             _seed = int(ov.get("seed", 42))
@@ -683,13 +683,20 @@ def run_regime(
 
             # Use already-filtered experiments from above
             exps = list(_filt_exps)
-            if _max_spe is not None:
-                _ms = int(_max_spe)
-                exps = [(X[:_ms], Y[:_ms], D[:_ms], C[:_ms], p) for X, Y, D, C, p in exps]
-
-            X_tr, Y_tr, _D_tr, _C_tr, X_va, Y_va, D_va, C_va, _ = \
+            X_tr, Y_tr, _D_tr, _C_tr, X_va, Y_va, D_va, C_va, _df_split = \
                 apply_split(exps, strategy="per_experiment",
                             val_split=_val_split, seed=_seed)
+
+            # Enforce split -> reduce(train only) ordering for max_samples_per_exp.
+            if _max_spe is not None:
+                _ms = int(_max_spe)
+                X_tr, Y_tr, _D_tr, _C_tr, _df_cap = cap_train_samples_per_experiment(
+                    X_tr, Y_tr, _D_tr, _C_tr, _df_split, _ms
+                )
+                print(
+                    f"   ⚡ max_samples_per_exp pós-split: train={len(X_tr):,} "
+                    f"(cap={_ms}/exp) | val={len(X_va):,} (val intocado)"
+                )
 
             # --- Commit 3P: shape guard ---
             assert X_va.shape[0] == Y_va.shape[0] == D_va.shape[0] == C_va.shape[0], (
@@ -706,7 +713,7 @@ def run_regime(
             print(f"   🔑 val fingerprint: X mean={_np_fp.mean(X_va):.6f} "
                   f"std={_np_fp.std(X_va):.6f} D_unique={_np_fp.unique(D_va).tolist()} "
                   f"C_unique={_np_fp.unique(C_va).tolist()}")
-            del _D_tr, _C_tr, exps, X_tr, Y_tr, X_va, Y_va, D_va, C_va
+            del _D_tr, _C_tr, exps, X_tr, Y_tr, X_va, Y_va, D_va, C_va, _df_split
         except Exception as e:
             print(f"⚠️  Data loading failed for regime '{regime_id}': {e}")
 
@@ -1003,6 +1010,9 @@ def build_summary_table(results: List[dict]) -> "pd.DataFrame":
             "delta_snr_db": m.get("delta_snr_db"),
             "delta_mean_l2": m.get("delta_mean_l2"),
             "delta_cov_fro": m.get("delta_cov_fro"),
+            # Prefer eval metrics JSON; fallback to top-level keys when available.
+            "var_real_delta": m.get("var_real_delta", r.get("var_real_delta")),
+            "var_pred_delta": m.get("var_pred_delta", r.get("var_pred_delta")),
             "delta_skew_l2": m.get("delta_skew_l2"),
             "delta_kurt_l2": m.get("delta_kurt_l2"),
             "delta_psd_l2": m.get("delta_psd_l2"),
@@ -1213,6 +1223,18 @@ def main():
                 n_reg = len(pvals_mmd)
                 df_sf["mmd_qval"] = all_qvals[:n_reg]
                 df_sf["energy_qval"] = all_qvals[n_reg:]
+
+                # Add mmd2_normalized = mmd2 / var_real_delta (dimensionless).
+                if "regime_id" in df_summary.columns and "var_real_delta" in df_summary.columns:
+                    _var_map = df_summary[["regime_id", "var_real_delta"]].drop_duplicates("regime_id")
+                    df_sf = df_sf.merge(_var_map, on="regime_id", how="left")
+                    _den = pd.to_numeric(df_sf["var_real_delta"], errors="coerce")
+                    df_sf["mmd2_normalized"] = _np_fdr.where(
+                        _den > 0, df_sf["mmd2"] / _den, _np_fdr.nan
+                    )
+                else:
+                    print("⚠️  Could not compute mmd2_normalized: "
+                          "missing 'regime_id' or 'var_real_delta' in summary_by_regime.")
 
                 sf_csv = exp_paths.write_table("tables/stat_fidelity_by_regime.csv", df_sf)
                 exp_paths.write_table("tables/stat_fidelity_by_regime.xlsx", df_sf)

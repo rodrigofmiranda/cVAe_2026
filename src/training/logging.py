@@ -22,6 +22,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
+from src.config.defaults import (
+    DECODER_LOGVAR_CLAMP_HI,
+    DECODER_LOGVAR_CLAMP_LO,
+)
+
 
 # =====================================================================
 # RunPaths — single source of truth for run-directory layout
@@ -292,6 +297,11 @@ def write_state_run(
         "training_config": training_config or {},
         "data_reduction_config": data_reduction_config or {},
         "analysis_quick": analysis_quick or {},
+        "model_constraints": {
+            "decoder_logvar_clamp_lo": DECODER_LOGVAR_CLAMP_LO,
+            "decoder_logvar_clamp_hi": DECODER_LOGVAR_CLAMP_HI,
+            "clamp_origin": "empirical q1pct-1nat / q99pct+1nat, 27 VLC regimes",
+        },
         "normalization": normalization,
         "data_split": data_split or {},
         "eval_protocol": eval_protocol or {},

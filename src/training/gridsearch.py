@@ -299,18 +299,26 @@ def run_gridsearch(
             # Eval estratificado: amostra uniformemente por regime (Dn,Cn)
             # evita que X_val[:N] avalie apenas o regime 0.8m/baixa corrente
             _n_total = int(analysis_quick["n_eval_samples"])
+            _n_total = max(1, min(_n_total, len(X_val)))
             _regimes = np.unique(
                 np.stack([Dn_val, Cn_val], axis=1), axis=0
             )
             _n_per_regime = max(1, _n_total // max(1, len(_regimes)))
-            _rng_eval = np.random.default_rng(42)
+            _rng_eval = np.random.default_rng(int(training_config.get("seed", 42)))
             _idx_list = []
             for _reg in _regimes:
                 _mask = (Dn_val == _reg[0]) & (Cn_val == _reg[1])
                 _candidates = np.where(_mask)[0]
+                if len(_candidates) == 0:
+                    continue
                 _k = min(_n_per_regime, len(_candidates))
-                _idx_list.append(_rng_eval.choice(_candidates, _k, replace=False))
+                if _k > 0:
+                    _idx_list.append(_rng_eval.choice(_candidates, _k, replace=False))
+            if not _idx_list:
+                raise RuntimeError("Eval estratificado sem candidatos na validação.")
             _idx = np.concatenate(_idx_list)
+            if len(_idx) > _n_total:
+                _idx = _rng_eval.choice(_idx, size=_n_total, replace=False)
             _rng_eval.shuffle(_idx)
             Xv = X_val[_idx]; Yv = Y_val[_idx]
             Dv = Dn_val[_idx]; Cv = Cn_val[_idx]

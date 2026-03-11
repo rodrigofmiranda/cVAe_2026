@@ -154,10 +154,18 @@ from src.data.loading import (                          # Commits 3A–3B
     discover_experiments, is_valid_dataset_root, find_dataset_root,
     reduce_experiment_xy, load_experiments_as_list,
 )
-from src.data.splits import split_train_val_per_experiment  # Commit 3D
+from src.data.splits import (                            # Commit 3D
+    split_train_val_per_experiment,
+    cap_train_samples_per_experiment,
+)
 from src.data.normalization import (                    # refactor(step2)
     normalize_conditions, compute_condition_norm_params,
     apply_condition_norm,
+)
+from src.config.defaults import (
+    DECODER_LOGVAR_CLAMP_HI,
+    DECODER_LOGVAR_CLAMP_LO,
+    N_EVAL_SAMPLES_STRATIFIED,
 )
 from src.evaluation.metrics import (                    # Commit 3E
     calculate_evm, calculate_snr,
@@ -268,7 +276,7 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         TRAINING_CONFIG["epochs"] = int(_ov["max_epochs"])
 
     ANALYSIS_QUICK = {
-        "n_eval_samples": 40_000,
+        "n_eval_samples": int(N_EVAL_SAMPLES_STRATIFIED),
         "batch_infer": 8192,
         "rank_mode": "mc",
         "mc_samples": 8,
@@ -472,11 +480,6 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         _me = int(_ov["max_experiments"])
         exps = exps[:_me]
         print(f"⚡ Commit 3H: limited to {len(exps)} experiment(s)")
-    if "max_samples_per_exp" in _ov:
-        _ms = int(_ov["max_samples_per_exp"])
-        exps = [(X[:_ms], Y[:_ms], D[:_ms], C[:_ms], p) for X, Y, D, C, p in exps]
-        print(f"⚡ Commit 3H: truncated to ≤{_ms} samples/exp")
-
     inv_path = _run.write_table("tables/dataset_inventory.xlsx", df_info, sheet_name="inventory")
     print(f"🧾 Inventário salvo: {inv_path}")
 
@@ -493,6 +496,18 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
     print(f"✓ Split por experimento salvo: {split_path}")
 
     print(f"\n✓ Dados (por experimento): {len(X_train):,} treino | {len(X_val):,} validação")
+
+    # Limite opcional aplicado APÓS split e somente no treino (sem tocar validação).
+    if "max_samples_per_exp" in _ov:
+        _ms = int(_ov["max_samples_per_exp"])
+        X_train, Y_train, D_train, C_train, _df_cap = cap_train_samples_per_experiment(
+            X_train, Y_train, D_train, C_train, df_split, _ms
+        )
+        print(
+            "⚡ Commit 3H: train capped pós-split "
+            f"(max_samples_per_exp={_ms}) | "
+            f"train={len(X_train):,} | val={len(X_val):,} (val intocado)"
+        )
 
     # Redução aplicada APÓS split — garante que val nunca é afetado
     _red_cfg = DATA_REDUCTION_CONFIG
@@ -613,14 +628,14 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         "data_reduction_config": DATA_REDUCTION_CONFIG,
         "analysis_quick": ANALYSIS_QUICK,
         "model_constraints": {
-            "decoder_logvar_clamp_lo": -5.82,
-            "decoder_logvar_clamp_hi": -0.69,
+            "decoder_logvar_clamp_lo": DECODER_LOGVAR_CLAMP_LO,
+            "decoder_logvar_clamp_hi": DECODER_LOGVAR_CLAMP_HI,
             "clamp_origin": "empirical q1pct-1nat / q99pct+1nat, 27 VLC regimes",
         },
         "eval_protocol": {
             "n_eval_samples": int(ANALYSIS_QUICK["n_eval_samples"]),
             "batch_infer": int(ANALYSIS_QUICK["batch_infer"]),
-            "eval_slice": "val_head",
+            "eval_slice": "stratified_by_regime",
             "deterministic_inference": (str(ANALYSIS_QUICK.get("rank_mode","mc")).lower() == "det"),
             "rank_mode": str(ANALYSIS_QUICK.get("rank_mode","mc")).lower(),
             "mc_samples": int(ANALYSIS_QUICK.get("mc_samples", 8)),

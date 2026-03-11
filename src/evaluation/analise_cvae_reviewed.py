@@ -24,11 +24,18 @@ import pandas as pd
 import tensorflow as tf
 from tensorflow.keras import layers
 import matplotlib.pyplot as plt
+from src.config.defaults import (
+    DECODER_LOGVAR_CLAMP_HI,
+    DECODER_LOGVAR_CLAMP_LO,
+)
 from src.data.loading import (                          # Commits 3A–3B
     ensure_iq_shape, read_metadata, parse_dist_curr_from_path,
     discover_experiments, load_experiments_as_list,
 )
-from src.data.splits import split_train_val_per_experiment  # Commit 3D
+from src.data.splits import (                               # Commit 3D
+    split_train_val_per_experiment,
+    cap_train_samples_per_experiment,
+)
 from src.evaluation.metrics import (                    # Commit 3E
     calculate_evm, calculate_snr,
     _skew_kurt, _psd_log, residual_distribution_metrics,
@@ -121,7 +128,7 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
                 "rank_mode": "det",
                 "n_eval_samples": 40000,
                 "batch_infer": 8192,
-                "eval_slice": "val_head",
+                "eval_slice": "stratified_by_regime",
             },
             "analysis_quick": {"dist_metrics": True, "psd_nfft": 2048},
             "artifacts": {
@@ -222,7 +229,12 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         y_log_var = layers.Lambda(lambda t: t[:, 2:], name="y_log_var_raw")(out_params)
 
         # Clipping do log-var do decoder (controle indireto das caudas)
-        y_log_var = layers.Lambda(lambda t: tf.clip_by_value(t, -5.82, -0.69), name="clip_y_log_var")(y_log_var)  # clamp calibrado empiricamente: log(var) do resíduo VLC, 27 regimes, q1%-1nat / q99%+1nat
+        y_log_var = layers.Lambda(
+            lambda t: tf.clip_by_value(
+                t, DECODER_LOGVAR_CLAMP_LO, DECODER_LOGVAR_CLAMP_HI
+            ),
+            name="clip_y_log_var",
+        )(y_log_var)
 
         if deterministic:
             y = y_mean
@@ -274,10 +286,6 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         _me = int(_ov["max_experiments"])
         exps = exps[:_me]
         print(f"\u26a1 Commit 3H: limited to {len(exps)} experiment(s)")
-    if "max_samples_per_exp" in _ov:
-        _ms = int(_ov["max_samples_per_exp"])
-        exps = [(X[:_ms], Y[:_ms], D[:_ms], C[:_ms], p) for X, Y, D, C, p in exps]
-        print(f"\u26a1 Commit 3H: truncated to \u2264{_ms} samples/exp")
     print(f"✅ Experimentos carregados: {(df_info['status']=='ok').sum()}")
     _rp.write_table("tables/dataset_inventory.xlsx", df_info)
     print(f"✓ dataset_inventory.xlsx salvo: {TABLES_DIR / 'dataset_inventory.xlsx'}")
@@ -294,9 +302,21 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         X_train, Y_train, D_train, C_train, X_val, Y_val, D_val, C_val, df_split = split_train_val_per_experiment(
             exps, val_split=val_split, seed=seed0, order_mode=order_mode, within_exp_shuffle=within_shuffle
         )
+        if "max_samples_per_exp" in _ov:
+            _ms = int(_ov["max_samples_per_exp"])
+            X_train, Y_train, D_train, C_train, _df_cap = cap_train_samples_per_experiment(
+                X_train, Y_train, D_train, C_train, df_split, _ms
+            )
+            print(
+                f"⚡ Commit 3H: max_samples_per_exp pós-split "
+                f"(train cap={_ms}/exp) | train={len(X_train):,} | val={len(X_val):,}"
+            )
         _rp.write_table("tables/split_by_experiment.xlsx", df_split)
         print(f"✓ split_by_experiment.xlsx salvo: {TABLES_DIR / 'split_by_experiment.xlsx'}")
     else:
+        if "max_samples_per_exp" in _ov:
+            print("⚠️  Ignorando max_samples_per_exp no split_mode='global' "
+                  "(cap por experimento requer split per_experiment).")
         # fallback (não recomendado): concatena e faz split global
         X = np.concatenate([e[0] for e in exps], axis=0)
         Y = np.concatenate([e[1] for e in exps], axis=0)
