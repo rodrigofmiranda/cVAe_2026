@@ -369,6 +369,20 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
             cfg=_cfg(layer_sizes=[128,256,512], latent_dim=ld, beta=beta, lr=lr, batch_size=bs, kl_anneal_epochs=ae)
         ))
 
+    # --------------------------------
+    # G4: β × latent_dim sweep (6 runs)
+    # - Foco em regularização para passar G6 (MMD²)
+    # - β mais alto (0.01–0.1) empurra prior → N(0,I)
+    # - latent_dim 4 e 6
+    # --------------------------------
+    for ld in [4, 6]:
+        for beta in [0.010, 0.030, 0.100]:
+            GRID.append(dict(
+                group="G4_beta_latent_sweep",
+                tag=f"G4_lat{ld}_b{_tag_beta(beta)}_fb0p10_lr{_tag_lr(3e-4)}_L{_tag_layers([128,256,512])}",
+                cfg=_cfg(layer_sizes=[128,256,512], latent_dim=ld, beta=beta)
+            ))
+
     # dedup por segurança
     seen = set()
     GRID2 = []
@@ -598,6 +612,11 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         "training_config": TRAINING_CONFIG,
         "data_reduction_config": DATA_REDUCTION_CONFIG,
         "analysis_quick": ANALYSIS_QUICK,
+        "model_constraints": {
+            "decoder_logvar_clamp_lo": -5.82,
+            "decoder_logvar_clamp_hi": -0.69,
+            "clamp_origin": "empirical q1pct-1nat / q99pct+1nat, 27 VLC regimes",
+        },
         "eval_protocol": {
             "n_eval_samples": int(ANALYSIS_QUICK["n_eval_samples"]),
             "batch_infer": int(ANALYSIS_QUICK["batch_infer"]),
