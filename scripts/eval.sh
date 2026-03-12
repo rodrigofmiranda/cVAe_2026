@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Commit 3G: uses CLI entrypoint (wraps monolith main()).
-# Legacy direct call (still works):
-#   python -u -m src.evaluation.analise_cvae_reviewed
+# Canonical evaluation CLI wrapper.
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
@@ -17,7 +15,7 @@ if [[ -n "${RUN_DIR:-}" ]]; then
         --dataset_root "$DATASET_ROOT" \
         --run_dir      "$RUN_DIR"
 else
-    # Fallback: pick latest run via the monolith's own pick_latest_run logic
+    # Fallback: pick latest run directory in OUTPUT_BASE
     LATEST_RUN=$(ls -1d "$OUTPUT_BASE"/run_* 2>/dev/null | sort | tail -1)
     if [[ -z "$LATEST_RUN" ]]; then
         echo "ERROR: No run_* directories found in $OUTPUT_BASE" >&2

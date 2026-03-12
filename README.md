@@ -4,6 +4,20 @@ A PhD-level research repository implementing a **data-driven digital twin** of a
 Visible Light Communication (VLC) channel using a Conditional Variational
 Autoencoder (cVAE) with heteroscedastic decoding and conditional prior.
 
+## Current Docs
+
+Use these documents in this order:
+
+- [PROJECT_STATUS.md](/workspace/2026/PROJECT_STATUS.md) — current architecture and repo state
+- [TRAINING_PLAN.md](/workspace/2026/TRAINING_PLAN.md) — active scientific plan and gates
+- [docs/DIAGNOSTIC_CHECKLIST.md](/workspace/2026/docs/DIAGNOSTIC_CHECKLIST.md) — executable diagnostic workflow
+- [docs/PROTOCOL.md](/workspace/2026/docs/PROTOCOL.md) — protocol runner, artifacts, CLI
+- [docs/MODELING_ASSUMPTIONS.md](/workspace/2026/docs/MODELING_ASSUMPTIONS.md) — modeling rationale
+
+Historical refactor planning has been archived under:
+
+- [docs/archive/REFACTOR_PLAN_legacy.md](/workspace/2026/docs/archive/REFACTOR_PLAN_legacy.md)
+
 ## Objective
 
 Learn the conditional distribution of the physical VLC channel from
@@ -73,10 +87,14 @@ data/                         Dataset (Git LFS)
     dist_*/curr_*/IQ_data/
 docker/                       Dockerfile + container configs
 docs/
+  DIAGNOSTIC_CHECKLIST.md    Executable diagnosis workflow
   MODELING_ASSUMPTIONS.md     Core modeling decisions
   PROTOCOL.md                 Protocol runner reference
   SESSION_STATE.md            Session/run state schema
+  archive/                    Historical plans kept out of the active path
   smoke_b2_notes.txt          Single-regime full stat-fidelity smoke results
+PROJECT_STATUS.md             Current codebase / validation status
+TRAINING_PLAN.md              Active scientific plan and acceptance gates
 notebooks/                    Exploratory Jupyter notebooks
 outputs/                      Run artifacts (exp_YYYYMMDD_HHMMSS/)
 scripts/
@@ -94,6 +112,7 @@ src/
     io.py                     Load/save config (YAML/JSON)
     overrides.py              RunOverrides dataclass (CLI → per-regime)
     schema.py                 Dataclasses for run configuration
+    runtime.py                Runtime builders for train/eval engines
   data/
     channel_dataset.py        GNU Radio capture block
     loading.py                Dataset IO, discovery, experiment loading
@@ -109,16 +128,17 @@ src/
     sampling.py               Reparameterization trick, prior sampling
   training/
     train.py                  Training entrypoint CLI
-    engine.py                 Training loop: build, compile, fit, save
+    engine.py                 Canonical training engine entrypoint
+    pipeline.py               Canonical training pipeline orchestration
+    grid_plan.py              Canonical cVAE grid definition + filters
     gridsearch.py             Grid-search combinatorics + execution
     logging.py                state_run.json writer, RUN_DIR creation
-    cvae_TRAIN_documented.py  Legacy monolithic training script (reference)
   evaluation/
     evaluate.py               Evaluation entrypoint CLI
+    engine.py                 Canonical evaluation engine entrypoint
     metrics.py                EVM, SNR, KL diagnostics, active dims
     plots.py                  Constellation overlays, histograms, scatter
     report.py                 CSV/JSON summary tables
-    analise_cvae_reviewed.py  Legacy monolithic evaluation script (reference)
     non_gaussianity_by_regime.py
     stat_tests/               Statistical Fidelity Suite
       __init__.py             Convenience imports (mmd_rbf, energy_test, etc.)
@@ -153,7 +173,7 @@ python -m src.protocol.run \
 python -m src.protocol.run \
   --dataset_root data/dataset_fullsquare_organized \
   --output_base outputs \
-  --protocol path/to/one_regime.json \
+  --protocol configs/one_regime_1p0m_300mA.json \
   --max_epochs 30 --max_grids 1 --max_experiments 1 \
   --stat_tests --stat_mode full --stat_max_n 5000
 
@@ -162,6 +182,28 @@ python -m src.protocol.run \
   --dataset_root data/dataset_fullsquare_organized \
   --output_base outputs \
   --dry_run
+```
+
+### Canonical smoke tests
+
+Use these three deterministic checks before wider runs:
+
+```bash
+# 1) Auto-discovery + model/bootstrap validation only
+python -m src.protocol.run \
+  --dataset_root data/dataset_fullsquare_organized \
+  --output_base outputs \
+  --dry_run
+
+# 2) Single-regime protocol smoke
+python -m src.protocol.run \
+  --dataset_root data/dataset_fullsquare_organized \
+  --output_base outputs \
+  --protocol configs/one_regime_1p0m_300mA.json \
+  --max_epochs 1 --max_grids 1 --max_experiments 1 --max_samples_per_exp 2000
+
+# 3) Import/build sanity for the cVAE stack
+python -c "from src.models.cvae import build_cvae; build_cvae({'layer_sizes':[128,256,512],'latent_dim':4,'beta':0.003,'lr':3e-4,'dropout':0.0,'free_bits':0.1,'kl_anneal_epochs':80,'batch_size':16384,'activation':'leaky_relu'})"
 ```
 
 ### Legacy wrappers
@@ -180,18 +222,21 @@ bash scripts/eval.sh
 |------|---------|---------|
 | `--dataset_root` | *(required)* | Path to organized dataset |
 | `--output_base` | *(required)* | Root for run artifacts |
-| `--protocol` | `configs/protocol_default.json` | Protocol JSON defining regimes |
+| `--protocol` | auto-discover when omitted | Protocol JSON defining regimes |
 | `--max_epochs` | per-protocol | Maximum training epochs |
 | `--max_grids` | all | Limit grid-search configs to N |
+| `--max_regimes` | all | Limit executed regimes after protocol resolution |
 | `--max_experiments` | all | Limit experiments per regime |
 | `--max_samples_per_exp` | all | Cap samples per experiment |
 | `--skip_eval` | `false` | Train only, skip evaluation |
 | `--dry_run` | `false` | Validate + model summary, no training |
 | `--no_baseline` | `false` | Skip deterministic baseline |
+| `--no_cvae` | `false` | Skip cVAE training/evaluation and keep only baseline outputs |
+| `--baseline_only` | `false` | Alias for `--no_cvae` |
 | `--no_dist_metrics` | `false` | Skip distribution-fidelity metrics |
 | `--stat_tests` | `false` | Run MMD/Energy/PSD stat tests per regime |
 | `--stat_mode` | `quick` | `quick` (200 perms) or `full` (2000 perms) |
-| `--stat_max_n` | `50000` | Max samples for stat tests |
+| `--stat_max_n` | `5000` in `quick`, `50000` in `full` | Max samples for stat tests |
 | `--keras_verbose` | `2` | Keras fit verbosity (0/1/2) |
 
 ## Run artifacts
@@ -202,8 +247,8 @@ Each run produces:
 outputs/exp_YYYYMMDD_HHMMSS/
   manifest.json                 Full run manifest (config, acceptance, timing)
   tables/
-    summary_by_regime.csv       All metrics for every regime (one row each)
-    stat_fidelity_by_regime.*   FDR-corrected stat test results (csv + xlsx)
+    summary_by_regime.csv       Canonical per-regime validation table (source of truth)
+    stat_fidelity_by_regime.*   Derived stat-test projection (csv + xlsx)
   plots/
     stat_tests/                 Heatmaps + scatter plots (MMD, q-val, PSD)
   studies/
@@ -219,6 +264,9 @@ outputs/exp_YYYYMMDD_HHMMSS/
           metricas_globais_reanalysis.json
         plots/                  Constellation overlays, PSD, latent diagnostics
         tables/                 Grid results, dataset inventory, split tables
+  plots/
+    best_grid_model/           Plot bundle for the grid-search champion
+    gridsearch/                Aggregate ranking plots across tested models
 ```
 
 ## Key metrics
@@ -240,6 +288,19 @@ outputs/exp_YYYYMMDD_HHMMSS/
 - **FDR correction** (Benjamini–Hochberg) across all regimes → q-values.
 - **Acceptance verdict**: PASS / PARTIAL / FAIL based on q-values and PSD
   ratio relative to baseline.
+
+### Canonical summary fields
+- `summary_by_regime.csv` is the primary table consumed by validation scripts and thesis analysis.
+- It includes physical fidelity, residual-distribution metrics, baseline vs cVAE comparisons, and the formal `stat_*` test outputs in one row per regime.
+- Derived columns include `var_ratio_pred_real`, `better_than_baseline_*`, `gate_g1`…`gate_g6`, and `validation_status`.
+
+### Grid-search plots
+- Each tested grid model now gets its own plot bundle under `models/grid_*/plots/`.
+- The provisional champion is mirrored to `plots/best_grid_model/`.
+- Aggregate ranking views across all tested models are written to `plots/gridsearch/`.
+- The champion also gets a legacy-style executive set matching the old run layout:
+  `analise_completa_vae.png`, `comparacao_metricas_principais.png`,
+  `radar_comparativo.png`, and `constellation_overlay.png`.
 
 ### Latent diagnostics
 - Active dimensions, KL per dimension, decoder sensitivity to $z$.

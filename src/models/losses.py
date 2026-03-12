@@ -21,6 +21,11 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers
 
+from src.config.defaults import (
+    DECODER_LOGVAR_CLAMP_HI,
+    DECODER_LOGVAR_CLAMP_LO,
+)
+
 
 # ======================================================================
 # Standalone functional forms (TF tensors — usable in eager or graph)
@@ -48,7 +53,9 @@ def reconstruction_loss(
     -------
     scalar Tensor — mean NLL over batch.
     """
-    y_log_var = tf.clip_by_value(y_log_var, -5.82, -0.69)  # clamp calibrado empiricamente: log(var) do resíduo VLC, 27 regimes, q1%-1nat / q99%+1nat
+    y_log_var = tf.clip_by_value(
+        y_log_var, DECODER_LOGVAR_CLAMP_LO, DECODER_LOGVAR_CLAMP_HI
+    )
     y_var = tf.exp(y_log_var) + 1e-6
     nll = 0.5 * tf.reduce_sum(
         y_log_var + tf.square(y_true - y_mean) / y_var + tf.math.log(2.0 * np.pi),

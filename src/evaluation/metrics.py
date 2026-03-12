@@ -2,9 +2,7 @@
 """
 src/evaluation/metrics.py — Shared signal-quality and residual-distribution metrics.
 
-Extracted from cvae_TRAIN_documented.py and analise_cvae_reviewed.py
-(Commit 3E).  Both monoliths contained identical copies; this module is
-the single source of truth.
+Shared metrics for the canonical training and evaluation pipelines.
 
 Functions
 ---------
@@ -87,7 +85,13 @@ def _psd_log(xc: np.ndarray, nfft: int = 2048, eps: float = 1e-12):
 # ==========================================================================
 # Residual distribution comparison
 # ==========================================================================
-def residual_distribution_metrics(X: np.ndarray, Y: np.ndarray, Yp: np.ndarray, psd_nfft: int = 2048):
+def residual_distribution_metrics(
+    X: np.ndarray,
+    Y: np.ndarray,
+    Yp: np.ndarray,
+    psd_nfft: int = 2048,
+    gauss_alpha: float = 0.01,
+):
     d_real = np.asarray(Y) - np.asarray(X)
     d_pred = np.asarray(Yp) - np.asarray(X)
 
@@ -108,7 +112,7 @@ def residual_distribution_metrics(X: np.ndarray, Y: np.ndarray, Yp: np.ndarray, 
     psd_p = _psd_log(cp, nfft=int(psd_nfft))
     psd_l2 = float(np.linalg.norm(psd_p - psd_r) / np.sqrt(len(psd_r) if len(psd_r) else 1))
 
-    return {
+    out = {
         "delta_mean_l2": mean_l2,
         "delta_cov_fro": cov_fro,
         "var_real_delta": var_real,
@@ -117,3 +121,53 @@ def residual_distribution_metrics(X: np.ndarray, Y: np.ndarray, Yp: np.ndarray, 
         "delta_kurt_l2": kurt_l2,
         "delta_psd_l2": psd_l2,
     }
+
+    # Keep JB fields aligned with src.metrics.distribution (auditability / underflow-safe log10(p)).
+    try:
+        from src.metrics.distribution import gaussianity_tests
+
+        g_real = gaussianity_tests(d_real, alpha=float(gauss_alpha))
+        g = gaussianity_tests(d_pred, alpha=float(gauss_alpha))
+        out.update({
+            "jb_stat_I": float(g.get("jb_stat_I")),
+            "jb_stat_Q": float(g.get("jb_stat_Q")),
+            "jb_p_I": float(g.get("jb_p_I")),
+            "jb_p_Q": float(g.get("jb_p_Q")),
+            "jb_p_min": float(g.get("jb_p_min")),
+            "jb_log10p_I": float(g.get("jb_log10p_I")),
+            "jb_log10p_Q": float(g.get("jb_log10p_Q")),
+            "jb_log10p_min": float(g.get("jb_log10p_min")),
+            "reject_gaussian": bool(g.get("reject_gaussian", False)),
+            "jb_real_stat_I": float(g_real.get("jb_stat_I")),
+            "jb_real_stat_Q": float(g_real.get("jb_stat_Q")),
+            "jb_real_p_I": float(g_real.get("jb_p_I")),
+            "jb_real_p_Q": float(g_real.get("jb_p_Q")),
+            "jb_real_p_min": float(g_real.get("jb_p_min")),
+            "jb_real_log10p_I": float(g_real.get("jb_log10p_I")),
+            "jb_real_log10p_Q": float(g_real.get("jb_log10p_Q")),
+            "jb_real_log10p_min": float(g_real.get("jb_log10p_min")),
+            "jb_real_reject_gaussian": bool(g_real.get("reject_gaussian", False)),
+        })
+    except Exception:
+        # Evaluation should stay robust even if optional JB computation fails.
+        out.update({
+            "jb_stat_I": float("nan"),
+            "jb_stat_Q": float("nan"),
+            "jb_p_I": float("nan"),
+            "jb_p_Q": float("nan"),
+            "jb_p_min": float("nan"),
+            "jb_log10p_I": float("nan"),
+            "jb_log10p_Q": float("nan"),
+            "jb_log10p_min": float("nan"),
+            "reject_gaussian": False,
+            "jb_real_stat_I": float("nan"),
+            "jb_real_stat_Q": float("nan"),
+            "jb_real_p_I": float("nan"),
+            "jb_real_p_Q": float("nan"),
+            "jb_real_p_min": float("nan"),
+            "jb_real_log10p_I": float("nan"),
+            "jb_real_log10p_Q": float("nan"),
+            "jb_real_log10p_min": float("nan"),
+            "jb_real_reject_gaussian": False,
+        })
+    return out

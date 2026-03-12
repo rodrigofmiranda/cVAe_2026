@@ -17,6 +17,7 @@ python -m src.protocol.run \
 python -m src.protocol.run \
     --dataset_root data/dataset_fullsquare_organized \
     --output_base  outputs \
+    --protocol configs/one_regime_1p0m_300mA.json \
     --max_epochs 2 --max_grids 1 --max_experiments 1
 
 # Dry-run (validate protocol, build model, no training)
@@ -169,12 +170,13 @@ outputs/exp_YYYYMMDD_HHMMSS/
 | `best_grid_tag` | Best grid configuration tag (from training) |
 | `evm_real_%`, `evm_pred_%`, `delta_evm_%` | EVM metrics |
 | `snr_real_db`, `snr_pred_db`, `delta_snr_db` | SNR metrics |
-| `delta_mean_l2`, `delta_cov_fro` | Residual distribution metrics |
-| `delta_skew_l2`, `delta_kurt_l2`, `delta_psd_l2` | Higher-order stats |
-| `kl_q_to_p_total`, `kl_p_to_N_total` | Latent KL diagnostics |
-| `baseline_evm_pred_%`, `baseline_snr_pred_db` | Baseline signal-quality |
-| `baseline_delta_mean_l2` | Baseline distribution-fidelity |
-| `cvae_delta_mean_l2`, `cvae_psd_l2` | cVAE distribution-fidelity |
+| `delta_mean_l2`, `delta_cov_fro`, `var_real_delta`, `var_pred_delta`, `var_ratio_pred_real` | Residual distribution metrics |
+| `delta_skew_l2`, `delta_kurt_l2`, `delta_psd_l2`, `jb_p_min`, `jb_log10p_min` | Higher-order stats + gaussianity |
+| `baseline_*`, `cvae_*` | Side-by-side baseline vs cVAE validation metrics |
+| `stat_mmd2`, `stat_mmd_pval`, `stat_mmd_qval`, `stat_mmd2_normalized` | Formal two-sample MMD outputs |
+| `stat_energy`, `stat_energy_pval`, `stat_energy_qval` | Formal Energy test outputs |
+| `stat_psd_dist`, `stat_psd_ci_low`, `stat_psd_ci_high` | Spectral fidelity outputs |
+| `better_than_baseline_*`, `gate_g1`…`gate_g6`, `validation_status` | Derived acceptance helpers |
 | `n_experiments_selected` | How many experiments matched this regime |
 
 ## CLI flags
@@ -188,6 +190,7 @@ CLI flags take precedence.
 | `--protocol_config PATH` | YAML protocol config (takes precedence over `--protocol`) |
 | `--max_epochs N` | Limit training epochs |
 | `--max_grids N` | Limit grid configurations per regime |
+| `--max_regimes N` | Limit regimes executed after protocol resolution |
 | `--grid_group REGEX` | Filter grids by group |
 | `--grid_tag REGEX` | Filter grids by tag |
 | `--max_experiments N` | Limit experiments loaded per regime |
@@ -198,6 +201,10 @@ CLI flags take precedence.
 | `--dist_tol_m F` | Distance tolerance for regime matching (default: 0.05 m) |
 | `--curr_tol_mA F` | Current tolerance for regime matching (default: 25 mA) |
 | `--no_baseline` | Skip deterministic baseline |
+| `--no_cvae` | Skip cVAE training/evaluation and keep only baseline outputs |
+| `--baseline_only` | Alias for `--no_cvae` |
 | `--no_dist_metrics` | Skip distribution-fidelity metrics |
 | `--skip_eval` | Run training only, skip evaluation |
 | `--dry_run` | Validate + build model, no training |
+| `--stat_tests` | Run MMD/Energy/PSD stat tests per regime |
+| `--stat_mode quick|full` | `quick` uses lighter defaults (`stat_max_n=5000`), `full` keeps `50000` |

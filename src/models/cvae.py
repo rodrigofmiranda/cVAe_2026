@@ -22,6 +22,10 @@ from typing import Dict, List, Sequence, Tuple
 import tensorflow as tf
 from tensorflow.keras import layers, models
 
+from src.config.defaults import (
+    DECODER_LOGVAR_CLAMP_HI,
+    DECODER_LOGVAR_CLAMP_LO,
+)
 from src.models.sampling import Sampling
 from src.models.losses import CondPriorVAELoss
 from src.models.callbacks import KLAnnealingCallback
@@ -265,7 +269,10 @@ def create_inference_model_from_full(
 
     y_mean = layers.Lambda(lambda t: t[:, :2], name="y_mean")(out_params)
     y_log_var = layers.Lambda(
-        lambda t: tf.clip_by_value(t[:, 2:], -5.82, -0.69), name="y_logvar",  # clamp calibrado empiricamente: log(var) do resíduo VLC, 27 regimes, q1%-1nat / q99%+1nat
+        lambda t: tf.clip_by_value(
+            t[:, 2:], DECODER_LOGVAR_CLAMP_LO, DECODER_LOGVAR_CLAMP_HI
+        ),
+        name="y_logvar",
     )(out_params)
 
     if deterministic:

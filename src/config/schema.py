@@ -144,6 +144,82 @@ class DataConfig:
 
 
 # =====================================================================
+# AnalysisConfig
+# =====================================================================
+
+@dataclass
+class AnalysisConfig:
+    """Quick analysis / ranking configuration shared by train and eval."""
+
+    n_eval_samples: int = ANALYSIS_DEFAULTS["n_eval_samples"]
+    batch_infer: int = ANALYSIS_DEFAULTS["batch_infer"]
+    rank_mode: str = ANALYSIS_DEFAULTS["rank_mode"]
+    mc_samples: int = ANALYSIS_DEFAULTS["mc_samples"]
+    dist_metrics: bool = ANALYSIS_DEFAULTS["dist_metrics"]
+    psd_nfft: int = ANALYSIS_DEFAULTS["psd_nfft"]
+    w_psd: float = ANALYSIS_DEFAULTS["w_psd"]
+    w_skew: float = ANALYSIS_DEFAULTS["w_skew"]
+    w_kurt: float = ANALYSIS_DEFAULTS["w_kurt"]
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "AnalysisConfig":
+        d = d or {}
+        return cls(
+            n_eval_samples=int(_get(d, "n_eval_samples", ANALYSIS_DEFAULTS["n_eval_samples"], int)),
+            batch_infer=int(_get(d, "batch_infer", ANALYSIS_DEFAULTS["batch_infer"], int)),
+            rank_mode=str(_get(d, "rank_mode", ANALYSIS_DEFAULTS["rank_mode"])),
+            mc_samples=int(_get(d, "mc_samples", ANALYSIS_DEFAULTS["mc_samples"], int)),
+            dist_metrics=bool(_get(d, "dist_metrics", ANALYSIS_DEFAULTS["dist_metrics"])),
+            psd_nfft=int(_get(d, "psd_nfft", ANALYSIS_DEFAULTS["psd_nfft"], int)),
+            w_psd=float(_get(d, "w_psd", ANALYSIS_DEFAULTS["w_psd"], float)),
+            w_skew=float(_get(d, "w_skew", ANALYSIS_DEFAULTS["w_skew"], float)),
+            w_kurt=float(_get(d, "w_kurt", ANALYSIS_DEFAULTS["w_kurt"], float)),
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+# =====================================================================
+# EvalProtocolConfig
+# =====================================================================
+
+@dataclass
+class EvalProtocolConfig:
+    """Evaluation-time inference protocol stored in ``state_run.json``."""
+
+    n_eval_samples: int = ANALYSIS_DEFAULTS["n_eval_samples"]
+    batch_infer: int = ANALYSIS_DEFAULTS["batch_infer"]
+    eval_slice: str = "stratified"
+    deterministic_inference: bool = False
+    rank_mode: str = ANALYSIS_DEFAULTS["rank_mode"]
+    mc_samples: int = ANALYSIS_DEFAULTS["mc_samples"]
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EvalProtocolConfig":
+        d = d or {}
+        rank_mode = str(_get(d, "rank_mode", ANALYSIS_DEFAULTS["rank_mode"]))
+        deterministic = bool(
+            _get(
+                d,
+                "deterministic_inference",
+                str(rank_mode).lower() == "det",
+            )
+        )
+        return cls(
+            n_eval_samples=int(_get(d, "n_eval_samples", ANALYSIS_DEFAULTS["n_eval_samples"], int)),
+            batch_infer=int(_get(d, "batch_infer", ANALYSIS_DEFAULTS["batch_infer"], int)),
+            eval_slice=str(_get(d, "eval_slice", "stratified")),
+            deterministic_inference=deterministic,
+            rank_mode=rank_mode,
+            mc_samples=int(_get(d, "mc_samples", ANALYSIS_DEFAULTS["mc_samples"], int)),
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+# =====================================================================
 # RunMeta
 # =====================================================================
 
@@ -167,6 +243,7 @@ class RunMeta:
     grid: Dict[str, Any] = field(default_factory=dict)
     artifacts: Dict[str, Any] = field(default_factory=dict)
     paths: Dict[str, str] = field(default_factory=dict)
+    model_constraints: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "RunMeta":
@@ -187,6 +264,7 @@ class RunMeta:
             grid=dict(d.get("grid", {})),
             artifacts=dict(d.get("artifacts", {})),
             paths=dict(d.get("paths", {})),
+            model_constraints=dict(d.get("model_constraints", {})),
         )
 
     def to_dict(self) -> Dict[str, Any]:

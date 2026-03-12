@@ -2,11 +2,7 @@
 """
 src.evaluation.report — Evaluation reporting / table helpers.
 
-Extracted from ``analise_cvae_reviewed.py`` (refactor step 4).
-No scientific changes — identical logic, just moved into a reusable
-module and expressed through ``RunPaths.write_json / write_table``.
-
-Commit: refactor(step4).
+Reusable helpers for the canonical evaluation engine.
 """
 
 from __future__ import annotations
@@ -41,6 +37,13 @@ def build_global_metrics(
     var_mc: float,
 ) -> Dict[str, Any]:
     """Assemble the global-metrics dictionary (identical to monolith)."""
+    distm_serialized = {}
+    for key, value in distm.items():
+        if isinstance(value, (bool, np.bool_)):
+            distm_serialized[key] = bool(value)
+        else:
+            distm_serialized[key] = float(value)
+
     return {
         "timestamp": datetime.now().isoformat(timespec="seconds"),
         "run_id": run_id,
@@ -53,7 +56,7 @@ def build_global_metrics(
         "snr_real_db": float(snr_real),
         "snr_pred_db": float(snr_pred),
         "delta_snr_db": float(snr_pred - snr_real),
-        **{k: float(v) for k, v in distm.items()},
+        **distm_serialized,
         "deterministic_inference": bool(det_inf),
         "rank_mode": str(rank_mode),
         "mc_samples": int(mc_samples),

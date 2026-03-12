@@ -16,6 +16,7 @@ residual_fidelity_metrics  All-in-one convenience wrapper
 Commit 3O.
 """
 
+import math
 import numpy as np
 from typing import Dict
 
@@ -127,7 +128,9 @@ def gaussianity_tests(
 
     Returns
     -------
-    dict  jb_stat_I, jb_stat_Q, jb_p_I, jb_p_Q, jb_p_min, reject_gaussian
+    dict
+        jb_stat_I, jb_stat_Q, jb_p_I, jb_p_Q, jb_p_min,
+        jb_log10p_I, jb_log10p_Q, jb_log10p_min, reject_gaussian
     """
     residuals = np.asarray(residuals, dtype=np.float64)
 
@@ -156,13 +159,26 @@ def gaussianity_tests(
         stat_I, p_I = _manual_jb(residuals[:, 0])
         stat_Q, p_Q = _manual_jb(residuals[:, 1])
 
+    def _safe_log10p(p: float, stat: float) -> float:
+        """Stable log10(p), with chi²(2) tail fallback under underflow."""
+        if p > 0.0 and np.isfinite(p):
+            return float(math.log10(p))
+        # Under H0, JB ~ chi2(df=2) and for large stat:
+        # p ≈ exp(-stat/2) => log10(p) ≈ -stat / (2 ln 10)
+        return float(-stat / (2.0 * math.log(10.0)))
+
     p_min = min(p_I, p_Q)
+    log10p_I = _safe_log10p(p_I, stat_I)
+    log10p_Q = _safe_log10p(p_Q, stat_Q)
     return {
         "jb_stat_I": stat_I,
         "jb_stat_Q": stat_Q,
         "jb_p_I": p_I,
         "jb_p_Q": p_Q,
         "jb_p_min": p_min,
+        "jb_log10p_I": log10p_I,
+        "jb_log10p_Q": log10p_Q,
+        "jb_log10p_min": min(log10p_I, log10p_Q),
         "reject_gaussian": bool(p_min < alpha),
     }
 
@@ -200,5 +216,17 @@ def residual_fidelity_metrics(
     result = {}
     result.update(moment_deltas(rr, rp))
     result.update(psd_distance(rr, rp, nfft=psd_nfft))
+    g_real = gaussianity_tests(rr, alpha=gauss_alpha)
+    result.update({
+        "jb_real_stat_I": g_real["jb_stat_I"],
+        "jb_real_stat_Q": g_real["jb_stat_Q"],
+        "jb_real_p_I": g_real["jb_p_I"],
+        "jb_real_p_Q": g_real["jb_p_Q"],
+        "jb_real_p_min": g_real["jb_p_min"],
+        "jb_real_log10p_I": g_real["jb_log10p_I"],
+        "jb_real_log10p_Q": g_real["jb_log10p_Q"],
+        "jb_real_log10p_min": g_real["jb_log10p_min"],
+        "jb_real_reject_gaussian": g_real["reject_gaussian"],
+    })
     result.update(gaussianity_tests(rp, alpha=gauss_alpha))
     return result

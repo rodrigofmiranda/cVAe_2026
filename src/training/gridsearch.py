@@ -2,14 +2,9 @@
 """
 src.training.gridsearch — Grid-search orchestration for cVAE hyperparameters.
 
-Extracted from ``cvae_TRAIN_documented.py`` (refactor step 4).
-Moves the grid-search loop, scoring, artifact saving and results
-table generation into a standalone, reusable function.
+Shared grid-search loop for the canonical training pipeline.
 
-No scientific or loss-function changes — the scoring formula
-(``score_v2``) is copied verbatim from the monolith.
-
-Commit: refactor(step4).
+No scientific or loss-function changes.
 """
 
 from __future__ import annotations
@@ -192,6 +187,78 @@ def compute_score_v2(
     )
 
 
+def _stratified_val_indices_by_experiment(
+    *,
+    n_total: int,
+    n_val_total: int,
+    df_split: Optional["pd.DataFrame"],
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """
+    Sample validation indices uniformly across validation experiments.
+
+    If ``df_split`` is unavailable or inconsistent, falls back to global
+    uniform sampling without replacement.
+    """
+    n_total = int(max(1, min(n_total, n_val_total)))
+    idx_eval: Optional[np.ndarray] = None
+
+    if (
+        isinstance(df_split, pd.DataFrame)
+        and "n_val" in df_split.columns
+    ):
+        n_val_list = [int(v) for v in df_split["n_val"].tolist()]
+        if n_val_list and int(np.sum(n_val_list)) == int(n_val_total):
+            n_exps = len(n_val_list)
+            base = n_total // n_exps
+            rem = n_total % n_exps
+
+            target = np.full(n_exps, base, dtype=np.int64)
+            if rem > 0:
+                rem_idx = rng.permutation(n_exps)[:rem]
+                target[rem_idx] += 1
+
+            cap = np.asarray(n_val_list, dtype=np.int64)
+            take = np.minimum(target, cap)
+            avail = cap - take
+            left = int(n_total - int(take.sum()))
+
+            while left > 0 and int(avail.sum()) > 0:
+                progressed = False
+                for i in rng.permutation(n_exps):
+                    if left <= 0:
+                        break
+                    if avail[i] > 0:
+                        take[i] += 1
+                        avail[i] -= 1
+                        left -= 1
+                        progressed = True
+                if not progressed:
+                    break
+
+            idx_parts = []
+            cursor = 0
+            for i, n_i in enumerate(n_val_list):
+                k_i = int(take[i])
+                if k_i > 0:
+                    if k_i < n_i:
+                        local = np.sort(rng.choice(n_i, size=k_i, replace=False))
+                    else:
+                        local = np.arange(n_i, dtype=np.int64)
+                    idx_parts.append(cursor + local)
+                cursor += n_i
+
+            if idx_parts:
+                idx_eval = np.concatenate(idx_parts, axis=0)
+                idx_eval.sort()
+
+    if idx_eval is None:
+        idx_eval = rng.choice(n_val_total, size=n_total, replace=False)
+        idx_eval.sort()
+
+    return idx_eval
+
+
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
@@ -212,12 +279,12 @@ def run_gridsearch(
     run_paths: "RunPaths",
     overrides: Optional[Dict[str, Any]] = None,
     df_plan: Optional["pd.DataFrame"] = None,
+    df_split: Optional["pd.DataFrame"] = None,
 ) -> "pd.DataFrame":
     """Execute the full grid-search loop and return sorted results.
 
-    This function is a direct extraction of the grid-search loop from
-    ``cvae_TRAIN_documented.main``.  The scientific logic (model build,
-    fit, score) has **not** been altered.
+    The scientific logic (model build, fit, score) is the canonical
+    implementation used by the training engine.
 
     Parameters
     ----------
@@ -249,6 +316,11 @@ def run_gridsearch(
     from src.evaluation.metrics import (
         calculate_evm, calculate_snr, residual_distribution_metrics,
     )
+    from src.training.grid_plots import (
+        generate_gridsearch_overview_plots,
+        save_candidate_plot_bundle,
+        save_legacy_champion_plots,
+    )
 
     _ov = overrides or {}
     MODELS_DIR = run_paths.models_dir
@@ -275,11 +347,17 @@ def run_gridsearch(
 
             t0 = time.time()
             _keras_verbose = int(_ov.get("keras_verbose", 2))
+            _bs_cfg = int(cfg["batch_size"])
+            # Small-smoke stability: avoid single-step epochs when train << batch_size.
+            if len(X_train) < _bs_cfg:
+                _bs_eff = max(128, len(X_train) // 64)
+            else:
+                _bs_eff = _bs_cfg
             hist = vae.fit(
                 [X_train, Dn_train, Cn_train, Y_train], Y_train,
                 validation_data=([X_val, Dn_val, Cn_val, Y_val], Y_val),
                 epochs=int(training_config["epochs"]),
-                batch_size=int(cfg["batch_size"]),
+                batch_size=int(_bs_eff),
                 callbacks=callbacks,
                 verbose=_keras_verbose,
                 shuffle=bool(training_config["shuffle_train_batches"]),
@@ -296,22 +374,16 @@ def run_gridsearch(
                 best_epoch = 0
                 best_val = float("nan")
 
-            # Eval estratificado: amostra uniformemente por regime (Dn,Cn)
-            # evita que X_val[:N] avalie apenas o regime 0.8m/baixa corrente
+            # Eval estratificado por experimento de validação.
             _n_total = int(analysis_quick["n_eval_samples"])
-            _regimes = np.unique(
-                np.stack([Dn_val, Cn_val], axis=1), axis=0
+            _n_total = max(1, min(_n_total, len(X_val)))
+            _rng_eval = np.random.default_rng(int(training_config.get("seed", 42)))
+            _idx = _stratified_val_indices_by_experiment(
+                n_total=_n_total,
+                n_val_total=len(X_val),
+                df_split=df_split,
+                rng=_rng_eval,
             )
-            _n_per_regime = max(1, _n_total // max(1, len(_regimes)))
-            _rng_eval = np.random.default_rng(42)
-            _idx_list = []
-            for _reg in _regimes:
-                _mask = (Dn_val == _reg[0]) & (Cn_val == _reg[1])
-                _candidates = np.where(_mask)[0]
-                _k = min(_n_per_regime, len(_candidates))
-                _idx_list.append(_rng_eval.choice(_candidates, _k, replace=False))
-            _idx = np.concatenate(_idx_list)
-            _rng_eval.shuffle(_idx)
             Xv = X_val[_idx]; Yv = Y_val[_idx]
             Dv = Dn_val[_idx]; Cv = Cn_val[_idx]
             N = len(_idx)
@@ -328,6 +400,9 @@ def run_gridsearch(
 
             if rank_mode == "det" or K <= 1:
                 Yp = Yp_det
+                Yp_dist = Yp
+                X_dist = Xv
+                Y_dist = Yv
                 var_mc = float("nan")
             else:
                 inf_sto = create_inference_model_from_full(vae, deterministic=False)
@@ -339,7 +414,12 @@ def run_gridsearch(
                         verbose=0,
                     ))
                 Ys = np.stack(Ys, axis=0)
+                # Point metrics (EVM/SNR) stay on MC mean.
                 Yp = Ys.mean(axis=0)
+                # Distribution metrics must use MC concatenation (marginal predictive sample).
+                Yp_dist = Ys.reshape((-1, Ys.shape[-1]))
+                X_dist = np.tile(Xv, (K, 1))
+                Y_dist = np.tile(Yv, (K, 1))
                 var_mc = float(np.mean(np.var(Ys, axis=0)))
 
             evm_real, _ = calculate_evm(Xv, Yv)
@@ -368,7 +448,7 @@ def run_gridsearch(
             w_kurt = float(analysis_quick.get("w_kurt", 0.05))
 
             if dist_cfg_on:
-                distm = residual_distribution_metrics(Xv, Yv, Yp, psd_nfft=psd_nfft)
+                distm = residual_distribution_metrics(X_dist, Y_dist, Yp_dist, psd_nfft=psd_nfft)
                 mean_l2 = float(distm["delta_mean_l2"])
                 cov_fro = float(distm["delta_cov_fro"])
                 var_real = float(distm["var_real_delta"])
@@ -377,8 +457,8 @@ def run_gridsearch(
                 kurt_l2 = float(distm["delta_kurt_l2"])
                 psd_l2 = float(distm["delta_psd_l2"])
             else:
-                d_real = (Yv - Xv)
-                d_pred = (Yp - Xv)
+                d_real = (Y_dist - X_dist)
+                d_pred = (Yp_dist - X_dist)
                 var_real = float(np.mean(np.var(d_real, axis=0)))
                 var_pred = float(np.mean(np.var(d_pred, axis=0)))
                 mean_l2 = float(np.linalg.norm(np.mean(d_pred, 0) - np.mean(d_real, 0)))
@@ -445,6 +525,10 @@ def run_gridsearch(
             kl_dim_mean = np.mean(
                 0.5 * (np.exp(logvar_p) + mu_p ** 2 - 1.0 - logvar_p), axis=0
             )
+            history_dict = {
+                k: [float(x) for x in v]
+                for k, v in hist.history.items()
+            }
             summary_lines = [
                 f"grid_id: {gi} | group={group} | tag={tag}",
                 f"EVM real: {evm_real:.2f}% | EVM pred: {evm_pred:.2f}% | ΔEVM: {(evm_pred - evm_real):+.2f}%",
@@ -461,12 +545,26 @@ def run_gridsearch(
                 std_mu_p=std_mu_p, kl_dim_mean=kl_dim_mean,
                 summary_lines=summary_lines, title=title,
             )
+            extra_paths = save_candidate_plot_bundle(
+                plots_dir=exp_plots_dir,
+                Xv=Xv,
+                Yv=Yv,
+                Yp=Yp,
+                std_mu_p=std_mu_p,
+                kl_dim_mean=kl_dim_mean,
+                history_dict=history_dict,
+                summary_lines=summary_lines,
+                psd_nfft=psd_nfft,
+                title_prefix=f"GRID {gi}/{len(grid)} | {tag}",
+            )
 
             xlsx_path = exp_tables_dir / "relatorio_diagnostico_completo.xlsx"
             save_experiment_xlsx(xlsx_path=xlsx_path, row_dict=row)
 
             results[-1]["report_png_path"] = str(png_path)
             results[-1]["report_xlsx_path"] = str(xlsx_path)
+            results[-1]["plot_bundle_dir"] = str(exp_plots_dir)
+            results[-1]["plot_bundle_count"] = int(len(extra_paths) + 1)
 
             # Save individual model
             model_path = model_dir / "model_full.keras"
@@ -489,10 +587,7 @@ def run_gridsearch(
                 )
 
                 payload = {
-                    "history": {
-                        k: [float(x) for x in v]
-                        for k, v in hist.history.items()
-                    },
+                    "history": history_dict,
                     "train_time_s": train_time_s,
                     "epochs_ran": int(
                         len(next(iter(hist.history.values())))
@@ -514,6 +609,39 @@ def run_gridsearch(
                     "logs/training_history.json", payload
                 )
                 print(f"✓ training_history.json salvo: {hist_path}")
+
+                best_grid_plots_dir = run_paths.plots_dir / "best_grid_model"
+                best_extra_paths = save_candidate_plot_bundle(
+                    plots_dir=best_grid_plots_dir,
+                    Xv=Xv,
+                    Yv=Yv,
+                    Yp=Yp,
+                    std_mu_p=std_mu_p,
+                    kl_dim_mean=kl_dim_mean,
+                    history_dict=history_dict,
+                    summary_lines=summary_lines + [
+                        f"ranking criterion: provisional best score_v2={score_v2:.4f}",
+                    ],
+                    psd_nfft=psd_nfft,
+                    title_prefix=f"Best grid candidate | {tag}",
+                )
+                legacy_paths = save_legacy_champion_plots(
+                    plots_dir=best_grid_plots_dir,
+                    Xv=Xv,
+                    Yv=Yv,
+                    Yp=Yp,
+                    mu_p=mu_p,
+                    std_mu_p=std_mu_p,
+                    kl_dim_mean=kl_dim_mean,
+                    summary_lines=summary_lines + [
+                        f"ranking criterion: provisional best score_v2={score_v2:.4f}",
+                    ],
+                    model_label="Champion",
+                )
+                print(
+                    f"✓ Best-grid plot bundle salvo: {best_grid_plots_dir} "
+                    f"({len(best_extra_paths) + len(legacy_paths)} plots + report)"
+                )
 
         except Exception as e:
             print(f"[ERRO] Falha no grid_id={gi} tag={tag}: {repr(e)}")
@@ -581,5 +709,10 @@ def run_gridsearch(
 
     # Also save CSV for convenience
     run_paths.write_table("tables/gridsearch_results.csv", df_results)
+
+    overview_dir = run_paths.plots_dir / "gridsearch"
+    overview_paths = generate_gridsearch_overview_plots(df_results, overview_dir)
+    if overview_paths:
+        print(f"📊 Gridsearch overview plots ({len(overview_paths)}): {overview_dir}")
 
     return df_results

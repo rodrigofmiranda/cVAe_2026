@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Commit 3G: uses CLI entrypoint (wraps monolith main()).
-# Legacy direct call (still works):
-#   python -u -m src.training.cvae_TRAIN_documented
+# Canonical training CLI wrapper.
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"

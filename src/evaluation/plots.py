@@ -2,15 +2,13 @@
 """
 src.evaluation.plots — Reusable evaluation plot functions.
 
-Extracted from ``analise_cvae_reviewed.py`` (refactor step 4).
 Each function creates a single matplotlib figure and saves it to disk.
-No scientific changes — plot content is identical to the monolith.
+No scientific changes — plot content is identical to the canonical
+evaluation pipeline.
 
 All functions accept an explicit ``save_path`` and call
 ``plt.savefig + plt.close`` internally, so callers never need to
 manage figure lifetime.
-
-Commit: refactor(step4).
 """
 
 from __future__ import annotations
