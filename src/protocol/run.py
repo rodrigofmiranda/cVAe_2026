@@ -774,10 +774,14 @@ def run_regime(
     if exp_regex:
         ov["_experiment_regex"] = exp_regex
 
+    _split_strategy = str(regime.get("_split_strategy", "per_experiment")).strip() or "per_experiment"
+    ov["_split_strategy"] = _split_strategy
+
     result = {
         "regime_id": regime_id,
         "regime_label": regime.get("regime_label", ""),
         "description": regime.get("description", ""),
+        "split_strategy": _split_strategy,
         "run_id": run_id,
         "run_dir": None,
         "train_status": "skipped",
@@ -856,8 +860,13 @@ def run_regime(
             # Use already-filtered experiments from above
             exps = list(_filt_exps)
             X_tr, Y_tr, _D_tr, _C_tr, X_va, Y_va, D_va, C_va, _df_split = \
-                apply_split(exps, strategy="per_experiment",
-                            val_split=_val_split, seed=_seed)
+                apply_split(
+                    exps,
+                    strategy=_split_strategy,
+                    val_split=_val_split,
+                    seed=_seed,
+                    within_exp_shuffle=bool(ov.get("within_experiment_shuffle", False)),
+                )
 
             # Enforce split -> reduce(train only) ordering for max_samples_per_exp.
             if _max_spe is not None:
@@ -878,7 +887,7 @@ def run_regime(
 
             _val_data = (X_va.copy(), Y_va.copy(), D_va.copy(), C_va.copy())  # Commit 3P: isolate
             _X_tr, _Y_tr = X_tr, Y_tr
-            print(f"   train={len(X_tr):,}  val={len(X_va):,}")
+            print(f"   split={_split_strategy} | train={len(X_tr):,}  val={len(X_va):,}")
 
             # Commit 3P: data fingerprint for debugging
             import numpy as _np_fp
@@ -992,7 +1001,7 @@ def run_regime(
 
             eval_ov = {}
             for k in ("max_experiments", "max_samples_per_exp", "psd_nfft",
-                      "_selected_experiments"):
+                      "_selected_experiments", "_split_strategy"):
                 if k in ov:
                     eval_ov[k] = ov[k]
 

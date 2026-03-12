@@ -154,10 +154,8 @@ from src.data.loading import (                          # Commits 3A–3B
     discover_experiments, is_valid_dataset_root, find_dataset_root,
     reduce_experiment_xy, load_experiments_as_list,
 )
-from src.data.splits import (                            # Commit 3D
-    split_train_val_per_experiment,
-    cap_train_samples_per_experiment,
-)
+from src.data.splits import cap_train_samples_per_experiment  # Commit 3D
+from src.protocol.split_strategies import apply_split         # Commit 3W
 from src.data.normalization import (                    # refactor(step2)
     normalize_conditions, compute_condition_norm_params,
     apply_condition_norm,
@@ -274,6 +272,8 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         TRAINING_CONFIG["seed"] = int(_ov["seed"])
     if "max_epochs" in _ov:
         TRAINING_CONFIG["epochs"] = int(_ov["max_epochs"])
+    if "_split_strategy" in _ov:
+        TRAINING_CONFIG["split_mode"] = str(_ov["_split_strategy"])
 
     ANALYSIS_QUICK = {
         "n_eval_samples": int(N_EVAL_SAMPLES_STRATIFIED),
@@ -483,19 +483,22 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
     inv_path = _run.write_table("tables/dataset_inventory.xlsx", df_info, sheet_name="inventory")
     print(f"🧾 Inventário salvo: {inv_path}")
 
-    # split por experimento (head=train, tail=val)
-    X_train, Y_train, D_train, C_train, X_val, Y_val, D_val, C_val, df_split = split_train_val_per_experiment(
+    # Split canônico aplicado a partir da estratégia recebida do protocol runner.
+    X_train, Y_train, D_train, C_train, X_val, Y_val, D_val, C_val, df_split = apply_split(
         exps=exps,
+        strategy=str(TRAINING_CONFIG["split_mode"]),
         val_split=float(TRAINING_CONFIG["validation_split"]),
         seed=int(TRAINING_CONFIG["seed"]),
-        order_mode=str(TRAINING_CONFIG["per_experiment_split_order"]),
         within_exp_shuffle=bool(TRAINING_CONFIG["within_experiment_shuffle"]),
     )
 
     split_path = _run.write_table("tables/split_by_experiment.xlsx", df_split)
     print(f"✓ Split por experimento salvo: {split_path}")
 
-    print(f"\n✓ Dados (por experimento): {len(X_train):,} treino | {len(X_val):,} validação")
+    print(
+        f"\n✓ Dados ({TRAINING_CONFIG['split_mode']}): "
+        f"{len(X_train):,} treino | {len(X_val):,} validação"
+    )
 
     # Limite opcional aplicado APÓS split e somente no treino (sem tocar validação).
     if "max_samples_per_exp" in _ov:
@@ -642,7 +645,7 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         },
         "normalization": {"D_min": float(D_min), "D_max": float(D_max), "C_min": float(C_min), "C_max": float(C_max)},
         "data_split": {
-            "split_mode": "per_experiment",
+            "split_mode": str(TRAINING_CONFIG["split_mode"]),
             "per_experiment_split_order": str(TRAINING_CONFIG["per_experiment_split_order"]),
             "within_experiment_shuffle": bool(TRAINING_CONFIG["within_experiment_shuffle"]),
             "n_train": int(len(X_train)),
