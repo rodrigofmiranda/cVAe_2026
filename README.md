@@ -246,6 +246,9 @@ outputs/exp_YYYYMMDD_HHMMSS/
           metricas_globais_reanalysis.json
         plots/                  Constellation overlays, PSD, latent diagnostics
         tables/                 Grid results, dataset inventory, split tables
+  plots/
+    best_grid_model/           Plot bundle for the grid-search champion
+    gridsearch/                Aggregate ranking plots across tested models
 ```
 
 ## Key metrics
@@ -272,6 +275,11 @@ outputs/exp_YYYYMMDD_HHMMSS/
 - `summary_by_regime.csv` is the primary table consumed by validation scripts and thesis analysis.
 - It includes physical fidelity, residual-distribution metrics, baseline vs cVAE comparisons, and the formal `stat_*` test outputs in one row per regime.
 - Derived columns include `var_ratio_pred_real`, `better_than_baseline_*`, `gate_g1`…`gate_g6`, and `validation_status`.
+
+### Grid-search plots
+- Each tested grid model now gets its own plot bundle under `models/grid_*/plots/`.
+- The provisional champion is mirrored to `plots/best_grid_model/`.
+- Aggregate ranking views across all tested models are written to `plots/gridsearch/`.
 
 ### Latent diagnostics
 - Active dimensions, KL per dimension, decoder sensitivity to $z$.

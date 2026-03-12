@@ -316,6 +316,10 @@ def run_gridsearch(
     from src.evaluation.metrics import (
         calculate_evm, calculate_snr, residual_distribution_metrics,
     )
+    from src.training.grid_plots import (
+        generate_gridsearch_overview_plots,
+        save_candidate_plot_bundle,
+    )
 
     _ov = overrides or {}
     MODELS_DIR = run_paths.models_dir
@@ -520,6 +524,10 @@ def run_gridsearch(
             kl_dim_mean = np.mean(
                 0.5 * (np.exp(logvar_p) + mu_p ** 2 - 1.0 - logvar_p), axis=0
             )
+            history_dict = {
+                k: [float(x) for x in v]
+                for k, v in hist.history.items()
+            }
             summary_lines = [
                 f"grid_id: {gi} | group={group} | tag={tag}",
                 f"EVM real: {evm_real:.2f}% | EVM pred: {evm_pred:.2f}% | ΔEVM: {(evm_pred - evm_real):+.2f}%",
@@ -536,12 +544,26 @@ def run_gridsearch(
                 std_mu_p=std_mu_p, kl_dim_mean=kl_dim_mean,
                 summary_lines=summary_lines, title=title,
             )
+            extra_paths = save_candidate_plot_bundle(
+                plots_dir=exp_plots_dir,
+                Xv=Xv,
+                Yv=Yv,
+                Yp=Yp,
+                std_mu_p=std_mu_p,
+                kl_dim_mean=kl_dim_mean,
+                history_dict=history_dict,
+                summary_lines=summary_lines,
+                psd_nfft=psd_nfft,
+                title_prefix=f"GRID {gi}/{len(grid)} | {tag}",
+            )
 
             xlsx_path = exp_tables_dir / "relatorio_diagnostico_completo.xlsx"
             save_experiment_xlsx(xlsx_path=xlsx_path, row_dict=row)
 
             results[-1]["report_png_path"] = str(png_path)
             results[-1]["report_xlsx_path"] = str(xlsx_path)
+            results[-1]["plot_bundle_dir"] = str(exp_plots_dir)
+            results[-1]["plot_bundle_count"] = int(len(extra_paths) + 1)
 
             # Save individual model
             model_path = model_dir / "model_full.keras"
@@ -564,10 +586,7 @@ def run_gridsearch(
                 )
 
                 payload = {
-                    "history": {
-                        k: [float(x) for x in v]
-                        for k, v in hist.history.items()
-                    },
+                    "history": history_dict,
                     "train_time_s": train_time_s,
                     "epochs_ran": int(
                         len(next(iter(hist.history.values())))
@@ -589,6 +608,26 @@ def run_gridsearch(
                     "logs/training_history.json", payload
                 )
                 print(f"✓ training_history.json salvo: {hist_path}")
+
+                best_grid_plots_dir = run_paths.plots_dir / "best_grid_model"
+                best_extra_paths = save_candidate_plot_bundle(
+                    plots_dir=best_grid_plots_dir,
+                    Xv=Xv,
+                    Yv=Yv,
+                    Yp=Yp,
+                    std_mu_p=std_mu_p,
+                    kl_dim_mean=kl_dim_mean,
+                    history_dict=history_dict,
+                    summary_lines=summary_lines + [
+                        f"ranking criterion: provisional best score_v2={score_v2:.4f}",
+                    ],
+                    psd_nfft=psd_nfft,
+                    title_prefix=f"Best grid candidate | {tag}",
+                )
+                print(
+                    f"✓ Best-grid plot bundle salvo: {best_grid_plots_dir} "
+                    f"({len(best_extra_paths)} plots + report)"
+                )
 
         except Exception as e:
             print(f"[ERRO] Falha no grid_id={gi} tag={tag}: {repr(e)}")
@@ -656,5 +695,10 @@ def run_gridsearch(
 
     # Also save CSV for convenience
     run_paths.write_table("tables/gridsearch_results.csv", df_results)
+
+    overview_dir = run_paths.plots_dir / "gridsearch"
+    overview_paths = generate_gridsearch_overview_plots(df_results, overview_dir)
+    if overview_paths:
+        print(f"📊 Gridsearch overview plots ({len(overview_paths)}): {overview_dir}")
 
     return df_results
