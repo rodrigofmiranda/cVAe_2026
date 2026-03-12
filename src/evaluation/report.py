@@ -2,11 +2,7 @@
 """
 src.evaluation.report — Evaluation reporting / table helpers.
 
-Extracted from ``analise_cvae_reviewed.py`` (refactor step 4).
-No scientific changes — identical logic, just moved into a reusable
-module and expressed through ``RunPaths.write_json / write_table``.
-
-Commit: refactor(step4).
+Reusable helpers for the canonical evaluation engine.
 """
 
 from __future__ import annotations

@@ -2,10 +2,7 @@
 """
 src/data/splits.py — Per-experiment temporal split (head_tail).
 
-Extracted from cvae_TRAIN_documented.py and analise_cvae_reviewed.py
-(Commit 3D).  Both monoliths contained identical copies of
-``split_train_val_per_experiment``; this module is the single source
-of truth.
+Canonical split utilities shared by training and evaluation.
 """
 
 import numpy as np

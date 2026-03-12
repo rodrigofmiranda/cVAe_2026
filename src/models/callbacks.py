@@ -2,8 +2,7 @@
 """
 src/models/callbacks.py — Training callbacks for the cVAE.
 
-Extracted from ``cvae_components.py`` and ``cvae_TRAIN_documented.py``
-(refactor step 3).
+Shared callbacks for the canonical cVAE training pipeline.
 
 Public API
 ----------

@@ -659,7 +659,7 @@ def _runtime_versions() -> dict:
 
 
 def _read_eval_metrics(run_dir: Path) -> dict:
-    """Read evaluation metrics JSON produced by analise_cvae_reviewed."""
+    """Read evaluation metrics JSON produced by the canonical eval engine."""
     p = run_dir / "logs" / "metricas_globais_reanalysis.json"
     if p.exists():
         return json.loads(p.read_text(encoding="utf-8"))
@@ -813,8 +813,9 @@ def _quick_cvae_predict(
 
     try:
         import tensorflow as tf
-        from src.models.cvae_components import Sampling, CondPriorVAELoss
         from src.models.cvae import create_inference_model_from_full
+        from src.models.losses import CondPriorVAELoss
+        from src.models.sampling import Sampling
 
         custom_objects = {"Sampling": Sampling, "CondPriorVAELoss": CondPriorVAELoss}
         vae = tf.keras.models.load_model(
@@ -1178,18 +1179,18 @@ def run_regime(
         print(f"⏭️  Skipping evaluation for regime '{regime_id}' (training failed)")
     else:
         try:
-            os.environ["DATASET_ROOT"] = _ds_root
-            os.environ["OUTPUT_BASE"] = str(protocol_dir.resolve())
-            os.environ["RUN_ID"] = run_id
-
             # Evaluation consumes the same effective override dict used by
             # baseline/training so no knob silently diverges.
             eval_ov = dict(ov)
 
-            from src.evaluation import analise_cvae_reviewed as eval_module
+            from src.evaluation.engine import evaluate_run
             print(f"\n📊 Evaluating regime '{regime_id}' → {run_dir}")
-            eval_module.main(overrides=eval_ov)
-            result["eval_status"] = "completed"
+            _eval_summary = evaluate_run(
+                run_dir=run_dir,
+                dataset_root=_ds_root,
+                overrides=eval_ov,
+            )
+            result["eval_status"] = _eval_summary.get("status", "completed")
             _eval_ran = True
         except Exception as e:
             result["eval_status"] = "failed"
@@ -1202,7 +1203,7 @@ def run_regime(
 
     # ---- cVAE DISTRIBUTION-FIDELITY METRICS (single source of truth) ----
     # Priority order:
-    # 1) Evaluation metrics JSON (same slice/MC/calc as analise_cvae_reviewed).
+    # 1) Evaluation metrics JSON (same slice/MC/calc as the canonical eval engine).
     # 2) Quick fallback from shared val split when eval is unavailable.
     if run_dist_metrics and result["train_status"] == "completed":
         _dm_source = None  # will be set below

@@ -2,7 +2,7 @@
 """
 CLI entrypoint for evaluation.
 
-Wraps analise_cvae_reviewed.py into explicit execution.
+Routes through :func:`src.evaluation.engine.evaluate_run`.
 
 Usage
 -----
@@ -18,15 +18,13 @@ Usage
 """
 
 import argparse
-import os
-
 from src.config.overrides import RunOverrides
 from src.config.runtime_env import ensure_writable_mpl_config_dir
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate trained cVAE")
-    parser.add_argument("--dataset_root", type=str, required=True)
+    parser.add_argument("--dataset_root", type=str, default=None)
     parser.add_argument("--run_dir", type=str, required=True)
     # --- Commit 3H: optional smoke-test flags ---
     parser.add_argument("--max_experiments", type=int, default=None,
@@ -51,24 +49,6 @@ def parse_args():
 def main():
     args = parse_args()
 
-    os.environ["DATASET_ROOT"] = args.dataset_root
-
-    # analise_cvae_reviewed reads RUN_ID from env; extract from run_dir path
-    run_dir_name = os.path.basename(args.run_dir.rstrip("/"))
-    output_base = os.path.dirname(args.run_dir.rstrip("/"))
-
-    os.environ["OUTPUT_BASE"] = output_base
-    os.environ["RUN_ID"] = run_dir_name
-
-    # ---- backward-compat: patch state_run.json if keys are missing ----
-    from pathlib import Path as _Path
-    _state_path = _Path(args.run_dir) / "state_run.json"
-    if _state_path.exists():
-        import json as _json
-        from src.config.io import ensure_state_run_compat
-        _state = _json.loads(_state_path.read_text(encoding="utf-8"))
-        ensure_state_run_compat(_state)  # mutates in-place, logs warnings
-
     # Build typed overrides from CLI flags
     overrides_obj = RunOverrides.from_namespace(args)
     overrides = overrides_obj.to_dict()
@@ -77,10 +57,15 @@ def main():
     # otherwise matplotlib may emit temp-dir warnings at import time.
     ensure_writable_mpl_config_dir()
 
-    # Import here to avoid triggering heavy TF initialization on module load
-    from src.evaluation import analise_cvae_reviewed as eval_module
+    from src.evaluation.engine import evaluate_run
 
-    eval_module.main(overrides=overrides)
+    summary = evaluate_run(
+        run_dir=args.run_dir,
+        dataset_root=args.dataset_root,
+        overrides=overrides,
+    )
+    print(f"\n🏁 evaluate_run status: {summary.get('status', '?')}")
+    print(f"📌 run_dir: {summary.get('run_dir', '')}")
 
 
 if __name__ == "__main__":

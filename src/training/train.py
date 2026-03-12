@@ -2,11 +2,8 @@
 """
 CLI entrypoint for training.
 
-Routes through :func:`src.training.engine.train_engine`, which
-currently delegates to the monolith but provides a clean API
-surface for future refactoring.
-
-No architectural or loss changes.
+Routes through :func:`src.training.engine.train_engine`, the canonical
+training entrypoint.
 
 Usage
 -----
@@ -23,8 +20,6 @@ Usage
 """
 
 import argparse
-import os
-
 from src.config.overrides import RunOverrides
 
 
@@ -60,17 +55,10 @@ def parse_args():
 def main():
     args = parse_args()
 
-    os.environ["DATASET_ROOT"] = args.dataset_root
-    os.environ["OUTPUT_BASE"] = args.output_base
-
-    if args.run_id:
-        os.environ["RUN_ID"] = args.run_id
-
     # Build typed overrides from CLI flags
     overrides_obj = RunOverrides.from_namespace(args)
     overrides = overrides_obj.to_dict()
 
-    # Route through the training engine (which currently delegates to the monolith)
     from src.training.engine import train_engine
 
     summary = train_engine(
@@ -80,6 +68,7 @@ def main():
         overrides=overrides,
     )
     print(f"\n🏁 train_engine status: {summary.get('status', '?')}")
+    print(f"📌 run_dir: {summary.get('run_dir', '')}")
 
 
 if __name__ == "__main__":

@@ -54,6 +54,9 @@ K_RANK_MODE = "rank_mode"
 K_MC_SAMPLES = "mc_samples"
 K_DIST_METRICS = "dist_metrics"
 K_PSD_NFFT = "psd_nfft"
+K_W_PSD = "w_psd"
+K_W_SKEW = "w_skew"
+K_W_KURT = "w_kurt"
 
 # --- State-run / paths ---
 K_RUN_ID = "run_id"
@@ -112,6 +115,9 @@ ANALYSIS_DEFAULTS: dict = {
     K_MC_SAMPLES: 8,
     K_DIST_METRICS: True,
     K_PSD_NFFT: 2048,
+    K_W_PSD: 0.15,
+    K_W_SKEW: 0.05,
+    K_W_KURT: 0.05,
 }
 
 # Minimal fallback state_run for backward-compat with old runs

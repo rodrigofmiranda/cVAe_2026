@@ -94,6 +94,7 @@ src/
     io.py                     Load/save config (YAML/JSON)
     overrides.py              RunOverrides dataclass (CLI → per-regime)
     schema.py                 Dataclasses for run configuration
+    runtime.py                Runtime builders for train/eval engines
   data/
     channel_dataset.py        GNU Radio capture block
     loading.py                Dataset IO, discovery, experiment loading
@@ -109,16 +110,17 @@ src/
     sampling.py               Reparameterization trick, prior sampling
   training/
     train.py                  Training entrypoint CLI
-    engine.py                 Training loop: build, compile, fit, save
+    engine.py                 Canonical training engine entrypoint
+    pipeline.py               Canonical training pipeline orchestration
+    grid_plan.py              Canonical cVAE grid definition + filters
     gridsearch.py             Grid-search combinatorics + execution
     logging.py                state_run.json writer, RUN_DIR creation
-    cvae_TRAIN_documented.py  Legacy monolithic training script (reference)
   evaluation/
     evaluate.py               Evaluation entrypoint CLI
+    engine.py                 Canonical evaluation engine entrypoint
     metrics.py                EVM, SNR, KL diagnostics, active dims
     plots.py                  Constellation overlays, histograms, scatter
     report.py                 CSV/JSON summary tables
-    analise_cvae_reviewed.py  Legacy monolithic evaluation script (reference)
     non_gaussianity_by_regime.py
     stat_tests/               Statistical Fidelity Suite
       __init__.py             Convenience imports (mmd_rbf, energy_test, etc.)

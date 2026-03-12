@@ -2,9 +2,7 @@
 """
 src/evaluation/metrics.py — Shared signal-quality and residual-distribution metrics.
 
-Extracted from cvae_TRAIN_documented.py and analise_cvae_reviewed.py
-(Commit 3E).  Both monoliths contained identical copies; this module is
-the single source of truth.
+Shared metrics for the canonical training and evaluation pipelines.
 
 Functions
 ---------

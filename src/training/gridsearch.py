@@ -2,14 +2,9 @@
 """
 src.training.gridsearch — Grid-search orchestration for cVAE hyperparameters.
 
-Extracted from ``cvae_TRAIN_documented.py`` (refactor step 4).
-Moves the grid-search loop, scoring, artifact saving and results
-table generation into a standalone, reusable function.
+Shared grid-search loop for the canonical training pipeline.
 
-No scientific or loss-function changes — the scoring formula
-(``score_v2``) is copied verbatim from the monolith.
-
-Commit: refactor(step4).
+No scientific or loss-function changes.
 """
 
 from __future__ import annotations
@@ -288,9 +283,8 @@ def run_gridsearch(
 ) -> "pd.DataFrame":
     """Execute the full grid-search loop and return sorted results.
 
-    This function is a direct extraction of the grid-search loop from
-    ``cvae_TRAIN_documented.main``.  The scientific logic (model build,
-    fit, score) has **not** been altered.
+    The scientific logic (model build, fit, score) is the canonical
+    implementation used by the training engine.
 
     Parameters
     ----------
