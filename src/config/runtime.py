@@ -83,6 +83,8 @@ def build_training_runtime(
             "blocks_per_bin": 5,
         }
     )
+    if bool(ov.get("no_data_reduction", False)):
+        data_reduction_config["enabled"] = False
 
     analysis_cfg = AnalysisConfig.from_dict({})
     if ov.get("psd_nfft") is not None:

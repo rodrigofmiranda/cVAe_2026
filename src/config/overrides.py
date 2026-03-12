@@ -44,7 +44,7 @@ class RunOverrides:
         dist_tol_m, curr_tol_mA
 
     Flags:
-        dry_run, skip_eval, no_baseline, no_dist_metrics
+        dry_run, skip_eval, no_baseline, no_dist_metrics, no_data_reduction
     """
 
     # --- Training ---
@@ -76,6 +76,7 @@ class RunOverrides:
     skip_eval: Optional[bool] = None
     no_baseline: Optional[bool] = None
     no_dist_metrics: Optional[bool] = None
+    no_data_reduction: Optional[bool] = None
 
     # ------------------------------------------------------------------
     # Constructors

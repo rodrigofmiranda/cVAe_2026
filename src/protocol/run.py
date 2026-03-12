@@ -42,6 +42,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
 from src.config.overrides import RunOverrides
+from src.config.gpu_guard import warn_if_no_gpu_and_confirm
 from src.config.runtime_env import ensure_writable_mpl_config_dir
 from src.evaluation.validation_summary import (
     build_stat_acceptance_summary,
@@ -1400,6 +1401,7 @@ def build_summary_table(results: List[dict]) -> "pd.DataFrame":
 def main():
     ensure_writable_mpl_config_dir()
     args = parse_args()
+    warn_if_no_gpu_and_confirm("protocol run")
     ts_start = datetime.now()
     ts_label = ts_start.strftime("%Y%m%d_%H%M%S")
 

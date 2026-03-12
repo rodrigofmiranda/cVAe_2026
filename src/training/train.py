@@ -20,6 +20,7 @@ Usage
 """
 
 import argparse
+from src.config.gpu_guard import warn_if_no_gpu_and_confirm
 from src.config.overrides import RunOverrides
 
 
@@ -49,11 +50,14 @@ def parse_args():
                         help="Keras fit verbosity: 0=silent, 1=progress bar, 2=one line/epoch (default: 2)")
     parser.add_argument("--dry_run", action="store_true",
                         help="Load+split+build model+print shapes, then exit without training")
+    parser.add_argument("--no_data_reduction", action="store_true",
+                        help="Disable post-split train reduction and use the full training set")
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
+    warn_if_no_gpu_and_confirm("training")
 
     # Build typed overrides from CLI flags
     overrides_obj = RunOverrides.from_namespace(args)

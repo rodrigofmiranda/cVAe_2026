@@ -18,6 +18,7 @@ Usage
 """
 
 import argparse
+from src.config.gpu_guard import warn_if_no_gpu_and_confirm
 from src.config.overrides import RunOverrides
 from src.config.runtime_env import ensure_writable_mpl_config_dir
 
@@ -48,6 +49,7 @@ def parse_args():
 
 def main():
     args = parse_args()
+    warn_if_no_gpu_and_confirm("evaluation")
 
     # Build typed overrides from CLI flags
     overrides_obj = RunOverrides.from_namespace(args)

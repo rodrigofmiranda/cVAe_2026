@@ -206,6 +206,33 @@ python -m src.protocol.run \
 python -c "from src.models.cvae import build_cvae; build_cvae({'layer_sizes':[128,256,512],'latent_dim':4,'beta':0.003,'lr':3e-4,'dropout':0.0,'free_bits':0.1,'kl_anneal_epochs':80,'batch_size':16384,'activation':'leaky_relu'})"
 ```
 
+### Which entrypoint to use
+
+There are two canonical execution modes, and they answer different questions:
+
+- `python -m src.training.train`: cVAE training engine only. Use this for exploratory grid search, throughput testing, and finding a strong cVAE candidate from a single aggregated train/validation run.
+- `python -m src.protocol.run`: full experimental protocol. Use this for thesis-grade validation, baseline comparison, per-regime evaluation, and statistical fidelity tests.
+
+In practice:
+
+- `src.training.train` trains the cVAE, runs the grid, ranks candidates with the internal training score, and saves training artifacts. It does **not** produce the full per-regime scientific comparison against the deterministic baseline.
+- `src.protocol.run` orchestrates baseline + cVAE + final evaluation per regime, and produces the canonical validation outputs such as `manifest.json`, `tables/summary_by_regime.csv`, and `tables/stat_fidelity_by_regime.csv`.
+
+This means:
+
+- use `src.training.train` to answer: "which cVAE configuration trains best?"
+- use `src.protocol.run` to answer: "does the digital twin reproduce the real channel, regime by regime, better than the baseline?"
+
+Example: full-data exploratory cVAE grid search, without post-split train reduction:
+
+```bash
+python -m src.training.train \
+  --dataset_root data/dataset_fullsquare_organized \
+  --output_base outputs \
+  --run_id full_dataset_exploratory_20260312 \
+  --no_data_reduction
+```
+
 ### Legacy wrappers
 
 ```bash

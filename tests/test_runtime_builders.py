@@ -29,6 +29,17 @@ def test_build_training_runtime_applies_overrides_and_defaults():
     assert runtime.data_reduction_config["enabled"] is True
 
 
+def test_build_training_runtime_can_disable_data_reduction():
+    runtime = build_training_runtime(
+        "data/dataset_fullsquare_organized",
+        "outputs",
+        run_id="run_full_dataset",
+        overrides={"no_data_reduction": True},
+    )
+
+    assert runtime.data_reduction_config["enabled"] is False
+
+
 def test_build_evaluation_runtime_roundtrip_uses_state_dataset_root(tmp_path, monkeypatch):
     monkeypatch.delenv("DATASET_ROOT", raising=False)
     monkeypatch.delenv("OUTPUT_BASE", raising=False)
