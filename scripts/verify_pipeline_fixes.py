@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 """
-Verify the mandatory pipeline fixes on a protocol run.
+Verifica automaticamente os fixes de pipeline obrigatorios.
 
-Usage:
+Uso:
     python scripts/verify_pipeline_fixes.py
     python scripts/verify_pipeline_fixes.py outputs/exp_YYYYMMDD_HHMMSS
 
-If no run is provided, the most recent ``outputs/exp_*`` run is used.
+Se nenhum run for passado, usa o mais recente em outputs/.
 """
 
 import argparse
@@ -79,9 +79,8 @@ def _print_fix7_sources(manifest: dict, errors: list[str]) -> None:
     for regime in manifest.get("regimes", []):
         regime_id = str(regime.get("regime_id", "?"))
         source = str(regime.get("dist_metrics_source", "") or "").strip()
+        print(f"Fix 7 - dist_metrics_source [{regime_id}]: {source or '<missing>'}")
         has_dist = bool(regime.get("cvae_dist")) or bool(regime.get("stat_fidelity"))
-        status = "OK" if source in valid_sources else "WARN"
-        print(f"Fix 7 - dist_metrics_source [{regime_id}]: {source or '<missing>'} [{status}]")
         if has_dist and source not in valid_sources:
             errors.append(
                 f"Fix7: dist_metrics_source missing/invalid for regime {regime_id}: {source!r}"
@@ -125,7 +124,8 @@ def main() -> None:
             else:
                 max_ratio = float(ratio.max())
                 status = "OK" if max_ratio < 5.0 else "FAIL"
-                print(f"Fix 1 - var_pred/var_real max: {max_ratio:.3f} [{status}]")
+                marker = "OK" if max_ratio < 5.0 else "FAIL"
+                print(f"Fix 1 - var_pred/var_real max: {max_ratio:.3f} [{marker}]")
                 if max_ratio >= 5.0:
                     errors.append(
                         f"Fix1: var_pred_delta/var_real_delta max={max_ratio:.3f} >= 5.0"
@@ -137,10 +137,14 @@ def main() -> None:
 
     shuffle_ok, shuffle_source = _shuffle_train_batches_status(manifest)
     shuffle_status = "OK" if shuffle_ok else "FAIL"
-    print(
-        f"Fix 2 - shuffle_train_batches ({shuffle_source}): "
-        f"{shuffle_ok if shuffle_ok is not None else '<missing>'} [{shuffle_status}]"
-    )
+    shuffle_value = shuffle_ok if shuffle_ok is not None else "<missing>"
+    if shuffle_source == "manifest.base_overrides":
+        print(f"Fix 2 - shuffle_train_batches: {shuffle_value} [{shuffle_status}]")
+    else:
+        print(
+            f"Fix 2 - shuffle_train_batches: {shuffle_value} [{shuffle_status}] "
+            f"(source={shuffle_source})"
+        )
     if shuffle_ok is not True:
         errors.append("Fix2: shuffle_train_batches is not True in the available run metadata")
 
@@ -155,14 +159,14 @@ def main() -> None:
         else:
             errors.append("Fix9: mmd2_normalized column missing in stat_fidelity_by_regime.csv")
     else:
-        print("Fix 9 - stat_fidelity_by_regime.csv missing [WARN: run may have been executed without --stat_tests]")
+        print("WARN: stat_fidelity_by_regime.csv missing (run without --stat_tests?)")
 
     _print_fix7_sources(manifest, errors)
 
     print()
     print("=" * 50)
     if errors:
-        print("FAIL:")
+        print("ERRORS:")
         for err in errors:
             print(f"  - {err}")
         sys.exit(1)

@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 """
-Compare real vs predicted residual kurtosis for a regime run.
+Extrai e compara kurtosis real vs predita (MC-concat) para um run de regime.
 
-Usage:
+Uso:
     python scripts/check_kurt_pred.py
     python scripts/check_kurt_pred.py outputs/exp_.../studies/.../regimes/<regime_id>
 
-The script reconstructs the validation split from ``state_run.json`` and
-uses ``_quick_cvae_predict(..., mode="mc_concat")`` so the kurtosis check is
-performed on samples from the predictive distribution, not on deterministic
-decoder means.
+O script reconstrói o split de validacao a partir de ``state_run.json`` e
+usa ``_quick_cvae_predict(..., mode="mc_concat")`` para verificar kurtosis
+na distribuicao preditiva, nao no decoder deterministico.
+
+Criterio G4:
+    kurt_excess_pred deve ter o mesmo sinal que kurt_excess_real.
 """
 
 import argparse
@@ -317,7 +319,7 @@ def main() -> None:
     print(f"  var_I={np.var(res_real[:, 0]):.6f}  var_Q={np.var(res_real[:, 1]):.6f}")
 
     print()
-    print("Residual PREDICTED (MC-concat):")
+    print(f"Residual PREDICTED (MC-concat, {mc_samples} samples):")
     print(f"  kurt_I={k_pred_i:.4f}  kurt_Q={k_pred_q:.4f}")
     print(f"  var_I={np.var(res_pred[:, 0]):.6f}  var_Q={np.var(res_pred[:, 1]):.6f}")
 
