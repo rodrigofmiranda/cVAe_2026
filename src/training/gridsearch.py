@@ -192,6 +192,78 @@ def compute_score_v2(
     )
 
 
+def _stratified_val_indices_by_experiment(
+    *,
+    n_total: int,
+    n_val_total: int,
+    df_split: Optional["pd.DataFrame"],
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """
+    Sample validation indices uniformly across validation experiments.
+
+    If ``df_split`` is unavailable or inconsistent, falls back to global
+    uniform sampling without replacement.
+    """
+    n_total = int(max(1, min(n_total, n_val_total)))
+    idx_eval: Optional[np.ndarray] = None
+
+    if (
+        isinstance(df_split, pd.DataFrame)
+        and "n_val" in df_split.columns
+    ):
+        n_val_list = [int(v) for v in df_split["n_val"].tolist()]
+        if n_val_list and int(np.sum(n_val_list)) == int(n_val_total):
+            n_exps = len(n_val_list)
+            base = n_total // n_exps
+            rem = n_total % n_exps
+
+            target = np.full(n_exps, base, dtype=np.int64)
+            if rem > 0:
+                rem_idx = rng.permutation(n_exps)[:rem]
+                target[rem_idx] += 1
+
+            cap = np.asarray(n_val_list, dtype=np.int64)
+            take = np.minimum(target, cap)
+            avail = cap - take
+            left = int(n_total - int(take.sum()))
+
+            while left > 0 and int(avail.sum()) > 0:
+                progressed = False
+                for i in rng.permutation(n_exps):
+                    if left <= 0:
+                        break
+                    if avail[i] > 0:
+                        take[i] += 1
+                        avail[i] -= 1
+                        left -= 1
+                        progressed = True
+                if not progressed:
+                    break
+
+            idx_parts = []
+            cursor = 0
+            for i, n_i in enumerate(n_val_list):
+                k_i = int(take[i])
+                if k_i > 0:
+                    if k_i < n_i:
+                        local = np.sort(rng.choice(n_i, size=k_i, replace=False))
+                    else:
+                        local = np.arange(n_i, dtype=np.int64)
+                    idx_parts.append(cursor + local)
+                cursor += n_i
+
+            if idx_parts:
+                idx_eval = np.concatenate(idx_parts, axis=0)
+                idx_eval.sort()
+
+    if idx_eval is None:
+        idx_eval = rng.choice(n_val_total, size=n_total, replace=False)
+        idx_eval.sort()
+
+    return idx_eval
+
+
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
@@ -212,6 +284,7 @@ def run_gridsearch(
     run_paths: "RunPaths",
     overrides: Optional[Dict[str, Any]] = None,
     df_plan: Optional["pd.DataFrame"] = None,
+    df_split: Optional["pd.DataFrame"] = None,
 ) -> "pd.DataFrame":
     """Execute the full grid-search loop and return sorted results.
 
@@ -302,30 +375,16 @@ def run_gridsearch(
                 best_epoch = 0
                 best_val = float("nan")
 
-            # Eval estratificado: amostra uniformemente por regime (Dn,Cn)
-            # evita que X_val[:N] avalie apenas o regime 0.8m/baixa corrente
+            # Eval estratificado por experimento de validação.
             _n_total = int(analysis_quick["n_eval_samples"])
             _n_total = max(1, min(_n_total, len(X_val)))
-            _regimes = np.unique(
-                np.stack([Dn_val, Cn_val], axis=1), axis=0
-            )
-            _n_per_regime = max(1, _n_total // max(1, len(_regimes)))
             _rng_eval = np.random.default_rng(int(training_config.get("seed", 42)))
-            _idx_list = []
-            for _reg in _regimes:
-                _mask = (Dn_val == _reg[0]) & (Cn_val == _reg[1])
-                _candidates = np.where(_mask)[0]
-                if len(_candidates) == 0:
-                    continue
-                _k = min(_n_per_regime, len(_candidates))
-                if _k > 0:
-                    _idx_list.append(_rng_eval.choice(_candidates, _k, replace=False))
-            if not _idx_list:
-                raise RuntimeError("Eval estratificado sem candidatos na validação.")
-            _idx = np.concatenate(_idx_list)
-            if len(_idx) > _n_total:
-                _idx = _rng_eval.choice(_idx, size=_n_total, replace=False)
-            _rng_eval.shuffle(_idx)
+            _idx = _stratified_val_indices_by_experiment(
+                n_total=_n_total,
+                n_val_total=len(X_val),
+                df_split=df_split,
+                rng=_rng_eval,
+            )
             Xv = X_val[_idx]; Yv = Y_val[_idx]
             Dv = Dn_val[_idx]; Cv = Cn_val[_idx]
             N = len(_idx)

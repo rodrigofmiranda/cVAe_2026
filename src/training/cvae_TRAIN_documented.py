@@ -612,6 +612,7 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         run_paths=_run,
         overrides=_ov,
         df_plan=df_plan,
+        df_split=df_split,
     )
     res_path = TABLES_DIR / "gridsearch_results.xlsx"
 
@@ -638,7 +639,7 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         "eval_protocol": {
             "n_eval_samples": int(ANALYSIS_QUICK["n_eval_samples"]),
             "batch_infer": int(ANALYSIS_QUICK["batch_infer"]),
-            "eval_slice": "stratified_by_regime",
+            "eval_slice": "stratified",
             "deterministic_inference": (str(ANALYSIS_QUICK.get("rank_mode", "mc")).lower() == "det"),
             "rank_mode": str(ANALYSIS_QUICK.get("rank_mode", "mc")).lower(),
             "mc_samples": int(ANALYSIS_QUICK.get("mc_samples", 8)),
