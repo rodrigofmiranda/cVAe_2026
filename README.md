@@ -4,6 +4,19 @@ A PhD-level research repository implementing a **data-driven digital twin** of a
 Visible Light Communication (VLC) channel using a Conditional Variational
 Autoencoder (cVAE) with heteroscedastic decoding and conditional prior.
 
+## Current Docs
+
+Use these documents in this order:
+
+- [PROJECT_STATUS.md](/workspace/2026/PROJECT_STATUS.md) — current architecture and repo state
+- [TRAINING_PLAN.md](/workspace/2026/TRAINING_PLAN.md) — active scientific plan and gates
+- [docs/PROTOCOL.md](/workspace/2026/docs/PROTOCOL.md) — protocol runner, artifacts, CLI
+- [docs/MODELING_ASSUMPTIONS.md](/workspace/2026/docs/MODELING_ASSUMPTIONS.md) — modeling rationale
+
+Historical refactor planning has been archived under:
+
+- [docs/archive/REFACTOR_PLAN_legacy.md](/workspace/2026/docs/archive/REFACTOR_PLAN_legacy.md)
+
 ## Objective
 
 Learn the conditional distribution of the physical VLC channel from
@@ -76,7 +89,10 @@ docs/
   MODELING_ASSUMPTIONS.md     Core modeling decisions
   PROTOCOL.md                 Protocol runner reference
   SESSION_STATE.md            Session/run state schema
+  archive/                    Historical plans kept out of the active path
   smoke_b2_notes.txt          Single-regime full stat-fidelity smoke results
+PROJECT_STATUS.md             Current codebase / validation status
+TRAINING_PLAN.md              Active scientific plan and acceptance gates
 notebooks/                    Exploratory Jupyter notebooks
 outputs/                      Run artifacts (exp_YYYYMMDD_HHMMSS/)
 scripts/
