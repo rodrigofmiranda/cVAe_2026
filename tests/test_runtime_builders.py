@@ -15,6 +15,8 @@ def test_build_training_runtime_applies_overrides_and_defaults():
             "max_epochs": 7,
             "val_split": 0.3,
             "seed": 123,
+            "patience": 9,
+            "reduce_lr_patience": 4,
             "_split_strategy": "grouped",
         },
     )
@@ -23,6 +25,8 @@ def test_build_training_runtime_applies_overrides_and_defaults():
     assert runtime.training_config["epochs"] == 7
     assert runtime.training_config["validation_split"] == 0.3
     assert runtime.training_config["seed"] == 123
+    assert runtime.training_config["patience"] == 9
+    assert runtime.training_config["reduce_lr_patience"] == 4
     assert runtime.training_config["split_mode"] == "grouped"
     assert runtime.analysis_quick == AnalysisConfig.from_dict({}).to_dict()
     assert runtime.eval_protocol == EvalProtocolConfig.from_dict({}).to_dict()

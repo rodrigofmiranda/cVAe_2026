@@ -29,7 +29,8 @@ class RunOverrides:
     Field groups
     ------------
     Training knobs:
-        max_epochs, max_grids, grid_group, grid_tag, val_split, seed
+        max_epochs, max_grids, grid_group, grid_tag, grid_preset,
+        val_split, seed, patience, reduce_lr_patience
 
     Data knobs:
         max_experiments, max_samples_per_exp
@@ -52,8 +53,11 @@ class RunOverrides:
     max_grids: Optional[int] = None
     grid_group: Optional[str] = None
     grid_tag: Optional[str] = None
+    grid_preset: Optional[str] = None
     val_split: Optional[float] = None
     seed: Optional[int] = None
+    patience: Optional[int] = None
+    reduce_lr_patience: Optional[int] = None
 
     # --- Data ---
     max_experiments: Optional[int] = None

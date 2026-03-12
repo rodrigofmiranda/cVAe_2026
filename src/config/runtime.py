@@ -71,6 +71,10 @@ def build_training_runtime(
         training_config["seed"] = int(ov["seed"])
     if ov.get("max_epochs") is not None:
         training_config["epochs"] = int(ov["max_epochs"])
+    if ov.get("patience") is not None:
+        training_config["patience"] = int(ov["patience"])
+    if ov.get("reduce_lr_patience") is not None:
+        training_config["reduce_lr_patience"] = int(ov["reduce_lr_patience"])
     if ov.get("_split_strategy") is not None:
         training_config["split_mode"] = str(ov["_split_strategy"])
 

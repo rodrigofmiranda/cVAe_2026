@@ -139,6 +139,22 @@ def build_default_grid() -> List[Dict[str, Any]]:
     return deduped
 
 
+def _preset_exploratory_small(grid: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Return a compact exploratory subset for expensive full-data runs."""
+    keep_tags = [
+        "G0_lat4_b0p003_fb0p10_lr0p0003_L128-256-512",
+        "G0_lat4_b0p001_fb0p10_lr0p0003_L128-256-512",
+        "G1_lat6_b0p002_fb0p10_do0p0_lr0p0003_L128-256-512",
+        "G1_lat6_b0p002_fb0p10_do0p05_lr0p0003_L128-256-512",
+        "G2_lat4_b0p001_fb0p0_lr0p0003_L128-256-512",
+        "G2_lat4_b0p001_fb0p2_lr0p0003_L128-256-512",
+        "G3_lat6_b0p002_fb0p10_lr0p0002_bs16384_anneal80_L128-256-512",
+        "G3_lat8_b0p002_fb0p10_lr0p0002_bs16384_anneal100_L128-256-512",
+    ]
+    by_tag = {item["tag"]: item for item in grid}
+    return [by_tag[tag] for tag in keep_tags if tag in by_tag]
+
+
 def select_grid(
     overrides: Optional[Mapping[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
@@ -146,6 +162,14 @@ def select_grid(
     ov = dict(overrides or {})
     grid = build_default_grid()
     n_original = len(grid)
+
+    preset = ov.get("grid_preset")
+    if preset is not None:
+        preset_name = str(preset).strip().lower()
+        if preset_name == "exploratory_small":
+            grid = _preset_exploratory_small(grid)
+        else:
+            raise ValueError(f"Unknown grid_preset={preset!r}")
 
     if ov.get("grid_group") is not None:
         grid = [g for g in grid if re.search(str(ov["grid_group"]), g.get("group", ""))]

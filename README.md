@@ -233,6 +233,29 @@ python -m src.training.train \
   --no_data_reduction
 ```
 
+For a cheaper full-data exploratory run, prefer the compact preset plus explicit
+training patience overrides:
+
+```bash
+python -m src.training.train \
+  --dataset_root data/dataset_fullsquare_organized \
+  --output_base outputs \
+  --run_id full_dataset_exploratory_small \
+  --no_data_reduction \
+  --grid_preset exploratory_small \
+  --max_epochs 120 \
+  --patience 12 \
+  --reduce_lr_patience 6
+```
+
+There are two patience knobs:
+
+- `--patience`: early stopping patience after KL warmup
+- `--reduce_lr_patience`: patience for learning-rate reduction
+
+Note: reducing patience helps, but very long runs are still mostly driven by
+`--max_epochs` and each grid's KL warmup (`kl_anneal_epochs`).
+
 ### Legacy wrappers
 
 ```bash
@@ -252,9 +275,12 @@ bash scripts/eval.sh
 | `--protocol` | auto-discover when omitted | Protocol JSON defining regimes |
 | `--max_epochs` | per-protocol | Maximum training epochs |
 | `--max_grids` | all | Limit grid-search configs to N |
+| `--grid_preset` | all | Named grid subset, e.g. `exploratory_small` |
 | `--max_regimes` | all | Limit executed regimes after protocol resolution |
 | `--max_experiments` | all | Limit experiments per regime |
 | `--max_samples_per_exp` | all | Cap samples per experiment |
+| `--patience` | training default | Early stopping patience after KL warmup |
+| `--reduce_lr_patience` | training default | ReduceLROnPlateau patience |
 | `--skip_eval` | `false` | Train only, skip evaluation |
 | `--dry_run` | `false` | Validate + model summary, no training |
 | `--no_baseline` | `false` | Skip deterministic baseline |
