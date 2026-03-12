@@ -39,7 +39,7 @@ import time
 import traceback
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from src.config.overrides import RunOverrides
 from src.training.logging import RunPaths
@@ -210,11 +210,115 @@ def _load_protocol(path: Optional[str]) -> dict:
                 "No --protocol given and configs/protocol_default.json not found."
             )
     proto = json.loads(Path(path).read_text(encoding="utf-8"))
-    if "regimes" not in proto or not proto["regimes"]:
-        raise ValueError("Protocol JSON must contain a non-empty 'regimes' list.")
-    # Tag regimes with implicit within_regime study (Commit 3X)
-    proto = _ensure_studies(proto)
-    return proto
+
+    # Legacy/default format: explicit regimes list.
+    if "regimes" in proto and proto["regimes"]:
+        # Tag regimes with implicit within_regime study (Commit 3X)
+        return _ensure_studies(proto)
+
+    # Alternative JSON format (aligned with YAML): studies + regime_ids/selectors.
+    if "studies" in proto and proto["studies"]:
+        return _protocol_from_studies_json(proto)
+
+    raise ValueError(
+        "Protocol JSON must contain a non-empty 'regimes' list "
+        "or a non-empty 'studies' list."
+    )
+
+
+def _parse_regime_id_physical(rid: str) -> Tuple[float, float]:
+    """Parse ``dist_...m__curr_...mA`` into ``(distance_m, current_mA)``."""
+    m = re.match(r"^dist_([0-9p.]+)m__curr_([0-9]+)mA$", str(rid).strip())
+    if m is None:
+        raise ValueError(
+            f"Invalid regime_id '{rid}'. Expected format dist_<D>m__curr_<C>mA"
+        )
+    dist = float(m.group(1).replace("p", "."))
+    curr = float(m.group(2))
+    return dist, curr
+
+
+def _protocol_from_studies_json(raw: dict) -> dict:
+    """Build canonical protocol dict from JSON ``studies`` format.
+
+    Accepted per-study entries:
+    - ``regime_ids`` (list of ``dist_...m__curr_...mA`` ids)
+    - ``selectors``  (list with ``distance_m``/``current_mA``)
+    """
+    studies = list(raw.get("studies", []))
+    regimes: List[dict] = []
+    resolved_studies: List[dict] = []
+    seen_ids: set = set()
+    multi_study = len(studies) > 1
+
+    for study in studies:
+        sname = str(study.get("name", "within_regime"))
+        split_strat = str(study.get("split_strategy", "per_experiment"))
+        selectors = list(study.get("selectors", []) or [])
+        regime_ids = list(study.get("regime_ids", []) or [])
+
+        if not selectors and not regime_ids:
+            raise ValueError(
+                f"Study '{sname}' has no selectors nor regime_ids."
+            )
+
+        study_regime_ids: List[str] = []
+
+        # Explicit selectors with physical values.
+        for entry in selectors:
+            dist = float(entry["distance_m"])
+            curr = float(entry["current_mA"])
+            rid = entry.get("regime_id") or make_regime_id(dist, curr)
+            rid = make_regime_id(*_parse_regime_id_physical(rid)) if "distance_m" not in entry else rid
+            full_rid = f"{sname}/{rid}" if multi_study else rid
+            if full_rid in seen_ids:
+                raise ValueError(f"Duplicate regime_id '{full_rid}' in studies JSON.")
+            seen_ids.add(full_rid)
+
+            desc = entry.get("description", f"{dist} m / {int(curr)} mA")
+            regimes.append({
+                "regime_id": full_rid,
+                "regime_label": entry.get("regime_id", rid),
+                "description": desc,
+                "distance_m": dist,
+                "current_mA": curr,
+                "_study": sname,
+                "_split_strategy": split_strat,
+            })
+            study_regime_ids.append(full_rid)
+
+        # Compact form with only regime_ids (used by smoke tests).
+        for rid_in in regime_ids:
+            dist, curr = _parse_regime_id_physical(str(rid_in))
+            rid = make_regime_id(dist, curr)
+            full_rid = f"{sname}/{rid}" if multi_study else rid
+            if full_rid in seen_ids:
+                continue
+            seen_ids.add(full_rid)
+            regimes.append({
+                "regime_id": full_rid,
+                "regime_label": str(rid_in),
+                "description": f"{dist} m / {int(curr)} mA",
+                "distance_m": dist,
+                "current_mA": curr,
+                "_study": sname,
+                "_split_strategy": split_strat,
+            })
+            study_regime_ids.append(full_rid)
+
+        resolved_studies.append({
+            "name": sname,
+            "split_strategy": split_strat,
+            "regime_ids": study_regime_ids,
+        })
+
+    return {
+        "protocol_version": str(raw.get("protocol_version", "1.0")),
+        "description": raw.get("description", ""),
+        "global_settings": raw.get("global_settings", {}),
+        "regimes": regimes,
+        "_studies": resolved_studies,
+    }
 
 
 def _ensure_studies(proto: dict) -> dict:
@@ -417,6 +521,47 @@ def _read_eval_metrics(run_dir: Path) -> dict:
     return {}
 
 
+def _extract_cvae_dist_from_eval_metrics(metrics: dict) -> dict:
+    """Map eval global metrics to the cVAE dist-metrics schema used by protocol."""
+    if not isinstance(metrics, dict) or not metrics:
+        return {}
+
+    def _f(v):
+        try:
+            if v is None:
+                return None
+            return float(v)
+        except Exception:
+            return None
+
+    out = {
+        "delta_mean_l2": _f(metrics.get("delta_mean_l2")),
+        "delta_cov_fro": _f(metrics.get("delta_cov_fro")),
+        "var_real_delta": _f(metrics.get("var_real_delta")),
+        "var_pred_delta": _f(metrics.get("var_pred_delta")),
+        "delta_skew_l2": _f(metrics.get("delta_skew_l2")),
+        "delta_kurt_l2": _f(metrics.get("delta_kurt_l2")),
+        # eval JSON uses delta_psd_l2 naming; protocol table expects psd_l2.
+        "psd_l2": _f(metrics.get("delta_psd_l2", metrics.get("psd_l2"))),
+        # Optional JB fields (present after CORREÇÃO 3 propagation in eval metrics).
+        "jb_stat_I": _f(metrics.get("jb_stat_I")),
+        "jb_stat_Q": _f(metrics.get("jb_stat_Q")),
+        "jb_p_I": _f(metrics.get("jb_p_I")),
+        "jb_p_Q": _f(metrics.get("jb_p_Q")),
+        "jb_p_min": _f(metrics.get("jb_p_min")),
+        "jb_log10p_I": _f(metrics.get("jb_log10p_I")),
+        "jb_log10p_Q": _f(metrics.get("jb_log10p_Q")),
+        "jb_log10p_min": _f(metrics.get("jb_log10p_min")),
+        "reject_gaussian": (bool(metrics.get("reject_gaussian"))
+                            if metrics.get("reject_gaussian") is not None else None),
+    }
+    # Require at least one core distance metric to consider mapping valid.
+    _core = ("delta_mean_l2", "delta_cov_fro", "delta_skew_l2", "delta_kurt_l2", "psd_l2")
+    if all(out.get(k) is None for k in _core):
+        return {}
+    return out
+
+
 def _read_train_state(run_dir: Path) -> dict:
     """Read state_run.json produced by the training monolith."""
     p = run_dir / "state_run.json"
@@ -468,16 +613,31 @@ def _filter_experiments_for_regime(
     )
 
 
-def _quick_cvae_predict(run_dir: Path, X_va, D_va, C_va, batch_size: int = 4096):
+def _quick_cvae_predict(
+    run_dir: Path,
+    X_va,
+    D_va,
+    C_va,
+    batch_size: int = 4096,
+    mc_samples: int = 16,
+    seed: int = 42,
+):
     """
-    Load best_model_full.keras **strictly** from *run_dir*/models/,
-    build a deterministic inference model (prior → decoder → y_mean),
-    and predict on the given validation arrays.
+    Load best_model_full.keras from *run_dir*/models and generate MC predictions.
 
-    Commit 3P: removed fallback to state_run.json to avoid cross-regime
-    model leakage.  Fails loudly if model is missing.
+    Distribution-oriented metrics (MMD², Energy, Δcov, Δkurt) must use samples
+    from the marginal predictive distribution:
 
-    Returns Y_pred (ndarray) or None on failure.
+        y ~ p(y | z, x, d, c),  z ~ p(z | x, d, c)
+
+    Therefore this helper returns the concatenation of *mc_samples* stochastic
+    draws (not their average), along with tiled conditioning arrays so callers
+    can compute residuals on matched shapes.
+
+    Returns
+    -------
+    tuple or None
+        (Y_pred_concat, X_tiled, D_tiled, C_tiled) or None on failure.
     """
     import numpy as _np
 
@@ -487,72 +647,84 @@ def _quick_cvae_predict(run_dir: Path, X_va, D_va, C_va, batch_size: int = 4096)
         return None
     print(f"   📂 Loading model: {model_path}")
 
-    # --- Shape guard (Commit 3P) ---
+    # --- Shape guard ---
     for name, arr in [("X_va", X_va), ("D_va", D_va), ("C_va", C_va)]:
         assert arr is not None, f"_quick_cvae_predict: {name} is None"
     n = X_va.shape[0]
     assert D_va.shape[0] == n and C_va.shape[0] == n, (
         f"Shape mismatch: X_va={X_va.shape}, D_va={D_va.shape}, C_va={C_va.shape}"
     )
+    mc_samples = max(1, int(mc_samples))
 
     try:
         import tensorflow as tf
         from src.models.cvae_components import Sampling, CondPriorVAELoss
+        from src.models.cvae import create_inference_model_from_full
 
         custom_objects = {"Sampling": Sampling, "CondPriorVAELoss": CondPriorVAELoss}
-        vae = tf.keras.models.load_model(str(model_path), custom_objects=custom_objects, compile=False)
-
-        prior = vae.get_layer("prior_net")
-        decoder = vae.get_layer("decoder")
-
-        layers = tf.keras.layers
-        x_in = layers.Input(shape=(2,), name="x_input")
-        d_in = layers.Input(shape=(1,), name="distance_input")
-        c_in = layers.Input(shape=(1,), name="current_input")
-
-        prior_out = prior([x_in, d_in, c_in])
-        z_mean_p = prior_out[0] if isinstance(prior_out, (list, tuple)) else prior_out
-        z = z_mean_p  # deterministic
-
-        cond = layers.Concatenate()([x_in, d_in, c_in])
-        out_params = decoder([z, cond])
-        y_mean = layers.Lambda(lambda t: t[:, :2], name="y_mean_quick")(out_params)
-
-        inference_model = tf.keras.Model([x_in, d_in, c_in], y_mean, name="quick_infer_det")
+        vae = tf.keras.models.load_model(
+            str(model_path), custom_objects=custom_objects, compile=False
+        )
+        inference_model = create_inference_model_from_full(vae, deterministic=False)
 
         # --- Normalizar D e C antes de alimentar o modelo ---
         # (modelo foi treinado com D,C em [0,1])
         # Usa apply_condition_norm para reproduzir a lógica exata do treino,
         # incluindo o fallback D_max==D_min → 0.0, C_max==C_min → 0.5.
         from src.data.normalization import apply_condition_norm
+        D_arr = _np.asarray(D_va)
+        C_arr = _np.asarray(C_va)
         try:
             _state = json.loads((run_dir / "state_run.json").read_text())
             _norm = _state.get("normalization", {})
             _norm_params = {
-                "D_min": float(_norm.get("D_min", D_va.min())),
-                "D_max": float(_norm.get("D_max", D_va.max())),
-                "C_min": float(_norm.get("C_min", C_va.min())),
-                "C_max": float(_norm.get("C_max", C_va.max())),
+                "D_min": float(_norm.get("D_min", D_arr.min())),
+                "D_max": float(_norm.get("D_max", D_arr.max())),
+                "C_min": float(_norm.get("C_min", C_arr.min())),
+                "C_max": float(_norm.get("C_max", C_arr.max())),
             }
         except Exception:
             # fallback: normalizar pelo próprio batch (menos preciso)
             _norm_params = {
-                "D_min": float(D_va.min()), "D_max": float(D_va.max()),
-                "C_min": float(C_va.min()), "C_max": float(C_va.max()),
+                "D_min": float(D_arr.min()), "D_max": float(D_arr.max()),
+                "C_min": float(C_arr.min()), "C_max": float(C_arr.max()),
             }
 
-        _D_norm, _C_norm = apply_condition_norm(D_va, C_va, _norm_params)
+        _D_norm, _C_norm = apply_condition_norm(D_arr.ravel(), C_arr.ravel(), _norm_params)
+        _D_norm = _D_norm.reshape(-1, 1)
+        _C_norm = _C_norm.reshape(-1, 1)
 
-        Y_pred = inference_model.predict([X_va, _D_norm, _C_norm], batch_size=batch_size, verbose=0)
+        X_arr = _np.asarray(X_va)
+        tf.random.set_seed(int(seed))
+        samples = []
+        for i in range(mc_samples):
+            # Force deterministic reproducibility while keeping independent draws.
+            tf.random.set_seed(int(seed) + i)
+            s = inference_model.predict(
+                [X_arr, _D_norm, _C_norm], batch_size=batch_size, verbose=0
+            )
+            samples.append(s)
+        Y_pred_concat = _np.concatenate(samples, axis=0)
 
-        del vae, inference_model, prior, decoder
+        def _tile_like_input(a):
+            a = _np.asarray(a)
+            if a.ndim == 1:
+                return _np.tile(a, mc_samples)
+            reps = (mc_samples,) + (1,) * (a.ndim - 1)
+            return _np.tile(a, reps)
+
+        X_tiled = _tile_like_input(X_arr)
+        D_tiled = _tile_like_input(D_arr)
+        C_tiled = _tile_like_input(C_arr)
+
+        del vae, inference_model
         try:
             tf.keras.backend.clear_session()
         except Exception:
             pass
-        return Y_pred
+        return Y_pred_concat, X_tiled, D_tiled, C_tiled
     except Exception as e:
-        print(f"⚠️  Quick cVAE inference failed: {e}")
+        print(f"⚠️  MC cVAE inference failed: {e}")
         return None
 
 
@@ -838,69 +1010,86 @@ def run_regime(
     # Read eval metrics
     result["metrics"] = _read_eval_metrics(run_dir)
 
-    # ---- cVAE DISTRIBUTION-FIDELITY METRICS (Commit 3O, 3P, 3S) ----
-    # Commit 3S: always use shared _val_data + _quick_cvae_predict so
-    # baseline and cVAE are evaluated on the SAME validation split.
-    # When eval ran successfully → dist_metrics_source="eval".
-    # When eval skipped/failed  → dist_metrics_source="quick".
-    # Guardrail: if eval ran but model is missing → "quick_fallback".
+    # ---- cVAE DISTRIBUTION-FIDELITY METRICS (single source of truth) ----
+    # Priority order:
+    # 1) Evaluation metrics JSON (same slice/MC/calc as analise_cvae_reviewed).
+    # 2) Quick fallback from shared val split when eval is unavailable.
     if run_dist_metrics and result["train_status"] == "completed":
         _dm_source = None  # will be set below
         try:
-            import numpy as _np_dm
-            _psd_nfft = int(ov.get("psd_nfft", 2048))
-            _max_ds = int(ov.get("max_dist_samples", 200_000))
-            _g_alpha = float(ov.get("gauss_alpha", 0.01))
-
-            if _val_data is None:
-                raise RuntimeError("Shared validation data not available")
-
-            _X_va, _Y_va, _D_va, _C_va = _val_data
-            model_check = run_dir / "models" / "best_model_full.keras"
-
-            if not model_check.exists():
-                raise FileNotFoundError(
-                    f"Model not found at {model_check}")
-
-            # Decide dist_metrics_source label
-            if _eval_ran and result["eval_status"] == "completed":
-                _dm_source = "eval"
-            elif skip_eval:
-                _dm_source = "quick"
-            else:
-                # eval was enabled but failed
-                _dm_source = "quick_fallback"
-                print(f"⚠️  Eval enabled but status={result['eval_status']} "
-                      f"for regime '{regime_id}' — falling back to quick dist-metrics")
-
-            print(f"\n🔍 cVAE dist-metrics for regime '{regime_id}' "
-                  f"({len(_X_va):,} val pts, source={_dm_source}, model={model_check})")
-            Y_pred_cvae = _quick_cvae_predict(run_dir, _X_va, _D_va, _C_va)
-            if Y_pred_cvae is not None:
-                from src.metrics.distribution import residual_fidelity_metrics
-                res_real = _Y_va - _X_va
-                res_pred_cvae = Y_pred_cvae - _X_va
-                cvae_dm = residual_fidelity_metrics(
-                    res_real, res_pred_cvae,
-                    psd_nfft=_psd_nfft, max_samples=_max_ds, gauss_alpha=_g_alpha,
-                )
-                # --- Commit 3P: finiteness guard ---
-                _finite_keys = ["delta_mean_l2", "delta_cov_fro", "delta_skew_l2",
-                                "delta_kurt_l2", "psd_l2"]
-                for _fk in _finite_keys:
-                    v = cvae_dm.get(_fk)
-                    if v is not None and not _np_dm.isfinite(v):
-                        print(f"⚠️  Non-finite dist metric {_fk}={v} for regime '{regime_id}'")
-                result["cvae_dist"] = cvae_dm
+            _eval_dm = _extract_cvae_dist_from_eval_metrics(result.get("metrics", {}))
+            if _eval_ran and result["eval_status"] == "completed" and _eval_dm:
+                _dm_source = "eval_reanalysis"
+                result["cvae_dist"] = _eval_dm
                 result["dist_metrics_source"] = _dm_source
+                print(f"\n🔍 cVAE dist-metrics for regime '{regime_id}' "
+                      f"(source={_dm_source}, N_eval={result.get('metrics', {}).get('N_eval', 'n/a')})")
+                _dm_mean = _eval_dm.get("delta_mean_l2")
+                _dm_psd = _eval_dm.get("psd_l2")
                 print(f"   📐 cVAE dist ({_dm_source}): "
-                      f"Δmean_l2={cvae_dm['delta_mean_l2']:.4f}  "
-                      f"psd_l2={cvae_dm['psd_l2']:.4f}  "
-                      f"reject_gauss={cvae_dm['reject_gaussian']}")
-                del Y_pred_cvae, res_pred_cvae, cvae_dm
+                      f"Δmean_l2={(float(_dm_mean) if _dm_mean is not None else float('nan')):.4f}  "
+                      f"psd_l2={(float(_dm_psd) if _dm_psd is not None else float('nan')):.4f}  "
+                      f"reject_gauss={_eval_dm.get('reject_gaussian')}")
             else:
-                print(f"⚠️  cVAE quick_predict returned None for regime '{regime_id}'")
-            del _X_va, _Y_va, _D_va, _C_va
+                import numpy as _np_dm
+                _psd_nfft = int(ov.get("psd_nfft", 2048))
+                _max_ds = int(ov.get("max_dist_samples", 200_000))
+                _g_alpha = float(ov.get("gauss_alpha", 0.01))
+                _mc_dm = max(1, int(result.get("metrics", {}).get("mc_samples", 8)))
+
+                if _val_data is None:
+                    raise RuntimeError("Shared validation data not available")
+
+                _X_va, _Y_va, _D_va, _C_va = _val_data
+                model_check = run_dir / "models" / "best_model_full.keras"
+                if not model_check.exists():
+                    raise FileNotFoundError(f"Model not found at {model_check}")
+
+                if _eval_ran and result["eval_status"] != "completed":
+                    _dm_source = "quick_fallback"
+                    print(f"⚠️  Eval status={result['eval_status']} para '{regime_id}' "
+                          f"— usando fallback quick.")
+                else:
+                    _dm_source = "quick"
+
+                print(f"\n🔍 cVAE dist-metrics for regime '{regime_id}' "
+                      f"({len(_X_va):,} val pts, source={_dm_source}, "
+                      f"mc_samples={_mc_dm}, model={model_check})")
+                _pred_pack = _quick_cvae_predict(
+                    run_dir, _X_va, _D_va, _C_va, mc_samples=_mc_dm, seed=int(ov.get("seed", 42))
+                )
+                if _pred_pack is not None:
+                    from src.metrics.distribution import residual_fidelity_metrics
+
+                    Y_pred_cvae, X_tiled, _D_tiled, _C_tiled = _pred_pack
+                    res_real_all = _Y_va - _X_va
+                    res_pred_all = Y_pred_cvae - X_tiled
+
+                    _n_cmp = min(_max_ds, res_real_all.shape[0], res_pred_all.shape[0])
+                    _rng_dm = _np_dm.random.default_rng(int(ov.get("seed", 42)))
+                    idx_real = (_rng_dm.choice(res_real_all.shape[0], _n_cmp, replace=False)
+                                if _n_cmp < res_real_all.shape[0]
+                                else _np_dm.arange(res_real_all.shape[0]))
+                    idx_pred = (_rng_dm.choice(res_pred_all.shape[0], _n_cmp, replace=False)
+                                if _n_cmp < res_pred_all.shape[0]
+                                else _np_dm.arange(res_pred_all.shape[0]))
+                    res_real = res_real_all[idx_real]
+                    res_pred_cvae = res_pred_all[idx_pred]
+                    cvae_dm = residual_fidelity_metrics(
+                        res_real, res_pred_cvae,
+                        psd_nfft=_psd_nfft, max_samples=_n_cmp, gauss_alpha=_g_alpha,
+                    )
+                    result["cvae_dist"] = cvae_dm
+                    result["dist_metrics_source"] = _dm_source
+                    print(f"   📐 cVAE dist ({_dm_source}): "
+                          f"Δmean_l2={cvae_dm['delta_mean_l2']:.4f}  "
+                          f"psd_l2={cvae_dm['psd_l2']:.4f}  "
+                          f"reject_gauss={cvae_dm['reject_gaussian']}")
+                    del _pred_pack, Y_pred_cvae, X_tiled, _D_tiled, _C_tiled
+                    del res_real_all, res_pred_all, res_real, res_pred_cvae, cvae_dm
+                else:
+                    print(f"⚠️  cVAE quick_predict returned None for regime '{regime_id}'")
+                del _X_va, _Y_va, _D_va, _C_va
         except Exception as e:
             result["cvae_dist"] = {"error": str(e)}
             if _dm_source is not None:
@@ -924,22 +1113,30 @@ def run_regime(
             if not model_check.exists():
                 raise FileNotFoundError(f"Model not found at {model_check}")
 
-            # Reuse Y_pred from quick predict
-            Y_pred_sf = _quick_cvae_predict(run_dir, _X_va, _D_va, _C_va)
-            if Y_pred_sf is None:
+            # Reuse MC predictions from quick predict
+            _mc_sf = max(1, int(result.get("metrics", {}).get("mc_samples", 8)))
+            _pred_pack = _quick_cvae_predict(
+                run_dir, _X_va, _D_va, _C_va, mc_samples=_mc_sf, seed=stat_seed
+            )
+            if _pred_pack is None:
                 raise RuntimeError("cVAE quick_predict returned None")
+            Y_pred_sf, X_tiled_sf, _D_tiled_sf, _C_tiled_sf = _pred_pack
 
-            # Compute residuals
-            res_real = _Y_va - _X_va
-            res_pred = Y_pred_sf - _X_va
+            # Compute residual pools
+            res_real_all = _Y_va - _X_va
+            res_pred_all = Y_pred_sf - X_tiled_sf
 
-            # Sub-sample for computational efficiency
-            _n_sf = min(stat_max_n, res_real.shape[0])
-            if _n_sf < res_real.shape[0]:
-                rng = _np_sf.random.RandomState(stat_seed)
-                idx = rng.choice(res_real.shape[0], _n_sf, replace=False)
-                res_real = res_real[idx]
-                res_pred = res_pred[idx]
+            # Sub-sample both pools independently to the same size.
+            _n_sf = min(stat_max_n, res_real_all.shape[0], res_pred_all.shape[0])
+            rng = _np_sf.random.RandomState(stat_seed)
+            idx_real = (rng.choice(res_real_all.shape[0], _n_sf, replace=False)
+                        if _n_sf < res_real_all.shape[0]
+                        else _np_sf.arange(res_real_all.shape[0]))
+            idx_pred = (rng.choice(res_pred_all.shape[0], _n_sf, replace=False)
+                        if _n_sf < res_pred_all.shape[0]
+                        else _np_sf.arange(res_pred_all.shape[0]))
+            res_real = res_real_all[idx_real]
+            res_pred = res_pred_all[idx_pred]
 
             _n_perm = stat_n_perm if stat_n_perm is not None else (200 if stat_mode == "quick" else 2000)
             _psd_nfft_sf = int(ov.get("psd_nfft", 2048))
@@ -969,7 +1166,8 @@ def run_regime(
                   f"Energy={sf_energy['energy']:.6f} (p={sf_energy['pval']:.4f})  "
                   f"PSD_L2={sf_psd['psd_dist']:.4f} "
                   f"[{sf_psd['psd_ci_low']:.4f}, {sf_psd['psd_ci_high']:.4f}]")
-            del Y_pred_sf, res_real, res_pred, sf_mmd, sf_energy, sf_psd
+            del _pred_pack, Y_pred_sf, X_tiled_sf, _D_tiled_sf, _C_tiled_sf
+            del res_real_all, res_pred_all, res_real, res_pred, sf_mmd, sf_energy, sf_psd
         except Exception as e:
             result["stat_fidelity"] = {"error": str(e)}
             print(f"⚠️  Stat fidelity failed for regime '{regime_id}': {e}")
@@ -1033,6 +1231,7 @@ def build_summary_table(results: List[dict]) -> "pd.DataFrame":
             "baseline_delta_kurt_l2": bd.get("delta_kurt_l2"),
             "baseline_psd_l2": bd.get("psd_l2"),
             "baseline_jb_p_min": bd.get("jb_p_min"),
+            "baseline_jb_log10p_min": bd.get("jb_log10p_min"),
             "baseline_reject_gauss": bd.get("reject_gaussian"),
             # Commit 3O: distribution-fidelity — cVAE
             "cvae_delta_mean_l2": cd.get("delta_mean_l2"),
@@ -1041,7 +1240,9 @@ def build_summary_table(results: List[dict]) -> "pd.DataFrame":
             "cvae_delta_kurt_l2": cd.get("delta_kurt_l2"),
             "cvae_psd_l2": cd.get("psd_l2"),
             "cvae_jb_p_min": cd.get("jb_p_min"),
+            "cvae_jb_log10p_min": cd.get("jb_log10p_min"),
             "cvae_reject_gauss": cd.get("reject_gaussian"),
+            "dist_metrics_source": r.get("dist_metrics_source"),
             # Commit 3Q: regime-aware experiment selection
             "n_experiments_selected": len(r.get("selected_experiments", [])),
             "dist_target_m": r.get("selection_criteria", {}).get("distance_m"),

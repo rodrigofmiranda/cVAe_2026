@@ -127,9 +127,8 @@ def cap_train_samples_per_experiment(
             })
             continue
 
-        # Temporal spread reduction: uniformly spaced picks over train head.
-        local_idx = np.linspace(0, n_train - 1, num=n_keep, dtype=np.int64)
-        local_idx = np.unique(local_idx)
+        # Keep the train head deterministically to preserve temporal order.
+        local_idx = np.arange(0, n_keep, dtype=np.int64)
         keep_idx_parts.append(cursor + local_idx)
         cursor += n_train
 

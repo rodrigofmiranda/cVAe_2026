@@ -123,12 +123,12 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
                 "seed": 42,
             },
             "eval_protocol": {
-                "deterministic_inference": True,
-                "mc_samples": 1,
-                "rank_mode": "det",
+                "deterministic_inference": False,
+                "mc_samples": 8,
+                "rank_mode": "mc",
                 "n_eval_samples": 40000,
                 "batch_infer": 8192,
-                "eval_slice": "stratified_by_regime",
+                "eval_slice": "stratified",
             },
             "analysis_quick": {"dist_metrics": True, "psd_nfft": 2048},
             "artifacts": {
@@ -297,6 +297,7 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
     val_split = float(data_split.get("validation_split", state.get("training_config", {}).get("validation_split", 0.2)))
     order_mode = str(data_split.get("per_experiment_split_order", state.get("training_config", {}).get("per_experiment_split_order", "head_tail")))
     within_shuffle = bool(data_split.get("within_experiment_shuffle", state.get("training_config", {}).get("within_experiment_shuffle", False)))
+    df_split = None
 
     if split_mode == "per_experiment":
         X_train, Y_train, D_train, C_train, X_val, Y_val, D_val, C_val, df_split = split_train_val_per_experiment(
@@ -350,14 +351,90 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
     N_eval = int(evalp.get("n_eval_samples", 40_000))
     bs_inf = int(evalp.get("batch_infer", 8192))
     eval_slice = str(evalp.get("eval_slice", "val_head"))
-    if eval_slice != "val_head":
+    # Backward-compat: previous runs may store "stratified_by_regime".
+    if eval_slice == "stratified_by_regime":
+        eval_slice = "stratified"
+    # Aceita "val_head" (padrão legado), "stratified" (Fix 4) ou "full".
+    _valid_slices = {"val_head", "stratified", "full"}
+    if eval_slice not in _valid_slices:
+        print(f"⚠️  eval_slice='{eval_slice}' inválido, usando 'val_head'")
         eval_slice = "val_head"
 
-    N = min(N_eval, len(X_val))
-    Xv = X_val[:N]
-    Yv = Y_val[:N]
-    Dv = Dn_val[:N]
-    Cv = Cn_val[:N]
+    if eval_slice == "stratified":
+        # Estratificação explícita por experimento (quando split_by_experiment está disponível).
+        # Se metadados não existirem/inconsistirem, faz fallback para amostragem uniforme global.
+        N = min(N_eval, len(X_val))
+        rng_eval = np.random.default_rng(seed0)
+        idx_eval = None
+
+        if (
+            split_mode == "per_experiment"
+            and isinstance(df_split, pd.DataFrame)
+            and "n_val" in df_split.columns
+        ):
+            n_val_list = [int(v) for v in df_split["n_val"].tolist()]
+            if n_val_list and int(np.sum(n_val_list)) == int(len(X_val)):
+                n_exps = len(n_val_list)
+                base = N // n_exps
+                rem = N % n_exps
+
+                target = np.full(n_exps, base, dtype=np.int64)
+                if rem > 0:
+                    rem_idx = rng_eval.permutation(n_exps)[:rem]
+                    target[rem_idx] += 1
+
+                cap = np.asarray(n_val_list, dtype=np.int64)
+                take = np.minimum(target, cap)
+                avail = cap - take
+                left = int(N - int(take.sum()))
+
+                # Redistribui sobras para experimentos com capacidade restante.
+                while left > 0 and int(avail.sum()) > 0:
+                    progressed = False
+                    for i in rng_eval.permutation(n_exps):
+                        if left <= 0:
+                            break
+                        if avail[i] > 0:
+                            take[i] += 1
+                            avail[i] -= 1
+                            left -= 1
+                            progressed = True
+                    if not progressed:
+                        break
+
+                idx_parts = []
+                cursor = 0
+                for i, n_i in enumerate(n_val_list):
+                    k_i = int(take[i])
+                    if k_i > 0:
+                        if k_i < n_i:
+                            local = np.sort(rng_eval.choice(n_i, size=k_i, replace=False))
+                        else:
+                            local = np.arange(n_i, dtype=np.int64)
+                        idx_parts.append(cursor + local)
+                    cursor += n_i
+
+                if idx_parts:
+                    idx_eval = np.concatenate(idx_parts, axis=0)
+                    idx_eval.sort()
+                    print(
+                        f"✓ eval_slice=stratified (por experimento) | "
+                        f"N={len(idx_eval):,} | n_experiments={n_exps}"
+                    )
+
+        if idx_eval is None:
+            idx_eval = rng_eval.choice(len(X_val), size=N, replace=False)
+            print("⚠️  eval_slice=stratified sem df_split válido; fallback para amostragem global uniforme.")
+        idx_eval.sort()  # preserva ordem temporal dentro das amostras escolhidas
+        Xv, Yv = X_val[idx_eval], Y_val[idx_eval]
+        Dv, Cv = Dn_val[idx_eval], Cn_val[idx_eval]
+        N = len(idx_eval)
+    elif eval_slice == "full":
+        N = len(X_val)
+        Xv, Yv, Dv, Cv = X_val, Y_val, Dn_val, Cn_val
+    else:  # val_head (padrão legado)
+        N = min(N_eval, len(X_val))
+        Xv, Yv, Dv, Cv = X_val[:N], Y_val[:N], Dn_val[:N], Cn_val[:N]
 
     # Inferência: determinística (média) ou MC
     if det_inf or mc_samples <= 1 or rank_mode == "det":

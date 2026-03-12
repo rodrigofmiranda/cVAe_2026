@@ -275,11 +275,17 @@ def run_gridsearch(
 
             t0 = time.time()
             _keras_verbose = int(_ov.get("keras_verbose", 2))
+            _bs_cfg = int(cfg["batch_size"])
+            # Small-smoke stability: avoid single-step epochs when train << batch_size.
+            if len(X_train) < _bs_cfg:
+                _bs_eff = max(128, len(X_train) // 64)
+            else:
+                _bs_eff = _bs_cfg
             hist = vae.fit(
                 [X_train, Dn_train, Cn_train, Y_train], Y_train,
                 validation_data=([X_val, Dn_val, Cn_val, Y_val], Y_val),
                 epochs=int(training_config["epochs"]),
-                batch_size=int(cfg["batch_size"]),
+                batch_size=int(_bs_eff),
                 callbacks=callbacks,
                 verbose=_keras_verbose,
                 shuffle=bool(training_config["shuffle_train_batches"]),
