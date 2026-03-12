@@ -621,12 +621,14 @@ def _quick_cvae_predict(
     batch_size: int = 4096,
     mc_samples: int = 16,
     seed: int = 42,
+    mode: str = "mc_concat",
 ):
     """
-    Load best_model_full.keras from *run_dir*/models and generate MC predictions.
+    Load best_model_full.keras from *run_dir*/models and generate cVAE predictions.
 
-    Distribution-oriented metrics (MMD², Energy, Δcov, Δkurt) must use samples
-    from the marginal predictive distribution:
+    ``mode="mc_concat"`` is the default for distribution-oriented metrics
+    (MMD², Energy, Δcov, Δkurt), which must use samples from the marginal
+    predictive distribution:
 
         y ~ p(y | z, x, d, c),  z ~ p(z | x, d, c)
 
@@ -634,10 +636,15 @@ def _quick_cvae_predict(
     draws (not their average), along with tiled conditioning arrays so callers
     can compute residuals on matched shapes.
 
+    ``mode="det"`` is reserved for point metrics (for example EVM/SNR), using
+    MAP-like inference ``z = mu_prior`` and ``y = mu_decoder``.
+
     Returns
     -------
     tuple or None
-        (Y_pred_concat, X_tiled, D_tiled, C_tiled) or None on failure.
+        ``mode="mc_concat"`` -> ``(Y_pred_concat, X_tiled, D_tiled, C_tiled)``
+        ``mode="det"``       -> ``(Y_pred, X_va, D_va, C_va)``
+        ``None`` on failure.
     """
     import numpy as _np
 
@@ -655,6 +662,9 @@ def _quick_cvae_predict(
         f"Shape mismatch: X_va={X_va.shape}, D_va={D_va.shape}, C_va={C_va.shape}"
     )
     mc_samples = max(1, int(mc_samples))
+    mode = str(mode).strip().lower()
+    if mode not in {"mc_concat", "det"}:
+        raise ValueError(f"Unsupported _quick_cvae_predict mode: {mode}")
 
     try:
         import tensorflow as tf
@@ -665,7 +675,6 @@ def _quick_cvae_predict(
         vae = tf.keras.models.load_model(
             str(model_path), custom_objects=custom_objects, compile=False
         )
-        inference_model = create_inference_model_from_full(vae, deterministic=False)
 
         # --- Normalizar D e C antes de alimentar o modelo ---
         # (modelo foi treinado com D,C em [0,1])
@@ -695,15 +704,30 @@ def _quick_cvae_predict(
         _C_norm = _C_norm.reshape(-1, 1)
 
         X_arr = _np.asarray(X_va)
-        tf.random.set_seed(int(seed))
+
+        if mode == "det":
+            inference_model = create_inference_model_from_full(vae, deterministic=True)
+            Y_pred = inference_model.predict(
+                [X_arr, _D_norm, _C_norm], batch_size=batch_size, verbose=0
+            )
+            del inference_model, vae
+            try:
+                tf.keras.backend.clear_session()
+            except Exception:
+                pass
+            return Y_pred, X_arr, D_arr, C_arr
+
         samples = []
         for i in range(mc_samples):
-            # Force deterministic reproducibility while keeping independent draws.
+            # Rebuild the stochastic inference graph each draw so each sample is
+            # an independent realization of p(y | x, d, c).
             tf.random.set_seed(int(seed) + i)
+            inference_model = create_inference_model_from_full(vae, deterministic=False)
             s = inference_model.predict(
                 [X_arr, _D_norm, _C_norm], batch_size=batch_size, verbose=0
             )
             samples.append(s)
+            del inference_model
         Y_pred_concat = _np.concatenate(samples, axis=0)
 
         def _tile_like_input(a):
@@ -717,14 +741,14 @@ def _quick_cvae_predict(
         D_tiled = _tile_like_input(D_arr)
         C_tiled = _tile_like_input(C_arr)
 
-        del vae, inference_model
+        del vae, samples
         try:
             tf.keras.backend.clear_session()
         except Exception:
             pass
         return Y_pred_concat, X_tiled, D_tiled, C_tiled
     except Exception as e:
-        print(f"⚠️  MC cVAE inference failed: {e}")
+        print(f"⚠️  _quick_cvae_predict failed (mode={mode}): {e}")
         return None
 
 
@@ -1065,7 +1089,10 @@ def run_regime(
                       f"({len(_X_va):,} val pts, source={_dm_source}, "
                       f"mc_samples={_mc_dm}, model={model_check})")
                 _pred_pack = _quick_cvae_predict(
-                    run_dir, _X_va, _D_va, _C_va, mc_samples=_mc_dm, seed=int(ov.get("seed", 42))
+                    run_dir, _X_va, _D_va, _C_va,
+                    mc_samples=_mc_dm,
+                    seed=int(ov.get("seed", 42)),
+                    mode="mc_concat",
                 )
                 if _pred_pack is not None:
                     from src.metrics.distribution import residual_fidelity_metrics
@@ -1125,7 +1152,10 @@ def run_regime(
             # Reuse MC predictions from quick predict
             _mc_sf = max(1, int(result.get("metrics", {}).get("mc_samples", 8)))
             _pred_pack = _quick_cvae_predict(
-                run_dir, _X_va, _D_va, _C_va, mc_samples=_mc_sf, seed=stat_seed
+                run_dir, _X_va, _D_va, _C_va,
+                mc_samples=_mc_sf,
+                seed=stat_seed,
+                mode="mc_concat",
             )
             if _pred_pack is None:
                 raise RuntimeError("cVAE quick_predict returned None")
