@@ -21,6 +21,7 @@ import argparse
 import os
 
 from src.config.overrides import RunOverrides
+from src.config.runtime_env import ensure_writable_mpl_config_dir
 
 
 def parse_args():
@@ -34,6 +35,14 @@ def parse_args():
                         help="Truncate samples per experiment (default: all)")
     parser.add_argument("--psd_nfft", type=int, default=None,
                         help="Override PSD NFFT size (default: use state config)")
+    parser.add_argument("--max_dist_samples", type=int, default=None,
+                        help="Cap samples used in residual-distribution metrics")
+    parser.add_argument("--gauss_alpha", type=float, default=None,
+                        help="Override Gaussianity significance level")
+    parser.add_argument("--seed", type=int, default=None,
+                        help="Override evaluation RNG seed")
+    parser.add_argument("--no_dist_metrics", action="store_true",
+                        help="Skip residual-distribution metrics during evaluation")
     parser.add_argument("--dry_run", action="store_true",
                         help="Load+split+load model+build inference graph, then exit")
     return parser.parse_args()
@@ -63,6 +72,10 @@ def main():
     # Build typed overrides from CLI flags
     overrides_obj = RunOverrides.from_namespace(args)
     overrides = overrides_obj.to_dict()
+
+    # Ensure MPLCONFIGDIR is writable before importing the evaluation module,
+    # otherwise matplotlib may emit temp-dir warnings at import time.
+    ensure_writable_mpl_config_dir()
 
     # Import here to avoid triggering heavy TF initialization on module load
     from src.evaluation import analise_cvae_reviewed as eval_module

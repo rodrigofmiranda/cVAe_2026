@@ -164,6 +164,28 @@ python -m src.protocol.run \
   --dry_run
 ```
 
+### Canonical smoke tests
+
+Use these three deterministic checks before wider runs:
+
+```bash
+# 1) Auto-discovery + model/bootstrap validation only
+python -m src.protocol.run \
+  --dataset_root data/dataset_fullsquare_organized \
+  --output_base outputs \
+  --dry_run
+
+# 2) Single-regime protocol smoke
+python -m src.protocol.run \
+  --dataset_root data/dataset_fullsquare_organized \
+  --output_base outputs \
+  --protocol configs/one_regime_1p0m_300mA.json \
+  --max_epochs 1 --max_grids 1 --max_experiments 1 --max_samples_per_exp 2000
+
+# 3) Import/build sanity for the cVAE stack
+python -c "from src.models.cvae import build_cvae; build_cvae({'layer_sizes':[128,256,512],'latent_dim':4,'beta':0.003,'lr':3e-4,'dropout':0.0,'free_bits':0.1,'kl_anneal_epochs':80,'batch_size':16384,'activation':'leaky_relu'})"
+```
+
 ### Legacy wrappers
 
 ```bash

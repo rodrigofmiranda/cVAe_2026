@@ -39,7 +39,7 @@ import time
 import traceback
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
 from src.config.overrides import RunOverrides
 from src.config.runtime_env import ensure_writable_mpl_config_dir
@@ -276,6 +276,99 @@ def _effective_stat_max_n(stat_mode: str, stat_max_n: Optional[int]) -> int:
             raise ValueError("--stat_max_n must be > 0")
         return n_eff
     return 5_000 if str(stat_mode).strip().lower() == "quick" else 50_000
+
+
+_BASELINE_DEFAULTS = {
+    "model": "deterministic_mlp",
+    "hidden": [128, 64],
+    "dropout": 0.0,
+    "epochs": 50,
+    "batch_size": 1024,
+    "learning_rate": 1e-3,
+    "verbose": 0,
+    "loss": "mse",
+}
+
+_DIST_METRICS_DEFAULTS = {
+    "psd_nfft": 2048,
+    "gauss_alpha": 0.01,
+    "max_dist_samples": 200_000,
+}
+
+
+def _override_dict(
+    overrides: Optional[Union[RunOverrides, Mapping[str, Any]]],
+) -> Dict[str, Any]:
+    """Return a plain dict regardless of the override representation."""
+    if overrides is None:
+        return {}
+    if isinstance(overrides, RunOverrides):
+        return overrides.to_dict()
+    return dict(overrides)
+
+
+def _effective_baseline_config(
+    overrides: Optional[Union[RunOverrides, Mapping[str, Any]]],
+    *,
+    enabled: bool,
+    return_predictions: bool = False,
+) -> Dict[str, Any]:
+    """Single source of truth for baseline runtime + manifest config."""
+    ov = _override_dict(overrides)
+    cfg = dict(_BASELINE_DEFAULTS)
+    if ov.get("max_epochs") is not None:
+        cfg["epochs"] = int(ov["max_epochs"])
+    if ov.get("keras_verbose") is not None:
+        cfg["verbose"] = int(ov["keras_verbose"])
+    cfg["enabled"] = bool(enabled)
+    cfg["return_predictions"] = bool(return_predictions)
+    return cfg
+
+
+def _effective_cvae_config(
+    overrides: Optional[Union[RunOverrides, Mapping[str, Any]]],
+    *,
+    enabled: bool,
+) -> Dict[str, Any]:
+    """Expose the cVAE-relevant effective overrides in the manifest."""
+    ov = _override_dict(overrides)
+    cfg: Dict[str, Any] = {"enabled": bool(enabled)}
+    for key in (
+        "max_epochs",
+        "max_grids",
+        "grid_group",
+        "grid_tag",
+        "val_split",
+        "seed",
+        "max_experiments",
+        "max_samples_per_exp",
+        "keras_verbose",
+    ):
+        if ov.get(key) is not None:
+            cfg[key] = ov[key]
+    return cfg
+
+
+def _effective_dist_metrics_config(
+    overrides: Optional[Union[RunOverrides, Mapping[str, Any]]],
+    *,
+    enabled: bool,
+) -> Dict[str, Any]:
+    """Single source of truth for distribution-metric knobs."""
+    ov = _override_dict(overrides)
+    cfg = {
+        "enabled": bool(enabled),
+        "psd_nfft": _DIST_METRICS_DEFAULTS["psd_nfft"],
+        "gauss_alpha": _DIST_METRICS_DEFAULTS["gauss_alpha"],
+        "max_dist_samples": _DIST_METRICS_DEFAULTS["max_dist_samples"],
+    }
+    if ov.get("psd_nfft") is not None:
+        cfg["psd_nfft"] = int(ov["psd_nfft"])
+    if ov.get("gauss_alpha") is not None:
+        cfg["gauss_alpha"] = float(ov["gauss_alpha"])
+    if ov.get("max_dist_samples") is not None:
+        cfg["max_dist_samples"] = int(ov["max_dist_samples"])
+    return cfg
 
 
 def _parse_regime_id_physical(rid: str) -> Tuple[float, float]:
@@ -811,7 +904,7 @@ def _quick_cvae_predict(
 def run_regime(
     regime: dict,
     dataset_root: str,
-    base_overrides: dict,
+    base_overrides: Union[RunOverrides, Mapping[str, Any]],
     protocol_dir: Path,
     run_cvae: bool = True,
     skip_eval: bool = False,
@@ -839,7 +932,7 @@ def run_regime(
     exp_regex = regime.get("experiment_regex", None)
 
     # Build per-regime overrides
-    ov = dict(base_overrides)
+    ov = _override_dict(base_overrides)
 
     # If regime specifies experiment_paths, we filter via max_experiments = len
     # AND set the DATASET_ROOT to the parent so only those experiments are found.
@@ -870,7 +963,7 @@ def run_regime(
         "cvae_time_s": 0.0,
         "baseline_dist": {},
         "cvae_dist": {},
-        "dist_metrics_source": None,      # Commit 3S: "eval" | "quick" | "quick_fallback" | None
+        "dist_metrics_source": None,      # "eval_reanalysis" | "quick" | "quick_fallback" | None
         "stat_fidelity": {},               # Etapa A2: stat tests per regime
         "selected_experiments": [],        # Commit 3Q: paths of selected exps
         "selection_criteria": {},          # Commit 3Q: filter params used
@@ -983,12 +1076,13 @@ def run_regime(
             import time as _time
             from src.baselines.deterministic import run_deterministic_baseline
 
-            _keras_v = int(ov.get("keras_verbose", 0))
             X_va, Y_va, D_va, C_va = _val_data
 
-            _bl_cfg = {"verbose": _keras_v, "return_predictions": run_dist_metrics}
-            if "max_epochs" in ov:
-                _bl_cfg["epochs"] = int(ov["max_epochs"])
+            _bl_cfg = _effective_baseline_config(
+                ov,
+                enabled=run_baseline,
+                return_predictions=run_dist_metrics,
+            )
 
             _bl_t0 = _time.time()
             bl_metrics = run_deterministic_baseline(
@@ -1044,25 +1138,27 @@ def run_regime(
     print(f"📁 DATASET_ROOT (effective) = {dataset_root}")
     print(f"{'='*70}")
 
-    # --- Commit 3M: always use absolute path for DATASET_ROOT ---
     _ds_root = str(Path(dataset_root).resolve())
-    os.environ["DATASET_ROOT"] = _ds_root
-    os.environ["OUTPUT_BASE"] = str(protocol_dir.resolve())
-    os.environ["RUN_ID"] = run_id
 
     _cvae_t0 = time.time()
     try:
-        from src.training import cvae_TRAIN_documented as train_module
+        from src.training.engine import train_engine
         print(f"\n📦 Training regime '{regime_id}' → run_id={run_id}")
-        train_module.main(overrides=ov)
-        result["train_status"] = "completed"
+        _train_summary = train_engine(
+            dataset_root=_ds_root,
+            output_base=str(protocol_dir.resolve()),
+            run_id=run_id,
+            overrides=ov,
+        )
+        result["train_status"] = _train_summary.get("status", "completed")
+        result["run_dir"] = str(_train_summary.get("run_dir", protocol_dir / run_id))
     except Exception as e:
         result["train_status"] = "failed"
         result["error"] = f"train: {e}\n{traceback.format_exc()}"
         print(f"❌ Training failed for regime '{regime_id}': {e}")
 
     result["cvae_time_s"] = round(time.time() - _cvae_t0, 2)
-    run_dir = protocol_dir / run_id
+    run_dir = Path(result["run_dir"] or (protocol_dir / run_id))
     result["run_dir"] = str(run_dir)
 
     # Read train state
@@ -1086,11 +1182,9 @@ def run_regime(
             os.environ["OUTPUT_BASE"] = str(protocol_dir.resolve())
             os.environ["RUN_ID"] = run_id
 
-            eval_ov = {}
-            for k in ("max_experiments", "max_samples_per_exp", "psd_nfft",
-                      "_selected_experiments", "_split_strategy"):
-                if k in ov:
-                    eval_ov[k] = ov[k]
+            # Evaluation consumes the same effective override dict used by
+            # baseline/training so no knob silently diverges.
+            eval_ov = dict(ov)
 
             from src.evaluation import analise_cvae_reviewed as eval_module
             print(f"\n📊 Evaluating regime '{regime_id}' → {run_dir}")
@@ -1479,7 +1573,7 @@ def main():
             r = run_regime(
                 regime=regime,
                 dataset_root=args.dataset_root,
-                base_overrides=base_overrides_dict,
+                base_overrides=base_overrides,
                 protocol_dir=regimes_dir,
                 run_cvae=run_cvae,
                 skip_eval=args.skip_eval,
@@ -1621,9 +1715,16 @@ def main():
 
     # ---- Write manifest ----
     ts_end = datetime.now()
-    _psd_nfft_eff = base_overrides.psd_nfft or 2048
-    _ga_eff = base_overrides.gauss_alpha or 0.01
-    _mds_eff = base_overrides.max_dist_samples or 200_000
+    _baseline_cfg = _effective_baseline_config(
+        base_overrides,
+        enabled=not args.no_baseline,
+        return_predictions=False,
+    )
+    _baseline_cfg.pop("return_predictions", None)
+    _dist_cfg = _effective_dist_metrics_config(
+        base_overrides,
+        enabled=not args.no_dist_metrics,
+    )
     manifest = {
         "protocol_version": protocol.get("protocol_version", "1.0"),
         "timestamp_start": ts_start.isoformat(timespec="seconds"),
@@ -1645,22 +1746,9 @@ def main():
             "dry_run": args.dry_run,
             "stat_tests": args.stat_tests,
         },
-        "baseline_config": {
-            "model": "deterministic_mlp",
-            "hidden": [128, 64],
-            "epochs": 50,
-            "loss": "mse",
-            "enabled": not args.no_baseline,
-        },
-        "cvae_config": {
-            "enabled": run_cvae,
-        },
-        "dist_metrics_config": {
-            "enabled": not args.no_dist_metrics,
-            "psd_nfft": _psd_nfft_eff,
-            "gauss_alpha": _ga_eff,
-            "max_dist_samples": _mds_eff,
-        },
+        "baseline_config": _baseline_cfg,
+        "cvae_config": _effective_cvae_config(base_overrides, enabled=run_cvae),
+        "dist_metrics_config": _dist_cfg,
         "stat_fidelity_config": {
             "enabled": args.stat_tests,
             "stat_mode": args.stat_mode,

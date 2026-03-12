@@ -245,7 +245,7 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
 
         return tf.keras.Model([x_in, d_in, c_in], y, name=("infer_det" if deterministic else "infer_mc"))
 
-    seed0 = int(state.get("training_config", {}).get("seed", 42))
+    seed0 = int(_ov.get("seed", state.get("training_config", {}).get("seed", 42)))
     np.random.seed(seed0)
     tf.random.set_seed(seed0)
 
@@ -468,14 +468,31 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
     snr_pred = calculate_snr(Xv, Yp)
 
     analysis_quick = state.get("analysis_quick", {}) if isinstance(state.get("analysis_quick", {}), dict) else {}
-    dist_on = bool(analysis_quick.get("dist_metrics", True))
+    dist_on = bool(analysis_quick.get("dist_metrics", True)) and not bool(_ov.get("no_dist_metrics", False))
     psd_nfft = int(analysis_quick.get("psd_nfft", 2048))
+    gauss_alpha = float(_ov.get("gauss_alpha", 0.01))
+    max_dist_samples = _ov.get("max_dist_samples")
     # --- Commit 3H: allow CLI override for psd_nfft ---
     if "psd_nfft" in _ov:
         psd_nfft = int(_ov["psd_nfft"])
 
     if dist_on:
-        distm = residual_distribution_metrics(X_dist, Y_dist, Yp_dist, psd_nfft=psd_nfft)
+        if max_dist_samples is not None:
+            _mds = max(1, min(int(max_dist_samples), len(X_dist)))
+            if _mds < len(X_dist):
+                _rng_dist = np.random.default_rng(seed0)
+                _idx_dist = np.sort(_rng_dist.choice(len(X_dist), size=_mds, replace=False))
+                X_dist = X_dist[_idx_dist]
+                Y_dist = Y_dist[_idx_dist]
+                Yp_dist = Yp_dist[_idx_dist]
+                print(f"✓ max_dist_samples aplicado na avaliação | N={_mds:,}")
+        distm = residual_distribution_metrics(
+            X_dist,
+            Y_dist,
+            Yp_dist,
+            psd_nfft=psd_nfft,
+            gauss_alpha=gauss_alpha,
+        )
     else:
         distm = {k: float("nan") for k in ["delta_mean_l2", "delta_cov_fro", "var_real_delta", "var_pred_delta",
                                            "delta_skew_l2", "delta_kurt_l2", "delta_psd_l2"]}

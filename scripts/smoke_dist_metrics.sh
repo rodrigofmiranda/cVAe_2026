@@ -3,7 +3,7 @@
 #
 # Runs the protocol runner with eval ON (fast: 1 epoch, 1 grid, 1 experiment,
 # 2000 samples) and verifies that:
-#   1) dist_metrics_source == "eval" in manifest for all regimes (Commit 3S)
+#   1) dist_metrics_source == "eval_reanalysis" in manifest for all regimes
 #   2) cvae_delta_mean_l2 is populated in the summary CSV
 #   3) delta_mean_l2 is populated (from eval or backfill)
 #   4) selected_experiments appears in the manifest per regime (Commit 3Q)
@@ -38,22 +38,22 @@ echo "Experiment dir: $EXP_DIR"
 
 FAIL=0
 
-# --- Check 1: dist_metrics_source == "eval" in manifest ---
+# --- Check 1: dist_metrics_source == "eval_reanalysis" in manifest ---
 echo ""
-echo "--- Check 1: dist_metrics_source == 'eval' for all regimes ---"
+echo "--- Check 1: dist_metrics_source == 'eval_reanalysis' for all regimes ---"
 N_EVAL=$(python -c "
 import json
 m = json.load(open('$EXP_DIR/manifest.json'))
 vals = [r.get('dist_metrics_source') for r in m['regimes']]
-print(sum(1 for v in vals if v == 'eval'))
+print(sum(1 for v in vals if v == 'eval_reanalysis'))
 ")
 N_REG=$(python -c "
 import json; m = json.load(open('$EXP_DIR/manifest.json')); print(len(m['regimes']))
 ")
 if [ "$N_EVAL" -eq "$N_REG" ]; then
-    echo "  ✓ All $N_REG regimes have dist_metrics_source='eval'"
+    echo "  ✓ All $N_REG regimes have dist_metrics_source='eval_reanalysis'"
 else
-    echo "  ✗ Only $N_EVAL / $N_REG regimes have 'eval' source"
+    echo "  ✗ Only $N_EVAL / $N_REG regimes have 'eval_reanalysis' source"
     python -c "
 import json; m = json.load(open('$EXP_DIR/manifest.json'))
 for r in m['regimes']:
