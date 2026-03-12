@@ -17,6 +17,7 @@ python -m src.protocol.run \
 python -m src.protocol.run \
     --dataset_root data/dataset_fullsquare_organized \
     --output_base  outputs \
+    --protocol configs/one_regime_1p0m_300mA.json \
     --max_epochs 2 --max_grids 1 --max_experiments 1
 
 # Dry-run (validate protocol, build model, no training)
@@ -188,6 +189,7 @@ CLI flags take precedence.
 | `--protocol_config PATH` | YAML protocol config (takes precedence over `--protocol`) |
 | `--max_epochs N` | Limit training epochs |
 | `--max_grids N` | Limit grid configurations per regime |
+| `--max_regimes N` | Limit regimes executed after protocol resolution |
 | `--grid_group REGEX` | Filter grids by group |
 | `--grid_tag REGEX` | Filter grids by tag |
 | `--max_experiments N` | Limit experiments loaded per regime |
@@ -198,6 +200,10 @@ CLI flags take precedence.
 | `--dist_tol_m F` | Distance tolerance for regime matching (default: 0.05 m) |
 | `--curr_tol_mA F` | Current tolerance for regime matching (default: 25 mA) |
 | `--no_baseline` | Skip deterministic baseline |
+| `--no_cvae` | Skip cVAE training/evaluation and keep only baseline outputs |
+| `--baseline_only` | Alias for `--no_cvae` |
 | `--no_dist_metrics` | Skip distribution-fidelity metrics |
 | `--skip_eval` | Run training only, skip evaluation |
 | `--dry_run` | Validate + build model, no training |
+| `--stat_tests` | Run MMD/Energy/PSD stat tests per regime |
+| `--stat_mode quick|full` | `quick` uses lighter defaults (`stat_max_n=5000`), `full` keeps `50000` |

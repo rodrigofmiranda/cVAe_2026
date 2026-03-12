@@ -153,7 +153,7 @@ python -m src.protocol.run \
 python -m src.protocol.run \
   --dataset_root data/dataset_fullsquare_organized \
   --output_base outputs \
-  --protocol path/to/one_regime.json \
+  --protocol configs/one_regime_1p0m_300mA.json \
   --max_epochs 30 --max_grids 1 --max_experiments 1 \
   --stat_tests --stat_mode full --stat_max_n 5000
 
@@ -180,18 +180,21 @@ bash scripts/eval.sh
 |------|---------|---------|
 | `--dataset_root` | *(required)* | Path to organized dataset |
 | `--output_base` | *(required)* | Root for run artifacts |
-| `--protocol` | `configs/protocol_default.json` | Protocol JSON defining regimes |
+| `--protocol` | auto-discover when omitted | Protocol JSON defining regimes |
 | `--max_epochs` | per-protocol | Maximum training epochs |
 | `--max_grids` | all | Limit grid-search configs to N |
+| `--max_regimes` | all | Limit executed regimes after protocol resolution |
 | `--max_experiments` | all | Limit experiments per regime |
 | `--max_samples_per_exp` | all | Cap samples per experiment |
 | `--skip_eval` | `false` | Train only, skip evaluation |
 | `--dry_run` | `false` | Validate + model summary, no training |
 | `--no_baseline` | `false` | Skip deterministic baseline |
+| `--no_cvae` | `false` | Skip cVAE training/evaluation and keep only baseline outputs |
+| `--baseline_only` | `false` | Alias for `--no_cvae` |
 | `--no_dist_metrics` | `false` | Skip distribution-fidelity metrics |
 | `--stat_tests` | `false` | Run MMD/Energy/PSD stat tests per regime |
 | `--stat_mode` | `quick` | `quick` (200 perms) or `full` (2000 perms) |
-| `--stat_max_n` | `50000` | Max samples for stat tests |
+| `--stat_max_n` | `5000` in `quick`, `50000` in `full` | Max samples for stat tests |
 | `--keras_verbose` | `2` | Keras fit verbosity (0/1/2) |
 
 ## Run artifacts

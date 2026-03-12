@@ -18,7 +18,7 @@ Usage
     python -m src.protocol.run \\
         --dataset_root data/dataset_fullsquare_organized \\
         --output_base  outputs \\
-        --protocol configs/protocol_default.json \\
+        --protocol configs/one_regime_1p0m_300mA.json \\
         --max_epochs 2 --max_grids 1 --max_experiments 1
 
     # Dry-run (no training, just validate the protocol):
@@ -42,6 +42,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from src.config.overrides import RunOverrides
+from src.config.runtime_env import ensure_writable_mpl_config_dir
 from src.training.logging import RunPaths
 
 
@@ -56,12 +57,14 @@ def parse_args():
     p.add_argument("--dataset_root", type=str, required=True)
     p.add_argument("--output_base", type=str, required=True)
     p.add_argument("--protocol", type=str, default=None,
-                   help="Path to protocol JSON (default: configs/protocol_default.json)")
+                   help="Path to protocol JSON (default: auto-discover when omitted)")
     p.add_argument("--protocol_config", type=str, default=None,
                    help="Path to protocol YAML config (takes precedence over --protocol)")
     # --- global overrides (applied to every regime; override protocol JSON) ---
     p.add_argument("--max_epochs", type=int, default=None)
     p.add_argument("--max_grids", type=int, default=None)
+    p.add_argument("--max_regimes", type=int, default=None,
+                   help="Limit the number of regimes executed after protocol resolution")
     p.add_argument("--grid_group", type=str, default=None)
     p.add_argument("--grid_tag", type=str, default=None)
     p.add_argument("--max_experiments", type=int, default=None)
@@ -81,6 +84,10 @@ def parse_args():
                    help="Current tolerance in mA for regime experiment filtering (default: 25)")
     p.add_argument("--no_baseline", action="store_true",
                    help="Skip deterministic baseline (default: run baseline before cVAE)")
+    p.add_argument("--no_cvae", action="store_true",
+                   help="Skip cVAE training/evaluation and run only the baseline path")
+    p.add_argument("--baseline_only", action="store_true",
+                   help="Alias for --no_cvae")
     p.add_argument("--no_dist_metrics", action="store_true",
                    help="Skip distribution-fidelity metrics (moments, PSD, Gaussianity)")
     p.add_argument("--skip_eval", action="store_true",
@@ -96,8 +103,8 @@ def parse_args():
                    help="Explicit number of permutations (overrides --stat_mode default)")
     p.add_argument("--stat_seed", type=int, default=42,
                    help="RNG seed for stat tests (default: 42)")
-    p.add_argument("--stat_max_n", type=int, default=50_000,
-                   help="Max validation samples for stat tests (default: 50000)")
+    p.add_argument("--stat_max_n", type=int, default=None,
+                   help="Max validation samples for stat tests (default: 5000 in quick, 50000 in full)")
     return p.parse_args()
 
 
@@ -194,7 +201,7 @@ def _build_discovered_protocol(dataset_root: str) -> dict:
 
 
 def _load_protocol(path: Optional[str]) -> dict:
-    """Load protocol JSON, falling back to the default bundled config."""
+    """Load protocol JSON, falling back to the bundled default when requested."""
     if path is None:
         # try repo-relative default
         candidates = [
@@ -224,6 +231,51 @@ def _load_protocol(path: Optional[str]) -> dict:
         "Protocol JSON must contain a non-empty 'regimes' list "
         "or a non-empty 'studies' list."
     )
+
+
+def _limit_protocol_regimes(protocol: dict, max_regimes: Optional[int]) -> dict:
+    """Return a copy of *protocol* restricted to the first *max_regimes* regimes."""
+    if max_regimes is None:
+        return protocol
+
+    n_keep = int(max_regimes)
+    if n_keep <= 0:
+        raise ValueError("--max_regimes must be > 0")
+
+    regimes = list(protocol.get("regimes", []))
+    if len(regimes) <= n_keep:
+        return protocol
+
+    kept_regimes = regimes[:n_keep]
+    kept_ids = {r["regime_id"] for r in kept_regimes}
+
+    limited = dict(protocol)
+    limited["regimes"] = kept_regimes
+
+    studies = []
+    for study in protocol.get("_studies", []):
+        study_ids = [rid for rid in study.get("regime_ids", []) if rid in kept_ids]
+        if study_ids:
+            study_copy = dict(study)
+            study_copy["regime_ids"] = study_ids
+            studies.append(study_copy)
+    limited["_studies"] = studies
+    return limited
+
+
+def _should_run_cvae(*, no_cvae: bool = False, baseline_only: bool = False) -> bool:
+    """Return ``True`` when the cVAE path should execute for a regime."""
+    return not (bool(no_cvae) or bool(baseline_only))
+
+
+def _effective_stat_max_n(stat_mode: str, stat_max_n: Optional[int]) -> int:
+    """Resolve the effective sample cap for statistical fidelity tests."""
+    if stat_max_n is not None:
+        n_eff = int(stat_max_n)
+        if n_eff <= 0:
+            raise ValueError("--stat_max_n must be > 0")
+        return n_eff
+    return 5_000 if str(stat_mode).strip().lower() == "quick" else 50_000
 
 
 def _parse_regime_id_physical(rid: str) -> Tuple[float, float]:
@@ -761,6 +813,7 @@ def run_regime(
     dataset_root: str,
     base_overrides: dict,
     protocol_dir: Path,
+    run_cvae: bool = True,
     skip_eval: bool = False,
     run_baseline: bool = True,
     run_dist_metrics: bool = True,
@@ -974,6 +1027,16 @@ def run_regime(
     # Free training arrays (val data kept for cVAE dist metrics)
     _X_tr = _Y_tr = None  # Commit 3P: explicit None for safety
     import gc; gc.collect()
+
+    if not run_cvae:
+        result["train_status"] = "not_requested"
+        result["eval_status"] = "not_requested"
+        run_dir = protocol_dir / run_id
+        result["run_dir"] = str(run_dir)
+        print(f"⏭️  Skipping cVAE path for regime '{regime_id}' (--no_cvae/--baseline_only)")
+        _val_data = None
+        gc.collect()
+        return result
 
     # ---- TRAINING ----
     print(f"\n{'='*70}")
@@ -1328,6 +1391,7 @@ def build_summary_table(results: List[dict]) -> "pd.DataFrame":
 # ---------------------------------------------------------------------------
 
 def main():
+    ensure_writable_mpl_config_dir()
     args = parse_args()
     ts_start = datetime.now()
     ts_label = ts_start.strftime("%Y%m%d_%H%M%S")
@@ -1348,8 +1412,14 @@ def main():
         # No config given → auto-discover regimes from dataset layout
         protocol = _build_discovered_protocol(args.dataset_root)
         print("📄 No --protocol / --protocol_config given — using auto-discovery")
+    protocol = _limit_protocol_regimes(protocol, args.max_regimes)
     proto_globals = protocol.get("global_settings", {})
     regimes = protocol["regimes"]
+    run_cvae = _should_run_cvae(
+        no_cvae=args.no_cvae,
+        baseline_only=args.baseline_only,
+    )
+    args.stat_max_n = _effective_stat_max_n(args.stat_mode, args.stat_max_n)
 
     # Merge protocol globals + CLI overrides → typed RunOverrides
     base_overrides = _merge_overrides(proto_globals, args)
@@ -1359,6 +1429,11 @@ def main():
     if args.dry_run and args.stat_tests:
         print("⚠️  --stat_tests requires a trained model for Y_pred — "
               "incompatible with --dry_run.  Disabling --stat_tests.")
+        args.stat_tests = False
+    if not run_cvae and args.skip_eval:
+        print("⚠️  --skip_eval is redundant with --no_cvae/--baseline_only.")
+    if not run_cvae and args.stat_tests:
+        print("⚠️  --stat_tests requires cVAE predictions — disabling because --no_cvae/--baseline_only was set.")
         args.stat_tests = False
 
     # Experiment output directory (single folder per protocol run)
@@ -1406,6 +1481,7 @@ def main():
                 dataset_root=args.dataset_root,
                 base_overrides=base_overrides_dict,
                 protocol_dir=regimes_dir,
+                run_cvae=run_cvae,
                 skip_eval=args.skip_eval,
                 run_baseline=not args.no_baseline,
                 run_dist_metrics=not args.no_dist_metrics,
@@ -1560,8 +1636,11 @@ def main():
             "output_base": args.output_base,
             "protocol": args.protocol,
             "protocol_config": _proto_config_path,
+            "max_regimes": args.max_regimes,
             "skip_eval": args.skip_eval,
             "no_baseline": args.no_baseline,
+            "no_cvae": args.no_cvae,
+            "baseline_only": args.baseline_only,
             "no_dist_metrics": args.no_dist_metrics,
             "dry_run": args.dry_run,
             "stat_tests": args.stat_tests,
@@ -1572,6 +1651,9 @@ def main():
             "epochs": 50,
             "loss": "mse",
             "enabled": not args.no_baseline,
+        },
+        "cvae_config": {
+            "enabled": run_cvae,
         },
         "dist_metrics_config": {
             "enabled": not args.no_dist_metrics,

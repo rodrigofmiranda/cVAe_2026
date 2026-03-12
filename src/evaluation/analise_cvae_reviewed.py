@@ -24,6 +24,7 @@ import pandas as pd
 import tensorflow as tf
 from tensorflow.keras import layers
 import matplotlib.pyplot as plt
+from src.config.runtime_env import ensure_writable_mpl_config_dir
 from src.config.defaults import (
     DECODER_LOGVAR_CLAMP_HI,
     DECODER_LOGVAR_CLAMP_LO,
@@ -57,6 +58,7 @@ from src.evaluation.report import (                      # refactor(step4)
 
 
 def main(overrides=None):  # Commit 3H: optional CLI overrides dict
+    ensure_writable_mpl_config_dir()
     _ov = overrides or {}
 
     # ==========================================================
