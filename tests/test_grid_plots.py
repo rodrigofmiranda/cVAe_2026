@@ -9,6 +9,7 @@ import pytest
 from src.training.grid_plots import (
     generate_gridsearch_overview_plots,
     save_candidate_plot_bundle,
+    save_legacy_champion_plots,
 )
 
 
@@ -107,5 +108,37 @@ def test_generate_gridsearch_overview_plots_creates_all(out_dir):
         "scatter_cov_vs_kurt.png",
         "scatter_delta_evm_vs_delta_snr.png",
         "scatter_score_vs_active_dims.png",
+    } == {p.name for p in paths}
+    assert all(p.exists() and p.stat().st_size > 500 for p in paths)
+
+
+def test_save_legacy_champion_plots_creates_old_style_files(out_dir):
+    n = 1024
+    rng = np.random.default_rng(1)
+    Xv = rng.normal(size=(n, 2)).astype(np.float32)
+    Yv = Xv + 0.08 * rng.normal(size=(n, 2)).astype(np.float32)
+    Yp = Xv + 0.09 * rng.normal(size=(n, 2)).astype(np.float32)
+    mu_p = 0.05 * rng.normal(size=(n, 4)).astype(np.float32)
+    std_mu_p = np.abs(rng.normal(size=4)).astype(np.float32)
+    kl_dim_mean = np.abs(rng.normal(size=4)).astype(np.float32)
+
+    paths = save_legacy_champion_plots(
+        plots_dir=out_dir,
+        Xv=Xv,
+        Yv=Yv,
+        Yp=Yp,
+        mu_p=mu_p,
+        std_mu_p=std_mu_p,
+        kl_dim_mean=kl_dim_mean,
+        summary_lines=["Champion summary", "score_v2: 1.23"],
+        model_label="Champion",
+    )
+
+    assert len(paths) == 4
+    assert {
+        "analise_completa_vae.png",
+        "comparacao_metricas_principais.png",
+        "constellation_overlay.png",
+        "radar_comparativo.png",
     } == {p.name for p in paths}
     assert all(p.exists() and p.stat().st_size > 500 for p in paths)

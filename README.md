@@ -280,6 +280,9 @@ outputs/exp_YYYYMMDD_HHMMSS/
 - Each tested grid model now gets its own plot bundle under `models/grid_*/plots/`.
 - The provisional champion is mirrored to `plots/best_grid_model/`.
 - Aggregate ranking views across all tested models are written to `plots/gridsearch/`.
+- The champion also gets a legacy-style executive set matching the old run layout:
+  `analise_completa_vae.png`, `comparacao_metricas_principais.png`,
+  `radar_comparativo.png`, and `constellation_overlay.png`.
 
 ### Latent diagnostics
 - Active dimensions, KL per dimension, decoder sensitivity to $z$.

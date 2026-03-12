@@ -319,6 +319,7 @@ def run_gridsearch(
     from src.training.grid_plots import (
         generate_gridsearch_overview_plots,
         save_candidate_plot_bundle,
+        save_legacy_champion_plots,
     )
 
     _ov = overrides or {}
@@ -624,9 +625,22 @@ def run_gridsearch(
                     psd_nfft=psd_nfft,
                     title_prefix=f"Best grid candidate | {tag}",
                 )
+                legacy_paths = save_legacy_champion_plots(
+                    plots_dir=best_grid_plots_dir,
+                    Xv=Xv,
+                    Yv=Yv,
+                    Yp=Yp,
+                    mu_p=mu_p,
+                    std_mu_p=std_mu_p,
+                    kl_dim_mean=kl_dim_mean,
+                    summary_lines=summary_lines + [
+                        f"ranking criterion: provisional best score_v2={score_v2:.4f}",
+                    ],
+                    model_label="Champion",
+                )
                 print(
                     f"✓ Best-grid plot bundle salvo: {best_grid_plots_dir} "
-                    f"({len(best_extra_paths)} plots + report)"
+                    f"({len(best_extra_paths) + len(legacy_paths)} plots + report)"
                 )
 
         except Exception as e:
