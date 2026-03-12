@@ -10,6 +10,7 @@ Use these documents in this order:
 
 - [PROJECT_STATUS.md](/workspace/2026/PROJECT_STATUS.md) — current architecture and repo state
 - [TRAINING_PLAN.md](/workspace/2026/TRAINING_PLAN.md) — active scientific plan and gates
+- [docs/DIAGNOSTIC_CHECKLIST.md](/workspace/2026/docs/DIAGNOSTIC_CHECKLIST.md) — executable diagnostic workflow
 - [docs/PROTOCOL.md](/workspace/2026/docs/PROTOCOL.md) — protocol runner, artifacts, CLI
 - [docs/MODELING_ASSUMPTIONS.md](/workspace/2026/docs/MODELING_ASSUMPTIONS.md) — modeling rationale
 
@@ -86,6 +87,7 @@ data/                         Dataset (Git LFS)
     dist_*/curr_*/IQ_data/
 docker/                       Dockerfile + container configs
 docs/
+  DIAGNOSTIC_CHECKLIST.md    Executable diagnosis workflow
   MODELING_ASSUMPTIONS.md     Core modeling decisions
   PROTOCOL.md                 Protocol runner reference
   SESSION_STATE.md            Session/run state schema
