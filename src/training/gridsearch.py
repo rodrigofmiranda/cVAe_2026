@@ -342,6 +342,9 @@ def run_gridsearch(
 
             if rank_mode == "det" or K <= 1:
                 Yp = Yp_det
+                Yp_dist = Yp
+                X_dist = Xv
+                Y_dist = Yv
                 var_mc = float("nan")
             else:
                 inf_sto = create_inference_model_from_full(vae, deterministic=False)
@@ -353,7 +356,12 @@ def run_gridsearch(
                         verbose=0,
                     ))
                 Ys = np.stack(Ys, axis=0)
+                # Point metrics (EVM/SNR) stay on MC mean.
                 Yp = Ys.mean(axis=0)
+                # Distribution metrics must use MC concatenation (marginal predictive sample).
+                Yp_dist = Ys.reshape((-1, Ys.shape[-1]))
+                X_dist = np.tile(Xv, (K, 1))
+                Y_dist = np.tile(Yv, (K, 1))
                 var_mc = float(np.mean(np.var(Ys, axis=0)))
 
             evm_real, _ = calculate_evm(Xv, Yv)
@@ -382,7 +390,7 @@ def run_gridsearch(
             w_kurt = float(analysis_quick.get("w_kurt", 0.05))
 
             if dist_cfg_on:
-                distm = residual_distribution_metrics(Xv, Yv, Yp, psd_nfft=psd_nfft)
+                distm = residual_distribution_metrics(X_dist, Y_dist, Yp_dist, psd_nfft=psd_nfft)
                 mean_l2 = float(distm["delta_mean_l2"])
                 cov_fro = float(distm["delta_cov_fro"])
                 var_real = float(distm["var_real_delta"])
@@ -391,8 +399,8 @@ def run_gridsearch(
                 kurt_l2 = float(distm["delta_kurt_l2"])
                 psd_l2 = float(distm["delta_psd_l2"])
             else:
-                d_real = (Yv - Xv)
-                d_pred = (Yp - Xv)
+                d_real = (Y_dist - X_dist)
+                d_pred = (Yp_dist - X_dist)
                 var_real = float(np.mean(np.var(d_real, axis=0)))
                 var_pred = float(np.mean(np.var(d_pred, axis=0)))
                 mean_l2 = float(np.linalg.norm(np.mean(d_pred, 0) - np.mean(d_real, 0)))

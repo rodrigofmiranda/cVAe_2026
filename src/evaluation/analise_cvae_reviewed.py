@@ -436,9 +436,12 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         N = min(N_eval, len(X_val))
         Xv, Yv, Dv, Cv = X_val[:N], Y_val[:N], Dn_val[:N], Cn_val[:N]
 
-    # Inferência: determinística (média) ou MC
+    # Inferência: pontual (EVM/SNR/plots) + distribuição (MC concat para Nível 2)
     if det_inf or mc_samples <= 1 or rank_mode == "det":
         Yp = inference_model.predict([Xv, Dv, Cv], batch_size=bs_inf, verbose=0)
+        Yp_dist = Yp
+        X_dist = Xv
+        Y_dist = Yv
         var_mc = float("nan")
     else:
         inf_sto = create_inference_model_from_full(prior, decoder, deterministic=False)
@@ -446,7 +449,12 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         for _ in range(int(mc_samples)):
             Ys.append(inf_sto.predict([Xv, Dv, Cv], batch_size=bs_inf, verbose=0))
         Ys = np.stack(Ys, axis=0)
+        # Point metrics remain on MC mean.
         Yp = Ys.mean(axis=0)
+        # Distribution metrics use marginal predictive samples (concatenated MC).
+        Yp_dist = Ys.reshape((-1, Ys.shape[-1]))
+        X_dist = np.tile(Xv, (int(mc_samples), 1))
+        Y_dist = np.tile(Yv, (int(mc_samples), 1))
         var_mc = float(np.mean(np.var(Ys, axis=0)))
 
     # ==========================================================
@@ -465,7 +473,7 @@ def main(overrides=None):  # Commit 3H: optional CLI overrides dict
         psd_nfft = int(_ov["psd_nfft"])
 
     if dist_on:
-        distm = residual_distribution_metrics(Xv, Yv, Yp, psd_nfft=psd_nfft)
+        distm = residual_distribution_metrics(X_dist, Y_dist, Yp_dist, psd_nfft=psd_nfft)
     else:
         distm = {k: float("nan") for k in ["delta_mean_l2", "delta_cov_fro", "var_real_delta", "var_pred_delta",
                                            "delta_skew_l2", "delta_kurt_l2", "delta_psd_l2"]}
