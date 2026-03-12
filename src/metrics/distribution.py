@@ -216,5 +216,17 @@ def residual_fidelity_metrics(
     result = {}
     result.update(moment_deltas(rr, rp))
     result.update(psd_distance(rr, rp, nfft=psd_nfft))
+    g_real = gaussianity_tests(rr, alpha=gauss_alpha)
+    result.update({
+        "jb_real_stat_I": g_real["jb_stat_I"],
+        "jb_real_stat_Q": g_real["jb_stat_Q"],
+        "jb_real_p_I": g_real["jb_p_I"],
+        "jb_real_p_Q": g_real["jb_p_Q"],
+        "jb_real_p_min": g_real["jb_p_min"],
+        "jb_real_log10p_I": g_real["jb_log10p_I"],
+        "jb_real_log10p_Q": g_real["jb_log10p_Q"],
+        "jb_real_log10p_min": g_real["jb_log10p_min"],
+        "jb_real_reject_gaussian": g_real["reject_gaussian"],
+    })
     result.update(gaussianity_tests(rp, alpha=gauss_alpha))
     return result

@@ -148,7 +148,21 @@ def main() -> None:
     if shuffle_ok is not True:
         errors.append("Fix2: shuffle_train_batches is not True in the available run metadata")
 
-    if sf_path.exists():
+    if summary_path.exists():
+        df = pd.read_csv(summary_path)
+        if "stat_mmd2_normalized" in df.columns:
+            stat_sub = df[df["stat_mmd2"].notna()] if "stat_mmd2" in df.columns else df.iloc[0:0]
+            n_nan = int(stat_sub["stat_mmd2_normalized"].isna().sum()) if len(stat_sub) else 0
+            status = "OK" if len(stat_sub) == 0 or n_nan < len(stat_sub) else "FAIL"
+            print(
+                f"Fix 9 - stat_mmd2_normalized: present in summary, "
+                f"NaNs={n_nan}/{len(stat_sub)} [{status}]"
+            )
+            if len(stat_sub) > 0 and n_nan == len(stat_sub):
+                errors.append("Fix9: stat_mmd2_normalized is all-NaN in summary_by_regime.csv")
+        else:
+            errors.append("Fix9: stat_mmd2_normalized column missing in summary_by_regime.csv")
+    elif sf_path.exists():
         sf = pd.read_csv(sf_path)
         if "mmd2_normalized" in sf.columns:
             n_nan = int(sf["mmd2_normalized"].isna().sum())
@@ -159,7 +173,7 @@ def main() -> None:
         else:
             errors.append("Fix9: mmd2_normalized column missing in stat_fidelity_by_regime.csv")
     else:
-        print("WARN: stat_fidelity_by_regime.csv missing (run without --stat_tests?)")
+        print("WARN: no summary/stat table found for Fix 9 (run without --stat_tests?)")
 
     _print_fix7_sources(manifest, errors)
 

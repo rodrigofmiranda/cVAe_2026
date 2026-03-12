@@ -126,6 +126,7 @@ def residual_distribution_metrics(
     try:
         from src.metrics.distribution import gaussianity_tests
 
+        g_real = gaussianity_tests(d_real, alpha=float(gauss_alpha))
         g = gaussianity_tests(d_pred, alpha=float(gauss_alpha))
         out.update({
             "jb_stat_I": float(g.get("jb_stat_I")),
@@ -137,6 +138,15 @@ def residual_distribution_metrics(
             "jb_log10p_Q": float(g.get("jb_log10p_Q")),
             "jb_log10p_min": float(g.get("jb_log10p_min")),
             "reject_gaussian": bool(g.get("reject_gaussian", False)),
+            "jb_real_stat_I": float(g_real.get("jb_stat_I")),
+            "jb_real_stat_Q": float(g_real.get("jb_stat_Q")),
+            "jb_real_p_I": float(g_real.get("jb_p_I")),
+            "jb_real_p_Q": float(g_real.get("jb_p_Q")),
+            "jb_real_p_min": float(g_real.get("jb_p_min")),
+            "jb_real_log10p_I": float(g_real.get("jb_log10p_I")),
+            "jb_real_log10p_Q": float(g_real.get("jb_log10p_Q")),
+            "jb_real_log10p_min": float(g_real.get("jb_log10p_min")),
+            "jb_real_reject_gaussian": bool(g_real.get("reject_gaussian", False)),
         })
     except Exception:
         # Evaluation should stay robust even if optional JB computation fails.
@@ -150,5 +160,14 @@ def residual_distribution_metrics(
             "jb_log10p_Q": float("nan"),
             "jb_log10p_min": float("nan"),
             "reject_gaussian": False,
+            "jb_real_stat_I": float("nan"),
+            "jb_real_stat_Q": float("nan"),
+            "jb_real_p_I": float("nan"),
+            "jb_real_p_Q": float("nan"),
+            "jb_real_p_min": float("nan"),
+            "jb_real_log10p_I": float("nan"),
+            "jb_real_log10p_Q": float("nan"),
+            "jb_real_log10p_min": float("nan"),
+            "jb_real_reject_gaussian": False,
         })
     return out

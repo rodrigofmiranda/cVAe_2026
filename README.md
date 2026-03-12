@@ -229,8 +229,8 @@ Each run produces:
 outputs/exp_YYYYMMDD_HHMMSS/
   manifest.json                 Full run manifest (config, acceptance, timing)
   tables/
-    summary_by_regime.csv       All metrics for every regime (one row each)
-    stat_fidelity_by_regime.*   FDR-corrected stat test results (csv + xlsx)
+    summary_by_regime.csv       Canonical per-regime validation table (source of truth)
+    stat_fidelity_by_regime.*   Derived stat-test projection (csv + xlsx)
   plots/
     stat_tests/                 Heatmaps + scatter plots (MMD, q-val, PSD)
   studies/
@@ -267,6 +267,11 @@ outputs/exp_YYYYMMDD_HHMMSS/
 - **FDR correction** (Benjamini–Hochberg) across all regimes → q-values.
 - **Acceptance verdict**: PASS / PARTIAL / FAIL based on q-values and PSD
   ratio relative to baseline.
+
+### Canonical summary fields
+- `summary_by_regime.csv` is the primary table consumed by validation scripts and thesis analysis.
+- It includes physical fidelity, residual-distribution metrics, baseline vs cVAE comparisons, and the formal `stat_*` test outputs in one row per regime.
+- Derived columns include `var_ratio_pred_real`, `better_than_baseline_*`, `gate_g1`…`gate_g6`, and `validation_status`.
 
 ### Latent diagnostics
 - Active dimensions, KL per dimension, decoder sensitivity to $z$.

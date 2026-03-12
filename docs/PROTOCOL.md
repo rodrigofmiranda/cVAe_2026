@@ -170,12 +170,13 @@ outputs/exp_YYYYMMDD_HHMMSS/
 | `best_grid_tag` | Best grid configuration tag (from training) |
 | `evm_real_%`, `evm_pred_%`, `delta_evm_%` | EVM metrics |
 | `snr_real_db`, `snr_pred_db`, `delta_snr_db` | SNR metrics |
-| `delta_mean_l2`, `delta_cov_fro` | Residual distribution metrics |
-| `delta_skew_l2`, `delta_kurt_l2`, `delta_psd_l2` | Higher-order stats |
-| `kl_q_to_p_total`, `kl_p_to_N_total` | Latent KL diagnostics |
-| `baseline_evm_pred_%`, `baseline_snr_pred_db` | Baseline signal-quality |
-| `baseline_delta_mean_l2` | Baseline distribution-fidelity |
-| `cvae_delta_mean_l2`, `cvae_psd_l2` | cVAE distribution-fidelity |
+| `delta_mean_l2`, `delta_cov_fro`, `var_real_delta`, `var_pred_delta`, `var_ratio_pred_real` | Residual distribution metrics |
+| `delta_skew_l2`, `delta_kurt_l2`, `delta_psd_l2`, `jb_p_min`, `jb_log10p_min` | Higher-order stats + gaussianity |
+| `baseline_*`, `cvae_*` | Side-by-side baseline vs cVAE validation metrics |
+| `stat_mmd2`, `stat_mmd_pval`, `stat_mmd_qval`, `stat_mmd2_normalized` | Formal two-sample MMD outputs |
+| `stat_energy`, `stat_energy_pval`, `stat_energy_qval` | Formal Energy test outputs |
+| `stat_psd_dist`, `stat_psd_ci_low`, `stat_psd_ci_high` | Spectral fidelity outputs |
+| `better_than_baseline_*`, `gate_g1`…`gate_g6`, `validation_status` | Derived acceptance helpers |
 | `n_experiments_selected` | How many experiments matched this regime |
 
 ## CLI flags

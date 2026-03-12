@@ -43,6 +43,11 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
 from src.config.overrides import RunOverrides
 from src.config.runtime_env import ensure_writable_mpl_config_dir
+from src.evaluation.validation_summary import (
+    build_stat_acceptance_summary,
+    build_stat_fidelity_table,
+    build_validation_summary_table,
+)
 from src.training.logging import RunPaths
 
 
@@ -697,8 +702,15 @@ def _extract_cvae_dist_from_eval_metrics(metrics: dict) -> dict:
         "jb_log10p_I": _f(metrics.get("jb_log10p_I")),
         "jb_log10p_Q": _f(metrics.get("jb_log10p_Q")),
         "jb_log10p_min": _f(metrics.get("jb_log10p_min")),
+        "jb_real_p_min": _f(metrics.get("jb_real_p_min")),
+        "jb_real_log10p_min": _f(metrics.get("jb_real_log10p_min")),
         "reject_gaussian": (bool(metrics.get("reject_gaussian"))
                             if metrics.get("reject_gaussian") is not None else None),
+        "jb_real_reject_gaussian": (
+            bool(metrics.get("jb_real_reject_gaussian"))
+            if metrics.get("jb_real_reject_gaussian") is not None
+            else None
+        ),
     }
     # Require at least one core distance metric to consider mapping valid.
     _core = ("delta_mean_l2", "delta_cov_fro", "delta_skew_l2", "delta_kurt_l2", "psd_l2")
@@ -1377,108 +1389,8 @@ def run_regime(
 
 
 def build_summary_table(results: List[dict]) -> "pd.DataFrame":
-    """Consolidate per-regime results into a summary DataFrame."""
-    import pandas as pd
-
-    rows = []
-    for r in results:
-        m = r.get("metrics", {})
-        bl = r.get("baseline", {})
-        bd = r.get("baseline_dist", {})
-        cd = r.get("cvae_dist", {})
-        sf = r.get("stat_fidelity", {})
-        row = {
-            "study": r.get("_study", "within_regime"),
-            "regime_id": r["regime_id"],
-            "regime_label": r.get("regime_label", ""),
-            "description": r.get("description", ""),
-            "run_id": r["run_id"],
-            "run_dir": r.get("run_dir", ""),
-            "train_status": r["train_status"],
-            "eval_status": r["eval_status"],
-            "best_grid_tag": r.get("best_grid_tag", ""),
-            "evm_real_%": m.get("evm_real_%"),
-            "evm_pred_%": m.get("evm_pred_%"),
-            "delta_evm_%": m.get("delta_evm_%"),
-            "snr_real_db": m.get("snr_real_db"),
-            "snr_pred_db": m.get("snr_pred_db"),
-            "delta_snr_db": m.get("delta_snr_db"),
-            "delta_mean_l2": m.get("delta_mean_l2"),
-            "delta_cov_fro": m.get("delta_cov_fro"),
-            # Prefer eval metrics JSON; fallback to top-level keys when available.
-            "var_real_delta": m.get("var_real_delta", r.get("var_real_delta")),
-            "var_pred_delta": m.get("var_pred_delta", r.get("var_pred_delta")),
-            "delta_skew_l2": m.get("delta_skew_l2"),
-            "delta_kurt_l2": m.get("delta_kurt_l2"),
-            "delta_psd_l2": m.get("delta_psd_l2"),
-            "kl_q_to_p_total": None,
-            "kl_p_to_N_total": None,
-            "var_mc_gen": m.get("var_mc_gen"),
-            # Commit 3N: baseline signal-quality
-            "baseline_evm_pred_%": bl.get("evm_pred_%"),
-            "baseline_snr_pred_db": bl.get("snr_pred_db"),
-            "baseline_delta_evm_%": bl.get("delta_evm_%"),
-            "baseline_delta_snr_db": bl.get("delta_snr_db"),
-            "baseline_time_s": r.get("baseline_time_s", 0.0),
-            "cvae_time_s": r.get("cvae_time_s", 0.0),
-            # Commit 3O: distribution-fidelity — baseline
-            "baseline_delta_mean_l2": bd.get("delta_mean_l2"),
-            "baseline_delta_cov_fro": bd.get("delta_cov_fro"),
-            "baseline_delta_skew_l2": bd.get("delta_skew_l2"),
-            "baseline_delta_kurt_l2": bd.get("delta_kurt_l2"),
-            "baseline_psd_l2": bd.get("psd_l2"),
-            "baseline_jb_p_min": bd.get("jb_p_min"),
-            "baseline_jb_log10p_min": bd.get("jb_log10p_min"),
-            "baseline_reject_gauss": bd.get("reject_gaussian"),
-            # Commit 3O: distribution-fidelity — cVAE
-            "cvae_delta_mean_l2": cd.get("delta_mean_l2"),
-            "cvae_delta_cov_fro": cd.get("delta_cov_fro"),
-            "cvae_delta_skew_l2": cd.get("delta_skew_l2"),
-            "cvae_delta_kurt_l2": cd.get("delta_kurt_l2"),
-            "cvae_psd_l2": cd.get("psd_l2"),
-            "cvae_jb_p_min": cd.get("jb_p_min"),
-            "cvae_jb_log10p_min": cd.get("jb_log10p_min"),
-            "cvae_reject_gauss": cd.get("reject_gaussian"),
-            "dist_metrics_source": r.get("dist_metrics_source"),
-            # Commit 3Q: regime-aware experiment selection
-            "n_experiments_selected": len(r.get("selected_experiments", [])),
-            "dist_target_m": r.get("selection_criteria", {}).get("distance_m"),
-            "curr_target_mA": r.get("selection_criteria", {}).get("current_mA"),
-            # Etapa A2: statistical fidelity tests
-            "stat_mmd2": sf.get("mmd2"),
-            "stat_mmd_pval": sf.get("mmd_pval"),
-            "stat_energy": sf.get("energy"),
-            "stat_energy_pval": sf.get("energy_pval"),
-            "stat_psd_dist": sf.get("psd_dist"),
-            "stat_psd_ci_low": sf.get("psd_ci_low"),
-            "stat_psd_ci_high": sf.get("psd_ci_high"),
-            "stat_n_samples": sf.get("n_samples"),
-            "stat_mode": sf.get("stat_mode"),
-        }
-
-        # Commit 3P: backfill legacy delta_* columns from cvae_dist when eval
-        # was skipped (backward compatibility)
-        if row["delta_mean_l2"] is None and cd.get("delta_mean_l2") is not None:
-            row["delta_mean_l2"] = cd["delta_mean_l2"]
-            row["delta_cov_fro"] = cd.get("delta_cov_fro")
-            row["delta_skew_l2"] = cd.get("delta_skew_l2")
-            row["delta_kurt_l2"] = cd.get("delta_kurt_l2")
-            row["delta_psd_l2"] = cd.get("psd_l2")
-
-        # Try to enrich with latent summary from eval run
-        run_dir = Path(r.get("run_dir", ""))
-        lat_path = run_dir / "logs" / "latent_summary.json"
-        if lat_path.exists():
-            try:
-                lat = json.loads(lat_path.read_text(encoding="utf-8"))
-                row["kl_q_to_p_total"] = lat.get("kl_q_to_p_total_mean")
-                row["kl_p_to_N_total"] = lat.get("kl_p_to_N_total_mean")
-            except Exception:
-                pass
-
-        rows.append(row)
-
-    return pd.DataFrame(rows)
+    """Compatibility wrapper around the canonical validation-summary builder."""
+    return build_validation_summary_table(results)
 
 
 # ---------------------------------------------------------------------------
@@ -1589,67 +1501,20 @@ def main():
             r["_study"] = sname
             results.append(r)
 
-    # ---- Build summary table ----
-    import pandas as pd
     df_summary = build_summary_table(results)
 
     summary_csv = exp_paths.write_table("tables/summary_by_regime.csv", df_summary)
     exp_paths.write_table("tables/summary_by_regime.xlsx", df_summary)
     print(f"\n📊 Summary table: {summary_csv}")
 
-    # ---- Etapa A2: Global FDR-corrected stat fidelity table ----
+    # ---- Etapa A2: Stat fidelity projection (derived from canonical summary) ----
     if args.stat_tests:
         try:
-            from src.evaluation.stat_tests import benjamini_hochberg
-            import numpy as _np_fdr
-
-            sf_rows = []
-            for r in results:
-                sf = r.get("stat_fidelity", {})
-                if sf and "error" not in sf and sf.get("mmd_pval") is not None:
-                    sf_rows.append({
-                        "study": r.get("_study", "within_regime"),
-                        "regime_id": r["regime_id"],
-                        "regime_label": r.get("regime_label", ""),
-                        "mmd2": sf["mmd2"],
-                        "mmd_pval": sf["mmd_pval"],
-                        "mmd_bandwidth": sf.get("mmd_bandwidth"),
-                        "energy": sf["energy"],
-                        "energy_pval": sf["energy_pval"],
-                        "psd_dist": sf["psd_dist"],
-                        "psd_ci_low": sf["psd_ci_low"],
-                        "psd_ci_high": sf["psd_ci_high"],
-                        "n_samples": sf["n_samples"],
-                        "n_perm": sf["n_perm"],
-                        "stat_mode": sf["stat_mode"],
-                    })
-
-            if sf_rows:
-                df_sf = pd.DataFrame(sf_rows)
-                # Collect all p-values for FDR (MMD + Energy = 2 per regime)
-                pvals_mmd = df_sf["mmd_pval"].values
-                pvals_energy = df_sf["energy_pval"].values
-                all_pvals = _np_fdr.concatenate([pvals_mmd, pvals_energy])
-                all_qvals = benjamini_hochberg(all_pvals)
-                n_reg = len(pvals_mmd)
-                df_sf["mmd_qval"] = all_qvals[:n_reg]
-                df_sf["energy_qval"] = all_qvals[n_reg:]
-
-                # Add mmd2_normalized = mmd2 / var_real_delta (dimensionless).
-                if "regime_id" in df_summary.columns and "var_real_delta" in df_summary.columns:
-                    _var_map = df_summary[["regime_id", "var_real_delta"]].drop_duplicates("regime_id")
-                    df_sf = df_sf.merge(_var_map, on="regime_id", how="left")
-                    _den = pd.to_numeric(df_sf["var_real_delta"], errors="coerce")
-                    df_sf["mmd2_normalized"] = _np_fdr.where(
-                        _den > 0, df_sf["mmd2"] / _den, _np_fdr.nan
-                    )
-                else:
-                    print("⚠️  Could not compute mmd2_normalized: "
-                          "missing 'regime_id' or 'var_real_delta' in summary_by_regime.")
-
+            df_sf = build_stat_fidelity_table(df_summary)
+            if not df_sf.empty:
                 sf_csv = exp_paths.write_table("tables/stat_fidelity_by_regime.csv", df_sf)
                 exp_paths.write_table("tables/stat_fidelity_by_regime.xlsx", df_sf)
-                print(f"📊 Stat fidelity table (FDR-corrected): {sf_csv}")
+                print(f"📊 Stat fidelity table (derived from summary): {sf_csv}")
 
                 # ---- Etapa A3: stat fidelity plots ----
                 try:
@@ -1663,48 +1528,7 @@ def main():
                 except Exception as _pe:
                     print(f"⚠️  Stat fidelity plots failed: {_pe}")
 
-                # ---- Etapa A4: acceptance summary ("strong check") ----
-                _n_sf = len(df_sf)
-                _q_alpha = 0.05
-                _psd_ratio_limit = 1.2
-                _pass_mmd = (df_sf["mmd_qval"] > _q_alpha).sum()
-                _pass_energy = (df_sf["energy_qval"] > _q_alpha).sum()
-                _pass_both = ((df_sf["mmd_qval"] > _q_alpha) &
-                              (df_sf["energy_qval"] > _q_alpha)).sum()
-
-                # PSD ratio check: cVAE stat psd_dist <= _psd_ratio_limit × baseline_psd_l2
-                _psd_check_df = df_sf[["regime_id", "psd_dist"]].copy()
-                _pass_psd = _n_sf  # default: all pass if baseline unavailable
-                _psd_checked = False
-                if "baseline_psd_l2" in df_summary.columns:
-                    _bl_psd = df_summary[["regime_id", "baseline_psd_l2"]].drop_duplicates("regime_id")
-                    _psd_check_df = _psd_check_df.merge(_bl_psd, on="regime_id", how="left")
-                    _has_both = _psd_check_df.dropna(subset=["psd_dist", "baseline_psd_l2"])
-                    if not _has_both.empty:
-                        _psd_checked = True
-                        _pass_psd = int((_has_both["psd_dist"] <=
-                                         _psd_ratio_limit * _has_both["baseline_psd_l2"]).sum())
-                        _n_sf_psd = len(_has_both)
-                    else:
-                        _n_sf_psd = _n_sf
-                else:
-                    _n_sf_psd = _n_sf
-
-                _stat_acceptance = {
-                    "q_alpha": _q_alpha,
-                    "psd_ratio_limit": _psd_ratio_limit,
-                    "n_regimes_tested": _n_sf,
-                    "pass_mmd_qval": int(_pass_mmd),
-                    "pass_energy_qval": int(_pass_energy),
-                    "pass_both_qval": int(_pass_both),
-                    "pct_pass_mmd": round(100 * _pass_mmd / _n_sf, 1) if _n_sf else 0,
-                    "pct_pass_energy": round(100 * _pass_energy / _n_sf, 1) if _n_sf else 0,
-                    "pct_pass_both": round(100 * _pass_both / _n_sf, 1) if _n_sf else 0,
-                    "psd_ratio_checked": _psd_checked,
-                    "pass_psd_ratio": int(_pass_psd),
-                    "n_regimes_psd_checked": int(_n_sf_psd) if _psd_checked else 0,
-                    "pct_pass_psd_ratio": round(100 * _pass_psd / _n_sf_psd, 1) if _psd_checked and _n_sf_psd else None,
-                }
+                _stat_acceptance = build_stat_acceptance_summary(df_summary)
             else:
                 _stat_acceptance = None
                 print("⚠️  No valid stat fidelity results to aggregate")
