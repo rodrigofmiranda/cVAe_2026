@@ -1,6 +1,6 @@
 # PROJECT_STATUS.md — Estado Atual do Repositório
 
-> Atualizado em 2026-03-12.
+> Atualizado em 2026-03-13.
 
 ## 1. Estado técnico
 
@@ -11,6 +11,20 @@ O refactor de engenharia está concluído no caminho ativo.
 - `python -m src.training.train`
 - `python -m src.evaluation.evaluate`
 - `python -m src.protocol.run`
+
+### Modos do protocolo
+
+O protocolo agora tem dois modos explícitos:
+
+- `per_regime_retrain`:
+  - padrão quando `--train_once_eval_all` não é usado
+  - treina um cVAE por regime
+  - serve para diagnóstico e comparação local contra o baseline
+- `train_once_eval_all`:
+  - ativado com `--train_once_eval_all`
+  - treina um único cVAE global em `outputs/exp_.../global_model`
+  - avalia esse mesmo modelo em todos os regimes, sem retreino por regime
+  - este é o modo alinhado ao objetivo final do digital twin universal
 
 ### Artefatos canônicos
 
@@ -53,6 +67,13 @@ O foco atual não é mais refactor estrutural, e sim validação científica do 
 
 O cVAE heteroscedástico com prior Gaussiano é suficiente para reproduzir a
 distribuição do canal VLC por regime?
+
+### Direção do modelo final
+
+Para a etapa final da tese, o twin alvo não é um banco de modelos por regime.
+O alvo é um **modelo global, condicional, estocástico e diferenciável**
+`p(y | x, d, I)`, treinado uma vez com todo o dataset e depois validado por
+regime físico.
 
 ### Interpretação atual
 

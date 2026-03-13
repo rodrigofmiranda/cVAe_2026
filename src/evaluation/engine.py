@@ -171,30 +171,33 @@ def evaluate_run(
     *,
     dataset_root: str | Path | None = None,
     overrides: Optional[Dict[str, Any]] = None,
+    output_run_dir: str | Path | None = None,
 ) -> Dict[str, Any]:
     """Evaluate a trained cVAE run and persist the canonical artifacts."""
     ensure_writable_mpl_config_dir()
 
-    run_dir = Path(run_dir).resolve()
-    run_paths = RunPaths.from_existing(run_dir)
-    state_path = run_dir / "state_run.json"
+    model_run_dir = Path(run_dir).resolve()
+    output_dir = Path(output_run_dir).resolve() if output_run_dir is not None else model_run_dir
+    run_paths = RunPaths.from_existing(output_dir)
+    state_path = model_run_dir / "state_run.json"
 
     if state_path.exists():
         state = json.loads(state_path.read_text(encoding="utf-8"))
         print("✓ state_run.json carregado.")
     else:
         print("⚠ state_run.json não encontrado — usando fallback mínimo.")
-        state = _fallback_state(run_dir, dataset_root=dataset_root)
+        state = _fallback_state(model_run_dir, dataset_root=dataset_root)
 
     runtime = build_evaluation_runtime(
-        run_dir=run_dir,
+        run_dir=model_run_dir,
         dataset_root=dataset_root,
         state=state,
         overrides=overrides,
     )
     ov = dict(runtime.overrides)
 
-    print(f"📁 RUN_DIR = {run_dir}")
+    print(f"📁 MODEL_RUN_DIR = {model_run_dir}")
+    print(f"📁 OUTPUT_RUN_DIR = {output_dir}")
     print(f"📁 DATASET_ROOT = {runtime.dataset_root}")
 
     custom_objects = {
@@ -265,10 +268,12 @@ def evaluate_run(
             "inference_model": inference_model.name,
             "deterministic": det_inf,
             "model_path": str(best_model_path),
+            "model_run_dir": str(model_run_dir),
+            "output_run_dir": str(output_dir),
         }
         path = run_paths.write_json("logs/dry_run_eval.json", dry_info)
         print(f"✅ dry_run complete — wrote {path}")
-        return {"status": "dry_run", "run_dir": str(run_dir)}
+        return {"status": "dry_run", "run_dir": str(output_dir)}
 
     exps, df_info = load_experiments_as_list(runtime.dataset_root, verbose=True)
 
@@ -456,7 +461,7 @@ def evaluate_run(
         }
 
     global_metrics = build_global_metrics(
-        run_id=runtime.state.get("run_id", run_dir.name),
+        run_id=output_dir.name,
         model_path=str(best_model_path),
         split_mode=split_mode,
         N_eval=int(n_eval),
@@ -532,7 +537,7 @@ def evaluate_run(
     )
 
     summary_text = build_summary_text(
-        run_id=runtime.state.get("run_id", run_dir.name),
+        run_id=output_dir.name,
         split_mode=split_mode,
         N_eval=n_eval,
         evm_real=evm_real,
@@ -561,7 +566,8 @@ def evaluate_run(
 
     return {
         "status": "completed",
-        "run_dir": str(run_dir),
+        "run_dir": str(output_dir),
+        "model_run_dir": str(model_run_dir),
         "metrics_path": str(metrics_json),
         "n_eval": int(n_eval),
     }

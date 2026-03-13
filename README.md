@@ -182,6 +182,13 @@ python -m src.protocol.run \
   --dataset_root data/dataset_fullsquare_organized \
   --output_base outputs \
   --dry_run
+
+# Train once globally, then evaluate that same shared model across all regimes
+python -m src.protocol.run \
+  --dataset_root data/dataset_fullsquare_organized \
+  --output_base outputs \
+  --train_once_eval_all \
+  --max_epochs 120 --max_grids 2
 ```
 
 ### Canonical smoke tests
@@ -213,6 +220,16 @@ There are two canonical execution modes, and they answer different questions:
 - `python -m src.training.train`: cVAE training engine only. Use this for exploratory grid search, throughput testing, and finding a strong cVAE candidate from a single aggregated train/validation run.
 - `python -m src.protocol.run`: full experimental protocol. Use this for thesis-grade validation, baseline comparison, per-regime evaluation, and statistical fidelity tests.
 
+Inside `src.protocol.run`, there are now **two protocol modes**:
+
+- default: `per_regime_retrain`
+  - trains one cVAE per regime
+  - use this for diagnosis, baseline-vs-cVAE comparisons, and local regime analysis
+- `--train_once_eval_all`: `train_once_eval_all`
+  - trains a single shared global cVAE once on the selected dataset
+  - evaluates that same model across all regimes without retraining
+  - use this for the final universal digital-twin objective
+
 In practice:
 
 - `src.training.train` trains the cVAE, runs the grid, ranks candidates with the internal training score, and saves training artifacts. It does **not** produce the full per-regime scientific comparison against the deterministic baseline.
@@ -222,6 +239,13 @@ This means:
 
 - use `src.training.train` to answer: "which cVAE configuration trains best?"
 - use `src.protocol.run` to answer: "does the digital twin reproduce the real channel, regime by regime, better than the baseline?"
+
+For the thesis end goal, the target artifact is the **shared global model**:
+
+- train once on the full dataset
+- condition on `x`, `d`, and `I`
+- evaluate by regime without retraining
+- keep per-regime retraining only as a diagnostic / ablation path
 
 Example: full-data exploratory cVAE grid search, without post-split train reduction:
 
@@ -255,6 +279,30 @@ There are two patience knobs:
 
 Note: reducing patience helps, but very long runs are still mostly driven by
 `--max_epochs` and each grid's KL warmup (`kl_anneal_epochs`).
+
+### Final universal-twin workflow
+
+For the final differentiable digital twin that will later sit inside the
+end-to-end learned communication system, use this sequence:
+
+1. `src.training.train` or a focused global grid to identify strong shared-model candidates.
+2. `src.protocol.run --train_once_eval_all` to train the shared model once and evaluate it across all regimes.
+3. Read `tables/summary_by_regime.csv` and the summary heatmaps in `plots/summary/`.
+
+Example:
+
+```bash
+python -m src.protocol.run \
+  --dataset_root data/dataset_fullsquare_organized \
+  --output_base outputs \
+  --train_once_eval_all \
+  --grid_tag "G2_lat4_b0p001_fb0p0_lr0p0003_L128-256-512|G0_lat4_b0p003_fb0p10_lr0p0003_L128-256-512" \
+  --max_grids 2 \
+  --max_epochs 120 \
+  --patience 12 \
+  --reduce_lr_patience 6 \
+  --stat_tests --stat_mode quick
+```
 
 ### Legacy wrappers
 

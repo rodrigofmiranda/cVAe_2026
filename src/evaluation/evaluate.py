@@ -10,6 +10,12 @@ Usage
         --dataset_root /path/to/dataset \\
         --run_dir /path/to/outputs/run_x
 
+    # Evaluate a shared model but write artifacts elsewhere
+    python -m src.evaluation.evaluate \\
+        --dataset_root /path/to/dataset \\
+        --run_dir /path/to/outputs/global_model \\
+        --output_run_dir /path/to/outputs/per_regime_eval
+
     # Smoke-test (Commit 3H):
     python -m src.evaluation.evaluate \\
         --dataset_root /path/to/dataset \\
@@ -27,6 +33,12 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate trained cVAE")
     parser.add_argument("--dataset_root", type=str, default=None)
     parser.add_argument("--run_dir", type=str, required=True)
+    parser.add_argument(
+        "--output_run_dir",
+        type=str,
+        default=None,
+        help="Optional output directory for evaluation artifacts (default: write back into --run_dir)",
+    )
     # --- Commit 3H: optional smoke-test flags ---
     parser.add_argument("--max_experiments", type=int, default=None,
                         help="Limit number of experiments loaded (default: all)")
@@ -65,6 +77,7 @@ def main():
         run_dir=args.run_dir,
         dataset_root=args.dataset_root,
         overrides=overrides,
+        output_run_dir=args.output_run_dir,
     )
     print(f"\n🏁 evaluate_run status: {summary.get('status', '?')}")
     print(f"📌 run_dir: {summary.get('run_dir', '')}")

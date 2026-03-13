@@ -19,6 +19,8 @@ def _full_result() -> dict:
         "description": "pivot regime",
         "run_id": "run_0001",
         "run_dir": "/tmp/run_0001",
+        "model_run_dir": "/tmp/global_model",
+        "model_scope": "shared_global",
         "train_status": "completed",
         "eval_status": "completed",
         "best_grid_tag": "G1_core",
@@ -99,6 +101,8 @@ def test_validation_summary_schema_and_derived_fields():
 
     assert math.isclose(row["var_ratio_pred_real"], 0.8, rel_tol=1e-9)
     assert math.isclose(row["delta_jb_log10p"], 0.2, rel_tol=1e-9)
+    assert row["model_run_dir"] == "/tmp/global_model"
+    assert row["model_scope"] == "shared_global"
     assert bool(row["better_than_baseline_cov"]) is True
     assert bool(row["better_than_baseline_kurt"]) is True
     assert bool(row["better_than_baseline_psd"]) is True

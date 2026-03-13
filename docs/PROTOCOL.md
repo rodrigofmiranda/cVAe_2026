@@ -2,6 +2,11 @@
 
 Reproducible orchestration of **train + evaluate** across VLC regimes.
 
+The runner supports two distinct execution modes:
+
+- `per_regime_retrain` (default): train one cVAE per regime, then evaluate it.
+- `train_once_eval_all` (`--train_once_eval_all`): train one shared global cVAE once, then evaluate that same model across all regimes.
+
 ## Quick start
 
 ```bash
@@ -25,6 +30,13 @@ python -m src.protocol.run \
     --dataset_root data/dataset_fullsquare_organized \
     --output_base  outputs \
     --dry_run
+
+# Final universal-twin mode: train once globally, evaluate all regimes
+python -m src.protocol.run \
+    --dataset_root data/dataset_fullsquare_organized \
+    --output_base  outputs \
+    --train_once_eval_all \
+    --max_epochs 120 --max_grids 2
 
 # Custom protocol file (explicit regime subset)
 python -m src.protocol.run \
@@ -139,6 +151,10 @@ with tolerances controlled by `--dist_tol_m` (default 0.05) and
 
 ```
 outputs/exp_YYYYMMDD_HHMMSS/
+├── global_model/                  (only with --train_once_eval_all)
+│   ├── models/
+│   ├── logs/
+│   └── tables/
 ├── manifest.json
 ├── logs/
 │   ├── protocol_input.json
@@ -157,6 +173,15 @@ outputs/exp_YYYYMMDD_HHMMSS/
             └── ...
 ```
 
+### Output semantics by mode
+
+- `per_regime_retrain`:
+  - each regime directory contains both the trained model and its evaluation artifacts
+- `train_once_eval_all`:
+  - `global_model/` contains the single shared trained cVAE
+  - each regime directory contains only the regime-specific evaluation artifacts produced with that shared model
+  - `summary_by_regime.csv` records both `run_dir` (evaluation artifacts) and `model_run_dir` (shared model source)
+
 ### Summary table columns
 
 | Column | Description |
@@ -167,6 +192,8 @@ outputs/exp_YYYYMMDD_HHMMSS/
 | `description` | Human-readable description |
 | `dist_target_m` | Target distance (m) |
 | `curr_target_mA` | Target current (mA) |
+| `model_scope` | `per_regime` or `shared_global` |
+| `model_run_dir` | Source directory of the trained model used for this row |
 | `best_grid_tag` | Best grid configuration tag (from training) |
 | `evm_real_%`, `evm_pred_%`, `delta_evm_%` | EVM metrics |
 | `snr_real_db`, `snr_pred_db`, `delta_snr_db` | SNR metrics |
@@ -206,5 +233,6 @@ CLI flags take precedence.
 | `--no_dist_metrics` | Skip distribution-fidelity metrics |
 | `--skip_eval` | Run training only, skip evaluation |
 | `--dry_run` | Validate + build model, no training |
+| `--train_once_eval_all` | Train one shared global model and evaluate it across all regimes |
 | `--stat_tests` | Run MMD/Energy/PSD stat tests per regime |
 | `--stat_mode quick|full` | `quick` uses lighter defaults (`stat_max_n=5000`), `full` keeps `50000` |

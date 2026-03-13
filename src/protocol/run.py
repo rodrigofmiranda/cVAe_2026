@@ -106,6 +106,14 @@ def parse_args():
                    help="Run training only, skip evaluation step")
     p.add_argument("--dry_run", action="store_true",
                    help="Validate protocol + build model summary, no training")
+    p.add_argument(
+        "--train_once_eval_all",
+        action="store_true",
+        help=(
+            "Train one global cVAE on all selected data, then evaluate that same model "
+            "across all regimes without per-regime retraining"
+        ),
+    )
     # --- Statistical Fidelity Suite (Etapa A2) ---
     p.add_argument("--stat_tests", action="store_true",
                    help="Run two-sample statistical tests (MMD, Energy, PSD) per regime")
@@ -341,10 +349,14 @@ def _effective_cvae_config(
     overrides: Optional[Union[RunOverrides, Mapping[str, Any]]],
     *,
     enabled: bool,
+    execution_mode: str = "per_regime_retrain",
 ) -> Dict[str, Any]:
     """Expose the cVAE-relevant effective overrides in the manifest."""
     ov = _override_dict(overrides)
-    cfg: Dict[str, Any] = {"enabled": bool(enabled)}
+    cfg: Dict[str, Any] = {
+        "enabled": bool(enabled),
+        "execution_mode": str(execution_mode),
+    }
     for key in (
         "max_epochs",
         "max_grids",
@@ -363,6 +375,10 @@ def _effective_cvae_config(
         if ov.get(key) is not None:
             cfg[key] = ov[key]
     return cfg
+
+
+def _protocol_execution_mode(*, train_once_eval_all: bool) -> str:
+    return "train_once_eval_all" if bool(train_once_eval_all) else "per_regime_retrain"
 
 
 def _effective_dist_metrics_config(
@@ -930,6 +946,7 @@ def run_regime(
     dataset_root: str,
     base_overrides: Union[RunOverrides, Mapping[str, Any]],
     protocol_dir: Path,
+    shared_model_run_dir: Optional[Path] = None,
     run_cvae: bool = True,
     skip_eval: bool = False,
     run_baseline: bool = True,
@@ -944,10 +961,13 @@ def run_regime(
     Execute train + evaluate for one regime.
 
     Regime artefacts are written to ``protocol_dir / regime_id``.
+    When ``shared_model_run_dir`` is provided, the cVAE is not retrained for this
+    regime; evaluation uses the shared model and writes outputs to the regime dir.
     Returns a result dict with run_dir, metrics, and status.
     """
     regime_id = regime["regime_id"]
     run_id = regime_id   # lives under protocol_dir/<regime_id>/
+    model_run_dir = Path(shared_model_run_dir).resolve() if shared_model_run_dir is not None else None
 
     # --- Resolve experiment filter ---
     # Option A: explicit experiment_paths
@@ -978,6 +998,8 @@ def run_regime(
         "split_strategy": _split_strategy,
         "run_id": run_id,
         "run_dir": None,
+        "model_run_dir": str(model_run_dir) if model_run_dir is not None else None,
+        "model_scope": "shared_global" if model_run_dir is not None else "per_regime",
         "train_status": "skipped",
         "eval_status": "skipped",
         "metrics": {},
@@ -1156,49 +1178,64 @@ def run_regime(
         gc.collect()
         return result
 
-    # ---- TRAINING ----
+    # ---- TRAINING / MODEL RESOLUTION ----
     print(f"\n{'='*70}")
     print(f"🔬 REGIME: {regime_id} — {regime.get('description', '')}")
     print(f"📁 DATASET_ROOT (effective) = {dataset_root}")
     print(f"{'='*70}")
 
     _ds_root = str(Path(dataset_root).resolve())
+    run_dir = (protocol_dir / run_id).resolve()
 
-    _cvae_t0 = time.time()
-    try:
-        from src.training.engine import train_engine
-        print(f"\n📦 Training regime '{regime_id}' → run_id={run_id}")
-        _train_summary = train_engine(
-            dataset_root=_ds_root,
-            output_base=str(protocol_dir.resolve()),
-            run_id=run_id,
-            overrides=ov,
+    if model_run_dir is None:
+        _cvae_t0 = time.time()
+        try:
+            from src.training.engine import train_engine
+            print(f"\n📦 Training regime '{regime_id}' → run_id={run_id}")
+            _train_summary = train_engine(
+                dataset_root=_ds_root,
+                output_base=str(protocol_dir.resolve()),
+                run_id=run_id,
+                overrides=ov,
+            )
+            result["train_status"] = _train_summary.get("status", "completed")
+            run_dir = Path(_train_summary.get("run_dir", protocol_dir / run_id)).resolve()
+            model_run_dir = run_dir
+            result["model_run_dir"] = str(model_run_dir)
+        except Exception as e:
+            result["train_status"] = "failed"
+            result["error"] = f"train: {e}\n{traceback.format_exc()}"
+            print(f"❌ Training failed for regime '{regime_id}': {e}")
+
+        result["cvae_time_s"] = round(time.time() - _cvae_t0, 2)
+    else:
+        run_dir.mkdir(parents=True, exist_ok=True)
+        result["train_status"] = "shared_model"
+        print(
+            f"\n🔁 Reusing shared global model for regime '{regime_id}'\n"
+            f"   model_run_dir={model_run_dir}\n"
+            f"   eval_output_dir={run_dir}"
         )
-        result["train_status"] = _train_summary.get("status", "completed")
-        result["run_dir"] = str(_train_summary.get("run_dir", protocol_dir / run_id))
-    except Exception as e:
-        result["train_status"] = "failed"
-        result["error"] = f"train: {e}\n{traceback.format_exc()}"
-        print(f"❌ Training failed for regime '{regime_id}': {e}")
 
-    result["cvae_time_s"] = round(time.time() - _cvae_t0, 2)
-    run_dir = Path(result["run_dir"] or (protocol_dir / run_id))
     result["run_dir"] = str(run_dir)
 
-    # Read train state
-    state = _read_train_state(run_dir)
-    result["best_grid_tag"] = _extract_best_grid_tag(state)
-
-    # If dry_run was set, training exits early — skip eval
+    # If dry_run was set, do not require a materialized model under the regime dir.
     if ov.get("dry_run", False):
         result["train_status"] = "dry_run"
         return result
+
+    if model_run_dir is None:
+        return result
+
+    # Read train state from the model source
+    state = _read_train_state(model_run_dir)
+    result["best_grid_tag"] = _extract_best_grid_tag(state)
 
     # ---- EVALUATION ----
     _eval_ran = False
     if skip_eval:
         print(f"⏭️  Skipping evaluation for regime '{regime_id}' (--skip_eval)")
-    elif result["train_status"] != "completed":
+    elif result["train_status"] not in {"completed", "shared_model"}:
         print(f"⏭️  Skipping evaluation for regime '{regime_id}' (training failed)")
     else:
         try:
@@ -1209,9 +1246,10 @@ def run_regime(
             from src.evaluation.engine import evaluate_run
             print(f"\n📊 Evaluating regime '{regime_id}' → {run_dir}")
             _eval_summary = evaluate_run(
-                run_dir=run_dir,
+                run_dir=model_run_dir,
                 dataset_root=_ds_root,
                 overrides=eval_ov,
+                output_run_dir=run_dir,
             )
             result["eval_status"] = _eval_summary.get("status", "completed")
             _eval_ran = True
@@ -1228,7 +1266,7 @@ def run_regime(
     # Priority order:
     # 1) Evaluation metrics JSON (same slice/MC/calc as the canonical eval engine).
     # 2) Quick fallback from shared val split when eval is unavailable.
-    if run_dist_metrics and result["train_status"] == "completed":
+    if run_dist_metrics and result["train_status"] in {"completed", "shared_model"}:
         _dm_source = None  # will be set below
         try:
             _eval_dm = _extract_cvae_dist_from_eval_metrics(result.get("metrics", {}))
@@ -1255,7 +1293,7 @@ def run_regime(
                     raise RuntimeError("Shared validation data not available")
 
                 _X_va, _Y_va, _D_va, _C_va = _val_data
-                model_check = run_dir / "models" / "best_model_full.keras"
+                model_check = model_run_dir / "models" / "best_model_full.keras"
                 if not model_check.exists():
                     raise FileNotFoundError(f"Model not found at {model_check}")
 
@@ -1270,7 +1308,7 @@ def run_regime(
                       f"({len(_X_va):,} val pts, source={_dm_source}, "
                       f"mc_samples={_mc_dm}, model={model_check})")
                 _pred_pack = _quick_cvae_predict(
-                    run_dir, _X_va, _D_va, _C_va,
+                    model_run_dir, _X_va, _D_va, _C_va,
                     mc_samples=_mc_dm,
                     seed=int(ov.get("seed", 42)),
                     mode="mc_concat",
@@ -1316,7 +1354,7 @@ def run_regime(
     # ---- STATISTICAL FIDELITY TESTS (Etapa A2) ----
     # Runs MMD², Energy distance, and PSD L2 on residuals (Y - X) for cVAE.
     # p-values are stored per regime; global FDR correction is applied in main().
-    if run_stat_fidelity and result["train_status"] == "completed":
+    if run_stat_fidelity and result["train_status"] in {"completed", "shared_model"}:
         try:
             import numpy as _np_sf
             from src.evaluation.stat_tests import mmd_rbf, energy_test, psd_distance
@@ -1326,14 +1364,14 @@ def run_regime(
 
             _X_va, _Y_va, _D_va, _C_va = _val_data
 
-            model_check = run_dir / "models" / "best_model_full.keras"
+            model_check = model_run_dir / "models" / "best_model_full.keras"
             if not model_check.exists():
                 raise FileNotFoundError(f"Model not found at {model_check}")
 
             # Reuse MC predictions from quick predict
             _mc_sf = max(1, int(result.get("metrics", {}).get("mc_samples", 8)))
             _pred_pack = _quick_cvae_predict(
-                run_dir, _X_va, _D_va, _C_va,
+                model_run_dir, _X_va, _D_va, _C_va,
                 mc_samples=_mc_sf,
                 seed=stat_seed,
                 mode="mc_concat",
@@ -1438,6 +1476,9 @@ def main():
         no_cvae=args.no_cvae,
         baseline_only=args.baseline_only,
     )
+    execution_mode = _protocol_execution_mode(
+        train_once_eval_all=bool(args.train_once_eval_all) and bool(run_cvae),
+    )
     args.stat_max_n = _effective_stat_max_n(args.stat_mode, args.stat_max_n)
 
     # Merge protocol globals + CLI overrides → typed RunOverrides
@@ -1454,6 +1495,9 @@ def main():
     if not run_cvae and args.stat_tests:
         print("⚠️  --stat_tests requires cVAE predictions — disabling because --no_cvae/--baseline_only was set.")
         args.stat_tests = False
+    if args.train_once_eval_all and not run_cvae:
+        print("⚠️  --train_once_eval_all has no effect when cVAE execution is disabled.")
+        execution_mode = "per_regime_retrain"
 
     # Experiment output directory (single folder per protocol run)
     exp_paths = RunPaths(run_id=f"exp_{ts_label}",
@@ -1463,6 +1507,7 @@ def main():
     studies_meta = protocol.get("_studies", [])
 
     print(f"🚀 Protocol runner — {len(studies_meta)} study(ies), {len(regimes)} regime(s)")
+    print(f"🧭 Execution mode: {execution_mode}")
     print(f"📁 Experiment dir: {exp_dir}")
     print(f"🔧 Base overrides: {base_overrides}")
 
@@ -1472,6 +1517,61 @@ def main():
     if _proto_config_path is not None:
         import shutil
         shutil.copy2(_proto_config_path, exp_dir / "logs" / "protocol_input.yaml")
+
+    shared_model_run_dir: Optional[Path] = None
+    if execution_mode == "train_once_eval_all":
+        shared_model_run_dir = exp_dir / "global_model"
+        print(f"\n{'='*70}")
+        print("🌐 GLOBAL MODEL TRAINING (train once, evaluate all regimes)")
+        print(f"📁 Shared model dir: {shared_model_run_dir}")
+        print(f"{'='*70}")
+        _shared_t0 = time.time()
+        try:
+            from src.training.engine import train_engine
+
+            _global_summary = train_engine(
+                dataset_root=args.dataset_root,
+                output_base=str(exp_dir),
+                run_id="global_model",
+                overrides=base_overrides_dict,
+            )
+            shared_model_run_dir = Path(
+                _global_summary.get("run_dir", shared_model_run_dir)
+            ).resolve()
+            print(
+                f"✅ Shared global model status={_global_summary.get('status', 'completed')} "
+                f"| run_dir={shared_model_run_dir} "
+                f"| time={time.time() - _shared_t0:.1f}s"
+            )
+        except Exception as e:
+            err = f"global_train: {e}\n{traceback.format_exc()}"
+            manifest = {
+                "protocol_version": protocol.get("protocol_version", "1.0"),
+                "timestamp_start": ts_start.isoformat(timespec="seconds"),
+                "timestamp_end": datetime.now().isoformat(timespec="seconds"),
+                "duration_seconds": (datetime.now() - ts_start).total_seconds(),
+                "git_commit": _git_commit_hash(),
+                "versions": _runtime_versions(),
+                "args": {
+                    "dataset_root": args.dataset_root,
+                    "output_base": args.output_base,
+                    "protocol": args.protocol,
+                    "protocol_config": _proto_config_path,
+                    "max_regimes": args.max_regimes,
+                    "skip_eval": args.skip_eval,
+                    "no_baseline": args.no_baseline,
+                    "no_cvae": args.no_cvae,
+                    "baseline_only": args.baseline_only,
+                    "no_dist_metrics": args.no_dist_metrics,
+                    "dry_run": args.dry_run,
+                    "stat_tests": args.stat_tests,
+                    "train_once_eval_all": args.train_once_eval_all,
+                },
+                "execution_mode": execution_mode,
+                "error": err,
+            }
+            exp_paths.write_json("manifest.json", manifest)
+            raise RuntimeError(f"Shared global training failed: {e}") from e
 
     # ---- Run studies → regimes ----
     results = []
@@ -1500,6 +1600,7 @@ def main():
                 dataset_root=args.dataset_root,
                 base_overrides=base_overrides,
                 protocol_dir=regimes_dir,
+                shared_model_run_dir=shared_model_run_dir,
                 run_cvae=run_cvae,
                 skip_eval=args.skip_eval,
                 run_baseline=not args.no_baseline,
@@ -1593,9 +1694,15 @@ def main():
             "no_dist_metrics": args.no_dist_metrics,
             "dry_run": args.dry_run,
             "stat_tests": args.stat_tests,
+            "train_once_eval_all": args.train_once_eval_all,
         },
+        "execution_mode": execution_mode,
         "baseline_config": _baseline_cfg,
-        "cvae_config": _effective_cvae_config(base_overrides, enabled=run_cvae),
+        "cvae_config": _effective_cvae_config(
+            base_overrides,
+            enabled=run_cvae,
+            execution_mode=execution_mode,
+        ),
         "dist_metrics_config": _dist_cfg,
         "stat_fidelity_config": {
             "enabled": args.stat_tests,
@@ -1604,6 +1711,7 @@ def main():
             "stat_seed": args.stat_seed,
             "stat_max_n": args.stat_max_n,
         },
+        "shared_model_run_dir": str(shared_model_run_dir) if shared_model_run_dir is not None else None,
         "stat_acceptance": _stat_acceptance,
         "base_overrides": base_overrides_dict,
         "n_studies": len(studies_meta),
@@ -1624,6 +1732,8 @@ def main():
                 "study": r.get("_study", "within_regime"),
                 "run_id": r["run_id"],
                 "run_dir": r.get("run_dir", ""),
+                "model_run_dir": r.get("model_run_dir"),
+                "model_scope": r.get("model_scope"),
                 "train_status": r["train_status"],
                 "eval_status": r["eval_status"],
                 "best_grid_tag": r.get("best_grid_tag", ""),

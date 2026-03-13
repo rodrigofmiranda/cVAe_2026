@@ -1,6 +1,6 @@
 # TRAINING_PLAN.md - Plano Cientifico Vivo do Digital Twin VLC
 
-> Versao ativa em 2026-03-12.
+> Versao ativa em 2026-03-13.
 > Este documento e a fonte de verdade para validacao cientifica, diagnostico e criterios de aceite.
 
 ## 0. Estado atual
@@ -9,6 +9,9 @@
   - `python -m src.training.train`
   - `python -m src.evaluation.evaluate`
   - `python -m src.protocol.run`
+- Modos ativos de protocolo:
+  - `per_regime_retrain`: diagnostico local com treino separado por regime
+  - `train_once_eval_all`: treino global unico + avaliacao por regime sem retreino
 - Tabela canonica de validacao:
   - `outputs/exp_*/tables/summary_by_regime.csv`
 - Artefatos secundarios:
@@ -36,6 +39,24 @@ O alvo cientifico nao e apenas boa predicao media, e sim fidelidade distribucion
 
 `Delta = Y - X`
 
+### Decisao de arquitetura para o objetivo final
+
+O artefato final desejado para a tese e para a etapa futura de treinamento do
+autoencoder transmissor-receptor e:
+
+- um unico modelo global, condicional, estocastico e diferenciavel
+- treinado com todo o dataset
+- condicionado por `x`, `d` e `I`
+- avaliado por regime sem retreinar
+
+Modelos treinados por regime continuam uteis para:
+
+- diagnostico
+- comparacao local com o baseline
+- ablacoes
+
+Mas nao sao o twin final-alvo.
+
 ## 2. Invariantes obrigatorios do pipeline
 
 Estes pontos nao devem ser relaxados nos experimentos:
@@ -52,6 +73,10 @@ Estes pontos nao devem ser relaxados nos experimentos:
    - modelo final vs real
    - modelo final vs baseline
    - campeao vs demais grids testados
+9. Para decisoes do twin final, priorizar o modo `train_once_eval_all`:
+   - treinar uma vez
+   - avaliar todos os regimes com o mesmo modelo
+   - usar `per_regime_retrain` apenas como apoio diagnostico
 
 ## 3. Protocolo de inferencia por familia de metricas
 

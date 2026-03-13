@@ -4,6 +4,7 @@ from src.protocol.run import (
     _effective_dist_metrics_config,
     _effective_stat_max_n,
     _limit_protocol_regimes,
+    _protocol_execution_mode,
     _should_run_cvae,
 )
 
@@ -72,10 +73,16 @@ def test_effective_cvae_config_only_exposes_relevant_override_keys():
 
     assert cfg == {
         "enabled": True,
+        "execution_mode": "per_regime_retrain",
         "max_epochs": 5,
         "max_grids": 2,
         "seed": 123,
     }
+
+
+def test_protocol_execution_mode_switches_with_flag():
+    assert _protocol_execution_mode(train_once_eval_all=False) == "per_regime_retrain"
+    assert _protocol_execution_mode(train_once_eval_all=True) == "train_once_eval_all"
 
 
 def test_effective_dist_metrics_config_uses_overrides_and_defaults():
