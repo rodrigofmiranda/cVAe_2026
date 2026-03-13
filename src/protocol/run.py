@@ -1519,6 +1519,17 @@ def main():
     exp_paths.write_table("tables/summary_by_regime.xlsx", df_summary)
     print(f"\n📊 Summary table: {summary_csv}")
 
+    # ---- Summary heatmaps (always derived from canonical summary table) ----
+    try:
+        from src.evaluation.summary_plots import generate_all as _summary_plots
+
+        _plot_dir = exp_dir / "plots" / "summary"
+        _summary_created = _summary_plots(df_summary, _plot_dir)
+        if _summary_created:
+            print(f"📈 Summary heatmaps ({len(_summary_created)}): {_plot_dir}")
+    except Exception as _se:
+        print(f"⚠️  Summary heatmaps failed: {_se}")
+
     # ---- Etapa A2: Stat fidelity projection (derived from canonical summary) ----
     if args.stat_tests:
         try:
