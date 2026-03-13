@@ -350,11 +350,15 @@ def _effective_cvae_config(
         "max_grids",
         "grid_group",
         "grid_tag",
+        "grid_preset",
         "val_split",
         "seed",
+        "patience",
+        "reduce_lr_patience",
         "max_experiments",
         "max_samples_per_exp",
         "keras_verbose",
+        "no_data_reduction",
     ):
         if ov.get(key) is not None:
             cfg[key] = ov[key]
