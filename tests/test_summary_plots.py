@@ -10,6 +10,7 @@ import pytest
 
 from src.evaluation.summary_plots import (
     generate_all,
+    plot_abs_delta_evm_vs_real_models,
     plot_delta_evm_models,
     plot_evm_real_vs_models,
 )
@@ -57,11 +58,18 @@ def test_plot_delta_evm_models_creates_png(out_dir):
     assert p.exists() and p.stat().st_size > 500
 
 
-def test_generate_all_creates_two_files(out_dir):
+def test_plot_abs_delta_evm_vs_real_models_creates_png(out_dir):
+    df = _make_summary_df()
+    p = plot_abs_delta_evm_vs_real_models(df, out_dir)
+    assert p is not None
+    assert p.exists() and p.stat().st_size > 500
+
+
+def test_generate_all_creates_three_files(out_dir):
     df = _make_summary_df()
     paths = generate_all(df, out_dir)
-    assert len(paths) == 2
+    assert len(paths) == 3
     names = {p.name for p in paths}
     assert "heatmap_evm_real_vs_models.png" in names
     assert "heatmap_delta_evm_models.png" in names
-
+    assert "heatmap_abs_delta_evm_vs_real_models.png" in names

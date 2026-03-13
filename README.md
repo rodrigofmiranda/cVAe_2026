@@ -289,6 +289,13 @@ end-to-end learned communication system, use this sequence:
 2. `src.protocol.run --train_once_eval_all` to train the shared model once and evaluate it across all regimes.
 3. Read `tables/summary_by_regime.csv` and the summary heatmaps in `plots/summary/`.
 
+The most direct visual diagnostic for EVM is:
+
+- `plots/summary/heatmap_abs_delta_evm_vs_real_models.png`
+  - left: `|EVM_baseline - EVM_real|`
+  - right: `|EVM_cVAE - EVM_real|`
+  - hotter colors = regimes further outside prediction
+
 Example:
 
 ```bash

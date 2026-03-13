@@ -177,12 +177,87 @@ def plot_delta_evm_models(
     return _savefig(Path(out_dir) / fname)
 
 
+def plot_abs_delta_evm_vs_real_models(
+    df_summary: pd.DataFrame,
+    out_dir: Path,
+    *,
+    fname: str = "heatmap_abs_delta_evm_vs_real_models.png",
+) -> Optional[Path]:
+    """Render absolute EVM error vs the real channel for baseline and cVAE.
+
+    This is the most direct diagnostic for "which regimes are outside the
+    prediction" because color encodes the magnitude of the EVM mismatch with
+    the real channel, independent of sign.
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    if "baseline_delta_evm_%" not in df_summary.columns and "cvae_delta_evm_%" not in df_summary.columns:
+        return None
+
+    df_plot = df_summary.copy()
+    if "baseline_delta_evm_%" in df_plot.columns:
+        df_plot["baseline_abs_delta_evm_%"] = pd.to_numeric(
+            df_plot["baseline_delta_evm_%"], errors="coerce",
+        ).abs()
+    if "cvae_delta_evm_%" in df_plot.columns:
+        df_plot["cvae_abs_delta_evm_%"] = pd.to_numeric(
+            df_plot["cvae_delta_evm_%"], errors="coerce",
+        ).abs()
+    elif "delta_evm_%" in df_plot.columns:
+        df_plot["cvae_abs_delta_evm_%"] = pd.to_numeric(
+            df_plot["delta_evm_%"], errors="coerce",
+        ).abs()
+
+    baseline = _pivot_for_heatmap(df_plot, "baseline_abs_delta_evm_%")
+    cvae = _pivot_for_heatmap(df_plot, "cvae_abs_delta_evm_%")
+    if baseline is None and cvae is None:
+        return None
+
+    pivots = [p for p in (baseline, cvae) if p is not None]
+    all_vals = np.concatenate([p.to_numpy().ravel() for p in pivots])
+    all_vals = all_vals[np.isfinite(all_vals)]
+    if all_vals.size == 0:
+        return None
+    vmin = 0.0
+    vmax = float(np.max(all_vals))
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    entries = [
+        (baseline, "Baseline/AWGN — |EVM_pred - EVM_real| (pp)"),
+        (cvae, "cVAE — |EVM_pred - EVM_real| (pp)"),
+    ]
+    for ax, (piv, title) in zip(axes, entries):
+        if piv is None:
+            ax.axis("off")
+            ax.set_title(f"{title}\n(no data)")
+            continue
+        _draw_heatmap(
+            ax,
+            piv,
+            title=title,
+            cmap="YlOrRd",
+            fmt=".2f",
+            cbar_label="|ΔEVM| (pp)",
+            vmin=vmin,
+            vmax=vmax,
+        )
+
+    fig.suptitle("Erro absoluto de EVM vs canal real — baseline/AWGN vs cVAE", fontsize=14)
+    return _savefig(Path(out_dir) / fname)
+
+
 def generate_all(df_summary: pd.DataFrame, out_dir: Path) -> List[Path]:
     """Generate summary heatmaps and return created paths."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     created: List[Path] = []
-    for fn in (plot_evm_real_vs_models, plot_delta_evm_models):
+    for fn in (
+        plot_evm_real_vs_models,
+        plot_delta_evm_models,
+        plot_abs_delta_evm_vs_real_models,
+    ):
         try:
             p = fn(df_summary, out_dir)
             if p is not None:
@@ -191,4 +266,3 @@ def generate_all(df_summary: pd.DataFrame, out_dir: Path) -> List[Path]:
         except Exception as exc:
             print(f"⚠️  {fn.__name__} failed: {exc}")
     return created
-

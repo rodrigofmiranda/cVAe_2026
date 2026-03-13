@@ -178,9 +178,13 @@ outputs/exp_YYYYMMDD_HHMMSS/
 - `per_regime_retrain`:
   - each regime directory contains both the trained model and its evaluation artifacts
 - `train_once_eval_all`:
-  - `global_model/` contains the single shared trained cVAE
-  - each regime directory contains only the regime-specific evaluation artifacts produced with that shared model
-  - `summary_by_regime.csv` records both `run_dir` (evaluation artifacts) and `model_run_dir` (shared model source)
+- `global_model/` contains the single shared trained cVAE
+- each regime directory contains only the regime-specific evaluation artifacts produced with that shared model
+- `summary_by_regime.csv` records both `run_dir` (evaluation artifacts) and `model_run_dir` (shared model source)
+- `plots/summary/` includes EVM heatmaps for:
+  - real vs baseline vs cVAE
+  - signed `ΔEVM`
+  - absolute EVM error vs the real channel, which is the fastest visual diagnostic for regimes outside prediction
 
 ### Summary table columns
 
