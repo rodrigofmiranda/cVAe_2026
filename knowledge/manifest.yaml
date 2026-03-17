@@ -1,0 +1,24 @@
+version: 1
+description: >
+  Manifesto manual/semi-manual da base de artigos da pesquisa.
+  Use este arquivo para registrar metadados confiaveis que nao devem depender
+  apenas da extração automatica de PDF.
+
+papers: []
+
+# Exemplo de entrada:
+# papers:
+#   - paper_id: kingma_2014_vae
+#     title: "Auto-Encoding Variational Bayes"
+#     authors:
+#       - "Diederik P. Kingma"
+#       - "Max Welling"
+#     year: 2014
+#     topic_tags:
+#       - vae
+#       - latent_variable_model
+#     why_it_matters: >
+#       Base conceitual para modelos variacionais usados no digital twin.
+#     pdf_path: "knowledge/papers/raw/kingma_2014_autoencoding_variational_bayes.pdf"
+#     parsed_dir: "knowledge/papers/parsed/kingma_2014_autoencoding_variational_bayes"
+#     note_path: "knowledge/notes/kingma_2014_vae.md"
