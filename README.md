@@ -13,6 +13,9 @@ Use these documents in this order:
 - [docs/DIAGNOSTIC_CHECKLIST.md](/workspace/2026/docs/DIAGNOSTIC_CHECKLIST.md) — executable diagnostic workflow
 - [docs/PROTOCOL.md](/workspace/2026/docs/PROTOCOL.md) — protocol runner, artifacts, CLI
 - [docs/MODELING_ASSUMPTIONS.md](/workspace/2026/docs/MODELING_ASSUMPTIONS.md) — modeling rationale
+- [docs/GEMINI_BOOTSTRAP.md](/workspace/2026/docs/GEMINI_BOOTSTRAP.md) — concise handoff for a secondary AI
+- [docs/GEMINI_PLAYBOOK.md](/workspace/2026/docs/GEMINI_PLAYBOOK.md) — operational playbook for known situations
+- [docs/GEMINI_PROMPTS.md](/workspace/2026/docs/GEMINI_PROMPTS.md) — prompt templates for Gemini or other copilots
 
 Historical refactor planning has been archived under:
 
