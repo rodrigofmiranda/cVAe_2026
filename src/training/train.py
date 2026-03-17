@@ -47,7 +47,7 @@ def parse_args():
     parser.add_argument("--grid_tag", type=str, default=None,
                         help="Regex filter: keep grids whose tag matches (default: all)")
     parser.add_argument("--grid_preset", type=str, default=None,
-                        help="Named grid subset, e.g. exploratory_small (default: all)")
+                        help="Named grid subset, e.g. exploratory_small or residual_small (default: all)")
     parser.add_argument("--keras_verbose", type=int, default=2, choices=[0, 1, 2],
                         help="Keras fit verbosity: 0=silent, 1=progress bar, 2=one line/epoch (default: 2)")
     parser.add_argument("--patience", type=int, default=None,

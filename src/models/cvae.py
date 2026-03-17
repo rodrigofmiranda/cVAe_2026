@@ -3,7 +3,10 @@
 src/models/cvae.py — cVAE model construction (encoder / decoder / prior / full).
 
 Extracted from ``cvae_components.py`` (refactor step 3).
-The architecture is **identical** to the monolith — no algorithmic changes.
+The default ``concat`` architecture is identical to the legacy monolith.
+This module also exposes the experimental ``channel_residual`` decoder
+variant, which predicts ``Δ = Y - X`` internally while preserving the
+same external model interface.
 
 Public API
 ----------
@@ -17,7 +20,7 @@ create_inference_model_from_full   Inference graph from saved model
 
 from __future__ import annotations
 
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, Sequence, Tuple
 
 import tensorflow as tf
 from tensorflow.keras import layers, models
@@ -40,6 +43,18 @@ def _activation_layer(name: str):
     if name in ("leaky_relu", "lrelu", "leakyrelu"):
         return layers.LeakyReLU(alpha=0.2)
     return layers.Activation(name)
+
+
+def _normalize_arch_variant(arch_variant: str) -> str:
+    """Validate and normalise the decoder architecture variant name."""
+    variant = str(arch_variant or "concat").strip().lower()
+    valid = {"concat", "channel_residual"}
+    if variant not in valid:
+        raise ValueError(
+            f"Unknown arch_variant={arch_variant!r}. "
+            f"Expected one of {sorted(valid)}."
+        )
+    return variant
 
 
 # ======================================================================
@@ -125,11 +140,22 @@ def build_decoder(
     latent_dim: int,
     activation: str = "leaky_relu",
     dropout: float = 0.0,
+    arch_variant: str = "concat",
 ) -> tf.keras.Model:
     """Build the heteroscedastic decoder p(y | z, x, d, c).
 
-    Output has 4 units: ``(mean_I, mean_Q, logvar_I, logvar_Q)``.
+    Output always has 4 units: ``(mean_I, mean_Q, logvar_I, logvar_Q)``.
+
+    ``arch_variant="concat"``
+        Legacy behaviour: predict ``y`` parameters directly from
+        ``concat([z, x, d, c])``.
+
+    ``arch_variant="channel_residual"``
+        Predict residual parameters ``Δ = Y - X`` internally and resolve the
+        final mean as ``Y_mean = X + Δ_mean``. The external decoder output
+        remains identical, so losses/inference do not need to change.
     """
+    arch_variant = _normalize_arch_variant(arch_variant)
     z_in = layers.Input(shape=(latent_dim,), name="z_input")
     cond_in = layers.Input(shape=(4,), name="cond_input")    # x(2)+d(1)+c(1)
     h = layers.Concatenate(name="dec_concat")([z_in, cond_in])
@@ -141,7 +167,26 @@ def build_decoder(
         h = _activation_layer(activation)(h)
         if dropout and dropout > 0:
             h = layers.Dropout(dropout, name=f"dec_drop_{i}")(h)
-    out = layers.Dense(4, name="output_params")(h)
+    if arch_variant == "channel_residual":
+        # The first two condition features are always X=(I,Q).
+        raw_out = layers.Dense(4, name="output_params_raw")(h)
+        delta_mean = layers.Lambda(
+            lambda t: t[:, :2], name="delta_mean",
+        )(raw_out)
+        delta_log_var = layers.Lambda(
+            lambda t: t[:, 2:], name="delta_log_var",
+        )(raw_out)
+        x_passthrough = layers.Lambda(
+            lambda t: t[:, :2], name="x_passthrough",
+        )(cond_in)
+        y_mean = layers.Add(name="y_mean_residual")(
+            [x_passthrough, delta_mean]
+        )
+        out = layers.Concatenate(name="output_params")(
+            [y_mean, delta_log_var]
+        )
+    else:
+        out = layers.Dense(4, name="output_params")(h)
     return models.Model([z_in, cond_in], out, name="decoder")
 
 
@@ -158,7 +203,7 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
     ----------
     cfg : dict
         Must contain ``layer_sizes, latent_dim, beta, lr, dropout``.
-        Optional: ``free_bits, kl_anneal_epochs, activation``.
+        Optional: ``free_bits, kl_anneal_epochs, activation, arch_variant``.
 
     Returns
     -------
@@ -172,12 +217,14 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
     free_bits = float(cfg.get("free_bits", 0.0))
     kl_anneal_epochs = int(cfg.get("kl_anneal_epochs", 50))
     activation = cfg.get("activation", "leaky_relu")
+    arch_variant = _normalize_arch_variant(cfg.get("arch_variant", "concat"))
 
     encoder = build_encoder(cfg)
     prior_net = build_prior_net(cfg)
     decoder = build_decoder(
         layer_sizes=layer_sizes, latent_dim=latent_dim,
         activation=activation, dropout=dropout,
+        arch_variant=arch_variant,
     )
 
     # --- Graph wiring ---

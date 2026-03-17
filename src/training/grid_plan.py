@@ -15,6 +15,7 @@ def _cfg(**kwargs: Any) -> Dict[str, Any]:
         lr=3e-4,
         dropout=0.0,
         free_bits=0.10,
+        arch_variant="concat",
     )
     cfg.update(kwargs)
     return cfg
@@ -155,6 +156,46 @@ def _preset_exploratory_small(grid: List[Dict[str, Any]]) -> List[Dict[str, Any]
     return [by_tag[tag] for tag in keep_tags if tag in by_tag]
 
 
+def _residual_candidates() -> List[Dict[str, Any]]:
+    """Return the compact residual-architecture candidates."""
+    residual_cfg = dict(layer_sizes=[128, 256, 512], latent_dim=4, arch_variant="channel_residual")
+    return [
+        dict(
+            group="R0_residual",
+            tag=f"R0res_lat4_b{_tag_beta(0.003)}_fb0p10_lr{_tag_lr(3e-4)}_L{_tag_layers([128,256,512])}",
+            cfg=_cfg(beta=0.003, free_bits=0.10, **residual_cfg),
+        ),
+        dict(
+            group="R0_residual",
+            tag=f"R0res_lat4_b{_tag_beta(0.001)}_fb0p10_lr{_tag_lr(3e-4)}_L{_tag_layers([128,256,512])}",
+            cfg=_cfg(beta=0.001, free_bits=0.10, **residual_cfg),
+        ),
+        dict(
+            group="R1_residual",
+            tag=f"R1res_lat4_b{_tag_beta(0.001)}_fb0p0_lr{_tag_lr(3e-4)}_L{_tag_layers([128,256,512])}",
+            cfg=_cfg(beta=0.001, free_bits=0.0, **residual_cfg),
+        ),
+        dict(
+            group="R1_residual",
+            tag=f"R1res_lat4_b{_tag_beta(0.002)}_fb0p0_lr{_tag_lr(3e-4)}_L{_tag_layers([128,256,512])}",
+            cfg=_cfg(beta=0.002, free_bits=0.0, **residual_cfg),
+        ),
+    ]
+
+
+def _preset_residual_small(grid: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Return the dedicated residual-architecture exploratory subset."""
+    merged = list(grid) + _residual_candidates()
+    keep_tags = [
+        "R0res_lat4_b0p003_fb0p10_lr0p0003_L128-256-512",
+        "R0res_lat4_b0p001_fb0p10_lr0p0003_L128-256-512",
+        "R1res_lat4_b0p001_fb0p0_lr0p0003_L128-256-512",
+        "R1res_lat4_b0p002_fb0p0_lr0p0003_L128-256-512",
+    ]
+    by_tag = {item["tag"]: item for item in merged}
+    return [by_tag[tag] for tag in keep_tags if tag in by_tag]
+
+
 def select_grid(
     overrides: Optional[Mapping[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
@@ -168,6 +209,8 @@ def select_grid(
         preset_name = str(preset).strip().lower()
         if preset_name == "exploratory_small":
             grid = _preset_exploratory_small(grid)
+        elif preset_name == "residual_small":
+            grid = _preset_residual_small(grid)
         else:
             raise ValueError(f"Unknown grid_preset={preset!r}")
 

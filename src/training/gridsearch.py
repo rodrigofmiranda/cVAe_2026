@@ -127,6 +127,7 @@ def save_experiment_xlsx(xlsx_path: Path, row_dict: dict) -> None:
     cfg_keys = [
         "activation", "kl_anneal_epochs", "batch_size", "lr",
         "dropout", "free_bits", "layer_sizes", "latent_dim", "beta",
+        "arch_variant",
     ]
     cfg_json = pd.DataFrame([{
         "cfg_json": json.dumps(

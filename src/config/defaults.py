@@ -37,6 +37,7 @@ K_BATCH_SIZE = "batch_size"
 K_KL_ANNEAL_EPOCHS = "kl_anneal_epochs"
 K_DROPOUT = "dropout"
 K_ACTIVATION = "activation"
+K_ARCH_VARIANT = "arch_variant"
 
 # --- Data reduction ---
 K_TARGET_SAMPLES = "target_samples_per_experiment"
@@ -95,6 +96,7 @@ MODEL_DEFAULTS: dict = {
     K_KL_ANNEAL_EPOCHS: 80,
     K_DROPOUT: 0.0,
     K_ACTIVATION: "leaky_relu",
+    K_ARCH_VARIANT: "concat",
 }
 
 DATA_REDUCTION_DEFAULTS: dict = {

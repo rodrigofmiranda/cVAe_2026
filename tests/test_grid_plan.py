@@ -14,3 +14,10 @@ def test_select_grid_exploratory_small_still_obeys_max_grids():
 
     assert len(grid) == 3
 
+
+def test_select_grid_residual_small_returns_residual_variants_only():
+    grid = select_grid({"grid_preset": "residual_small"})
+
+    assert len(grid) == 4
+    assert all(item["cfg"]["arch_variant"] == "channel_residual" for item in grid)
+    assert grid[0]["tag"] == "R0res_lat4_b0p003_fb0p10_lr0p0003_L128-256-512"

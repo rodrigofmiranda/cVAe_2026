@@ -74,7 +74,7 @@ def parse_args():
     p.add_argument("--grid_group", type=str, default=None)
     p.add_argument("--grid_tag", type=str, default=None)
     p.add_argument("--grid_preset", type=str, default=None,
-                   help="Named grid subset, e.g. exploratory_small (default: all)")
+                   help="Named grid subset, e.g. exploratory_small or residual_small (default: all)")
     p.add_argument("--max_experiments", type=int, default=None)
     p.add_argument("--max_samples_per_exp", type=int, default=None)
     p.add_argument("--val_split", type=float, default=None)

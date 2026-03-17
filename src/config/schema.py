@@ -55,6 +55,7 @@ class TrainConfig:
     latent_dim: int = MODEL_DEFAULTS["latent_dim"]
     activation: str = MODEL_DEFAULTS["activation"]
     dropout: float = MODEL_DEFAULTS["dropout"]
+    arch_variant: str = MODEL_DEFAULTS["arch_variant"]
 
     # loss / regularisation
     beta: float = MODEL_DEFAULTS["beta"]
@@ -87,6 +88,7 @@ class TrainConfig:
             latent_dim=int(_get(d, "latent_dim", MODEL_DEFAULTS["latent_dim"], int)),
             activation=str(_get(d, "activation", MODEL_DEFAULTS["activation"])),
             dropout=float(_get(d, "dropout", MODEL_DEFAULTS["dropout"], float)),
+            arch_variant=str(_get(d, "arch_variant", MODEL_DEFAULTS["arch_variant"])),
             beta=float(_get(d, "beta", MODEL_DEFAULTS["beta"], float)),
             free_bits=float(_get(d, "free_bits", MODEL_DEFAULTS["free_bits"], float)),
             kl_anneal_epochs=int(_get(d, "kl_anneal_epochs", MODEL_DEFAULTS["kl_anneal_epochs"], int)),

@@ -257,6 +257,23 @@ python -m src.training.train \
   --no_data_reduction
 ```
 
+Residual-channel architecture experiments use a dedicated preset instead of
+changing the default grid. This keeps the canonical concat decoder intact
+while enabling a structural ablation where the decoder predicts
+`Δ = Y - X` internally and resolves the final mean as `Y = X + Δ`.
+
+```bash
+python -m src.training.train \
+  --dataset_root data/dataset_fullsquare_organized \
+  --output_base outputs \
+  --run_id residual_small_global \
+  --no_data_reduction \
+  --grid_preset residual_small \
+  --max_epochs 120 \
+  --patience 12 \
+  --reduce_lr_patience 6
+```
+
 For a cheaper full-data exploratory run, prefer the compact preset plus explicit
 training patience overrides:
 
