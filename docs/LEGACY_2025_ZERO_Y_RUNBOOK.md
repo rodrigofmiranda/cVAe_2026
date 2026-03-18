@@ -65,6 +65,47 @@ Expected outcome:
   - `logs/latent_summary.json`
   - `logs/metricas_globais_reanalysis.json`
 
+## 3. Larger grid search on the reduced 4-current subset
+
+Use this when the goal is to screen whether the legacy architecture is a real
+candidate before attempting any all-currents run.
+
+Protocol:
+- same reduced training subset as the pivot benchmark
+- 4 currents `(100, 300, 500, 700 mA)` across 3 distances
+- one pivot evaluation regime: `1.0 m / 300 mA`
+- larger search preset: `legacy2025_large`
+
+```bash
+cd /workspace/2026
+PYTHONPATH=/workspace/2026 python3.8 -u -m src.protocol.run \
+  --dataset_root data/dataset_fullsquare_organized \
+  --output_base outputs \
+  --protocol configs/one_regime_1p0m_300mA_sel4curr.json \
+  --train_once_eval_all \
+  --grid_preset legacy2025_large \
+  --max_epochs 120 \
+  --patience 12 \
+  --reduce_lr_patience 6 \
+  --keras_verbose 0 \
+  --stat_tests \
+  --stat_mode quick
+```
+
+Preset design:
+- `12` grid points
+- layer sizes: `[32,64,128,256]`, `[64,128,256,512]`
+- latent dims: `8`, `16`, `24`
+- beta: `0.03`, `0.1`
+- fixed operational batch size: `8192`
+- fixed `lr=1e-4`, `anneal=50`, `free_bits=0.0`
+
+Reasoning:
+- keep the data subset small enough to afford a wider search
+- keep `batch_size=8192`, because the batch-size sweep showed it was the
+  largest value that stayed stable on the reduced protocol
+- vary only capacity and KL pressure, which are the main unknowns now
+
 ## Notes
 
 - `legacy2025_smoke` is a cheap validation preset; do not interpret it

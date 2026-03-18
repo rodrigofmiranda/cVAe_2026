@@ -58,3 +58,19 @@ def test_select_grid_legacy2025_batch_sweep_varies_only_batch_size():
     assert all(item["cfg"]["lr"] == 1e-4 for item in grid)
     assert all(item["cfg"]["kl_anneal_epochs"] == 50 for item in grid)
     assert all(item["cfg"]["free_bits"] == 0.0 for item in grid)
+
+
+def test_select_grid_legacy2025_large_builds_reduced_data_large_search():
+    grid = select_grid({"grid_preset": "legacy2025_large"})
+
+    assert len(grid) == 12
+    assert all(item["cfg"]["arch_variant"] == "legacy_2025_zero_y" for item in grid)
+    assert {tuple(item["cfg"]["layer_sizes"]) for item in grid} == {
+        (32, 64, 128, 256),
+        (64, 128, 256, 512),
+    }
+    assert {item["cfg"]["latent_dim"] for item in grid} == {8, 16, 24}
+    assert {item["cfg"]["beta"] for item in grid} == {0.03, 0.1}
+    assert all(item["cfg"]["batch_size"] == 8192 for item in grid)
+    assert all(item["cfg"]["lr"] == 1e-4 for item in grid)
+    assert all(item["cfg"]["kl_anneal_epochs"] == 50 for item in grid)
