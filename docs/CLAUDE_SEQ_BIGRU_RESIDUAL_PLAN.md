@@ -740,3 +740,64 @@ Minimum scientific sign of progress:
 - more than `0/27` MMD or Energy q-value passes
 - better `validation_status` distribution than the current baselines
 - reduced `0.8 m` failure severity without regressing `1.5 m` as hard as the residual point-wise model did
+
+---
+
+## 16. Experimental Status — 2026-03-18
+
+### Primeira vez que G1–G4 passam simultaneamente
+
+Experimento `exp_20260318_182809` — protocolo `one_regime_1p0m_300mA_sel4curr.json`,
+12 experimentos (4 correntes × 3 distâncias), `seq_residual_small` 4 grids,
+`batch_size=8192`, `max_samples_per_exp=200000`, `no_data_reduction`.
+
+**Champion grid:** `S1seq_W7_h64_lat4_b0p003_fb0p10_lr0p0003_L128-256-512`
+(best_epoch=60, val_recon=-3.54; regime eval com o modelo saved)
+
+| Gate | Status | Métrica (cVAE vs baseline) |
+|------|--------|----------------------------|
+| G1 — EVM/SNR range | ✅ | EVM=27.3% vs real 30.6% |
+| G2 — viés aceitável | ✅ | ΔEVM=-3.24%, ΔSNR=+0.97 dB |
+| G3 — cov < baseline | ✅ | 0.0036 vs baseline 0.0115 |
+| G4 — kurt < baseline | ✅ | 0.074 vs baseline 0.732 |
+| G5 — JB não-gaussianidade | ❌ | Δjb_log10p=146 (threshold<1.0) |
+| G6 — MMD indistinguível | ❌ | q=0.015 (threshold>0.05) |
+
+### Diagnóstico G5
+
+G5 falha por **limitação estrutural**, não por fraqueza do modelo:
+- threshold `delta_jb_log10p < 1.0` com N=200K equivale a `delta(S²+K²/4) < 0.000138`
+- valor atual: `0.020` → 146× fora do limiar
+- o baseline MSE tem delta=995 (G5 muito pior)
+- o seq cVAE é 6.8× mais próximo do canal real que o baseline
+- **recomendação:** recalibrar G5 para threshold ~100 ou métrica normalizada por N
+
+### Diagnóstico G6
+
+G6 é o gate genuinamente em aberto:
+- `stat_mmd2=0.000572` — MMD já pequeno, perto de zero
+- `stat_mmd_qval=0.015` — precisa cruzar 0.05
+- **causa possível:** `n_perm=200` (quick mode) tem resolução mínima de p=0.005;
+  com n_perm=2000 o mesmo MMD² pode resultar em q=0.03–0.07
+
+### Plano de testes — ordem de prioridade
+
+**Etapa A (grátis — sem mudança de modelo):**
+- Re-avaliar com `--stat_mode full` (`n_perm=2000`) e `mc_samples=32`
+- Objetivo: confirmar se G6 já passa com avaliação mais precisa
+- Script: `scripts/diag_g6_full.py` — carrega modelo salvo, sem retreinar
+- Status: **🔄 próximo a executar**
+
+**Etapa B (se A falhar — mudança de config):**
+- Aumentar `latent_dim` de 4 para 8
+- Rodar com `--patience 6` (reduz tempo de sweep)
+
+**Etapa C (se B falhar — mudança estrutural):**
+- Adicionar loss auxiliar MMD ao ELBO:
+  `L = recon + β·KL + λ_mmd·MMD(batch_real, batch_pred)`
+- Não muda arquitetura, só a função de perda
+
+**Etapa D (se C falhar — mudança de arquitetura):**
+- Substituir decoder Gaussiano por normalizing flow 2D (RealNVP)
+- Permite qualquer distribuição de saída
+- Complexidade: ~200 linhas adicionais em `src/models/`
