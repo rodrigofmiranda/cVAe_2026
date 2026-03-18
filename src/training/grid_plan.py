@@ -196,6 +196,118 @@ def _preset_residual_small(grid: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return [by_tag[tag] for tag in keep_tags if tag in by_tag]
 
 
+def _seq_bigru_residual_candidates() -> List[Dict[str, Any]]:
+    """seq_bigru_residual grid items: smoke (S0) and small-sweep (S1) configs.
+
+    S0 — smoke-only
+    ---------------
+    Tiny model (h=16, L=[64,128]) with kl_anneal_epochs=3 for fast CI/end-to-end
+    validation.  Not intended for scientific evaluation.
+
+    S1 — exploratory small (seq_residual_small preset)
+    ---------------------------------------------------
+    Production-scale MLP (L=[128,256,512]) with production kl_anneal_epochs=80.
+    Fully-crossed 2×2 design over seq_hidden_size × beta:
+      seq_hidden_size: 64, 128   — tests BiGRU capacity as bottleneck
+      beta:            0.001, 0.003  — covers the same reference range as G0/G1
+
+    Fixed across all S1 configs: window_size=7, free_bits=0.10, latent_dim=4,
+    batch_size=1024, lr=3e-4, seq_num_layers=1, seq_bidirectional=True.
+
+    Protocol constraint (seq_bigru_residual only)
+    ---------------------------------------------
+    balanced_blocks data-reduction is INCOMPATIBLE with windowed architectures
+    because non-contiguous block selection breaks temporal context.
+    All seq runs must be launched with --no_data_reduction (or equivalent
+    runtime override no_data_reduction=True).  This is enforced as a hard
+    guard in src/training/pipeline.py.
+    """
+
+    # ------------------------------------------------------------------ #
+    # Shared base for all seq configs                                      #
+    # ------------------------------------------------------------------ #
+    def _scfg_base(**kwargs):
+        base = dict(
+            activation="leaky_relu",
+            lr=3e-4,
+            dropout=0.0,
+            arch_variant="seq_bigru_residual",
+            window_size=7,
+            window_stride=1,
+            window_pad_mode="edge",
+            seq_num_layers=1,
+            seq_bidirectional=True,
+        )
+        base.update(kwargs)
+        return base
+
+    # ------------------------------------------------------------------ #
+    # S0 — smoke (tiny model, fast epochs, CI only)                        #
+    # ------------------------------------------------------------------ #
+    s0 = [
+        dict(
+            group="S0_seq_smoke",
+            tag="S0seq_W7_h16_lat4_b0p001_fb0p10_lr0p0003_L64-128",
+            cfg=_scfg_base(
+                layer_sizes=[64, 128],
+                latent_dim=4,
+                beta=0.001,
+                free_bits=0.10,
+                seq_hidden_size=16,
+                kl_anneal_epochs=3,
+                batch_size=1024,
+            ),
+        ),
+    ]
+
+    # ------------------------------------------------------------------ #
+    # S1 — small exploratory sweep (production scale, 4 configs)           #
+    # 2×2 fully-crossed: seq_hidden_size={64,128} × beta={0.001,0.003}    #
+    # ------------------------------------------------------------------ #
+    s1 = []
+    for h in [64, 128]:
+        for beta in [0.001, 0.003]:
+            tag = (
+                f"S1seq_W7_h{h}_lat4_b{_tag_beta(beta)}"
+                f"_fb0p10_lr{_tag_lr(3e-4)}_L{_tag_layers([128, 256, 512])}"
+            )
+            s1.append(
+                dict(
+                    group="S1_seq_small",
+                    tag=tag,
+                    cfg=_scfg_base(
+                        layer_sizes=[128, 256, 512],
+                        latent_dim=4,
+                        beta=beta,
+                        free_bits=0.10,
+                        seq_hidden_size=h,
+                        kl_anneal_epochs=80,
+                        batch_size=1024,
+                    ),
+                )
+            )
+
+    return s0 + s1
+
+
+def _preset_seq_residual_smoke() -> List[Dict[str, Any]]:
+    """Single-item smoke preset for seq_bigru_residual end-to-end validation."""
+    all_seq = _seq_bigru_residual_candidates()
+    return [item for item in all_seq if item["group"] == "S0_seq_smoke"]
+
+
+def _preset_seq_residual_small() -> List[Dict[str, Any]]:
+    """4-config exploratory preset for seq_bigru_residual (S1 group only).
+
+    Fully-crossed 2×2 design: seq_hidden_size={64,128} × beta={0.001,0.003}.
+    Uses production-scale MLP ([128,256,512]) and kl_anneal_epochs=80.
+
+    Requires --no_data_reduction (balanced_blocks incompatible with windowing).
+    """
+    all_seq = _seq_bigru_residual_candidates()
+    return [item for item in all_seq if item["group"] == "S1_seq_small"]
+
+
 def select_grid(
     overrides: Optional[Mapping[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
@@ -211,6 +323,10 @@ def select_grid(
             grid = _preset_exploratory_small(grid)
         elif preset_name == "residual_small":
             grid = _preset_residual_small(grid)
+        elif preset_name == "seq_residual_smoke":
+            grid = _preset_seq_residual_smoke()
+        elif preset_name == "seq_residual_small":
+            grid = _preset_seq_residual_small()
         else:
             raise ValueError(f"Unknown grid_preset={preset!r}")
 

@@ -342,6 +342,33 @@ def run_gridsearch(
         tf.keras.backend.clear_session()
         gc.collect()
 
+        # --- Phase 5: per-item windowing for seq_bigru_residual ---
+        _arch = str(cfg.get("arch_variant", "concat")).strip().lower()
+        if _arch == "seq_bigru_residual":
+            from src.data.windowing import build_windows_from_split_arrays
+            if df_split is None:
+                raise RuntimeError(
+                    "seq_bigru_residual requires df_split; "
+                    "ensure run_training_pipeline passes df_split to run_gridsearch."
+                )
+            _ws  = int(cfg.get("window_size", 33))
+            _wst = int(cfg.get("window_stride", 1))
+            _wpm = str(cfg.get("window_pad_mode", "edge"))
+            (X_tr_fit, Y_tr_fit, D_tr_fit, C_tr_fit,
+             X_va_fit, Y_va_fit, D_va_fit, C_va_fit) = build_windows_from_split_arrays(
+                X_train, Y_train, Dn_train, Cn_train,
+                X_val,   Y_val,   Dn_val,   Cn_val,
+                df_split=df_split,
+                window_size=_ws, stride=_wst, pad_mode=_wpm,
+            )
+            print(
+                f"  ↳ seq windowing: window_size={_ws}, stride={_wst} | "
+                f"X_tr={X_tr_fit.shape}, X_va={X_va_fit.shape}"
+            )
+        else:
+            X_tr_fit, Y_tr_fit, D_tr_fit, C_tr_fit = X_train, Y_train, Dn_train, Cn_train
+            X_va_fit, Y_va_fit, D_va_fit, C_va_fit = X_val,   Y_val,   Dn_val,   Cn_val
+
         try:
             vae, kl_cb = build_cvae(cfg)
             callbacks = build_callbacks(training_config, cfg, kl_cb)
@@ -350,13 +377,13 @@ def run_gridsearch(
             _keras_verbose = int(_ov.get("keras_verbose", 2))
             _bs_cfg = int(cfg["batch_size"])
             # Small-smoke stability: avoid single-step epochs when train << batch_size.
-            if len(X_train) < _bs_cfg:
-                _bs_eff = max(128, len(X_train) // 64)
+            if len(X_tr_fit) < _bs_cfg:
+                _bs_eff = max(128, len(X_tr_fit) // 64)
             else:
                 _bs_eff = _bs_cfg
             hist = vae.fit(
-                [X_train, Dn_train, Cn_train, Y_train], Y_train,
-                validation_data=([X_val, Dn_val, Cn_val, Y_val], Y_val),
+                [X_tr_fit, D_tr_fit, C_tr_fit, Y_tr_fit], Y_tr_fit,
+                validation_data=([X_va_fit, D_va_fit, C_va_fit, Y_va_fit], Y_va_fit),
                 epochs=int(training_config["epochs"]),
                 batch_size=int(_bs_eff),
                 callbacks=callbacks,
@@ -377,17 +404,24 @@ def run_gridsearch(
 
             # Eval estratificado por experimento de validação.
             _n_total = int(analysis_quick["n_eval_samples"])
-            _n_total = max(1, min(_n_total, len(X_val)))
+            _n_total = max(1, min(_n_total, len(X_va_fit)))
             _rng_eval = np.random.default_rng(int(training_config.get("seed", 42)))
             _idx = _stratified_val_indices_by_experiment(
                 n_total=_n_total,
-                n_val_total=len(X_val),
+                n_val_total=len(X_va_fit),
                 df_split=df_split,
                 rng=_rng_eval,
             )
-            Xv = X_val[_idx]; Yv = Y_val[_idx]
-            Dv = Dn_val[_idx]; Cv = Cn_val[_idx]
+            Xv = X_va_fit[_idx]; Yv = Y_va_fit[_idx]
+            Dv = D_va_fit[_idx]; Cv = C_va_fit[_idx]
             N = len(_idx)
+            # For point metrics (EVM/SNR/dist/plots), need (N, 2) center signal.
+            # For seq: Xv is (N, W, 2); Xv_center extracts the center timestep.
+            # For point-wise: Xv_center == Xv (no copy, same array).
+            if _arch == "seq_bigru_residual":
+                Xv_center = Xv[:, Xv.shape[1] // 2, :]  # (N, 2)
+            else:
+                Xv_center = Xv
 
             rank_mode = str(analysis_quick.get("rank_mode", "mc")).lower()
             K = int(analysis_quick.get("mc_samples", 8))
@@ -402,7 +436,7 @@ def run_gridsearch(
             if rank_mode == "det" or K <= 1:
                 Yp = Yp_det
                 Yp_dist = Yp
-                X_dist = Xv
+                X_dist = Xv_center
                 Y_dist = Yv
                 var_mc = float("nan")
             else:
@@ -419,14 +453,14 @@ def run_gridsearch(
                 Yp = Ys.mean(axis=0)
                 # Distribution metrics must use MC concatenation (marginal predictive sample).
                 Yp_dist = Ys.reshape((-1, Ys.shape[-1]))
-                X_dist = np.tile(Xv, (K, 1))
+                X_dist = np.tile(Xv_center, (K, 1))
                 Y_dist = np.tile(Yv, (K, 1))
                 var_mc = float(np.mean(np.var(Ys, axis=0)))
 
-            evm_real, _ = calculate_evm(Xv, Yv)
-            evm_pred, _ = calculate_evm(Xv, Yp)
-            snr_real = calculate_snr(Xv, Yv)
-            snr_pred = calculate_snr(Xv, Yp)
+            evm_real, _ = calculate_evm(Xv_center, Yv)
+            evm_pred, _ = calculate_evm(Xv_center, Yp)
+            snr_real = calculate_snr(Xv_center, Yv)
+            snr_pred = calculate_snr(Xv_center, Yp)
 
             prior_net = vae.get_layer("prior_net")
             mu_p, logvar_p = prior_net.predict(
@@ -542,13 +576,13 @@ def run_gridsearch(
             png_path = exp_plots_dir / "relatorio_completo_original_style.png"
             title = f"Relatório Consolidado — Twin + Latente | GRID {gi}/{len(grid)}"
             save_experiment_report_png(
-                plot_path=png_path, Xv=Xv, Yv=Yv, Yp=Yp,
+                plot_path=png_path, Xv=Xv_center, Yv=Yv, Yp=Yp,
                 std_mu_p=std_mu_p, kl_dim_mean=kl_dim_mean,
                 summary_lines=summary_lines, title=title,
             )
             extra_paths = save_candidate_plot_bundle(
                 plots_dir=exp_plots_dir,
-                Xv=Xv,
+                Xv=Xv_center,
                 Yv=Yv,
                 Yp=Yp,
                 std_mu_p=std_mu_p,
@@ -614,7 +648,7 @@ def run_gridsearch(
                 best_grid_plots_dir = run_paths.plots_dir / "best_grid_model"
                 best_extra_paths = save_candidate_plot_bundle(
                     plots_dir=best_grid_plots_dir,
-                    Xv=Xv,
+                    Xv=Xv_center,
                     Yv=Yv,
                     Yp=Yp,
                     std_mu_p=std_mu_p,
@@ -628,7 +662,7 @@ def run_gridsearch(
                 )
                 legacy_paths = save_legacy_champion_plots(
                     plots_dir=best_grid_plots_dir,
-                    Xv=Xv,
+                    Xv=Xv_center,
                     Yv=Yv,
                     Yp=Yp,
                     mu_p=mu_p,

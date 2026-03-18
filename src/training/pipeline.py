@@ -29,9 +29,12 @@ def _filter_selected_experiments(
 ):
     if not selected_experiments:
         return exps
-    selected = set(str(p) for p in selected_experiments)
+    selected = [str(p) for p in selected_experiments]
     before = len(exps)
-    filtered = [(X, Y, D, C, p) for X, Y, D, C, p in exps if str(p) in selected]
+    # Support both exact match and prefix match (e.g. curr_100mA/ matches curr_100mA/full_square_...)
+    def _matches(exp_path: str) -> bool:
+        return any(exp_path == s or exp_path.startswith(s.rstrip("/") + "/") for s in selected)
+    filtered = [(X, Y, D, C, p) for X, Y, D, C, p in exps if _matches(str(p))]
     print(
         f"⚡ selected_experiments filter: {before} → {len(filtered)} experiment(s) "
         f"(selected_experiments={list(selected)})"
@@ -186,6 +189,18 @@ def run_training_pipeline(
             f"train={len(X_train):,} | val={len(X_val):,} (val intocado)"
         )
 
+    # Guard: seq_bigru_residual is incompatible with balanced_blocks (early check via overrides).
+    _arch_override = str(ov.get("arch_variant", "")).strip().lower()
+    if _arch_override == "seq_bigru_residual":
+        _dr_enabled = bool(runtime.data_reduction_config.get("enabled", False))
+        _dr_mode = str(runtime.data_reduction_config.get("mode", "balanced_blocks")).lower()
+        if _dr_enabled and _dr_mode == "balanced_blocks":
+            raise ValueError(
+                "arch_variant='seq_bigru_residual' requires contiguous temporal data; "
+                "mode='balanced_blocks' breaks temporal context needed for windowing. "
+                "Use no_data_reduction=True or set data_reduction mode='center_crop'."
+            )
+
     if runtime.data_reduction_config.get("enabled", False):
         rng_red = np.random.default_rng(int(runtime.training_config.get("seed", 42)))
         X_train, Y_train = reduce_experiment_xy(
@@ -223,6 +238,23 @@ def run_training_pipeline(
         _log_regime_tolerance(ov, d_unique, c_unique)
 
     grid = select_grid(ov)
+
+    # Guard: comprehensive check after grid selection — catches arch_variant set per-cfg.
+    _seq_in_grid = any(
+        str(item["cfg"].get("arch_variant", "")).strip().lower() == "seq_bigru_residual"
+        for item in grid
+    )
+    if _seq_in_grid:
+        _dr_enabled = bool(runtime.data_reduction_config.get("enabled", False))
+        _dr_mode = str(runtime.data_reduction_config.get("mode", "balanced_blocks")).lower()
+        if _dr_enabled and _dr_mode == "balanced_blocks":
+            raise ValueError(
+                "arch_variant='seq_bigru_residual' is incompatible with "
+                "data_reduction mode='balanced_blocks': non-contiguous block selection "
+                "breaks temporal context required for windowing. "
+                "Use no_data_reduction=True or set data_reduction mode='center_crop'."
+            )
+
     df_plan = _build_grid_plan(grid)
     plan_path = run_paths.write_table("tables/gridsearch_plan.xlsx", df_plan)
     print(f"📌 Grid plan salvo: {plan_path}")
@@ -288,6 +320,7 @@ def run_training_pipeline(
         "validation_split": float(runtime.training_config["validation_split"]),
         "seed": int(runtime.training_config["seed"]),
         "split_by_experiment_xlsx": str(split_path),
+        "seq_variant_detected": bool(_seq_in_grid),
     }
     grid_state = {
         "n_models": int(len(grid)),

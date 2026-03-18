@@ -22,6 +22,12 @@ from src.config.defaults import (
     MODEL_DEFAULTS,
     DATA_REDUCTION_DEFAULTS,
     ANALYSIS_DEFAULTS,
+    K_WINDOW_SIZE,
+    K_WINDOW_STRIDE,
+    K_WINDOW_PAD_MODE,
+    K_SEQ_HIDDEN_SIZE,
+    K_SEQ_NUM_LAYERS,
+    K_SEQ_BIDIRECTIONAL,
 )
 
 
@@ -57,6 +63,14 @@ class TrainConfig:
     dropout: float = MODEL_DEFAULTS["dropout"]
     arch_variant: str = MODEL_DEFAULTS["arch_variant"]
 
+    # sequence model (ignored by point-wise variants)
+    window_size: int = MODEL_DEFAULTS["window_size"]
+    window_stride: int = MODEL_DEFAULTS["window_stride"]
+    window_pad_mode: str = MODEL_DEFAULTS["window_pad_mode"]
+    seq_hidden_size: int = MODEL_DEFAULTS["seq_hidden_size"]
+    seq_num_layers: int = MODEL_DEFAULTS["seq_num_layers"]
+    seq_bidirectional: bool = MODEL_DEFAULTS["seq_bidirectional"]
+
     # loss / regularisation
     beta: float = MODEL_DEFAULTS["beta"]
     free_bits: float = MODEL_DEFAULTS["free_bits"]
@@ -89,6 +103,12 @@ class TrainConfig:
             activation=str(_get(d, "activation", MODEL_DEFAULTS["activation"])),
             dropout=float(_get(d, "dropout", MODEL_DEFAULTS["dropout"], float)),
             arch_variant=str(_get(d, "arch_variant", MODEL_DEFAULTS["arch_variant"])),
+            window_size=int(_get(d, "window_size", MODEL_DEFAULTS["window_size"], int)),
+            window_stride=int(_get(d, "window_stride", MODEL_DEFAULTS["window_stride"], int)),
+            window_pad_mode=str(_get(d, "window_pad_mode", MODEL_DEFAULTS["window_pad_mode"])),
+            seq_hidden_size=int(_get(d, "seq_hidden_size", MODEL_DEFAULTS["seq_hidden_size"], int)),
+            seq_num_layers=int(_get(d, "seq_num_layers", MODEL_DEFAULTS["seq_num_layers"], int)),
+            seq_bidirectional=bool(_get(d, "seq_bidirectional", MODEL_DEFAULTS["seq_bidirectional"])),
             beta=float(_get(d, "beta", MODEL_DEFAULTS["beta"], float)),
             free_bits=float(_get(d, "free_bits", MODEL_DEFAULTS["free_bits"], float)),
             kl_anneal_epochs=int(_get(d, "kl_anneal_epochs", MODEL_DEFAULTS["kl_anneal_epochs"], int)),

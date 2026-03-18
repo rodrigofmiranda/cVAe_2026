@@ -48,7 +48,7 @@ def _activation_layer(name: str):
 def _normalize_arch_variant(arch_variant: str) -> str:
     """Validate and normalise the decoder architecture variant name."""
     variant = str(arch_variant or "concat").strip().lower()
-    valid = {"concat", "channel_residual"}
+    valid = {"concat", "channel_residual", "seq_bigru_residual"}
     if variant not in valid:
         raise ValueError(
             f"Unknown arch_variant={arch_variant!r}. "
@@ -219,6 +219,10 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
     activation = cfg.get("activation", "leaky_relu")
     arch_variant = _normalize_arch_variant(cfg.get("arch_variant", "concat"))
 
+    if arch_variant == "seq_bigru_residual":
+        from src.models.cvae_sequence import build_seq_cvae  # lazy import
+        return build_seq_cvae(cfg)
+
     encoder = build_encoder(cfg)
     prior_net = build_prior_net(cfg)
     decoder = build_decoder(
@@ -291,6 +295,11 @@ def create_inference_model_from_full(
     """
     prior = full_model.get_layer("prior_net")
     dec = full_model.get_layer("decoder")
+
+    # Detect sequence variant: prior input[0] is (None, W, 2) for seq, (None, 2) for point-wise.
+    if len(prior.inputs[0].shape) == 3:
+        from src.models.cvae_sequence import create_seq_inference_model  # lazy import
+        return create_seq_inference_model(full_model, deterministic=deterministic)
 
     x_in = layers.Input(shape=(2,), name="x_input")
     d_in = layers.Input(shape=(1,), name="distance_input")

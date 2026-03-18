@@ -102,6 +102,8 @@ def parse_args():
                    help="Alias for --no_cvae")
     p.add_argument("--no_dist_metrics", action="store_true",
                    help="Skip distribution-fidelity metrics (moments, PSD, Gaussianity)")
+    p.add_argument("--no_data_reduction", action="store_true",
+                   help="Disable data reduction (balanced_blocks); use all train samples after split")
     p.add_argument("--skip_eval", action="store_true",
                    help="Run training only, skip evaluation step")
     p.add_argument("--dry_run", action="store_true",
@@ -806,6 +808,7 @@ def _quick_cvae_predict(
     mc_samples: int = 16,
     seed: int = 42,
     mode: str = "mc_concat",
+    df_split=None,
 ):
     """
     Load best_model_full.keras from *run_dir*/models and generate cVAE predictions.
@@ -856,10 +859,11 @@ def _quick_cvae_predict(
         from src.models.losses import CondPriorVAELoss
         from src.models.sampling import Sampling
 
-        custom_objects = {"Sampling": Sampling, "CondPriorVAELoss": CondPriorVAELoss}
-        vae = tf.keras.models.load_model(
-            str(model_path), custom_objects=custom_objects, compile=False
-        )
+        from src.models.cvae_sequence import load_seq_model
+        vae = load_seq_model(str(model_path))
+
+        # Detect seq_bigru_residual via prior input rank (rank-3 → windowed input)
+        _is_seq = len(vae.get_layer("prior_net").inputs[0].shape) == 3
 
         # --- Normalizar D e C antes de alimentar o modelo ---
         # (modelo foi treinado com D,C em [0,1])
@@ -889,6 +893,59 @@ def _quick_cvae_predict(
         _C_norm = _C_norm.reshape(-1, 1)
 
         X_arr = _np.asarray(X_va)
+        X_center_arr = X_arr  # (N, 2) — center frame for residuals and tiling
+
+        # --- Seq windowing ---
+        # Uses per-experiment boundaries when df_split is available (no boundary leakage).
+        # Falls back to global windowing only when df_split is absent (emergency fallback).
+        if _is_seq:
+            from src.data.windowing import build_windows_single_experiment
+            _ws_shape = int(vae.get_layer("prior_net").inputs[0].shape[1])
+            try:
+                _state_qs = json.loads((run_dir / "state_run.json").read_text())
+                _ds_qs = _state_qs.get("data_split", {})
+                _ws = int(_ds_qs.get("window_size", _ws_shape))
+                _wst = int(_ds_qs.get("window_stride", 1))
+                _wpm = str(_ds_qs.get("window_pad_mode", "edge"))
+            except Exception:
+                _ws, _wst, _wpm = _ws_shape, 1, "edge"
+
+            _df = df_split
+            if _df is not None and "n_val" in _df.columns:
+                # Per-experiment windowing — no cross-experiment boundary leakage
+                _n_val_list = [int(v) for v in _df["n_val"].tolist()]
+                _va_X = []
+                _cursor = 0
+                for _n_va in _n_val_list:
+                    if _n_va > 0:
+                        _Y_d = _np.zeros((_n_va, 2), dtype=_np.float32)
+                        _D_d = _np.ones((_n_va, 1), dtype=_np.float32)
+                        _C_d = _np.ones((_n_va, 1), dtype=_np.float32)
+                        _X_w, _, _, _ = build_windows_single_experiment(
+                            X_arr[_cursor:_cursor + _n_va],
+                            _Y_d, _D_d, _C_d,
+                            window_size=_ws, stride=_wst, pad_mode=_wpm,
+                        )
+                        _va_X.append(_X_w)
+                    _cursor += _n_va
+                X_arr_w = _np.concatenate(_va_X, axis=0) if _va_X else _np.empty((0, _ws, 2), dtype=_np.float32)
+                print(f"   🔄 seq windowing (per-experiment): X_arr_w={X_arr_w.shape}")
+            else:
+                # Global windowing — windows at experiment boundaries may include context
+                # from adjacent experiments. Only reached when df_split is unavailable.
+                print("   ⚠️  seq windowing: df_split unavailable — using global windowing "
+                      "(windows may cross experiment boundaries).")
+                Y_dummy = _np.zeros((X_arr.shape[0], 2), dtype=_np.float32)
+                D_dummy = _np.ones((X_arr.shape[0], 1), dtype=_np.float32)
+                C_dummy = _np.ones((X_arr.shape[0], 1), dtype=_np.float32)
+                X_arr_w, _, _, _ = build_windows_single_experiment(
+                    X_arr, Y_dummy, D_dummy, C_dummy,
+                    window_size=_ws, stride=_wst, pad_mode=_wpm,
+                )
+                print(f"   🔄 seq windowing (global): X_arr_w={X_arr_w.shape}")
+
+            X_center_arr = X_arr  # keep 2D for tiling
+            X_arr = X_arr_w        # switch to windowed for inference
 
         if mode == "det":
             inference_model = create_inference_model_from_full(vae, deterministic=True)
@@ -900,7 +957,7 @@ def _quick_cvae_predict(
                 tf.keras.backend.clear_session()
             except Exception:
                 pass
-            return Y_pred, X_arr, D_arr, C_arr
+            return Y_pred, X_center_arr, D_arr, C_arr
 
         samples = []
         for i in range(mc_samples):
@@ -922,7 +979,7 @@ def _quick_cvae_predict(
             reps = (mc_samples,) + (1,) * (a.ndim - 1)
             return _np.tile(a, reps)
 
-        X_tiled = _tile_like_input(X_arr)
+        X_tiled = _tile_like_input(X_center_arr)  # tile 2D center frame for residual calcs
         D_tiled = _tile_like_input(D_arr)
         C_tiled = _tile_like_input(C_arr)
 
@@ -1060,7 +1117,8 @@ def run_regime(
 
     # ---- SHARED DATA LOADING (Commit 3O) ----
     # Loaded once, shared by baseline + dist-metrics + quick cVAE inference.
-    _val_data = None   # (X_va, Y_va, D_va, C_va) or None
+    _val_data = None        # (X_va, Y_va, D_va, C_va) or None
+    _val_df_split = None    # df_split from apply_split; kept for per-experiment seq windowing
     _X_tr = _Y_tr = None
     _need_data = (run_baseline or run_dist_metrics or run_stat_fidelity) and not ov.get("dry_run", False)
 
@@ -1102,6 +1160,7 @@ def run_regime(
             )
 
             _val_data = (X_va.copy(), Y_va.copy(), D_va.copy(), C_va.copy())  # Commit 3P: isolate
+            _val_df_split = _df_split  # kept for per-experiment windowing in _quick_cvae_predict
             _X_tr, _Y_tr = X_tr, Y_tr
             print(f"   split={_split_strategy} | train={len(X_tr):,}  val={len(X_va):,}")
 
@@ -1312,6 +1371,7 @@ def run_regime(
                     mc_samples=_mc_dm,
                     seed=int(ov.get("seed", 42)),
                     mode="mc_concat",
+                    df_split=_val_df_split,
                 )
                 if _pred_pack is not None:
                     from src.metrics.distribution import residual_fidelity_metrics
@@ -1375,6 +1435,7 @@ def run_regime(
                 mc_samples=_mc_sf,
                 seed=stat_seed,
                 mode="mc_concat",
+                df_split=_val_df_split,
             )
             if _pred_pack is None:
                 raise RuntimeError("cVAE quick_predict returned None")
@@ -1484,6 +1545,11 @@ def main():
     # Merge protocol globals + CLI overrides → typed RunOverrides
     base_overrides = _merge_overrides(proto_globals, args)
     base_overrides_dict = base_overrides.to_dict()          # legacy compat
+    # Pass through private keys (e.g. _selected_experiments) from global_settings
+    # that RunOverrides does not model as typed fields.
+    for _k, _v in proto_globals.items():
+        if _k.startswith("_") and _k not in base_overrides_dict:
+            base_overrides_dict[_k] = _v
 
     # ---- Etapa A5: guard incompatible flag combos ----
     if args.dry_run and args.stat_tests:

@@ -36,6 +36,7 @@ from src.evaluation.report import (
     load_training_history,
 )
 from src.models.cvae import create_inference_model_from_full
+from src.models.cvae_sequence import load_seq_model
 from src.models.losses import CondPriorVAELoss
 from src.models.sampling import Sampling
 from src.protocol.split_strategies import apply_split
@@ -200,10 +201,6 @@ def evaluate_run(
     print(f"📁 OUTPUT_RUN_DIR = {output_dir}")
     print(f"📁 DATASET_ROOT = {runtime.dataset_root}")
 
-    custom_objects = {
-        "Sampling": Sampling,
-        "CondPriorVAELoss": CondPriorVAELoss,
-    }
     artifacts = runtime.state.get("artifacts", {})
     best_model_candidate = str(artifacts.get("best_model_full", "")).strip()
     best_model_path = (
@@ -217,11 +214,7 @@ def evaluate_run(
         raise FileNotFoundError(f"best_model_full.keras não encontrado: {best_model_path}")
 
     print(f"📦 Carregando modelo: {best_model_path}")
-    vae = tf.keras.models.load_model(
-        str(best_model_path),
-        custom_objects=custom_objects,
-        compile=False,
-    )
+    vae = load_seq_model(str(best_model_path))
 
     layer_names = {layer.name for layer in vae.layers}
     print(
@@ -238,6 +231,14 @@ def evaluate_run(
     encoder = vae.get_layer("encoder")
     prior = vae.get_layer("prior_net")
     decoder = vae.get_layer("decoder")
+
+    # Detect seq_bigru_residual via prior input rank (rank-3 → windowed sequence input)
+    _is_seq = len(prior.inputs[0].shape) == 3
+    if _is_seq:
+        print(
+            f"🔄 seq_bigru_residual detected (prior input rank=3, W={prior.inputs[0].shape[1]}) "
+            "— windowed inference will be applied."
+        )
 
     seed0 = int(ov.get("seed", runtime.training_config.get("seed", 42)))
     np.random.seed(seed0)
@@ -352,6 +353,26 @@ def evaluate_run(
     print(f"✓ split_by_experiment.xlsx salvo: {run_paths.tables_dir / 'split_by_experiment.xlsx'}")
     print(f"✓ Split aplicado | train={len(X_train):,} | val={len(X_val):,} | mode={split_mode}")
 
+    # --- Seq windowing (after split+cap, before eval slicing) ---
+    # Produces X_val_w (N_val, W, 2) for seq models; None for point-wise models.
+    # X_val_w[i, W//2, :] == X_val[i, :] by construction (centered edge-padded windows).
+    X_val_w = None
+    if _is_seq:
+        from src.data.windowing import build_windows_from_split_arrays
+        _ds_info = runtime.state.get("data_split", {})
+        _ws = int(_ds_info.get("window_size", int(prior.inputs[0].shape[1])))
+        _wst = int(_ds_info.get("window_stride", 1))
+        _wpm = str(_ds_info.get("window_pad_mode", "edge"))
+        _, _, _, _, X_val_w, _, _, _ = build_windows_from_split_arrays(
+            X_train, Y_train, D_train, C_train,
+            X_val, Y_val, D_val, C_val,
+            df_split=df_split,
+            window_size=_ws,
+            stride=_wst,
+            pad_mode=_wpm,
+        )
+        print(f"✓ Seq windowing: X_val_w={X_val_w.shape} (W={_ws}, stride={_wst})")
+
     norm = load_normalization_from_state(runtime.state)
     if norm is None:
         norm = {
@@ -402,28 +423,43 @@ def evaluate_run(
 
     n_eval = len(Xv)
 
+    # --- Seq: select matching windowed slice; assign Xv_in (model input) and Xv_center (metrics) ---
+    # For seq: Xv_in is (N, W, 2); Xv_center is (N, 2) — identical to Xv by construction.
+    # For point-wise: Xv_in == Xv_center == Xv.
+    if _is_seq:
+        if eval_slice == "stratified":
+            Xv_in = X_val_w[idx_eval]
+        elif eval_slice == "full":
+            Xv_in = X_val_w
+        else:
+            Xv_in = X_val_w[:n_eval]
+        Xv_center = Xv  # center frame = original point-wise array
+    else:
+        Xv_in = Xv
+        Xv_center = Xv
+
     if det_inf or mc_samples <= 1 or rank_mode == "det":
-        Yp = inference_model.predict([Xv, Dv, Cv], batch_size=batch_infer, verbose=0)
+        Yp = inference_model.predict([Xv_in, Dv, Cv], batch_size=batch_infer, verbose=0)
         Yp_dist = Yp
-        X_dist = Xv
+        X_dist = Xv_center
         Y_dist = Yv
         var_mc = float("nan")
     else:
         inf_sto = create_inference_model_from_full(vae, deterministic=False)
         Ys = []
         for _ in range(int(mc_samples)):
-            Ys.append(inf_sto.predict([Xv, Dv, Cv], batch_size=batch_infer, verbose=0))
+            Ys.append(inf_sto.predict([Xv_in, Dv, Cv], batch_size=batch_infer, verbose=0))
         Ys = np.stack(Ys, axis=0)
         Yp = Ys.mean(axis=0)
         Yp_dist = Ys.reshape((-1, Ys.shape[-1]))
-        X_dist = np.tile(Xv, (int(mc_samples), 1))
+        X_dist = np.tile(Xv_center, (int(mc_samples), 1))
         Y_dist = np.tile(Yv, (int(mc_samples), 1))
         var_mc = float(np.mean(np.var(Ys, axis=0)))
 
-    evm_real, _ = calculate_evm(Xv, Yv)
-    evm_pred, _ = calculate_evm(Xv, Yp)
-    snr_real = calculate_snr(Xv, Yv)
-    snr_pred = calculate_snr(Xv, Yp)
+    evm_real, _ = calculate_evm(Xv_center, Yv)
+    evm_pred, _ = calculate_evm(Xv_center, Yp)
+    snr_real = calculate_snr(Xv_center, Yv)
+    snr_pred = calculate_snr(Xv_center, Yp)
 
     dist_on = bool(analysis_quick.get("dist_metrics", True)) and not bool(ov.get("no_dist_metrics", False))
     psd_nfft = int(ov.get("psd_nfft", analysis_quick.get("psd_nfft", 2048)))
@@ -480,8 +516,8 @@ def evaluate_run(
     run_paths.write_table("tables/metricas_globais_reanalysis.csv", pd.DataFrame([global_metrics]))
     print(f"✓ metricas_globais_reanalysis.json salvo: {metrics_json}")
 
-    enc_out = encoder.predict([Xv, Dv, Cv, Yv], batch_size=batch_infer, verbose=0)
-    pri_out = prior.predict([Xv, Dv, Cv], batch_size=batch_infer, verbose=0)
+    enc_out = encoder.predict([Xv_in, Dv, Cv, Yv], batch_size=batch_infer, verbose=0)
+    pri_out = prior.predict([Xv_in, Dv, Cv], batch_size=batch_infer, verbose=0)
     z_mean_q, z_log_var_q = _first2(enc_out)
     z_mean_p, z_log_var_p = _first2(pri_out)
 
@@ -498,15 +534,25 @@ def evaluate_run(
     print(f"✓ latent_diagnostics.xlsx salvo: {run_paths.tables_dir / 'latent_diagnostics.xlsx'}")
 
     nb = min(20000, n_eval)
-    sens = decoder_sensitivity(
-        prior,
-        decoder,
-        Xv[:nb],
-        Dv[:nb],
-        Cv[:nb],
-        n_mc_z=16,
-        batch_size=batch_infer,
-    )
+    if _is_seq:
+        # decoder_sensitivity uses a concatenated [X, D, C] cond input which is
+        # incompatible with the seq decoder interface ([z, x_center, d, c] separately).
+        # Skipped for seq_bigru_residual; a seq-specific sensitivity will be added later.
+        sens = {
+            "decoder_output_variance_mean": float("nan"),
+            "decoder_output_rms_std": float("nan"),
+        }
+        print("ℹ️  decoder_sensitivity skipped for seq_bigru_residual variant.")
+    else:
+        sens = decoder_sensitivity(
+            prior,
+            decoder,
+            Xv[:nb],
+            Dv[:nb],
+            Cv[:nb],
+            n_mc_z=16,
+            batch_size=batch_infer,
+        )
     run_paths.write_json("logs/decoder_sensitivity.json", sens)
 
     history_candidate = artifacts.get("training_history_json", "")
@@ -524,10 +570,10 @@ def evaluate_run(
             print(f"⚠ Falha ao ler/plotar training_history: {exc}")
 
     plot_overlay(Yv, Yp, run_paths.plots_dir / "overlay_constellation.png", max_points=80_000)
-    plot_residual_overlay(Xv, Yv, Yp, run_paths.plots_dir / "overlay_residual_delta.png", max_points=80_000)
+    plot_residual_overlay(Xv_center, Yv, Yp, run_paths.plots_dir / "overlay_residual_delta.png", max_points=80_000)
     plot_histograms(Yv, run_paths.plots_dir / "density_y_real.png", title="Density: Y real (hist2d)")
     plot_histograms(Yp, run_paths.plots_dir / "density_y_pred.png", title="Density: Y pred (hist2d)")
-    plot_psd(Xv, Yv, Yp, run_paths.plots_dir / "psd_residual_delta.png", nfft=psd_nfft)
+    plot_psd(Xv_center, Yv, Yp, run_paths.plots_dir / "psd_residual_delta.png", nfft=psd_nfft)
     plot_latent_activity(z_std_p, run_paths.plots_dir / "latent_activity_std_mu_p.png", active_dims=active_dims)
     plot_latent_kl(
         df_lat["dim"].values,

@@ -39,6 +39,14 @@ K_DROPOUT = "dropout"
 K_ACTIVATION = "activation"
 K_ARCH_VARIANT = "arch_variant"
 
+# --- Sequence model (seq_bigru_residual) ---
+K_WINDOW_SIZE = "window_size"
+K_WINDOW_STRIDE = "window_stride"
+K_WINDOW_PAD_MODE = "window_pad_mode"
+K_SEQ_HIDDEN_SIZE = "seq_hidden_size"
+K_SEQ_NUM_LAYERS = "seq_num_layers"
+K_SEQ_BIDIRECTIONAL = "seq_bidirectional"
+
 # --- Data reduction ---
 K_TARGET_SAMPLES = "target_samples_per_experiment"
 K_MIN_SAMPLES = "min_samples_per_experiment"
@@ -97,6 +105,13 @@ MODEL_DEFAULTS: dict = {
     K_DROPOUT: 0.0,
     K_ACTIVATION: "leaky_relu",
     K_ARCH_VARIANT: "concat",
+    # Sequence model defaults (ignored by point-wise variants)
+    K_WINDOW_SIZE: 33,
+    K_WINDOW_STRIDE: 1,
+    K_WINDOW_PAD_MODE: "edge",
+    K_SEQ_HIDDEN_SIZE: 64,
+    K_SEQ_NUM_LAYERS: 1,
+    K_SEQ_BIDIRECTIONAL: True,
 }
 
 DATA_REDUCTION_DEFAULTS: dict = {
