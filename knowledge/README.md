@@ -11,6 +11,7 @@ knowledge/
   papers/
     raw/          # coloque aqui os PDFs originais
     parsed/       # saidas geradas pelo Docling
+  index/          # base vetorial local e estado incremental
   notes/          # research cards por paper
   syntheses/      # sinteses tematicas e comparativas
 ```
@@ -40,8 +41,9 @@ Exemplos:
 1. colocar os PDFs em `knowledge/papers/raw/`
 2. rodar o ingest com Docling
 3. revisar os arquivos parseados em `knowledge/papers/parsed/`
-4. criar um research card em `knowledge/notes/`
-5. consolidar temas em `knowledge/syntheses/`
+4. indexar os `document.md` em `knowledge/index/`
+5. criar um research card em `knowledge/notes/`
+6. consolidar temas em `knowledge/syntheses/`
 
 ## Script inicial
 
@@ -59,6 +61,23 @@ python scripts/ingest_papers_docling.py \
   --output-dir knowledge/papers/parsed
 ```
 
+## Script de indexacao
+
+Depois do ingest, indexe o Markdown parseado:
+
+```bash
+python scripts/index_knowledge_chroma.py
+```
+
+Ou com paths explicitos:
+
+```bash
+python scripts/index_knowledge_chroma.py \
+  --parsed-dir knowledge/papers/parsed \
+  --db-dir knowledge/index/chroma_db \
+  --state-path knowledge/index/index_state.json
+```
+
 ## O que o ingest gera
 
 Para cada PDF, o script gera:
@@ -72,6 +91,14 @@ Para cada PDF, o script gera:
 
 Docling entra aqui como camada de parsing.
 
+Estamos usando Docling porque ele transforma PDFs de pesquisa em artefatos mais
+uteis para IA:
+
+- `document.md` para leitura e chunking
+- `document.json` para estrutura e proveniencia
+- `document.txt` para fallback simples
+- OCR, tabelas e layout quando o PDF exigir isso
+
 Ele nao substitui:
 
 - curadoria por paper
@@ -82,5 +109,6 @@ Por isso a pipeline separa:
 
 - `raw`
 - `parsed`
+- `index`
 - `notes`
 - `syntheses`

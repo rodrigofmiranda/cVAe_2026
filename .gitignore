@@ -38,3 +38,10 @@ __pycache__/
 
 # Accidental CLI artifact files (multiline paste mistakes)
 --*
+
+# Local research knowledge base artifacts
+knowledge/papers/raw/*.pdf
+knowledge/papers/parsed/*
+!knowledge/papers/parsed/README.md
+knowledge/index/chroma_db/
+knowledge/index/index_state.json
