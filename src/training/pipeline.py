@@ -13,7 +13,11 @@ import pandas as pd
 import tensorflow as tf
 
 from src.config.runtime import build_training_runtime
-from src.data.loading import find_dataset_root, load_experiments_as_list, reduce_experiment_xy
+from src.data.loading import (
+    find_dataset_root,
+    load_experiments_as_list,
+    reduce_aligned_arrays,
+)
 from src.data.normalization import normalize_conditions
 from src.data.splits import cap_train_samples_per_experiment
 from src.models.cvae import build_cvae
@@ -203,14 +207,14 @@ def run_training_pipeline(
 
     if runtime.data_reduction_config.get("enabled", False):
         rng_red = np.random.default_rng(int(runtime.training_config.get("seed", 42)))
-        X_train, Y_train = reduce_experiment_xy(
+        X_train, Y_train, D_train, C_train = reduce_aligned_arrays(
             X_train,
             Y_train,
-            runtime.data_reduction_config,
-            rng_red,
+            D_train,
+            C_train,
+            cfg=runtime.data_reduction_config,
+            rng=rng_red,
         )
-        D_train = D_train[: len(X_train)]
-        C_train = C_train[: len(X_train)]
         print(
             f"✓ Data reduction pós-split: train={len(X_train):,} | "
             f"val={len(X_val):,} (val intocado)"

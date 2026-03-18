@@ -217,23 +217,16 @@ def find_dataset_root(
 # ---------------------------------------------------------------------------
 # Data reduction (Commit 3B)
 # ---------------------------------------------------------------------------
-def reduce_experiment_xy(X, Y, cfg, rng):
-    """Reduce a single experiment's arrays according to *cfg*.
-
-    Returns ``(X_reduced, Y_reduced)`` — unchanged if reduction is
-    disabled or the experiment is already within the target size.
-    """
-    n = min(len(X), len(Y))
-    X = X[:n]; Y = Y[:n]
-
+def _reduction_indices(n: int, cfg, rng) -> np.ndarray:
+    """Return the sample indices kept by the configured reduction policy."""
     if not cfg.get("enabled", False):
-        return X, Y
+        return np.arange(n, dtype=np.int64)
 
     target = int(cfg.get("target_samples_per_experiment", 200_000))
     minimum = int(cfg.get("min_samples_per_experiment", 80_000))
 
     if n <= target:
-        return X, Y  # já está dentro do alvo, não corta
+        return np.arange(n, dtype=np.int64)  # já está dentro do alvo, não corta
 
     target = max(target, minimum)
 
@@ -244,8 +237,7 @@ def reduce_experiment_xy(X, Y, cfg, rng):
     # --------------------------------------------------
     if mode == "center_crop":
         start = (n - target) // 2
-        idx = np.arange(start, start + target, dtype=np.int64)
-        return X[idx], Y[idx]
+        return np.arange(start, start + target, dtype=np.int64)
 
     # --------------------------------------------------
     # Modo 2: balanced_blocks (padrão)
@@ -257,7 +249,7 @@ def reduce_experiment_xy(X, Y, cfg, rng):
 
     n_total_blocks = n // block_len
     if n_total_blocks == 0:
-        return X[:target], Y[:target]
+        return np.arange(min(target, n), dtype=np.int64)
 
     blocks_needed = target // block_len + 1
 
@@ -281,8 +273,39 @@ def reduce_experiment_xy(X, Y, cfg, rng):
         end   = start + block_len
         idx_list.append(np.arange(start, min(end, n), dtype=np.int64))
 
-    idx = np.concatenate(idx_list)[:target]
-    return X[idx], Y[idx]
+    return np.concatenate(idx_list)[:target]
+
+
+def reduce_aligned_arrays(*arrays, cfg, rng):
+    """Reduce multiple aligned arrays with the same sampled indices.
+
+    Parameters
+    ----------
+    *arrays : array-like
+        Arrays sharing the same leading dimension.
+    cfg : dict
+        Data reduction config.
+    rng : np.random.Generator
+        Random generator used by the reduction policy.
+
+    Returns
+    -------
+    tuple[np.ndarray, ...]
+        Reduced arrays, all indexed by the exact same selected samples.
+    """
+    if not arrays:
+        return tuple()
+
+    n = min(len(arr) for arr in arrays)
+    trimmed = [np.asarray(arr)[:n] for arr in arrays]
+    idx = _reduction_indices(n, cfg, rng)
+    return tuple(arr[idx] for arr in trimmed)
+
+
+def reduce_experiment_xy(X, Y, cfg, rng):
+    """Reduce a single experiment's X/Y arrays according to *cfg*."""
+    X_red, Y_red = reduce_aligned_arrays(X, Y, cfg=cfg, rng=rng)
+    return X_red, Y_red
 
 
 # ---------------------------------------------------------------------------
