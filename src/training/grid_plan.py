@@ -244,6 +244,38 @@ def _preset_legacy2025_ref() -> List[Dict[str, Any]]:
     return [item for item in _legacy_2025_candidates() if item["group"] == "L1_legacy2025_ref"]
 
 
+def _preset_legacy2025_batch_sweep() -> List[Dict[str, Any]]:
+    """Batch-size sweep around the legacy 2025 reference configuration.
+
+    Keeps the full legacy-ref architecture fixed and varies only ``batch_size``
+    so throughput/stability can be compared fairly under the same protocol.
+    Ordered from smallest to largest batch to make incremental escalation easy.
+    """
+    base = dict(
+        arch_variant="legacy_2025_zero_y",
+        dropout=0.0,
+        free_bits=0.0,
+        activation="leaky_relu",
+        layer_sizes=[32, 64, 128, 256],
+        latent_dim=16,
+        beta=0.1,
+        lr=1e-4,
+        kl_anneal_epochs=50,
+    )
+    batch_sizes = [4096, 8192, 16384, 32768, 65536]
+    return [
+        dict(
+            group="L2_legacy2025_batch_sweep",
+            tag=(
+                f"L2legacy_lat16_b0p1_fb0p0_lr0p0001_bs{batch_size}"
+                "_anneal50_L32-64-128-256"
+            ),
+            cfg=_cfg(batch_size=batch_size, **base),
+        )
+        for batch_size in batch_sizes
+    ]
+
+
 def _seq_bigru_residual_candidates() -> List[Dict[str, Any]]:
     """seq_bigru_residual grid items: smoke (S0) and small-sweep (S1) configs.
 
@@ -375,6 +407,8 @@ def select_grid(
             grid = _preset_legacy2025_smoke()
         elif preset_name == "legacy2025_ref":
             grid = _preset_legacy2025_ref()
+        elif preset_name == "legacy2025_batch_sweep":
+            grid = _preset_legacy2025_batch_sweep()
         elif preset_name == "seq_residual_smoke":
             grid = _preset_seq_residual_smoke()
         elif preset_name == "seq_residual_small":
