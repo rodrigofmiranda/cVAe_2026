@@ -212,7 +212,7 @@ def _seq_bigru_residual_candidates() -> List[Dict[str, Any]]:
       beta:            0.001, 0.003  — covers the same reference range as G0/G1
 
     Fixed across all S1 configs: window_size=7, free_bits=0.10, latent_dim=4,
-    batch_size=1024, lr=3e-4, seq_num_layers=1, seq_bidirectional=True.
+    batch_size=8192, lr=3e-4, seq_num_layers=1, seq_bidirectional=True.
 
     Protocol constraint (seq_bigru_residual only)
     ---------------------------------------------
@@ -255,7 +255,7 @@ def _seq_bigru_residual_candidates() -> List[Dict[str, Any]]:
                 free_bits=0.10,
                 seq_hidden_size=16,
                 kl_anneal_epochs=3,
-                batch_size=1024,
+                batch_size=8192,
             ),
         ),
     ]
@@ -282,7 +282,7 @@ def _seq_bigru_residual_candidates() -> List[Dict[str, Any]]:
                         free_bits=0.10,
                         seq_hidden_size=h,
                         kl_anneal_epochs=80,
-                        batch_size=1024,
+                        batch_size=8192,
                     ),
                 )
             )
