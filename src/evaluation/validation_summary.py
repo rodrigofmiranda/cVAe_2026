@@ -44,6 +44,7 @@ SUMMARY_BY_REGIME_COLUMNS: List[str] = [
     "jb_real_log10p_min",
     "jb_real_reject_gaussian",
     "delta_jb_log10p",
+    "delta_jb_stat_rel",
     "baseline_evm_pred_%",
     "baseline_snr_pred_db",
     "baseline_delta_evm_%",
@@ -340,9 +341,17 @@ def _apply_derived_metrics(df: pd.DataFrame) -> None:
     stat_num = pd.to_numeric(df["stat_mmd2"], errors="coerce")
     df["stat_mmd2_normalized"] = np.where(stat_den > 0, stat_num / stat_den, np.nan)
 
-    df["delta_jb_log10p"] = np.abs(
-        pd.to_numeric(df["cvae_jb_log10p_min"], errors="coerce")
-        - pd.to_numeric(df["jb_real_log10p_min"], errors="coerce")
+    log10p_pred = pd.to_numeric(df["cvae_jb_log10p_min"], errors="coerce")
+    log10p_real = pd.to_numeric(df["jb_real_log10p_min"], errors="coerce")
+    df["delta_jb_log10p"] = np.abs(log10p_pred - log10p_real)
+    # Relative JB non-Gaussianity gap (N-invariant): |Δlog10p| / |log10p_real|.
+    # Both numerator and denominator scale linearly with N, so the ratio is stable
+    # across evaluation set sizes.  Threshold 0.20 means model reproduces the
+    # channel's non-Gaussianity level within 20% of the real value.
+    df["delta_jb_stat_rel"] = np.where(
+        log10p_real.abs() > 0,
+        df["delta_jb_log10p"] / log10p_real.abs(),
+        np.nan,
     )
 
     df["better_than_baseline_cov"] = [
@@ -362,7 +371,7 @@ def _apply_derived_metrics(df: pd.DataFrame) -> None:
     df["gate_g2"] = [_abs_lt(v, 15.0) for v in df["delta_evm_%"]]
     df["gate_g3"] = list(df["better_than_baseline_cov"])
     df["gate_g4"] = list(df["better_than_baseline_kurt"])
-    df["gate_g5"] = [_lt(v, 1.0) for v in df["delta_jb_log10p"]]
+    df["gate_g5"] = [_lt(v, 0.20) for v in df["delta_jb_stat_rel"]]
     df["gate_g6"] = [_gt(v, 0.05) for v in df["stat_mmd_qval"]]
     df["validation_status"] = df.apply(_validation_status, axis=1)
 
