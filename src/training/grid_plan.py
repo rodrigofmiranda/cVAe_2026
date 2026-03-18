@@ -563,6 +563,35 @@ def _preset_seq_residual_mmd() -> List[Dict[str, Any]]:
     return items
 
 
+def _preset_seq_residual_mmd_final() -> List[Dict[str, Any]]:
+    """Single-grid validation run with the Etapa C champion (λ_mmd=1.0, β=0.001).
+
+    Used to produce a clean summary_by_regime.csv with all six gates evaluated
+    after the G5 recalibration (delta_jb_stat_rel < 0.20).
+    """
+    return [{
+        "group": "S2_seq_mmd_final",
+        "tag": "S2seq_W7_h64_lat4_b0p001_lmmd1p0_fb0p10_lr0p0003_L128-256-512",
+        "cfg": _cfg(
+            arch_variant="seq_bigru_residual",
+            layer_sizes=[128, 256, 512],
+            latent_dim=4,
+            beta=0.001,
+            free_bits=0.1,
+            lr=3e-4,
+            batch_size=8192,
+            kl_anneal_epochs=80,
+            seq_hidden_size=64,
+            seq_num_layers=1,
+            seq_bidirectional=True,
+            window_size=7,
+            window_stride=1,
+            window_pad_mode="edge",
+            lambda_mmd=1.0,
+        ),
+    }]
+
+
 def select_grid(
     overrides: Optional[Mapping[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
@@ -598,6 +627,8 @@ def select_grid(
             grid = _preset_seq_residual_small()
         elif preset_name == "seq_residual_mmd":
             grid = _preset_seq_residual_mmd()
+        elif preset_name == "seq_residual_mmd_final":
+            grid = _preset_seq_residual_mmd_final()
         else:
             raise ValueError(f"Unknown grid_preset={preset!r}")
 
