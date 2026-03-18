@@ -37,7 +37,6 @@ from src.evaluation.report import (
 )
 from src.models.cvae import create_inference_model_from_full
 from src.models.cvae_sequence import load_seq_model
-from src.models.losses import CondPriorVAELoss
 from src.models.sampling import Sampling
 from src.protocol.split_strategies import apply_split
 from src.training.logging import RunPaths
@@ -239,6 +238,25 @@ def evaluate_run(
             f"🔄 seq_bigru_residual detected (prior input rank=3, W={prior.inputs[0].shape[1]}) "
             "— windowed inference will be applied."
         )
+
+    arch_variant = str(
+        runtime.training_config.get(
+            "arch_variant",
+            runtime.state.get("training_config", {}).get("arch_variant", ""),
+        )
+    ).strip().lower()
+    if not arch_variant:
+        if vae.name == "cvae_legacy_2025_zero_y":
+            arch_variant = "legacy_2025_zero_y"
+        elif _is_seq:
+            arch_variant = "seq_bigru_residual"
+        else:
+            arch_variant = "concat"
+    latent_prior_semantics = (
+        "std_normal_legacy_2025_zero_y"
+        if arch_variant == "legacy_2025_zero_y"
+        else "conditional_prior"
+    )
 
     seed0 = int(ov.get("seed", runtime.training_config.get("seed", 42)))
     np.random.seed(seed0)
@@ -510,6 +528,8 @@ def evaluate_run(
         rank_mode=str(rank_mode),
         mc_samples=int(mc_samples),
         var_mc=float(var_mc) if not np.isnan(var_mc) else float("nan"),
+        arch_variant=arch_variant,
+        latent_prior_semantics=latent_prior_semantics,
     )
 
     metrics_json = run_paths.write_json("logs/metricas_globais_reanalysis.json", global_metrics)
@@ -521,7 +541,13 @@ def evaluate_run(
     z_mean_q, z_log_var_q = _first2(enc_out)
     z_mean_p, z_log_var_p = _first2(pri_out)
 
-    lat_diag = compute_latent_diagnostics(z_mean_q, z_log_var_q, z_mean_p, z_log_var_p)
+    lat_diag = compute_latent_diagnostics(
+        z_mean_q,
+        z_log_var_q,
+        z_mean_p,
+        z_log_var_p,
+        arch_variant=arch_variant,
+    )
     df_lat = lat_diag["df_lat"]
     lat_summary = lat_diag["lat_summary"]
     z_std_p = lat_diag["z_std_p"]
@@ -596,6 +622,7 @@ def evaluate_run(
         kl_pN_total_mean=kl_pN_total_mean,
         sens_var_mean=sens["decoder_output_variance_mean"],
         sens_rms=sens["decoder_output_rms_std"],
+        arch_variant=arch_variant,
     )
     plot_summary_report(summary_text, run_paths.plots_dir / "summary_report.png")
 

@@ -7,6 +7,9 @@ The default ``concat`` architecture is identical to the legacy monolith.
 This module also exposes the experimental ``channel_residual`` decoder
 variant, which predicts ``Δ = Y - X`` internally while preserving the
 same external model interface.
+It also dispatches the legacy experimental
+``arch_variant="legacy_2025_zero_y"`` point-wise model, which preserves the
+2025 architecture under the stricter 2026 pipeline.
 
 Public API
 ----------
@@ -48,7 +51,12 @@ def _activation_layer(name: str):
 def _normalize_arch_variant(arch_variant: str) -> str:
     """Validate and normalise the decoder architecture variant name."""
     variant = str(arch_variant or "concat").strip().lower()
-    valid = {"concat", "channel_residual", "seq_bigru_residual"}
+    valid = {
+        "concat",
+        "channel_residual",
+        "seq_bigru_residual",
+        "legacy_2025_zero_y",
+    }
     if variant not in valid:
         raise ValueError(
             f"Unknown arch_variant={arch_variant!r}. "
@@ -156,6 +164,15 @@ def build_decoder(
         remains identical, so losses/inference do not need to change.
     """
     arch_variant = _normalize_arch_variant(arch_variant)
+    if arch_variant == "legacy_2025_zero_y":
+        from src.models.cvae_legacy_2025 import build_legacy_2025_decoder
+        return build_legacy_2025_decoder(
+            layer_sizes=layer_sizes,
+            latent_dim=latent_dim,
+            activation=activation,
+            dropout=dropout,
+        )
+
     z_in = layers.Input(shape=(latent_dim,), name="z_input")
     cond_in = layers.Input(shape=(4,), name="cond_input")    # x(2)+d(1)+c(1)
     h = layers.Concatenate(name="dec_concat")([z_in, cond_in])
@@ -222,6 +239,9 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
     if arch_variant == "seq_bigru_residual":
         from src.models.cvae_sequence import build_seq_cvae  # lazy import
         return build_seq_cvae(cfg)
+    if arch_variant == "legacy_2025_zero_y":
+        from src.models.cvae_legacy_2025 import build_legacy_2025_cvae
+        return build_legacy_2025_cvae(cfg)
 
     encoder = build_encoder(cfg)
     prior_net = build_prior_net(cfg)

@@ -196,6 +196,54 @@ def _preset_residual_small(grid: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return [by_tag[tag] for tag in keep_tags if tag in by_tag]
 
 
+def _legacy_2025_candidates() -> List[Dict[str, Any]]:
+    """Return the dedicated legacy-2025 candidates."""
+    base = dict(
+        arch_variant="legacy_2025_zero_y",
+        dropout=0.0,
+        free_bits=0.0,
+        activation="leaky_relu",
+    )
+    return [
+        dict(
+            group="L0_legacy2025_smoke",
+            tag="L0legacy_lat4_b0p01_fb0p0_lr0p0003_bs1024_anneal3_L32-64",
+            cfg=_cfg(
+                layer_sizes=[32, 64],
+                latent_dim=4,
+                beta=0.01,
+                lr=3e-4,
+                batch_size=1024,
+                kl_anneal_epochs=3,
+                **base,
+            ),
+        ),
+        dict(
+            group="L1_legacy2025_ref",
+            tag="L1legacy_lat16_b0p1_fb0p0_lr0p0001_bs4096_anneal50_L32-64-128-256",
+            cfg=_cfg(
+                layer_sizes=[32, 64, 128, 256],
+                latent_dim=16,
+                beta=0.1,
+                lr=1e-4,
+                batch_size=4096,
+                kl_anneal_epochs=50,
+                **base,
+            ),
+        ),
+    ]
+
+
+def _preset_legacy2025_smoke() -> List[Dict[str, Any]]:
+    """Single-item smoke preset for the legacy 2025 zero-y variant."""
+    return [item for item in _legacy_2025_candidates() if item["group"] == "L0_legacy2025_smoke"]
+
+
+def _preset_legacy2025_ref() -> List[Dict[str, Any]]:
+    """Reference preset matching the intended 2025-style benchmark config."""
+    return [item for item in _legacy_2025_candidates() if item["group"] == "L1_legacy2025_ref"]
+
+
 def _seq_bigru_residual_candidates() -> List[Dict[str, Any]]:
     """seq_bigru_residual grid items: smoke (S0) and small-sweep (S1) configs.
 
@@ -323,6 +371,10 @@ def select_grid(
             grid = _preset_exploratory_small(grid)
         elif preset_name == "residual_small":
             grid = _preset_residual_small(grid)
+        elif preset_name == "legacy2025_smoke":
+            grid = _preset_legacy2025_smoke()
+        elif preset_name == "legacy2025_ref":
+            grid = _preset_legacy2025_ref()
         elif preset_name == "seq_residual_smoke":
             grid = _preset_seq_residual_smoke()
         elif preset_name == "seq_residual_small":

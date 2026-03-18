@@ -35,6 +35,8 @@ def build_global_metrics(
     rank_mode: str,
     mc_samples: int,
     var_mc: float,
+    arch_variant: str | None = None,
+    latent_prior_semantics: str | None = None,
 ) -> Dict[str, Any]:
     """Assemble the global-metrics dictionary (identical to monolith)."""
     distm_serialized = {}
@@ -44,7 +46,7 @@ def build_global_metrics(
         else:
             distm_serialized[key] = float(value)
 
-    return {
+    metrics = {
         "timestamp": datetime.now().isoformat(timespec="seconds"),
         "run_id": run_id,
         "model_path": model_path,
@@ -62,6 +64,11 @@ def build_global_metrics(
         "mc_samples": int(mc_samples),
         "var_mc_gen": (float(var_mc) if not np.isnan(var_mc) else float("nan")),
     }
+    if arch_variant is not None:
+        metrics["arch_variant"] = str(arch_variant)
+    if latent_prior_semantics is not None:
+        metrics["latent_prior_semantics"] = str(latent_prior_semantics)
+    return metrics
 
 
 # ---------------------------------------------------------------------------
@@ -73,6 +80,8 @@ def compute_latent_diagnostics(
     z_log_var_q: np.ndarray,
     z_mean_p: np.ndarray,
     z_log_var_p: np.ndarray,
+    *,
+    arch_variant: str = "concat",
 ) -> dict:
     """Return a dict with ``df_lat``, ``lat_summary``, ``z_std_p``, and KL arrays.
 
@@ -90,18 +99,25 @@ def compute_latent_diagnostics(
     """
     z_std_p = np.std(z_mean_p, axis=0)
     active_dims = int(np.sum(z_std_p > 0.05))
+    is_legacy_std_normal = (
+        str(arch_variant or "").strip().lower() == "legacy_2025_zero_y"
+    )
 
     vq = np.exp(np.clip(z_log_var_q, -20, 20))
     vp = np.exp(np.clip(z_log_var_p, -20, 20))
 
-    kl_qp_dim = 0.5 * (
-        np.log(vp + 1e-12)
-        - np.log(vq + 1e-12)
-        + (vq + (z_mean_q - z_mean_p) ** 2) / (vp + 1e-12)
-        - 1.0
-    )
-    kl_qp_dim_mean = np.mean(kl_qp_dim, axis=0)
-    kl_qp_total_mean = float(np.mean(np.sum(kl_qp_dim, axis=1)))
+    if is_legacy_std_normal:
+        kl_qp_dim_mean = np.full(z_std_p.shape, np.nan, dtype=float)
+        kl_qp_total_mean = float("nan")
+    else:
+        kl_qp_dim = 0.5 * (
+            np.log(vp + 1e-12)
+            - np.log(vq + 1e-12)
+            + (vq + (z_mean_q - z_mean_p) ** 2) / (vp + 1e-12)
+            - 1.0
+        )
+        kl_qp_dim_mean = np.mean(kl_qp_dim, axis=0)
+        kl_qp_total_mean = float(np.mean(np.sum(kl_qp_dim, axis=1)))
 
     lv_p_clip = np.clip(z_log_var_p, -20, 20)
     kl_pN_dim = 0.5 * (np.exp(lv_p_clip) + z_mean_p ** 2 - 1.0 - lv_p_clip)
@@ -119,6 +135,12 @@ def compute_latent_diagnostics(
         "active_dims_std_mu_p_gt_0p05": int(active_dims),
         "kl_q_to_p_total_mean": float(kl_qp_total_mean),
         "kl_p_to_N0I_total_mean": float(kl_pN_total_mean),
+        "kl_q_to_p_applicable": not is_legacy_std_normal,
+        "latent_prior_semantics": (
+            "std_normal_legacy_2025_zero_y"
+            if is_legacy_std_normal
+            else "conditional_prior"
+        ),
     }
 
     return {
@@ -214,8 +236,24 @@ def build_summary_text(
     kl_pN_total_mean: float,
     sens_var_mean: float,
     sens_rms: float,
+    arch_variant: str = "concat",
 ) -> str:
     """Build the summary text identical to the monolith's section 10.7."""
+    is_legacy_std_normal = (
+        str(arch_variant or "").strip().lower() == "legacy_2025_zero_y"
+    )
+
+    def _fmt_metric(value: float) -> str:
+        try:
+            return "n/a" if np.isnan(value) else f"{value:.4g}"
+        except TypeError:
+            return str(value)
+
+    prior_semantics = (
+        "standard-normal legacy (encoder ignores y)"
+        if is_legacy_std_normal
+        else "conditional prior"
+    )
     return (
         f"Run: {run_id}\n"
         f"Split mode: {split_mode}\n"
@@ -224,6 +262,7 @@ def build_summary_text(
         f"SNR real: {snr_real:.3f} dB | SNR pred: {snr_pred:.3f} dB | ΔSNR: {snr_pred-snr_real:+.3f} dB\n"
         f"Δ mean L2: {distm['delta_mean_l2']:.4g} | Δ cov Fro: {distm['delta_cov_fro']:.4g} | Δ PSD L2: {distm['delta_psd_l2']:.4g}\n"
         f"Latent active dims (std μ_p>0.05): {active_dims}\n"
-        f"KL(q||p) total mean: {kl_qp_total_mean:.4g} | KL(p||N) total mean: {kl_pN_total_mean:.4g}\n"
+        f"Latent prior semantics: {prior_semantics}\n"
+        f"KL(q||p) total mean: {_fmt_metric(kl_qp_total_mean)} | KL(p||N) total mean: {_fmt_metric(kl_pN_total_mean)}\n"
         f"Decoder sensitivity var_mean: {sens_var_mean:.4g} | rms_std: {sens_rms:.4g}\n"
     )

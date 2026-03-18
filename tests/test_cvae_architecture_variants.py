@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 
+from src.evaluation.report import compute_latent_diagnostics
 from src.models.cvae import (
     build_cvae,
     build_decoder,
@@ -14,6 +15,23 @@ def _zero_dense_head(model, layer_name: str) -> None:
     assert len(weights) == 2
     kernel, bias = weights
     layer.set_weights([np.zeros_like(kernel), np.zeros_like(bias)])
+
+
+def _legacy_cfg(**overrides):
+    cfg = {
+        "layer_sizes": [16, 32],
+        "latent_dim": 4,
+        "beta": 0.01,
+        "lr": 3e-4,
+        "dropout": 0.0,
+        "free_bits": 0.0,
+        "kl_anneal_epochs": 3,
+        "batch_size": 8,
+        "activation": "leaky_relu",
+        "arch_variant": "legacy_2025_zero_y",
+    }
+    cfg.update(overrides)
+    return cfg
 
 
 def test_channel_residual_decoder_zero_head_returns_identity_mean():
@@ -81,3 +99,82 @@ def test_build_cvae_and_inference_support_channel_residual_variant():
 def test_unknown_arch_variant_raises():
     with pytest.raises(ValueError, match="Unknown arch_variant"):
         build_decoder(layer_sizes=[8], latent_dim=2, arch_variant="nope")
+
+
+def test_build_cvae_and_inference_support_legacy_2025_variant():
+    vae, _ = build_cvae(_legacy_cfg())
+
+    inf_det = create_inference_model_from_full(vae, deterministic=True)
+    inf_mc = create_inference_model_from_full(vae, deterministic=False)
+
+    x = np.zeros((3, 2), dtype=np.float32)
+    d = np.zeros((3, 1), dtype=np.float32)
+    c = np.zeros((3, 1), dtype=np.float32)
+
+    y_det = inf_det.predict([x, d, c], verbose=0)
+    y_mc = inf_mc.predict([x, d, c], verbose=0)
+
+    assert vae.name == "cvae_legacy_2025_zero_y"
+    assert y_det.shape == (3, 2)
+    assert y_mc.shape == (3, 2)
+
+
+def test_legacy_2025_encoder_ignores_y_numerically():
+    vae, _ = build_cvae(_legacy_cfg())
+    encoder = vae.get_layer("encoder")
+
+    rng = np.random.default_rng(7)
+    x = rng.normal(size=(5, 2)).astype(np.float32)
+    d = rng.uniform(size=(5, 1)).astype(np.float32)
+    c = rng.uniform(size=(5, 1)).astype(np.float32)
+    y1 = rng.normal(size=(5, 2)).astype(np.float32)
+    y2 = rng.normal(size=(5, 2)).astype(np.float32)
+
+    mu1, lv1 = encoder.predict([x, d, c, y1], verbose=0)
+    mu2, lv2 = encoder.predict([x, d, c, y2], verbose=0)
+
+    np.testing.assert_allclose(mu1, mu2, atol=1e-6)
+    np.testing.assert_allclose(lv1, lv2, atol=1e-6)
+
+
+def test_legacy_2025_prior_matches_encoder_with_zero_y():
+    vae, _ = build_cvae(_legacy_cfg())
+    encoder = vae.get_layer("encoder")
+    prior = vae.get_layer("prior_net")
+
+    rng = np.random.default_rng(11)
+    x = rng.normal(size=(6, 2)).astype(np.float32)
+    d = rng.uniform(size=(6, 1)).astype(np.float32)
+    c = rng.uniform(size=(6, 1)).astype(np.float32)
+    y_zero = np.zeros((6, 2), dtype=np.float32)
+
+    mu_q, lv_q = encoder.predict([x, d, c, y_zero], verbose=0)
+    mu_p, lv_p = prior.predict([x, d, c], verbose=0)
+
+    np.testing.assert_allclose(mu_q, mu_p, atol=1e-6)
+    np.testing.assert_allclose(lv_q, lv_p, atol=1e-6)
+
+
+def test_legacy_2025_nonzero_free_bits_raises():
+    with pytest.raises(ValueError, match="does not support free_bits"):
+        build_cvae(_legacy_cfg(free_bits=0.05))
+
+
+def test_legacy_2025_latent_diagnostics_mark_kl_q_to_p_as_na():
+    z_mean_q = np.zeros((4, 3), dtype=np.float32)
+    z_log_var_q = np.zeros((4, 3), dtype=np.float32)
+    z_mean_p = np.ones((4, 3), dtype=np.float32)
+    z_log_var_p = np.zeros((4, 3), dtype=np.float32)
+
+    diag = compute_latent_diagnostics(
+        z_mean_q,
+        z_log_var_q,
+        z_mean_p,
+        z_log_var_p,
+        arch_variant="legacy_2025_zero_y",
+    )
+
+    assert np.isnan(diag["kl_qp_total_mean"])
+    assert np.isnan(diag["df_lat"]["kl_q_to_p_dim_mean"]).all()
+    assert diag["lat_summary"]["kl_q_to_p_applicable"] is False
+    assert diag["lat_summary"]["latent_prior_semantics"] == "std_normal_legacy_2025_zero_y"

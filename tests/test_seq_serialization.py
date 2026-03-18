@@ -64,6 +64,22 @@ def _point_cfg(arch_variant: str = "concat") -> dict:
     }
 
 
+def _legacy_cfg(**overrides) -> dict:
+    cfg = {
+        "layer_sizes": [32, 64],
+        "latent_dim": 4,
+        "beta": 0.01,
+        "lr": 3e-4,
+        "dropout": 0.0,
+        "free_bits": 0.0,
+        "kl_anneal_epochs": 3,
+        "activation": "leaky_relu",
+        "arch_variant": "legacy_2025_zero_y",
+    }
+    cfg.update(overrides)
+    return cfg
+
+
 def _toy_batch(N: int = 8, W: int = 7, seed: int = 0):
     rng = np.random.default_rng(seed)
     X_win = rng.normal(size=(N, W, 2)).astype(np.float32)
@@ -332,12 +348,7 @@ class TestInferenceFromLoaded:
 class TestPointwiseSaveLoadUnaffected:
 
     def _load_pointwise(self, path):
-        from src.models.sampling import Sampling
-        from src.models.losses import CondPriorVAELoss
-        return tf.keras.models.load_model(
-            path,
-            custom_objects={"Sampling": Sampling, "CondPriorVAELoss": CondPriorVAELoss},
-        )
+        return load_seq_model(path)
 
     def test_concat_saves_and_loads(self, tmp_path):
         vae, _ = build_cvae(_point_cfg("concat"))
@@ -368,3 +379,70 @@ class TestPointwiseSaveLoadUnaffected:
         vae.save(path, include_optimizer=False)
         loaded = self._load_pointwise(path)
         assert loaded is not None
+
+
+class TestLegacy2025SaveLoad:
+
+    def test_legacy_2025_full_model_saves_and_loads(self, tmp_path):
+        vae, _ = build_cvae(_legacy_cfg())
+        path = str(tmp_path / "legacy.keras")
+        vae.save(path, include_optimizer=False)
+
+        loaded = load_seq_model(path)
+
+        assert loaded.name == "cvae_legacy_2025_zero_y"
+        assert loaded.get_layer("encoder") is not None
+        assert loaded.get_layer("prior_net") is not None
+        assert loaded.get_layer("decoder") is not None
+
+    def test_legacy_2025_submodels_save_and_load(self, tmp_path):
+        vae, _ = build_cvae(_legacy_cfg())
+        prior_path = str(tmp_path / "legacy_prior.keras")
+        dec_path = str(tmp_path / "legacy_decoder.keras")
+
+        vae.get_layer("prior_net").save(prior_path, include_optimizer=False)
+        vae.get_layer("decoder").save(dec_path, include_optimizer=False)
+
+        prior_loaded = load_seq_model(prior_path)
+        dec_loaded = load_seq_model(dec_path)
+
+        assert prior_loaded.inputs[0].shape[1:] == (2,)
+        assert dec_loaded.inputs[0].shape[1:] == (4,)
+
+    def test_legacy_2025_inference_after_reload(self, tmp_path):
+        vae, _ = build_cvae(_legacy_cfg())
+        path = str(tmp_path / "legacy_full.keras")
+        vae.save(path, include_optimizer=False)
+
+        loaded = load_seq_model(path)
+        inf = create_inference_model_from_full(loaded, deterministic=False)
+
+        rng = np.random.default_rng(5)
+        x = rng.normal(size=(5, 2)).astype(np.float32)
+        d = rng.uniform(size=(5, 1)).astype(np.float32)
+        c = rng.uniform(size=(5, 1)).astype(np.float32)
+        y = inf([x, d, c], training=False)
+
+        assert y.shape == (5, 2)
+        assert not np.any(np.isnan(y.numpy()))
+
+    def test_legacy_2025_prior_matches_encoder_zero_y_after_reload(self, tmp_path):
+        vae, _ = build_cvae(_legacy_cfg())
+        path = str(tmp_path / "legacy_equiv.keras")
+        vae.save(path, include_optimizer=False)
+
+        loaded = load_seq_model(path)
+        encoder = loaded.get_layer("encoder")
+        prior = loaded.get_layer("prior_net")
+
+        rng = np.random.default_rng(19)
+        x = rng.normal(size=(6, 2)).astype(np.float32)
+        d = rng.uniform(size=(6, 1)).astype(np.float32)
+        c = rng.uniform(size=(6, 1)).astype(np.float32)
+        y_zero = np.zeros((6, 2), dtype=np.float32)
+
+        mu_q, lv_q = encoder.predict([x, d, c, y_zero], verbose=0)
+        mu_p, lv_p = prior.predict([x, d, c], verbose=0)
+
+        np.testing.assert_allclose(mu_q, mu_p, atol=1e-6)
+        np.testing.assert_allclose(lv_q, lv_p, atol=1e-6)

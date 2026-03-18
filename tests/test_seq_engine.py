@@ -88,15 +88,10 @@ class TestIsSeqDetection:
         assert _is_seq is True
 
     def test_point_model_prior_rank2(self, tmp_path):
-        from src.models.sampling import Sampling
-        from src.models.losses import CondPriorVAELoss
         vae, _ = build_cvae(_point_cfg("concat"))
         save_path = str(tmp_path / "point.keras")
         vae.save(save_path, include_optimizer=False)
-        loaded = tf.keras.models.load_model(
-            save_path,
-            custom_objects={"Sampling": Sampling, "CondPriorVAELoss": CondPriorVAELoss},
-        )
+        loaded = load_seq_model(save_path)
         prior = loaded.get_layer("prior_net")
         _is_seq = len(prior.inputs[0].shape) == 3
         assert _is_seq is False
@@ -112,8 +107,6 @@ class TestIsSeqDetection:
 
     def test_load_seq_model_on_point_model_does_not_raise(self, tmp_path):
         """load_seq_model should also work for point-wise models (custom objects neutral)."""
-        from src.models.sampling import Sampling
-        from src.models.losses import CondPriorVAELoss
         vae, _ = build_cvae(_point_cfg("concat"))
         save_path = str(tmp_path / "point2.keras")
         vae.save(save_path, include_optimizer=False)
