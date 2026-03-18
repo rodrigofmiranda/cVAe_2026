@@ -104,8 +104,9 @@ For each run, collect:
 - `global_model/tables/gridsearch_results.xlsx`
 - `tables/summary_by_regime.csv`
 - `tables/stat_fidelity_by_regime.csv`
-- `plots/overlay_constellation.png`
-- `plots/overlay_residual_delta.png`
+- `plots/reports/summary_report.png`
+- `plots/core/overlay_constellation.png`
+- `plots/core/overlay_residual_delta.png`
 
 Primary comparison row:
 

@@ -39,7 +39,7 @@ from src.models.cvae import create_inference_model_from_full
 from src.models.cvae_sequence import load_seq_model
 from src.models.sampling import Sampling
 from src.protocol.split_strategies import apply_split
-from src.training.logging import RunPaths
+from src.training.logging import RunPaths, ensure_artifact_subdirs, write_artifact_manifest
 
 
 def _autofind(path: Path, patterns):
@@ -588,24 +588,62 @@ def evaluate_run(
             df_history = load_training_history(Path(history_path))
             if df_history is not None:
                 run_paths.write_table("tables/training_history.xlsx", df_history)
+                plot_groups = ensure_artifact_subdirs(
+                    run_paths.plots_dir,
+                    groups=("reports", "core", "distribution", "latent", "training"),
+                )
                 plot_training_history(
                     {col: df_history[col].values.tolist() for col in df_history.columns},
-                    run_paths.plots_dir / "training_history.png",
+                    plot_groups["training"] / "training_history.png",
                 )
         except Exception as exc:
             print(f"⚠ Falha ao ler/plotar training_history: {exc}")
 
-    plot_overlay(Yv, Yp, run_paths.plots_dir / "overlay_constellation.png", max_points=80_000)
-    plot_residual_overlay(Xv_center, Yv, Yp, run_paths.plots_dir / "overlay_residual_delta.png", max_points=80_000)
-    plot_histograms(Yv, run_paths.plots_dir / "density_y_real.png", title="Density: Y real (hist2d)")
-    plot_histograms(Yp, run_paths.plots_dir / "density_y_pred.png", title="Density: Y pred (hist2d)")
-    plot_psd(Xv_center, Yv, Yp, run_paths.plots_dir / "psd_residual_delta.png", nfft=psd_nfft)
-    plot_latent_activity(z_std_p, run_paths.plots_dir / "latent_activity_std_mu_p.png", active_dims=active_dims)
+    plot_groups = ensure_artifact_subdirs(
+        run_paths.plots_dir,
+        groups=("reports", "core", "distribution", "latent", "training"),
+    )
+
+    plot_overlay(
+        Yv,
+        Yp,
+        plot_groups["core"] / "overlay_constellation.png",
+        max_points=80_000,
+    )
+    plot_residual_overlay(
+        Xv_center,
+        Yv,
+        Yp,
+        plot_groups["core"] / "overlay_residual_delta.png",
+        max_points=80_000,
+    )
+    plot_histograms(
+        Yv,
+        plot_groups["distribution"] / "density_y_real.png",
+        title="Density: Y real (hist2d)",
+    )
+    plot_histograms(
+        Yp,
+        plot_groups["distribution"] / "density_y_pred.png",
+        title="Density: Y pred (hist2d)",
+    )
+    plot_psd(
+        Xv_center,
+        Yv,
+        Yp,
+        plot_groups["distribution"] / "psd_residual_delta.png",
+        nfft=psd_nfft,
+    )
+    plot_latent_activity(
+        z_std_p,
+        plot_groups["latent"] / "latent_activity_std_mu_p.png",
+        active_dims=active_dims,
+    )
     plot_latent_kl(
         df_lat["dim"].values,
         df_lat["kl_q_to_p_dim_mean"].values,
         df_lat["kl_p_to_N0I_dim_mean"].values,
-        run_paths.plots_dir / "latent_kl_per_dim.png",
+        plot_groups["latent"] / "latent_kl_per_dim.png",
     )
 
     summary_text = build_summary_text(
@@ -624,7 +662,30 @@ def evaluate_run(
         sens_rms=sens["decoder_output_rms_std"],
         arch_variant=arch_variant,
     )
-    plot_summary_report(summary_text, run_paths.plots_dir / "summary_report.png")
+    plot_summary_report(summary_text, plot_groups["reports"] / "summary_report.png")
+    write_artifact_manifest(
+        run_paths.plots_dir,
+        title="Evaluation artifact bundle",
+        sections={
+            "open_first": [
+                plot_groups["reports"] / "summary_report.png",
+                plot_groups["core"] / "overlay_constellation.png",
+                plot_groups["core"] / "overlay_residual_delta.png",
+            ],
+            "distribution": [
+                plot_groups["distribution"] / "density_y_real.png",
+                plot_groups["distribution"] / "density_y_pred.png",
+                plot_groups["distribution"] / "psd_residual_delta.png",
+            ],
+            "latent": [
+                plot_groups["latent"] / "latent_activity_std_mu_p.png",
+                plot_groups["latent"] / "latent_kl_per_dim.png",
+            ],
+            "training": [
+                plot_groups["training"] / "training_history.png",
+            ] if (plot_groups["training"] / "training_history.png").exists() else [],
+        },
+    )
 
     print("\n✅ Análise concluída.")
     print(f"📌 Figuras em: {run_paths.plots_dir}")

@@ -20,7 +20,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Mapping, Optional, Sequence, Union
 
 from src.config.defaults import (
     DECODER_LOGVAR_CLAMP_HI,
@@ -232,6 +232,53 @@ def bootstrap_run(
         pass
 
     return rp
+
+
+def ensure_artifact_subdirs(
+    base_dir: Union[str, Path],
+    groups: Sequence[str],
+) -> Dict[str, Path]:
+    """Create and return named subdirectories under *base_dir*.
+
+    This is used to keep large plot bundles grouped by purpose rather than
+    writing every PNG into a single flat directory.
+    """
+    root = Path(base_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    out: Dict[str, Path] = {}
+    for group in groups:
+        p = root / str(group)
+        p.mkdir(parents=True, exist_ok=True)
+        out[str(group)] = p
+    return out
+
+
+def write_artifact_manifest(
+    base_dir: Union[str, Path],
+    *,
+    title: str,
+    sections: Mapping[str, Sequence[Union[str, Path]]],
+) -> Path:
+    """Write a lightweight text index for grouped artifact bundles."""
+    root = Path(base_dir)
+    root.mkdir(parents=True, exist_ok=True)
+
+    lines = [title, ""]
+    for section, paths in sections.items():
+        rels = []
+        for item in paths:
+            p = Path(item)
+            rels.append(str(p.relative_to(root)) if p.is_absolute() else str(p))
+        if not rels:
+            continue
+        lines.append(f"[{section}]")
+        for rel in rels:
+            lines.append(f"- {rel}")
+        lines.append("")
+
+    manifest_path = root / "README.txt"
+    manifest_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    return manifest_path
 
 
 # ------------------------------------------------------------------

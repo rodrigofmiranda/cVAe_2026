@@ -18,6 +18,7 @@ from src.evaluation.plots import (
     plot_summary_report,
     plot_training_history,
 )
+from src.training.logging import ensure_artifact_subdirs, write_artifact_manifest
 
 
 def _savefig(path: Path, dpi: int = 180) -> Path:
@@ -155,13 +156,17 @@ def save_candidate_plot_bundle(
     """Save the standard plot bundle for one tested grid candidate."""
     plots_dir = Path(plots_dir)
     plots_dir.mkdir(parents=True, exist_ok=True)
+    groups = ensure_artifact_subdirs(
+        plots_dir,
+        groups=("reports", "core", "distribution", "latent", "training"),
+    )
 
     created: List[Path] = []
     created.append(
         plot_overlay(
             Yv,
             Yp,
-            plots_dir / "overlay_constellation.png",
+            groups["core"] / "overlay_constellation.png",
             title=f"{title_prefix} — constellation overlay",
         )
     )
@@ -170,21 +175,21 @@ def save_candidate_plot_bundle(
             Xv,
             Yv,
             Yp,
-            plots_dir / "overlay_residual_delta.png",
+            groups["core"] / "overlay_residual_delta.png",
             title=f"{title_prefix} — residual overlay",
         )
     )
     created.append(
         plot_histograms(
             Yv,
-            plots_dir / "density_y_real.png",
+            groups["distribution"] / "density_y_real.png",
             title=f"{title_prefix} — density Y real",
         )
     )
     created.append(
         plot_histograms(
             Yp,
-            plots_dir / "density_y_pred.png",
+            groups["distribution"] / "density_y_pred.png",
             title=f"{title_prefix} — density Y pred",
         )
     )
@@ -193,7 +198,7 @@ def save_candidate_plot_bundle(
             Xv,
             Yv,
             Yp,
-            plots_dir / "psd_residual_delta.png",
+            groups["distribution"] / "psd_residual_delta.png",
             nfft=int(psd_nfft),
             title=f"{title_prefix} — residual PSD",
         )
@@ -201,7 +206,7 @@ def save_candidate_plot_bundle(
     created.append(
         plot_latent_activity(
             std_mu_p,
-            plots_dir / "latent_activity_std_mu_p.png",
+            groups["latent"] / "latent_activity_std_mu_p.png",
             active_dims=int(np.sum(std_mu_p > 0.05)),
             title=f"{title_prefix} — latent activity",
         )
@@ -209,7 +214,7 @@ def save_candidate_plot_bundle(
     created.append(
         _plot_single_series(
             kl_dim_mean,
-            plots_dir / "latent_kl_qp_per_dim.png",
+            groups["latent"] / "latent_kl_qp_per_dim.png",
             title=f"{title_prefix} — KL(q||p) per dimension",
             ylabel="KL(q||p)",
         )
@@ -218,15 +223,38 @@ def save_candidate_plot_bundle(
         created.append(
             plot_training_history(
                 history_dict,
-                plots_dir / "training_history.png",
+                groups["training"] / "training_history.png",
                 title=f"{title_prefix} — training history",
             )
         )
     created.append(
         plot_summary_report(
             "\n".join(summary_lines),
-            plots_dir / "summary_report.png",
+            groups["reports"] / "summary_report.png",
         )
+    )
+    write_artifact_manifest(
+        plots_dir,
+        title="Candidate plot bundle",
+        sections={
+            "open_first": [
+                groups["reports"] / "summary_report.png",
+                groups["core"] / "overlay_constellation.png",
+                groups["core"] / "overlay_residual_delta.png",
+            ],
+            "distribution": [
+                groups["distribution"] / "density_y_real.png",
+                groups["distribution"] / "density_y_pred.png",
+                groups["distribution"] / "psd_residual_delta.png",
+            ],
+            "latent": [
+                groups["latent"] / "latent_activity_std_mu_p.png",
+                groups["latent"] / "latent_kl_qp_per_dim.png",
+            ],
+            "training": (
+                [groups["training"] / "training_history.png"] if history_dict else []
+            ),
+        },
     )
     return created
 
@@ -456,26 +484,28 @@ def save_legacy_champion_plots(
     """Save a legacy-style executive plot set for the champion model."""
     plots_dir = Path(plots_dir)
     plots_dir.mkdir(parents=True, exist_ok=True)
+    groups = ensure_artifact_subdirs(plots_dir, groups=("legacy",))
+    legacy_dir = groups["legacy"]
 
     created = [
         plot_overlay(
             Yv,
             Yp,
-            plots_dir / "constellation_overlay.png",
+            legacy_dir / "constellation_overlay.png",
             title=f"Constellation Overlay — Real vs {model_label}",
         ),
         plot_legacy_metrics_comparison(
             Xv=Xv,
             Yv=Yv,
             Yp=Yp,
-            save_path=plots_dir / "comparacao_metricas_principais.png",
+            save_path=legacy_dir / "comparacao_metricas_principais.png",
             model_label=model_label,
         ),
         plot_legacy_radar(
             Xv=Xv,
             Yv=Yv,
             Yp=Yp,
-            save_path=plots_dir / "radar_comparativo.png",
+            save_path=legacy_dir / "radar_comparativo.png",
             model_label=model_label,
         ),
         plot_legacy_analysis_dashboard(
@@ -486,7 +516,7 @@ def save_legacy_champion_plots(
             std_mu_p=std_mu_p,
             kl_dim_mean=kl_dim_mean,
             summary_lines=summary_lines,
-            save_path=plots_dir / "analise_completa_vae.png",
+            save_path=legacy_dir / "analise_completa_vae.png",
             title=f"Análise Completa — {model_label}",
         ),
     ]

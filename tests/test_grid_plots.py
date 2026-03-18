@@ -50,18 +50,21 @@ def test_save_candidate_plot_bundle_creates_expected_files(out_dir):
 
     assert len(paths) == 9
     expected = {
-        "overlay_constellation.png",
-        "overlay_residual_delta.png",
-        "density_y_real.png",
-        "density_y_pred.png",
-        "psd_residual_delta.png",
-        "latent_activity_std_mu_p.png",
-        "latent_kl_qp_per_dim.png",
-        "training_history.png",
-        "summary_report.png",
+        "core/overlay_constellation.png",
+        "core/overlay_residual_delta.png",
+        "distribution/density_y_real.png",
+        "distribution/density_y_pred.png",
+        "distribution/psd_residual_delta.png",
+        "latent/latent_activity_std_mu_p.png",
+        "latent/latent_kl_qp_per_dim.png",
+        "training/training_history.png",
+        "reports/summary_report.png",
     }
-    assert expected == {p.name for p in paths}
+    assert expected == {str(p.relative_to(out_dir)) for p in paths}
     assert all(p.exists() and p.stat().st_size > 500 for p in paths)
+    manifest = out_dir / "README.txt"
+    assert manifest.exists()
+    assert "open_first" in manifest.read_text(encoding="utf-8")
 
 
 def test_generate_gridsearch_overview_plots_creates_all(out_dir):
@@ -136,9 +139,9 @@ def test_save_legacy_champion_plots_creates_old_style_files(out_dir):
 
     assert len(paths) == 4
     assert {
-        "analise_completa_vae.png",
-        "comparacao_metricas_principais.png",
-        "constellation_overlay.png",
-        "radar_comparativo.png",
-    } == {p.name for p in paths}
+        "legacy/analise_completa_vae.png",
+        "legacy/comparacao_metricas_principais.png",
+        "legacy/constellation_overlay.png",
+        "legacy/radar_comparativo.png",
+    } == {str(p.relative_to(out_dir)) for p in paths}
     assert all(p.exists() and p.stat().st_size > 500 for p in paths)

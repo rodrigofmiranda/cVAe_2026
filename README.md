@@ -423,12 +423,17 @@ outputs/exp_YYYYMMDD_HHMMSS/
 - Derived columns include `var_ratio_pred_real`, `better_than_baseline_*`, `gate_g1`…`gate_g6`, and `validation_status`.
 
 ### Grid-search plots
-- Each tested grid model now gets its own plot bundle under `models/grid_*/plots/`.
+- Each tested grid model now gets its own grouped plot bundle under `models/grid_*/plots/`.
 - The provisional champion is mirrored to `plots/best_grid_model/`.
 - Aggregate ranking views across all tested models are written to `plots/gridsearch/`.
-- The champion also gets a legacy-style executive set matching the old run layout:
-  `analise_completa_vae.png`, `comparacao_metricas_principais.png`,
-  `radar_comparativo.png`, and `constellation_overlay.png`.
+- Plot bundles are now grouped by purpose:
+  - `reports/` — summary panels and executive reports
+  - `core/` — first-look overlays (`overlay_constellation`, `overlay_residual_delta`)
+  - `distribution/` — densities and residual PSD
+  - `latent/` — latent activity and KL diagnostics
+  - `training/` — training curves
+  - `legacy/` — old-style executive plots for the champion only
+- Each plot bundle root also contains a `README.txt` index listing where to open first.
 
 ### Latent diagnostics
 - Active dimensions, KL per dimension, decoder sensitivity to $z$.

@@ -184,17 +184,23 @@ PY
 
 ### C3. Leitura visual do campeao
 
-Inspecionar em `"$EXP_DIR"/studies/.../regimes/.../plots/` e em `plots/best_grid_model/`:
+Inspecionar em `"$EXP_DIR"/studies/.../regimes/.../plots/` e em `plots/best_grid_model/`.
+Os bundles agora sao agrupados por tema e incluem um `README.txt` no diretorio
+raiz com a ordem sugerida de leitura.
 
-- `analise_completa_vae.png`
-- `comparacao_metricas_principais.png`
-- `radar_comparativo.png`
-- `constellation_overlay.png`
-- `overlay_residual_delta.png`
-- `psd_residual_delta.png`
-- `latent_activity_std_mu_p.png`
-- `latent_kl_per_dim.png`
-- `training_history.png`
+Abrir primeiro:
+
+- `reports/summary_report.png`
+- `core/overlay_constellation.png`
+- `core/overlay_residual_delta.png`
+- `distribution/psd_residual_delta.png`
+- `latent/latent_activity_std_mu_p.png`
+- `latent/latent_kl_per_dim.png`
+- `training/training_history.png`
+- `legacy/analise_completa_vae.png`
+- `legacy/comparacao_metricas_principais.png`
+- `legacy/radar_comparativo.png`
+- `legacy/constellation_overlay.png`
 
 Perguntas obrigatorias:
 
@@ -247,11 +253,11 @@ Inspecionar pelo menos:
 
 Arquivos:
 
-- `models/grid_*__tag/plots/summary_report.png`
-- `models/grid_*__tag/plots/training_history.png`
-- `models/grid_*__tag/plots/latent_activity_std_mu_p.png`
-- `models/grid_*__tag/plots/latent_kl_qp_per_dim.png`
-- `models/grid_*__tag/plots/psd_residual_delta.png`
+- `models/grid_*__tag/plots/reports/summary_report.png`
+- `models/grid_*__tag/plots/training/training_history.png`
+- `models/grid_*__tag/plots/latent/latent_activity_std_mu_p.png`
+- `models/grid_*__tag/plots/latent/latent_kl_qp_per_dim.png`
+- `models/grid_*__tag/plots/distribution/psd_residual_delta.png`
 
 Perguntas obrigatorias:
 

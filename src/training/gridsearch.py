@@ -573,7 +573,9 @@ def run_gridsearch(
                 f"active_dims: {active_dims}/{int(cfg['latent_dim'])} | KL_mean_total: {kl_mean_total:.3f}",
             ]
 
-            png_path = exp_plots_dir / "relatorio_completo_original_style.png"
+            reports_dir = exp_plots_dir / "reports"
+            reports_dir.mkdir(parents=True, exist_ok=True)
+            png_path = reports_dir / "relatorio_completo_original_style.png"
             title = f"Relatório Consolidado — Twin + Latente | GRID {gi}/{len(grid)}"
             save_experiment_report_png(
                 plot_path=png_path, Xv=Xv_center, Yv=Yv, Yp=Yp,
@@ -672,6 +674,32 @@ def run_gridsearch(
                         f"ranking criterion: provisional best score_v2={score_v2:.4f}",
                     ],
                     model_label="Champion",
+                )
+                from src.training.logging import write_artifact_manifest
+                write_artifact_manifest(
+                    best_grid_plots_dir,
+                    title="Best-grid plot bundle",
+                    sections={
+                        "open_first": [
+                            best_grid_plots_dir / "reports" / "summary_report.png",
+                            best_grid_plots_dir / "core" / "overlay_constellation.png",
+                            best_grid_plots_dir / "core" / "overlay_residual_delta.png",
+                            best_grid_plots_dir / "legacy" / "analise_completa_vae.png",
+                        ],
+                        "distribution": [
+                            best_grid_plots_dir / "distribution" / "density_y_real.png",
+                            best_grid_plots_dir / "distribution" / "density_y_pred.png",
+                            best_grid_plots_dir / "distribution" / "psd_residual_delta.png",
+                        ],
+                        "latent": [
+                            best_grid_plots_dir / "latent" / "latent_activity_std_mu_p.png",
+                            best_grid_plots_dir / "latent" / "latent_kl_qp_per_dim.png",
+                        ],
+                        "training": [
+                            best_grid_plots_dir / "training" / "training_history.png",
+                        ],
+                        "legacy": legacy_paths,
+                    },
                 )
                 print(
                     f"✓ Best-grid plot bundle salvo: {best_grid_plots_dir} "
