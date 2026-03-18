@@ -1,73 +1,153 @@
 # Legacy 2025 Zero-Y Status
 
-Updated after commit `f8f752c` (`fix(data): keep condition labels aligned after train reduction`).
+Current status of the experimental `arch_variant="legacy_2025_zero_y"` in the
+2026 pipeline.
 
 ## Implemented
 
-- New experimental variant: `arch_variant="legacy_2025_zero_y"`
-- Dedicated legacy model/loss integration completed
-- Grid presets added:
+- dedicated legacy model integration completed
+- dedicated standard-normal loss path completed
+- evaluation/reporting adapted for standard-normal latent semantics
+- save/load path validated for full model, `prior_net`, and `decoder`
+- grid presets currently available:
   - `legacy2025_smoke`
   - `legacy2025_ref`
-- Evaluation/reporting adapted for standard-normal latent semantics
-- Save/load path validated for full model, `prior_net`, and `decoder`
+  - `legacy2025_batch_sweep`
+  - `legacy2025_large`
 
-## Verified runs
+## Important historical note
 
-- CPU smoke:
-  - `/workspace/2026/outputs/legacy2025_zero_y_smoke_cpu`
-  - status: completed
-  - purpose: end-to-end pipeline validation without GPU
-
-- GPU smoke:
-  - `/workspace/2026/outputs/legacy2025_zero_y_smoke_gpu`
-  - status: completed
-  - purpose: end-to-end training validation on real GPU path
-
-## Important finding
-
-The first pivot benchmark below is **not scientifically valid**:
+This run is invalid as scientific reference:
 
 - `/workspace/2026/outputs/exp_20260318_190337`
 
 Reason:
-- during post-split train reduction, `X/Y` were reduced but `D/C` were only
-  truncated by length instead of being reduced with the same selected indices
-- this misaligned condition labels and corrupted the condition normalization
-  stored in `state_run.json`
+
+- before commit `f8f752c`, train reduction could reduce `X/Y` while truncating
+  `D/C` by length instead of applying the same sampled indices
+- this corrupted condition-label alignment and collapsed normalization in the run
 
 Observed bad normalization in the invalid run:
+
 - `D_min = D_max = 0.8`
 - `C_min = C_max = 100`
 
-That is incompatible with the intended 12-group training subset:
-- distances: `0.8, 1.0, 1.5`
-- currents: `100, 300, 500, 700`
+The bug was fixed in:
 
-## Fix applied
-
-Files:
 - `/workspace/2026/src/data/loading.py`
 - `/workspace/2026/src/training/pipeline.py`
 - `/workspace/2026/tests/test_data_reduction_alignment.py`
 
-What changed:
-- train reduction now uses the same sampled indices for all aligned arrays
-  (`X`, `Y`, `D`, `C`)
-- normalization params now reflect the actual reduced training subset
+Post-fix spot-check on the intended 12-group reduced subset:
 
-Post-fix spot-check on the same 12-group subset:
 - `TRAIN_UNIQUE_D = [0.8, 1.0, 1.5]`
 - `TRAIN_UNIQUE_C = [100, 300, 500, 700]`
 - `NORM_PARAMS = {D_min: 0.8, D_max: 1.5, C_min: 100, C_max: 700}`
 
+## Valid reference runs
+
+### Reduced 4-current pivot benchmark
+
+- valid reference run:
+  - `/workspace/2026/outputs/exp_20260318_193036`
+- protocol:
+  - `configs/one_regime_1p0m_300mA_sel4curr.json`
+- architecture:
+  - `legacy2025_ref`
+- reference result:
+  - `ΔEVM = -1.8946 pp`
+  - `ΔSNR = +0.5557 dB`
+  - `Δmean_l2 = 0.02266`
+  - `cVAE PSD_L2 = 0.25219`
+  - `MMD² = 0.004884`
+
+### Batch-size sweep
+
+The batch-size sweep results are recorded in:
+
+- `/workspace/2026/docs/LEGACY_2025_BATCHSIZE_RESULTS.md`
+
+Key runs:
+
+- accepted ceiling:
+  - `/workspace/2026/outputs/exp_20260318_195010`
+  - `batch_size = 8192`
+- rejected escalation:
+  - `/workspace/2026/outputs/exp_20260318_195709`
+  - `batch_size = 16384`
+
+Current operational conclusion:
+
+- use `batch_size = 8192` for wider reduced-data legacy sweeps
+
+## Current run in progress
+
+Scientific screening currently running:
+
+- run:
+  - `/workspace/2026/outputs/exp_20260318_204208`
+- launch log:
+  - `/workspace/2026/outputs/legacy2025_large_sel4curr.launch.log`
+- mode:
+  - `train_once_eval_all`
+- protocol:
+  - `configs/one_regime_1p0m_300mA_sel4curr.json`
+- preset:
+  - `legacy2025_large`
+
+This sweep uses:
+
+- reduced training subset:
+  - currents `100, 300, 500, 700 mA`
+  - distances `0.8, 1.0, 1.5 m`
+- evaluation regime:
+  - `1.0 m / 300 mA`
+- grid width:
+  - `12` configurations
+- fixed batch size:
+  - `8192`
+
+Search factors:
+
+- layer sizes:
+  - `[32,64,128,256]`
+  - `[64,128,256,512]`
+- latent dims:
+  - `8`, `16`, `24`
+- beta:
+  - `0.03`, `0.1`
+
+## Output hygiene
+
+On 2026-03-18, `outputs/` was cleaned to remove:
+
+- smoke runs already consumed
+- dry-runs
+- exploratory leftovers
+- many incomplete/interrupted `exp_*`
+- all old `run_*` directories
+
+The result is that the current references above were intentionally preserved,
+while the rest of the workspace output footprint was reduced substantially.
+
 ## Next action
 
-Rerun the same pivot benchmark after the alignment fix, without changing:
-- protocol subset
-- architecture preset
-- train reduction cap (`200k`)
+Wait for the current large reduced-data sweep to finish, then compare the
+top-ranked candidates against the valid reference run
+`/workspace/2026/outputs/exp_20260318_193036`.
 
-Command basis:
-- protocol: `configs/one_regime_1p0m_300mA_sel4curr.json`
-- preset: `legacy2025_ref`
+Primary comparison columns:
+
+- `best_val_loss`
+- `cvae_delta_evm_%`
+- `cvae_delta_snr_db`
+- `cvae_delta_mean_l2`
+- `cvae_psd_l2`
+- `stat_mmd2`
+
+First visual inspection target in the winning regime:
+
+- `plots/README.txt`
+- `plots/reports/summary_report.png`
+- `plots/core/overlay_constellation.png`
+- `plots/core/overlay_residual_delta.png`
