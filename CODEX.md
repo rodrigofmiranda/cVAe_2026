@@ -3,51 +3,64 @@
 ## Scope
 
 - Active branch: `feat/seq-bigru-residual-cvae`
-- Current focus: scientific evaluation of `arch_variant="legacy_2025_zero_y"`
-- Main implementation/research notes:
-  - `docs/LEGACY_2025_ZERO_Y_RUNBOOK.md`
+- Current focus: scientific evaluation of `arch_variant="delta_residual"`
+- Main notes:
+  - `docs/DELTA_RESIDUAL_STATUS.md`
   - `docs/LEGACY_2025_ZERO_Y_STATUS.md`
-  - `docs/LEGACY_2025_BATCHSIZE_PROTOCOL.md`
-  - `docs/LEGACY_2025_BATCHSIZE_RESULTS.md`
-- Review constraints: `REVIEW.md`
+  - `docs/LEGACY_2025_ZERO_Y_RUNBOOK.md`
+  - `REVIEW.md`
 
 ## Current Checkpoint
 
-- `legacy_2025_zero_y` is implemented and integrated in the 2026 pipeline
-- reduced-data pivot benchmark after the D/C alignment fix:
-  - run: `/workspace/2026/outputs/exp_20260318_193036`
-  - valid reference run for the legacy port
-- batch-size sweep completed on the reduced 4-current protocol:
-  - `bs4096` reference: `/workspace/2026/outputs/exp_20260318_193036`
-  - `bs8192` accepted: `/workspace/2026/outputs/exp_20260318_195010`
-  - `bs16384` rejected: `/workspace/2026/outputs/exp_20260318_195709`
-- current operational batch size for legacy runs: `8192`
-- current scientific screening in progress:
-  - run: `/workspace/2026/outputs/exp_20260318_204208`
-  - mode: `train_once_eval_all`
-  - protocol: `configs/one_regime_1p0m_300mA_sel4curr.json`
-  - preset: `legacy2025_large`
-  - search width: `12` grids
+- `delta_residual` is implemented and integrated in the 2026 pipeline
+  - commit: `c32ee63`
+- current reduced 4-current protocol:
+  - `configs/one_regime_1p0m_300mA_sel4curr.json`
+  - currents: `100/300/500/700 mA`
+  - distances: `0.8/1.0/1.5 m`
+- first operational smoke:
+  - run: `/workspace/2026/outputs/exp_20260318_230955`
+  - outcome: variant works end-to-end, but poor scientific fidelity
+- best current `delta_residual` candidate:
+  - run: `/workspace/2026/outputs/exp_20260318_231458`
+  - winner: `D1delta_lat4_b0p001_fb0p0_lr0p0003_L128-256-512`
+  - pivot summary: `ΔEVM=-3.512 pp`, `ΔSNR=+1.060 dB`, `Δmean_l2=0.0084`, `PSD_L2=0.2476`, `MMD²=0.001245`, `Energy=0.000682`
+- local refinement around the winner:
+  - preset commit: `fb7fbd2`
+  - run: `/workspace/2026/outputs/exp_20260318_233023`
+  - winner by grid score: `D2delta_lat4_b0p0005_fb0p0_lr0p0003_bs16384_anneal80_L128-256-512`
+  - scientific outcome: worse than `/workspace/2026/outputs/exp_20260318_231458`
+
+## Main Lessons So Far
+
+- explicit residual target is more promising than `legacy_2025_zero_y`
+- the best region so far is:
+  - `beta=0.001`
+  - `free_bits=0.0`
+  - `layer_sizes=[128,256,512]`
+  - `latent_dim=4`
+- lowering `beta` to `0.0005` improved grid rank metrics but hurt the final pivot regime:
+  - worse `ΔEVM`
+  - much worse `PSD_L2`
+  - much worse `MMD²` and `Energy`
+- current grid ranking is not perfectly aligned with final twin-quality metrics
 
 ## Non-Negotiable Invariants
 
-- preserve existing `concat`, `channel_residual`, and `seq_bigru_residual`
+- preserve existing `concat`, `channel_residual`, `seq_bigru_residual`, and `legacy_2025_zero_y`
 - split remains per experiment, temporal `head=train`, `tail=val`
 - pipeline order remains `split -> cap/reduce(train only) -> train`
 - no condition-label misalignment after post-split reduction
 - saved-model layer names must remain compatible: `encoder`, `prior_net`, `decoder`
-- `legacy_2025_zero_y` keeps standard-normal latent semantics:
-  - no learned conditional prior in the loss
-  - `free_bits` must stay incompatible with this variant
 
 ## Valid Reference Outputs
 
 Prefer these runs when comparing or resuming:
 
-- `/workspace/2026/outputs/exp_20260318_141109`
+- `/workspace/2026/outputs/exp_20260318_231458`
+- `/workspace/2026/outputs/exp_20260318_233023`
 - `/workspace/2026/outputs/exp_20260318_193036`
 - `/workspace/2026/outputs/exp_20260318_195010`
-- `/workspace/2026/outputs/exp_20260318_195709`
 
 Do not use this run as scientific reference:
 
@@ -56,17 +69,14 @@ Do not use this run as scientific reference:
 
 ## Output Hygiene
 
-- `outputs/` was cleaned conservatively on 2026-03-18
-- smoke runs, dry-runs, exploratory leftovers, many incomplete `exp_*`, and all legacy `run_*`
-  directories were removed
-- current output footprint was reduced from about `3.9G` to about `1.8G`
-- plot bundles are now grouped by purpose in new runs:
+- `outputs/` was cleaned on 2026-03-18
+- new runs group plots by purpose:
   - `reports/`
   - `core/`
   - `distribution/`
   - `latent/`
   - `training/`
-  - `legacy/` for champion-only executive plots
+  - `legacy/`
 
 ## Start Of Session
 
@@ -74,16 +84,16 @@ On a fresh Codex session, begin with:
 
 1. read `CODEX.md`
 2. read `REVIEW.md`
-3. read `docs/LEGACY_2025_ZERO_Y_STATUS.md`
+3. read `docs/DELTA_RESIDUAL_STATUS.md`
 4. inspect `git status --short`
 5. if a run is active, inspect `pgrep -af "src.protocol.run|src.training.train"`
-6. inspect the latest `outputs/exp_*/global_model/tables/gridsearch_plan.xlsx`
+6. inspect the latest `outputs/exp_*/global_model/tables/gridsearch_results.xlsx`
 
 ## Suggested Resume Prompt
 
 Use this at session restart:
 
-`Leia CODEX.md, REVIEW.md e docs/LEGACY_2025_ZERO_Y_STATUS.md. Resuma o estado atual da branch feat/seq-bigru-residual-cvae, diga quais runs validos devemos usar como referencia e acompanhe apenas o experimento em andamento sem mudar a configuracao.`
+`Leia CODEX.md, REVIEW.md e docs/DELTA_RESIDUAL_STATUS.md. Resuma o estado atual da branch feat/seq-bigru-residual-cvae, diga qual run delta_residual e a melhor referencia cientifica atual e acompanhe apenas o experimento em andamento sem mudar a configuracao.`
 
 ## Verification Focus
 
@@ -91,17 +101,17 @@ Prefer verifying in this order:
 
 1. reduced 4-current protocol remains correctly selected
 2. normalization uses all intended distances/currents after reduction
-3. batch size stays at the accepted ceiling (`8192`) for wider sweeps
-4. compare candidate grids by:
-   - `best_val_loss`
-   - `cvae_delta_evm_%`
+3. compare `delta_residual` candidates by:
+   - `ΔEVM`
+   - `ΔSNR`
    - `cvae_delta_mean_l2`
    - `cvae_psd_l2`
    - `stat_mmd2`
-5. inspect `plots/README.txt` and `plots/core/overlay_constellation.png` first
+   - `stat_energy`
+4. inspect `plots/README.txt` and `plots/core/overlay_constellation.png` first
 
 ## Out Of Scope
 
-- do not treat `knowledge/`, `data/`, or generated `outputs/` as implementation targets unless the user explicitly asks
-- do not revive deleted smoke/exploratory runs unless the user explicitly wants them regenerated
-- do not use all 9 currents for legacy grid sweeps by default; prefer the reduced 4-current protocol first
+- do not use all 9 currents by default
+- do not treat old legacy smoke runs as release candidates
+- do not move `release/cvae-online` yet based on `delta_residual`
