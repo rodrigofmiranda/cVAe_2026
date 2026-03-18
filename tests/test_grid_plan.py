@@ -51,6 +51,18 @@ def test_select_grid_delta_residual_small_returns_expected_candidates():
     assert all(item["cfg"]["layer_sizes"] == [128, 256, 512] for item in grid)
 
 
+def test_select_grid_delta_residual_refine_focuses_around_current_winner():
+    grid = select_grid({"grid_preset": "delta_residual_refine"})
+
+    assert len(grid) == 6
+    assert all(item["cfg"]["arch_variant"] == "delta_residual" for item in grid)
+    assert {item["cfg"]["latent_dim"] for item in grid} == {4, 6, 8}
+    assert {item["cfg"]["beta"] for item in grid} == {0.0005, 0.001}
+    assert all(item["cfg"]["free_bits"] == 0.0 for item in grid)
+    assert all(item["cfg"]["batch_size"] == 16384 for item in grid)
+    assert all(item["cfg"]["layer_sizes"] == [128, 256, 512] for item in grid)
+
+
 def test_select_grid_legacy2025_ref_matches_expected_reference_cfg():
     grid = select_grid({"grid_preset": "legacy2025_ref"})
 

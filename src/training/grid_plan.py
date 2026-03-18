@@ -242,6 +242,50 @@ def _preset_delta_residual_small() -> List[Dict[str, Any]]:
     return [item for item in _delta_residual_candidates() if item["group"] == "D1_delta_small"]
 
 
+def _preset_delta_residual_refine() -> List[Dict[str, Any]]:
+    """Refinement sweep around the best explicit residual-target region.
+
+    Anchored on the current winner:
+      arch_variant=delta_residual
+      layer_sizes=[128,256,512]
+      free_bits=0.0
+      lr=3e-4
+      batch_size=16384
+      kl_anneal_epochs=80
+
+    Varies only:
+      beta       in {0.0005, 0.001}
+      latent_dim in {4, 6, 8}
+    """
+    base = dict(
+        arch_variant="delta_residual",
+        layer_sizes=[128, 256, 512],
+        free_bits=0.0,
+        lr=3e-4,
+        batch_size=16384,
+        kl_anneal_epochs=80,
+    )
+    grid: List[Dict[str, Any]] = []
+    for latent_dim in [4, 6, 8]:
+        for beta in [0.0005, 0.001]:
+            tag = (
+                f"D2delta_lat{latent_dim}_b{_tag_beta(beta)}_fb0p0_"
+                f"lr{_tag_lr(3e-4)}_bs16384_anneal80_L{_tag_layers([128,256,512])}"
+            )
+            grid.append(
+                dict(
+                    group="D2_delta_refine",
+                    tag=tag,
+                    cfg=_cfg(
+                        latent_dim=latent_dim,
+                        beta=beta,
+                        **base,
+                    ),
+                )
+            )
+    return grid
+
+
 def _legacy_2025_candidates() -> List[Dict[str, Any]]:
     """Return the dedicated legacy-2025 candidates."""
     base = dict(
@@ -538,6 +582,8 @@ def select_grid(
             grid = _preset_delta_residual_smoke()
         elif preset_name == "delta_residual_small":
             grid = _preset_delta_residual_small()
+        elif preset_name == "delta_residual_refine":
+            grid = _preset_delta_residual_refine()
         elif preset_name == "legacy2025_smoke":
             grid = _preset_legacy2025_smoke()
         elif preset_name == "legacy2025_ref":
