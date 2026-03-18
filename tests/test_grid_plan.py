@@ -32,6 +32,25 @@ def test_select_grid_legacy2025_smoke_returns_single_legacy_variant():
     assert grid[0]["tag"] == "L0legacy_lat4_b0p01_fb0p0_lr0p0003_bs1024_anneal3_L32-64"
 
 
+def test_select_grid_delta_residual_smoke_returns_single_delta_variant():
+    grid = select_grid({"grid_preset": "delta_residual_smoke"})
+
+    assert len(grid) == 1
+    assert grid[0]["cfg"]["arch_variant"] == "delta_residual"
+    assert grid[0]["cfg"]["free_bits"] == 0.10
+    assert grid[0]["tag"] == "D0delta_lat4_b0p001_fb0p10_lr0p0003_L128-256-512"
+
+
+def test_select_grid_delta_residual_small_returns_expected_candidates():
+    grid = select_grid({"grid_preset": "delta_residual_small"})
+
+    assert len(grid) == 4
+    assert all(item["cfg"]["arch_variant"] == "delta_residual" for item in grid)
+    assert {item["cfg"]["beta"] for item in grid} == {0.001, 0.002, 0.003}
+    assert {item["cfg"]["free_bits"] for item in grid} == {0.0, 0.10}
+    assert all(item["cfg"]["layer_sizes"] == [128, 256, 512] for item in grid)
+
+
 def test_select_grid_legacy2025_ref_matches_expected_reference_cfg():
     grid = select_grid({"grid_preset": "legacy2025_ref"})
 

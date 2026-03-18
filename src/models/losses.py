@@ -14,6 +14,7 @@ kl_to_standard_normal    KL(q ‖ N(0, I)) per sample
 kl_with_freebits         Free-bits thresholded KL
 compute_total_loss        recon + β · min(kl, cap)
 CondPriorVAELoss         Keras layer (for training graph)
+CondPriorDeltaVAELoss    Explicit residual-target Keras layer
 StdNormalHeteroscedasticVAELoss
 """
 
@@ -272,6 +273,97 @@ class CondPriorVAELoss(layers.Layer):
         self.recon_loss_tracker.update_state(recon)
         self.kl_loss_tracker.update_state(tf.reduce_mean(kl_per_sample))
         return y_mean
+
+    @property
+    def metrics(self):
+        m = [self.recon_loss_tracker, self.kl_loss_tracker]
+        if self.lambda_mmd > 0.0:
+            m.append(self.mmd_loss_tracker)
+        return m
+
+    def get_config(self):
+        cfg = super().get_config()
+        cfg.update({
+            "beta": self.beta_init,
+            "free_bits": self.free_bits,
+            "lambda_mmd": self.lambda_mmd,
+            "mmd_bandwidth": self.mmd_bandwidth,
+        })
+        return cfg
+
+
+@tf.keras.utils.register_keras_serializable(package="VLC")
+class CondPriorDeltaVAELoss(layers.Layer):
+    """Explicit residual-target loss for ``delta_residual`` point-wise models.
+
+    The decoder outputs residual parameters ``(Δ_mean, Δ_log_var)`` while the
+    training target remains the received signal ``y_true``. This layer converts
+    to the residual target ``Δ_true = y_true - x_true`` internally, optimises
+    that heteroscedastic NLL, and returns ``y_mean = x_true + Δ_mean`` so the
+    external model contract remains unchanged.
+
+    Inputs (call):
+        (y_true, out_params, z_mean_q, z_log_var_q, z_mean_p, z_log_var_p, x_true)
+    """
+
+    def __init__(
+        self,
+        beta: float = 1.0,
+        free_bits: float = 0.0,
+        lambda_mmd: float = 0.0,
+        mmd_bandwidth: float | None = None,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.beta_init = float(beta)
+        self.free_bits = float(free_bits)
+        self.lambda_mmd = float(lambda_mmd)
+        self.mmd_bandwidth = mmd_bandwidth
+        self.beta = tf.Variable(
+            self.beta_init, trainable=False, dtype=tf.float32, name="beta",
+        )
+        self.recon_loss_tracker = tf.keras.metrics.Mean(name="recon_loss")
+        self.kl_loss_tracker = tf.keras.metrics.Mean(name="kl_loss")
+        if self.lambda_mmd > 0.0:
+            self.mmd_loss_tracker = tf.keras.metrics.Mean(name="mmd_loss")
+
+    def call(self, inputs):
+        if len(inputs) < 7:
+            raise ValueError(
+                "CondPriorDeltaVAELoss expects "
+                "(y_true, out_params, z_mean_q, z_log_var_q, z_mean_p, z_log_var_p, x_true)."
+            )
+
+        y_true, out_params, z_mean_q, z_log_var_q, z_mean_p, z_log_var_p, x_true = inputs[:7]
+
+        delta_true = y_true - x_true
+        delta_mean = out_params[:, :2]
+        delta_log_var = out_params[:, 2:]
+
+        recon = reconstruction_loss(delta_true, delta_mean, delta_log_var)
+
+        kl_per_sample = kl_divergence(
+            z_mean_q, z_log_var_q, z_mean_p, z_log_var_p,
+        )
+        kl_fb = kl_with_freebits(kl_per_sample, self.free_bits)
+        kl = tf.reduce_mean(kl_fb)
+
+        total = compute_total_loss(recon, kl, self.beta)
+
+        if self.lambda_mmd > 0.0:
+            mmd2 = mmd2_tf(
+                tf.stop_gradient(delta_true),
+                delta_mean,
+                n_sub=512,
+                bandwidth=self.mmd_bandwidth,
+            )
+            self.mmd_loss_tracker.update_state(mmd2)
+            total = total + self.lambda_mmd * mmd2
+
+        self.add_loss(total)
+        self.recon_loss_tracker.update_state(recon)
+        self.kl_loss_tracker.update_state(tf.reduce_mean(kl_per_sample))
+        return x_true + delta_mean
 
     @property
     def metrics(self):

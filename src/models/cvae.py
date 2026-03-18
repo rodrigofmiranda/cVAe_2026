@@ -7,6 +7,9 @@ The default ``concat`` architecture is identical to the legacy monolith.
 This module also exposes the experimental ``channel_residual`` decoder
 variant, which predicts ``Δ = Y - X`` internally while preserving the
 same external model interface.
+It also exposes ``arch_variant="delta_residual"``, which makes that residual
+target explicit in the decoder output and loss while preserving the same
+external inference interface.
 It also dispatches the legacy experimental
 ``arch_variant="legacy_2025_zero_y"`` point-wise model, which preserves the
 2025 architecture under the stricter 2026 pipeline.
@@ -33,7 +36,7 @@ from src.config.defaults import (
     DECODER_LOGVAR_CLAMP_LO,
 )
 from src.models.sampling import Sampling
-from src.models.losses import CondPriorVAELoss
+from src.models.losses import CondPriorDeltaVAELoss, CondPriorVAELoss
 from src.models.callbacks import KLAnnealingCallback
 
 
@@ -54,6 +57,7 @@ def _normalize_arch_variant(arch_variant: str) -> str:
     valid = {
         "concat",
         "channel_residual",
+        "delta_residual",
         "seq_bigru_residual",
         "legacy_2025_zero_y",
     }
@@ -162,6 +166,11 @@ def build_decoder(
         Predict residual parameters ``Δ = Y - X`` internally and resolve the
         final mean as ``Y_mean = X + Δ_mean``. The external decoder output
         remains identical, so losses/inference do not need to change.
+
+    ``arch_variant="delta_residual"``
+        Predict residual parameters ``Δ = Y - X`` explicitly. The decoder
+        output stays in residual space; the training loss and inference graph
+        resolve the final signal as ``Y = X + Δ``.
     """
     arch_variant = _normalize_arch_variant(arch_variant)
     if arch_variant == "legacy_2025_zero_y":
@@ -202,6 +211,8 @@ def build_decoder(
         out = layers.Concatenate(name="output_params")(
             [y_mean, delta_log_var]
         )
+    elif arch_variant == "delta_residual":
+        out = layers.Dense(4, name="delta_output_params")(h)
     else:
         out = layers.Dense(4, name="output_params")(h)
     return models.Model([z_in, cond_in], out, name="decoder")
@@ -274,17 +285,31 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
     # Loss layer (β starts at 0 for annealing)
     beta_initial = 0.0
     lambda_mmd = float(cfg.get("lambda_mmd", 0.0))
-    loss_layer = CondPriorVAELoss(
-        beta=beta_initial, free_bits=free_bits,
-        lambda_mmd=lambda_mmd,
-        name="condprior_loss",
-    )
-    loss_inputs = [y_in, out_params, z_mean_q, z_log_var_q, z_mean_p, z_log_var_p]
-    if lambda_mmd > 0.0:
-        loss_inputs.append(x_in)
+    if arch_variant == "delta_residual":
+        loss_layer = CondPriorDeltaVAELoss(
+            beta=beta_initial,
+            free_bits=free_bits,
+            lambda_mmd=lambda_mmd,
+            name="condprior_delta_loss",
+        )
+        loss_inputs = [y_in, out_params, z_mean_q, z_log_var_q, z_mean_p, z_log_var_p, x_in]
+    else:
+        loss_layer = CondPriorVAELoss(
+            beta=beta_initial, free_bits=free_bits,
+            lambda_mmd=lambda_mmd,
+            name="condprior_loss",
+        )
+        loss_inputs = [y_in, out_params, z_mean_q, z_log_var_q, z_mean_p, z_log_var_p]
+        if lambda_mmd > 0.0:
+            loss_inputs.append(x_in)
     y_mean = loss_layer(loss_inputs)
 
-    vae = models.Model([x_in, d_in, c_in, y_in], y_mean, name="cvae_condprior")
+    model_name = (
+        "cvae_condprior_delta_residual"
+        if arch_variant == "delta_residual"
+        else "cvae_condprior"
+    )
+    vae = models.Model([x_in, d_in, c_in, y_in], y_mean, name=model_name)
     opt = tf.keras.optimizers.Adam(learning_rate=lr, clipnorm=1.0)
     vae.compile(optimizer=opt)
 
@@ -320,6 +345,12 @@ def create_inference_model_from_full(
     prior = full_model.get_layer("prior_net")
     dec = full_model.get_layer("decoder")
 
+    try:
+        dec.get_layer("delta_output_params")
+        is_delta_residual = True
+    except Exception:
+        is_delta_residual = False
+
     # Detect sequence variant: prior input[0] is (None, W, 2) for seq, (None, 2) for point-wise.
     if len(prior.inputs[0].shape) == 3:
         from src.models.cvae_sequence import create_seq_inference_model  # lazy import
@@ -347,23 +378,42 @@ def create_inference_model_from_full(
     cond = layers.Concatenate(name="cond_concat_inf")([x_in, d_in, c_in])
     out_params = dec([z, cond])
 
-    y_mean = layers.Lambda(lambda t: t[:, :2], name="y_mean")(out_params)
-    y_log_var = layers.Lambda(
-        lambda t: tf.clip_by_value(
-            t[:, 2:], DECODER_LOGVAR_CLAMP_LO, DECODER_LOGVAR_CLAMP_HI
-        ),
-        name="y_logvar",
-    )(out_params)
-
-    if deterministic:
-        y = layers.Lambda(lambda t: t, name="y_det")(y_mean)
+    if is_delta_residual:
+        delta_mean = layers.Lambda(lambda t: t[:, :2], name="delta_mean")(out_params)
+        delta_log_var = layers.Lambda(
+            lambda t: tf.clip_by_value(
+                t[:, 2:], DECODER_LOGVAR_CLAMP_LO, DECODER_LOGVAR_CLAMP_HI
+            ),
+            name="delta_logvar",
+        )(out_params)
+        if deterministic:
+            y = layers.Add(name="y_det")([x_in, delta_mean])
+        else:
+            eps_delta = layers.Lambda(
+                lambda t: tf.random.normal(tf.shape(t)), name="eps_delta",
+            )(delta_mean)
+            delta = layers.Lambda(
+                lambda a: a[0] + tf.exp(0.5 * a[1]) * a[2], name="sample_delta",
+            )([delta_mean, delta_log_var, eps_delta])
+            y = layers.Add(name="sample_y")([x_in, delta])
     else:
-        eps_y = layers.Lambda(
-            lambda t: tf.random.normal(tf.shape(t)), name="eps_y",
-        )(y_mean)
-        y = layers.Lambda(
-            lambda a: a[0] + tf.exp(0.5 * a[1]) * a[2], name="sample_y",
-        )([y_mean, y_log_var, eps_y])
+        y_mean = layers.Lambda(lambda t: t[:, :2], name="y_mean")(out_params)
+        y_log_var = layers.Lambda(
+            lambda t: tf.clip_by_value(
+                t[:, 2:], DECODER_LOGVAR_CLAMP_LO, DECODER_LOGVAR_CLAMP_HI
+            ),
+            name="y_logvar",
+        )(out_params)
+
+        if deterministic:
+            y = layers.Lambda(lambda t: t, name="y_det")(y_mean)
+        else:
+            eps_y = layers.Lambda(
+                lambda t: tf.random.normal(tf.shape(t)), name="eps_y",
+            )(y_mean)
+            y = layers.Lambda(
+                lambda a: a[0] + tf.exp(0.5 * a[1]) * a[2], name="sample_y",
+            )([y_mean, y_log_var, eps_y])
 
     name = "inference_condprior_det" if deterministic else "inference_condprior"
     return models.Model([x_in, d_in, c_in], y, name=name)

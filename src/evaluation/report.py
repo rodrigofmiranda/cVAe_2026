@@ -167,6 +167,7 @@ def decoder_sensitivity(
     Cb: np.ndarray,
     n_mc_z: int = 16,
     batch_size: int = 4096,
+    arch_variant: str = "concat",
 ) -> Dict[str, float]:
     """Compute decoder sensitivity to z sampling.
 
@@ -179,11 +180,14 @@ def decoder_sensitivity(
     cond = np.concatenate([Xb, Db, Cb], axis=1)
 
     outs = []
+    is_delta_residual = (
+        str(arch_variant or "").strip().lower() == "delta_residual"
+    )
     for _ in range(int(n_mc_z)):
         eps = np.random.randn(*mu_p.shape).astype(np.float32)
         z = mu_p + std_p * eps
         out_params = decoder_net.predict([z, cond], batch_size=batch_size, verbose=0)
-        y_mean = out_params[:, :2]
+        y_mean = out_params[:, :2] + Xb if is_delta_residual else out_params[:, :2]
         outs.append(y_mean)
 
     outs = np.stack(outs, axis=0)  # [K,N,2]

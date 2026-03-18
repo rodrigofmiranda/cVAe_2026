@@ -380,6 +380,28 @@ class TestPointwiseSaveLoadUnaffected:
         loaded = self._load_pointwise(path)
         assert loaded is not None
 
+    def test_delta_residual_saves_and_loads(self, tmp_path):
+        vae, _ = build_cvae(_point_cfg("delta_residual"))
+        path = str(tmp_path / "delta_res.keras")
+        vae.save(path, include_optimizer=False)
+        loaded = self._load_pointwise(path)
+        assert loaded.name == "cvae_condprior_delta_residual"
+
+    def test_delta_residual_inference_after_reload(self, tmp_path):
+        vae, _ = build_cvae(_point_cfg("delta_residual"))
+        path = str(tmp_path / "delta_res_infer.keras")
+        vae.save(path, include_optimizer=False)
+        loaded = self._load_pointwise(path)
+        inf = create_inference_model_from_full(loaded, deterministic=False)
+        rng = np.random.default_rng(13)
+        N = 5
+        x = rng.normal(size=(N, 2)).astype(np.float32)
+        d = rng.uniform(size=(N, 1)).astype(np.float32)
+        c = rng.uniform(size=(N, 1)).astype(np.float32)
+        y_pred = inf([x, d, c], training=False)
+        assert y_pred.shape == (N, 2)
+        assert not np.any(np.isnan(y_pred.numpy()))
+
 
 class TestLegacy2025SaveLoad:
 

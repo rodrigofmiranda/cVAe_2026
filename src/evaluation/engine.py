@@ -248,6 +248,8 @@ def evaluate_run(
     if not arch_variant:
         if vae.name == "cvae_legacy_2025_zero_y":
             arch_variant = "legacy_2025_zero_y"
+        elif vae.name == "cvae_condprior_delta_residual":
+            arch_variant = "delta_residual"
         elif _is_seq:
             arch_variant = "seq_bigru_residual"
         else:
@@ -578,6 +580,7 @@ def evaluate_run(
             Cv[:nb],
             n_mc_z=16,
             batch_size=batch_infer,
+            arch_variant=arch_variant,
         )
     run_paths.write_json("logs/decoder_sensitivity.json", sens)
 

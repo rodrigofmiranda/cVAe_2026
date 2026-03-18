@@ -196,6 +196,52 @@ def _preset_residual_small(grid: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return [by_tag[tag] for tag in keep_tags if tag in by_tag]
 
 
+def _delta_residual_candidates() -> List[Dict[str, Any]]:
+    """Return explicit residual-target candidates for the simplified hypothesis."""
+    base_cfg = dict(
+        layer_sizes=[128, 256, 512],
+        latent_dim=4,
+        arch_variant="delta_residual",
+    )
+    return [
+        dict(
+            group="D0_delta_smoke",
+            tag=f"D0delta_lat4_b{_tag_beta(0.001)}_fb0p10_lr{_tag_lr(3e-4)}_L{_tag_layers([128,256,512])}",
+            cfg=_cfg(beta=0.001, free_bits=0.10, **base_cfg),
+        ),
+        dict(
+            group="D1_delta_small",
+            tag=f"D1delta_lat4_b{_tag_beta(0.003)}_fb0p10_lr{_tag_lr(3e-4)}_L{_tag_layers([128,256,512])}",
+            cfg=_cfg(beta=0.003, free_bits=0.10, **base_cfg),
+        ),
+        dict(
+            group="D1_delta_small",
+            tag=f"D1delta_lat4_b{_tag_beta(0.001)}_fb0p10_lr{_tag_lr(3e-4)}_L{_tag_layers([128,256,512])}",
+            cfg=_cfg(beta=0.001, free_bits=0.10, **base_cfg),
+        ),
+        dict(
+            group="D1_delta_small",
+            tag=f"D1delta_lat4_b{_tag_beta(0.001)}_fb0p0_lr{_tag_lr(3e-4)}_L{_tag_layers([128,256,512])}",
+            cfg=_cfg(beta=0.001, free_bits=0.0, **base_cfg),
+        ),
+        dict(
+            group="D1_delta_small",
+            tag=f"D1delta_lat4_b{_tag_beta(0.002)}_fb0p0_lr{_tag_lr(3e-4)}_L{_tag_layers([128,256,512])}",
+            cfg=_cfg(beta=0.002, free_bits=0.0, **base_cfg),
+        ),
+    ]
+
+
+def _preset_delta_residual_smoke() -> List[Dict[str, Any]]:
+    """Single-item smoke preset for the explicit residual-target variant."""
+    return [item for item in _delta_residual_candidates() if item["group"] == "D0_delta_smoke"]
+
+
+def _preset_delta_residual_small() -> List[Dict[str, Any]]:
+    """4-config exploratory preset for the explicit residual-target variant."""
+    return [item for item in _delta_residual_candidates() if item["group"] == "D1_delta_small"]
+
+
 def _legacy_2025_candidates() -> List[Dict[str, Any]]:
     """Return the dedicated legacy-2025 candidates."""
     base = dict(
@@ -488,6 +534,10 @@ def select_grid(
             grid = _preset_exploratory_small(grid)
         elif preset_name == "residual_small":
             grid = _preset_residual_small(grid)
+        elif preset_name == "delta_residual_smoke":
+            grid = _preset_delta_residual_smoke()
+        elif preset_name == "delta_residual_small":
+            grid = _preset_delta_residual_small()
         elif preset_name == "legacy2025_smoke":
             grid = _preset_legacy2025_smoke()
         elif preset_name == "legacy2025_ref":

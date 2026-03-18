@@ -56,7 +56,11 @@ from src.config.defaults import (
     DECODER_LOGVAR_CLAMP_LO,
 )
 from src.models.callbacks import KLAnnealingCallback
-from src.models.losses import CondPriorVAELoss, StdNormalHeteroscedasticVAELoss
+from src.models.losses import (
+    CondPriorDeltaVAELoss,
+    CondPriorVAELoss,
+    StdNormalHeteroscedasticVAELoss,
+)
 from src.models.sampling import Sampling
 
 
@@ -518,6 +522,7 @@ def load_seq_model(path: str) -> tf.keras.Model:
         str(path),
         custom_objects={
             "Sampling": Sampling,
+            "CondPriorDeltaVAELoss": CondPriorDeltaVAELoss,
             "CondPriorVAELoss": CondPriorVAELoss,
             "StdNormalHeteroscedasticVAELoss": StdNormalHeteroscedasticVAELoss,
             "ExtractCenterFrame": ExtractCenterFrame,
