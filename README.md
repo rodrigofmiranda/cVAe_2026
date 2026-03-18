@@ -472,6 +472,41 @@ cd cVAe_2026
 git lfs pull
 ```
 
+### Clone on another PC
+
+Recommended branches:
+
+- `release/cvae-online` — recommended base for a functional online cVAE deployment
+- `feat/channel-residual-architecture` — residual-architecture branch
+- `feat/seq-bigru-residual-cvae` — sequence-model research branch for the digital twin
+
+Clone directly into the recommended online branch:
+
+```bash
+git clone -b release/cvae-online https://github.com/rodrigofmiranda/cVAe_2026.git
+cd cVAe_2026
+git lfs install
+git lfs pull
+```
+
+If you already cloned the repository and want a different branch:
+
+```bash
+git fetch --all
+git switch release/cvae-online
+git lfs pull
+```
+
+Switch to the residual or seq-bigru branches when needed:
+
+```bash
+git switch feat/channel-residual-architecture
+git lfs pull
+
+git switch feat/seq-bigru-residual-cvae
+git lfs pull
+```
+
 ### Dataset structure
 
 ```
