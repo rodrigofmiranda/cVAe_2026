@@ -142,31 +142,111 @@ def compute_total_loss(
 
 
 # ======================================================================
+# Mini-batch MMD² (TF ops — safe inside training graph)
+# ======================================================================
+
+def mmd2_tf(
+    r_real: tf.Tensor,
+    r_gen: tf.Tensor,
+    n_sub: int = 512,
+    bandwidth: float | None = None,
+) -> tf.Tensor:
+    """Unbiased mini-batch MMD² with RBF kernel, in pure TF ops.
+
+    Parameters
+    ----------
+    r_real : (N, 2) — real channel residuals  (Y_real − X)
+    r_gen  : (N, 2) — model residuals         (Y_pred − X)
+    n_sub  : number of samples to sub-sample per call (default 512)
+    bandwidth : RBF bandwidth σ². None → median heuristic computed inline.
+
+    Returns
+    -------
+    scalar Tensor — unbiased MMD²
+    """
+    N = tf.shape(r_real)[0]
+    n = tf.minimum(n_sub, N)
+
+    # Independent sub-samples from real and generated pools
+    idx_r = tf.random.shuffle(tf.range(N))[:n]
+    idx_g = tf.random.shuffle(tf.range(N))[:n]
+    x = tf.cast(tf.gather(r_real, idx_r), tf.float32)
+    y = tf.cast(tf.gather(r_gen,  idx_g), tf.float32)
+
+    def _sq_dists(a: tf.Tensor, b: tf.Tensor) -> tf.Tensor:
+        aa = tf.reduce_sum(tf.square(a), axis=1, keepdims=True)
+        bb = tf.reduce_sum(tf.square(b), axis=1, keepdims=True)
+        ab = tf.matmul(a, b, transpose_b=True)
+        return tf.maximum(aa + tf.transpose(bb) - 2.0 * ab, 0.0)
+
+    if bandwidth is None:
+        # Median heuristic on cross-set distances
+        d2_xy = _sq_dists(x, y)
+        flat = tf.reshape(d2_xy, [-1])
+        mid = tf.cast(tf.shape(flat)[0] // 2, tf.int32)
+        bw = tf.maximum(tf.sort(flat)[mid], 1e-3)
+    else:
+        bw = tf.constant(float(bandwidth), dtype=tf.float32)
+
+    def _K(a: tf.Tensor, b: tf.Tensor) -> tf.Tensor:
+        return tf.exp(-_sq_dists(a, b) / (2.0 * bw))
+
+    Kxx = _K(x, x)
+    Kyy = _K(y, y)
+    Kxy = _K(x, y)
+
+    nf = tf.cast(n, tf.float32)
+    mask = 1.0 - tf.eye(n)
+    term_xx = tf.reduce_sum(Kxx * mask) / (nf * (nf - 1.0))
+    term_yy = tf.reduce_sum(Kyy * mask) / (nf * (nf - 1.0))
+    term_xy = tf.reduce_sum(Kxy) / (nf * nf)
+    return term_xx + term_yy - 2.0 * term_xy
+
+
+# ======================================================================
 # Keras layer (used inside training graph — wraps the above functions)
 # ======================================================================
 @tf.keras.utils.register_keras_serializable(package="VLC")
 class CondPriorVAELoss(layers.Layer):
-    """Heteroscedastic Gaussian NLL + KL(q‖p) with β-annealing and free-bits.
+    """Heteroscedastic Gaussian NLL + KL(q‖p) with β-annealing, free-bits,
+    and optional auxiliary MMD² loss term.
 
     Inputs (call):
         (y_true, out_params, z_mean_q, z_log_var_q, z_mean_p, z_log_var_p)
+        or, when lambda_mmd > 0:
+        (y_true, out_params, z_mean_q, z_log_var_q, z_mean_p, z_log_var_p, x_center)
 
     The layer adds the total loss via ``self.add_loss`` and tracks
-    ``recon_loss`` / ``kl_loss`` as Keras metrics.
+    ``recon_loss`` / ``kl_loss`` (and ``mmd_loss`` when active) as Keras metrics.
     """
 
-    def __init__(self, beta: float = 1.0, free_bits: float = 0.0, **kwargs):
+    def __init__(
+        self,
+        beta: float = 1.0,
+        free_bits: float = 0.0,
+        lambda_mmd: float = 0.0,
+        mmd_bandwidth: float | None = None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self.beta_init = float(beta)
         self.free_bits = float(free_bits)
+        self.lambda_mmd = float(lambda_mmd)
+        self.mmd_bandwidth = mmd_bandwidth
         self.beta = tf.Variable(
             self.beta_init, trainable=False, dtype=tf.float32, name="beta",
         )
         self.recon_loss_tracker = tf.keras.metrics.Mean(name="recon_loss")
         self.kl_loss_tracker = tf.keras.metrics.Mean(name="kl_loss")
+        if self.lambda_mmd > 0.0:
+            self.mmd_loss_tracker = tf.keras.metrics.Mean(name="mmd_loss")
 
     def call(self, inputs):
-        y_true, out_params, z_mean_q, z_log_var_q, z_mean_p, z_log_var_p = inputs
+        if len(inputs) == 7:
+            y_true, out_params, z_mean_q, z_log_var_q, z_mean_p, z_log_var_p, x_center = inputs
+        else:
+            y_true, out_params, z_mean_q, z_log_var_q, z_mean_p, z_log_var_p = inputs
+            x_center = None
 
         y_mean = out_params[:, :2]
         y_log_var = out_params[:, 2:]
@@ -181,6 +261,13 @@ class CondPriorVAELoss(layers.Layer):
 
         total = compute_total_loss(recon, kl, self.beta)
 
+        if self.lambda_mmd > 0.0 and x_center is not None:
+            r_real = tf.stop_gradient(y_true - x_center)
+            r_gen  = y_mean - x_center
+            mmd2 = mmd2_tf(r_real, r_gen, n_sub=512, bandwidth=self.mmd_bandwidth)
+            self.mmd_loss_tracker.update_state(mmd2)
+            total = total + self.lambda_mmd * mmd2
+
         self.add_loss(total)
         self.recon_loss_tracker.update_state(recon)
         self.kl_loss_tracker.update_state(tf.reduce_mean(kl_per_sample))
@@ -188,11 +275,19 @@ class CondPriorVAELoss(layers.Layer):
 
     @property
     def metrics(self):
-        return [self.recon_loss_tracker, self.kl_loss_tracker]
+        m = [self.recon_loss_tracker, self.kl_loss_tracker]
+        if self.lambda_mmd > 0.0:
+            m.append(self.mmd_loss_tracker)
+        return m
 
     def get_config(self):
         cfg = super().get_config()
-        cfg.update({"beta": self.beta_init, "free_bits": self.free_bits})
+        cfg.update({
+            "beta": self.beta_init,
+            "free_bits": self.free_bits,
+            "lambda_mmd": self.lambda_mmd,
+            "mmd_bandwidth": self.mmd_bandwidth,
+        })
         return cfg
 
 

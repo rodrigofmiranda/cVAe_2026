@@ -273,12 +273,16 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
 
     # Loss layer (β starts at 0 for annealing)
     beta_initial = 0.0
+    lambda_mmd = float(cfg.get("lambda_mmd", 0.0))
     loss_layer = CondPriorVAELoss(
-        beta=beta_initial, free_bits=free_bits, name="condprior_loss",
+        beta=beta_initial, free_bits=free_bits,
+        lambda_mmd=lambda_mmd,
+        name="condprior_loss",
     )
-    y_mean = loss_layer(
-        [y_in, out_params, z_mean_q, z_log_var_q, z_mean_p, z_log_var_p],
-    )
+    loss_inputs = [y_in, out_params, z_mean_q, z_log_var_q, z_mean_p, z_log_var_p]
+    if lambda_mmd > 0.0:
+        loss_inputs.append(x_in)
+    y_mean = loss_layer(loss_inputs)
 
     vae = models.Model([x_in, d_in, c_in, y_in], y_mean, name="cvae_condprior")
     opt = tf.keras.optimizers.Adam(learning_rate=lr, clipnorm=1.0)

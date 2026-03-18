@@ -276,6 +276,51 @@ def _preset_legacy2025_batch_sweep() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_legacy2025_large() -> List[Dict[str, Any]]:
+    """Larger exploratory sweep for the legacy 2025 zero-y variant.
+
+    Intended for reduced-data scientific screening on the 4-current protocol:
+    keep the data subset small enough to afford a wider hyperparameter sweep,
+    while fixing the batch size to the accepted operational ceiling (8192).
+    """
+    base = dict(
+        arch_variant="legacy_2025_zero_y",
+        dropout=0.0,
+        free_bits=0.0,
+        activation="leaky_relu",
+        batch_size=8192,
+        lr=1e-4,
+        kl_anneal_epochs=50,
+    )
+    layer_sets = [
+        [32, 64, 128, 256],
+        [64, 128, 256, 512],
+    ]
+    latent_dims = [8, 16, 24]
+    betas = [0.03, 0.1]
+    grid: List[Dict[str, Any]] = []
+    for layers in layer_sets:
+        for latent_dim in latent_dims:
+            for beta in betas:
+                tag = (
+                    f"L3legacy_lat{latent_dim}_b{_tag_beta(beta)}_fb0p0_"
+                    f"lr{_tag_lr(1e-4)}_bs8192_anneal50_L{_tag_layers(layers)}"
+                )
+                grid.append(
+                    dict(
+                        group="L3_legacy2025_large",
+                        tag=tag,
+                        cfg=_cfg(
+                            layer_sizes=layers,
+                            latent_dim=latent_dim,
+                            beta=beta,
+                            **base,
+                        ),
+                    )
+                )
+    return grid
+
+
 def _seq_bigru_residual_candidates() -> List[Dict[str, Any]]:
     """seq_bigru_residual grid items: smoke (S0) and small-sweep (S1) configs.
 
@@ -388,6 +433,46 @@ def _preset_seq_residual_small() -> List[Dict[str, Any]]:
     return [item for item in all_seq if item["group"] == "S1_seq_small"]
 
 
+def _preset_seq_residual_mmd() -> List[Dict[str, Any]]:
+    """MMD-augmented seq_bigru_residual sweep (Etapa C — G6 investigation).
+
+    Tests lambda_mmd in {0.1, 0.5, 1.0} with the two best configs from
+    seq_residual_small (h=64 beta=0.003 and h=64 beta=0.001).
+
+    The MMD auxiliary loss adds λ·MMD²(residuals_real, residuals_gen) to
+    the ELBO, directly optimising what G6 measures.
+
+    Requires --no_data_reduction.
+    """
+    items = []
+    for lam in [0.1, 0.5, 1.0]:
+        for beta in [0.001, 0.003]:
+            lam_tag = str(lam).replace(".", "p")
+            beta_tag = _tag_beta(beta)
+            items.append({
+                "group": "S2_seq_mmd",
+                "tag": f"S2seq_W7_h64_lat4_b{beta_tag}_lmmd{lam_tag}_fb0p10_lr0p0003_L128-256-512",
+                "cfg": _cfg(
+                    arch_variant="seq_bigru_residual",
+                    layer_sizes=[128, 256, 512],
+                    latent_dim=4,
+                    beta=beta,
+                    free_bits=0.1,
+                    lr=3e-4,
+                    batch_size=8192,
+                    kl_anneal_epochs=80,
+                    seq_hidden_size=64,
+                    seq_num_layers=1,
+                    seq_bidirectional=True,
+                    window_size=7,
+                    window_stride=1,
+                    window_pad_mode="edge",
+                    lambda_mmd=lam,
+                ),
+            })
+    return items
+
+
 def select_grid(
     overrides: Optional[Mapping[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
@@ -409,10 +494,14 @@ def select_grid(
             grid = _preset_legacy2025_ref()
         elif preset_name == "legacy2025_batch_sweep":
             grid = _preset_legacy2025_batch_sweep()
+        elif preset_name == "legacy2025_large":
+            grid = _preset_legacy2025_large()
         elif preset_name == "seq_residual_smoke":
             grid = _preset_seq_residual_smoke()
         elif preset_name == "seq_residual_small":
             grid = _preset_seq_residual_small()
+        elif preset_name == "seq_residual_mmd":
+            grid = _preset_seq_residual_mmd()
         else:
             raise ValueError(f"Unknown grid_preset={preset!r}")
 

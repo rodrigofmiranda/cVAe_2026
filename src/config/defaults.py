@@ -38,6 +38,7 @@ K_KL_ANNEAL_EPOCHS = "kl_anneal_epochs"
 K_DROPOUT = "dropout"
 K_ACTIVATION = "activation"
 K_ARCH_VARIANT = "arch_variant"
+K_LAMBDA_MMD = "lambda_mmd"
 
 # --- Sequence model (seq_bigru_residual) ---
 K_WINDOW_SIZE = "window_size"
@@ -105,6 +106,7 @@ MODEL_DEFAULTS: dict = {
     K_DROPOUT: 0.0,
     K_ACTIVATION: "leaky_relu",
     K_ARCH_VARIANT: "concat",
+    K_LAMBDA_MMD: 0.0,
     # Sequence model defaults (ignored by point-wise variants)
     K_WINDOW_SIZE: 33,
     K_WINDOW_STRIDE: 1,
