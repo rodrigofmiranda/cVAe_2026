@@ -331,6 +331,57 @@ def _preset_delta_residual_local() -> List[Dict[str, Any]]:
     return grid
 
 
+def _preset_delta_residual_frontier() -> List[Dict[str, Any]]:
+    """Frontier sweep around the residual-target trade-off zone.
+
+    Built from the historical cross-reference to avoid exact repetition of the
+    already tested `delta_residual` center while probing the boundary between:
+      - better signal fidelity (`G1/G2`)
+      - better residual-structure fidelity (`G3/G4/G5`)
+
+    Fixed:
+      layer_sizes=[128,256,512]
+      lr=3e-4
+      batch_size=16384
+      kl_anneal_epochs=80
+
+    Varies only:
+      latent_dim in {4, 5, 6}
+      beta       in {0.0007, 0.00085, 0.00115}
+      free_bits  in {0.0, 0.02, 0.05}
+    """
+    base = dict(
+        arch_variant="delta_residual",
+        layer_sizes=[128, 256, 512],
+        lr=3e-4,
+        batch_size=16384,
+        kl_anneal_epochs=80,
+    )
+    grid: List[Dict[str, Any]] = []
+    for latent_dim in [4, 5, 6]:
+        for beta in [0.0007, 0.00085, 0.00115]:
+            for free_bits in [0.0, 0.02, 0.05]:
+                tag = (
+                    f"D4delta_lat{latent_dim}_b{_tag_beta(beta)}_"
+                    f"fb{str(free_bits).replace('.','p')}_"
+                    f"lr{_tag_lr(3e-4)}_bs16384_anneal80_"
+                    f"L{_tag_layers([128,256,512])}"
+                )
+                grid.append(
+                    dict(
+                        group="D4_delta_frontier",
+                        tag=tag,
+                        cfg=_cfg(
+                            latent_dim=latent_dim,
+                            beta=beta,
+                            free_bits=free_bits,
+                            **base,
+                        ),
+                    )
+                )
+    return grid
+
+
 def _legacy_2025_candidates() -> List[Dict[str, Any]]:
     """Return the dedicated legacy-2025 candidates."""
     base = dict(
@@ -660,6 +711,8 @@ def select_grid(
             grid = _preset_delta_residual_refine()
         elif preset_name == "delta_residual_local":
             grid = _preset_delta_residual_local()
+        elif preset_name == "delta_residual_frontier":
+            grid = _preset_delta_residual_frontier()
         elif preset_name == "legacy2025_smoke":
             grid = _preset_legacy2025_smoke()
         elif preset_name == "legacy2025_ref":

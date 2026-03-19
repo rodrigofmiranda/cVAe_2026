@@ -75,6 +75,22 @@ def test_select_grid_delta_residual_local_varies_only_latent_and_batch():
     assert all(item["cfg"]["layer_sizes"] == [128, 256, 512] for item in grid)
 
 
+def test_select_grid_delta_residual_frontier_opens_new_non_repeated_band():
+    grid = select_grid({"grid_preset": "delta_residual_frontier"})
+
+    assert len(grid) == 27
+    assert all(item["cfg"]["arch_variant"] == "delta_residual" for item in grid)
+    assert {item["cfg"]["latent_dim"] for item in grid} == {4, 5, 6}
+    assert {item["cfg"]["beta"] for item in grid} == {0.0007, 0.00085, 0.00115}
+    assert {item["cfg"]["free_bits"] for item in grid} == {0.0, 0.02, 0.05}
+    assert all(item["cfg"]["batch_size"] == 16384 for item in grid)
+    assert all(item["cfg"]["lr"] == 3e-4 for item in grid)
+    assert all(item["cfg"]["kl_anneal_epochs"] == 80 for item in grid)
+    assert all(item["cfg"]["layer_sizes"] == [128, 256, 512] for item in grid)
+    # The frontier preset intentionally avoids the already repeated center:
+    assert all(item["cfg"]["beta"] != 0.001 for item in grid)
+
+
 def test_select_grid_legacy2025_ref_matches_expected_reference_cfg():
     grid = select_grid({"grid_preset": "legacy2025_ref"})
 

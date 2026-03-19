@@ -171,10 +171,17 @@ Current best config:
 
 ## Next Likely Step
 
-Refine around the current best reference without changing `beta`:
+Use the historical cross-reference to open a new frontier instead of repeating
+the already tested center:
 
-- keep `beta=0.001`
-- keep `free_bits=0.0`
-- test a tighter neighborhood around `latent_dim=5`
-- check whether `batch_size=8192` can recover `delta_mean_l2` without losing the gains in `EVM/SNR/PSD`
+- preset: `delta_residual_frontier`
+- keep:
+  - `layer_sizes=[128,256,512]`
+  - `lr=3e-4`
+  - `batch_size=16384`
+  - `kl_anneal_epochs=80`
+- vary:
+  - `latent_dim in {4,5,6}`
+  - `beta in {0.0007, 0.00085, 0.00115}`
+  - `free_bits in {0.0, 0.02, 0.05}`
 - compare against `/workspace/2026/outputs/exp_20260318_235319`

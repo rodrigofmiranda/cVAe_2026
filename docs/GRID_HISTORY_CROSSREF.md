@@ -77,6 +77,9 @@ Parametros para abrir:
 - `beta in {0.0007, 0.00085, 0.00115}`
 - `free_bits in {0.0, 0.02, 0.05}`
 
+Preset implementado:
+- `delta_residual_frontier`
+
 Observacao:
 - esse grid evita repetir exatamente os pontos ja testados em `delta_residual`
 - ele mira a fronteira entre o melhor `G1/G2` observado e o melhor `G3/G4/G5` observado
