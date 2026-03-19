@@ -335,6 +335,14 @@ def run_gridsearch(
     pd.DataFrame
         Sorted results table with a ``rank`` column.
     """
+    if not grid:
+        grid_tag = None if overrides is None else overrides.get("grid_tag")
+        raise ValueError(
+            "Grid search recebeu 0 configurações após o filtro. "
+            "Verifique a combinação de grid_preset/grid_tag; "
+            f"grid_tag atual={grid_tag!r}."
+        )
+
     import tensorflow as tf
     from src.models.cvae import build_cvae, create_inference_model_from_full
     from src.models.callbacks import build_callbacks

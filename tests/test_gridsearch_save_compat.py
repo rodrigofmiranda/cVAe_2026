@@ -1,6 +1,9 @@
 from pathlib import Path
+from types import SimpleNamespace
 
-from src.training.gridsearch import _save_keras_model_compat
+import numpy as np
+
+from src.training.gridsearch import _save_keras_model_compat, run_gridsearch
 
 
 class _FakeModel:
@@ -43,3 +46,33 @@ def test_save_keras_model_compat_keeps_other_value_errors(tmp_path: Path):
         assert str(exc) == "another save failure"
     else:
         raise AssertionError("expected ValueError to propagate")
+
+
+def test_run_gridsearch_rejects_empty_grid_with_clear_message(tmp_path: Path):
+    arrays_2 = np.zeros((0, 2), dtype=np.float32)
+    arrays_1 = np.zeros((0, 1), dtype=np.float32)
+    run_paths = SimpleNamespace(models_dir=tmp_path / "models", run_dir=tmp_path)
+
+    try:
+        run_gridsearch(
+            grid=[],
+            training_config={},
+            analysis_quick={},
+            X_train=arrays_2,
+            Y_train=arrays_2,
+            Dn_train=arrays_1,
+            Cn_train=arrays_1,
+            X_val=arrays_2,
+            Y_val=arrays_2,
+            Dn_val=arrays_1,
+            Cn_val=arrays_1,
+            run_paths=run_paths,
+            overrides={"grid_tag": "NON_EXISTENT"},
+        )
+    except ValueError as exc:
+        msg = str(exc)
+        assert "0 configura" in msg
+        assert "grid_preset/grid_tag" in msg
+        assert "NON_EXISTENT" in msg
+    else:
+        raise AssertionError("expected ValueError for empty filtered grid")

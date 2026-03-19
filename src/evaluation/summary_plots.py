@@ -171,6 +171,22 @@ _METRIC_SPECS = [
         "signed": False,
     },
     {
+        "cols": ("cvae_rho_hetero_abs_gap",),
+        "title": "Heteroscedasticity mismatch |Δρ|",
+        "fmt": ".4f",
+        "cmap": "YlOrRd",
+        "cbar": "|Δρ|",
+        "signed": False,
+    },
+    {
+        "cols": ("cvae_stat_jsd", "stat_jsd"),
+        "title": "Residual JSD (real vs cVAE)",
+        "fmt": ".4f",
+        "cmap": "YlOrRd",
+        "cbar": "JSD (nats)",
+        "signed": False,
+    },
+    {
         "cols": ("stat_mmd2",),
         "title": "MMD² (real vs cVAE)",
         "fmt": ".4f",
@@ -208,6 +224,15 @@ def plot_vae_vs_real_metric_diffs(
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+
+    df_summary = df_summary.copy()
+    if {
+        "cvae_rho_hetero_real",
+        "cvae_rho_hetero_pred",
+    }.issubset(df_summary.columns):
+        real = pd.to_numeric(df_summary["cvae_rho_hetero_real"], errors="coerce")
+        pred = pd.to_numeric(df_summary["cvae_rho_hetero_pred"], errors="coerce")
+        df_summary["cvae_rho_hetero_abs_gap"] = (pred - real).abs()
 
     resolved = []
     for spec in _METRIC_SPECS:

@@ -55,9 +55,9 @@ def _full_result() -> dict:
         "baseline_dist": {
             "delta_mean_l2": 0.05,
             "delta_cov_fro": 0.06,
-            "delta_skew_l2": 0.09,
-            "delta_kurt_l2": 0.12,
-            "psd_l2": 0.14,
+            "delta_skew_l2": 0.12,
+            "delta_kurt_l2": 0.40,
+            "psd_l2": 0.18,
             "delta_acf_l2": 0.16,
             "jb_p_min": 1e-5,
             "jb_log10p_min": -5.0,
@@ -142,15 +142,15 @@ def test_signal_fidelity_gates_require_10_percent_closeness_to_real():
 
 def test_residual_scale_gate_uses_real_residual_power_not_baseline():
     result = _full_result()
-    result["metrics"]["delta_mean_l2"] = 0.020
+    result["metrics"]["delta_mean_l2"] = 0.030
     result["metrics"]["delta_cov_fro"] = 0.009
-    result["cvae_dist"]["delta_mean_l2"] = 0.020
+    result["cvae_dist"]["delta_mean_l2"] = 0.030
     result["cvae_dist"]["delta_cov_fro"] = 0.009
 
     df = build_validation_summary_table([result])
     row = df.iloc[0]
 
-    assert math.isclose(row["cvae_mean_rel_sigma"], 0.020 / math.sqrt(0.05), rel_tol=1e-9)
+    assert math.isclose(row["cvae_mean_rel_sigma"], 0.030 / math.sqrt(0.05), rel_tol=1e-9)
     assert bool(row["gate_g3"]) is False
     assert row["validation_status"] == "fail"
 
