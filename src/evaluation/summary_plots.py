@@ -1,10 +1,15 @@
 # -*- coding: utf-8 -*-
-"""Summary heatmaps derived from tables/summary_by_regime."""
+"""Best-model heatmaps derived from tables/summary_by_regime.
+
+This module intentionally focuses on the selected cVAE only.
+It does not render baseline-vs-cVAE comparison panels anymore.
+"""
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Sequence
 
 import numpy as np
 import pandas as pd
@@ -39,9 +44,18 @@ def _pivot_for_heatmap(
     return piv
 
 
-def _draw_heatmap(ax, piv: pd.DataFrame, *, title: str, cmap: str, fmt: str,
-                  cbar_label: str = "", vmin: float = None, vmax: float = None,
-                  center: float = None) -> None:
+def _draw_heatmap(
+    ax,
+    piv: pd.DataFrame,
+    *,
+    title: str,
+    cmap: str,
+    fmt: str,
+    cbar_label: str = "",
+    vmin: float | None = None,
+    vmax: float | None = None,
+    center: float | None = None,
+) -> None:
     try:
         import seaborn as sns
 
@@ -69,200 +83,188 @@ def _draw_heatmap(ax, piv: pd.DataFrame, *, title: str, cmap: str, fmt: str,
             for j in range(len(piv.columns)):
                 v = piv.iloc[i, j]
                 if pd.notna(v):
-                    ax.text(j, i, f"{v:{fmt.lstrip('.')}}", ha="center",
-                            va="center", fontsize=8, color="white")
+                    ax.text(
+                        j,
+                        i,
+                        f"{v:{fmt.lstrip('.')}}",
+                        ha="center",
+                        va="center",
+                        fontsize=8,
+                        color="white",
+                    )
         ax.figure.colorbar(im, ax=ax, label=cbar_label)
     ax.set_ylabel("distance (m)")
     ax.set_xlabel("current (mA)")
     ax.set_title(title)
 
 
-def plot_evm_real_vs_models(
+def _pick_column(df: pd.DataFrame, candidates: Sequence[str]) -> Optional[str]:
+    for col in candidates:
+        if col in df.columns:
+            return col
+    return None
+
+
+_METRIC_SPECS = [
+    {
+        "cols": ("cvae_delta_evm_%", "delta_evm_%"),
+        "title": "cVAE vs real — ΔEVM (pp)",
+        "fmt": ".2f",
+        "cmap": "RdBu_r",
+        "cbar": "ΔEVM (pp)",
+        "signed": True,
+    },
+    {
+        "cols": ("cvae_delta_snr_db", "delta_snr_db"),
+        "title": "cVAE vs real — ΔSNR (dB)",
+        "fmt": ".2f",
+        "cmap": "RdBu",
+        "cbar": "ΔSNR (dB)",
+        "signed": True,
+    },
+    {
+        "cols": ("cvae_delta_mean_l2", "delta_mean_l2"),
+        "title": "Residual mean mismatch (L2)",
+        "fmt": ".4f",
+        "cmap": "YlOrRd",
+        "cbar": "L2",
+        "signed": False,
+    },
+    {
+        "cols": ("cvae_delta_cov_fro", "delta_cov_fro"),
+        "title": "Residual covariance mismatch (Fro)",
+        "fmt": ".4f",
+        "cmap": "YlOrRd",
+        "cbar": "Fro",
+        "signed": False,
+    },
+    {
+        "cols": ("cvae_delta_skew_l2", "delta_skew_l2"),
+        "title": "Residual skew mismatch (L2)",
+        "fmt": ".4f",
+        "cmap": "YlOrRd",
+        "cbar": "L2",
+        "signed": False,
+    },
+    {
+        "cols": ("cvae_delta_kurt_l2", "delta_kurt_l2"),
+        "title": "Residual kurtosis mismatch (L2)",
+        "fmt": ".4f",
+        "cmap": "YlOrRd",
+        "cbar": "L2",
+        "signed": False,
+    },
+    {
+        "cols": ("cvae_psd_l2", "delta_psd_l2"),
+        "title": "Residual PSD mismatch (L2)",
+        "fmt": ".4f",
+        "cmap": "YlOrRd",
+        "cbar": "PSD L2",
+        "signed": False,
+    },
+    {
+        "cols": ("stat_mmd2",),
+        "title": "MMD² (real vs cVAE)",
+        "fmt": ".4f",
+        "cmap": "YlOrRd",
+        "cbar": "MMD²",
+        "signed": False,
+    },
+    {
+        "cols": ("stat_energy",),
+        "title": "Energy distance (real vs cVAE)",
+        "fmt": ".4f",
+        "cmap": "YlOrRd",
+        "cbar": "Energy",
+        "signed": False,
+    },
+    {
+        "cols": ("stat_psd_dist",),
+        "title": "Stat PSD distance (real vs cVAE)",
+        "fmt": ".4f",
+        "cmap": "YlOrRd",
+        "cbar": "PSD dist",
+        "signed": False,
+    },
+]
+
+
+def plot_vae_vs_real_metric_diffs(
     df_summary: pd.DataFrame,
     out_dir: Path,
     *,
-    fname: str = "heatmap_evm_real_vs_models.png",
+    fname: str = "heatmap_vae_vs_real_metric_diffs.png",
 ) -> Optional[Path]:
-    """Render one panel comparing real, baseline and cVAE EVM across regimes."""
+    """Render best-model heatmaps of real-vs-cVAE metric differences."""
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    real = _pivot_for_heatmap(df_summary, "evm_real_%")
-    baseline = _pivot_for_heatmap(df_summary, "baseline_evm_pred_%")
-    cvae_col = "cvae_evm_pred_%" if "cvae_evm_pred_%" in df_summary.columns else "evm_pred_%"
-    cvae = _pivot_for_heatmap(df_summary, cvae_col)
-    if real is None and baseline is None and cvae is None:
-        return None
-
-    pivots = [p for p in (real, baseline, cvae) if p is not None]
-    all_vals = np.concatenate([p.to_numpy().ravel() for p in pivots])
-    all_vals = all_vals[np.isfinite(all_vals)]
-    if all_vals.size == 0:
-        return None
-    vmin = float(np.min(all_vals))
-    vmax = float(np.max(all_vals))
-
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
-    entries = [
-        (real, "Canal real — EVM (%)"),
-        (baseline, "Baseline — EVM predito (%)"),
-        (cvae, "cVAE — EVM predito (%)"),
-    ]
-    for ax, (piv, title) in zip(axes, entries):
-        if piv is None:
-            ax.axis("off")
-            ax.set_title(f"{title}\n(no data)")
+    resolved = []
+    for spec in _METRIC_SPECS:
+        col = _pick_column(df_summary, spec["cols"])
+        if col is None:
             continue
-        _draw_heatmap(
-            ax, piv,
-            title=title,
-            cmap="YlOrRd",
-            fmt=".2f",
-            cbar_label="EVM (%)",
-            vmin=vmin,
-            vmax=vmax,
-        )
-
-    fig.suptitle("EVM por regime — canal real vs baseline vs cVAE", fontsize=14)
-    return _savefig(Path(out_dir) / fname)
-
-
-def plot_delta_evm_models(
-    df_summary: pd.DataFrame,
-    out_dir: Path,
-    *,
-    fname: str = "heatmap_delta_evm_models.png",
-) -> Optional[Path]:
-    """Render ΔEVM heatmaps for baseline and cVAE across regimes."""
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    baseline = _pivot_for_heatmap(df_summary, "baseline_delta_evm_%")
-    cvae_col = "cvae_delta_evm_%" if "cvae_delta_evm_%" in df_summary.columns else "delta_evm_%"
-    cvae = _pivot_for_heatmap(df_summary, cvae_col)
-    if baseline is None and cvae is None:
-        return None
-
-    pivots = [p for p in (baseline, cvae) if p is not None]
-    all_vals = np.concatenate([p.to_numpy().ravel() for p in pivots])
-    all_vals = all_vals[np.isfinite(all_vals)]
-    if all_vals.size == 0:
-        return None
-    vmax = float(np.max(np.abs(all_vals)))
-
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-    entries = [
-        (baseline, "Baseline — ΔEVM (pp)"),
-        (cvae, "cVAE — ΔEVM (pp)"),
-    ]
-    for ax, (piv, title) in zip(axes, entries):
+        piv = _pivot_for_heatmap(df_summary, col)
         if piv is None:
-            ax.axis("off")
-            ax.set_title(f"{title}\n(no data)")
             continue
-        _draw_heatmap(
-            ax, piv,
-            title=title,
-            cmap="RdYlGn_r",
-            fmt=".2f",
-            cbar_label="ΔEVM (pp)",
-            vmin=-vmax,
-            vmax=vmax,
-            center=0.0,
-        )
+        resolved.append((spec, piv))
 
-    fig.suptitle("ΔEVM por regime — baseline vs cVAE", fontsize=14)
-    return _savefig(Path(out_dir) / fname)
-
-
-def plot_abs_delta_evm_vs_real_models(
-    df_summary: pd.DataFrame,
-    out_dir: Path,
-    *,
-    fname: str = "heatmap_abs_delta_evm_vs_real_models.png",
-) -> Optional[Path]:
-    """Render absolute EVM error vs the real channel for baseline and cVAE.
-
-    This is the most direct diagnostic for "which regimes are outside the
-    prediction" because color encodes the magnitude of the EVM mismatch with
-    the real channel, independent of sign.
-    """
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    if "baseline_delta_evm_%" not in df_summary.columns and "cvae_delta_evm_%" not in df_summary.columns:
+    if not resolved:
         return None
 
-    df_plot = df_summary.copy()
-    if "baseline_delta_evm_%" in df_plot.columns:
-        df_plot["baseline_abs_delta_evm_%"] = pd.to_numeric(
-            df_plot["baseline_delta_evm_%"], errors="coerce",
-        ).abs()
-    if "cvae_delta_evm_%" in df_plot.columns:
-        df_plot["cvae_abs_delta_evm_%"] = pd.to_numeric(
-            df_plot["cvae_delta_evm_%"], errors="coerce",
-        ).abs()
-    elif "delta_evm_%" in df_plot.columns:
-        df_plot["cvae_abs_delta_evm_%"] = pd.to_numeric(
-            df_plot["delta_evm_%"], errors="coerce",
-        ).abs()
+    ncols = 3
+    nrows = int(math.ceil(len(resolved) / ncols))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(6.2 * ncols, 4.8 * nrows))
+    axes = np.atleast_1d(axes).ravel()
 
-    baseline = _pivot_for_heatmap(df_plot, "baseline_abs_delta_evm_%")
-    cvae = _pivot_for_heatmap(df_plot, "cvae_abs_delta_evm_%")
-    if baseline is None and cvae is None:
-        return None
-
-    pivots = [p for p in (baseline, cvae) if p is not None]
-    all_vals = np.concatenate([p.to_numpy().ravel() for p in pivots])
-    all_vals = all_vals[np.isfinite(all_vals)]
-    if all_vals.size == 0:
-        return None
-    vmin = 0.0
-    vmax = float(np.max(all_vals))
-
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-    entries = [
-        (baseline, "Baseline/AWGN — |EVM_pred - EVM_real| (pp)"),
-        (cvae, "cVAE — |EVM_pred - EVM_real| (pp)"),
-    ]
-    for ax, (piv, title) in zip(axes, entries):
-        if piv is None:
+    for ax, (spec, piv) in zip(axes, resolved):
+        vals = piv.to_numpy(dtype=float)
+        vals = vals[np.isfinite(vals)]
+        if vals.size == 0:
             ax.axis("off")
-            ax.set_title(f"{title}\n(no data)")
             continue
+        if spec["signed"]:
+            vmax = float(np.max(np.abs(vals)))
+            vmin = -vmax
+            center = 0.0
+        else:
+            vmin = 0.0
+            vmax = float(np.max(vals))
+            center = None
         _draw_heatmap(
             ax,
             piv,
-            title=title,
-            cmap="YlOrRd",
-            fmt=".2f",
-            cbar_label="|ΔEVM| (pp)",
+            title=spec["title"],
+            cmap=spec["cmap"],
+            fmt=spec["fmt"],
+            cbar_label=spec["cbar"],
             vmin=vmin,
             vmax=vmax,
+            center=center,
         )
 
-    fig.suptitle("Erro absoluto de EVM vs canal real — baseline/AWGN vs cVAE", fontsize=14)
+    for ax in axes[len(resolved):]:
+        ax.axis("off")
+
+    fig.suptitle(
+        "Best model only — real vs cVAE metric differences by regime",
+        fontsize=15,
+    )
     return _savefig(Path(out_dir) / fname)
 
 
 def generate_all(df_summary: pd.DataFrame, out_dir: Path) -> List[Path]:
-    """Generate summary heatmaps and return created paths."""
+    """Generate only best-model real-vs-cVAE heatmaps."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     created: List[Path] = []
-    for fn in (
-        plot_evm_real_vs_models,
-        plot_delta_evm_models,
-        plot_abs_delta_evm_vs_real_models,
-    ):
-        try:
-            p = fn(df_summary, out_dir)
-            if p is not None:
-                created.append(p)
-                print(f"   📈 {p.name}")
-        except Exception as exc:
-            print(f"⚠️  {fn.__name__} failed: {exc}")
+    try:
+        p = plot_vae_vs_real_metric_diffs(df_summary, out_dir)
+        if p is not None:
+            created.append(p)
+            print(f"   📈 {p.name}")
+    except Exception as exc:
+        print(f"⚠️  plot_vae_vs_real_metric_diffs failed: {exc}")
     return created

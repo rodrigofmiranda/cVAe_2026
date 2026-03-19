@@ -318,9 +318,7 @@ def run_gridsearch(
         calculate_evm, calculate_snr, residual_distribution_metrics,
     )
     from src.training.grid_plots import (
-        generate_gridsearch_overview_plots,
         save_candidate_plot_bundle,
-        save_legacy_champion_plots,
     )
 
     _ov = overrides or {}
@@ -552,9 +550,7 @@ def run_gridsearch(
 
             # Per-grid artifact directory
             model_dir = _grid_artifact_dir(MODELS_DIR, gi, tag)
-            exp_plots_dir = model_dir / "plots"
             exp_tables_dir = model_dir / "tables"
-            exp_plots_dir.mkdir(parents=True, exist_ok=True)
             exp_tables_dir.mkdir(parents=True, exist_ok=True)
 
             kl_dim_mean = np.mean(
@@ -573,35 +569,13 @@ def run_gridsearch(
                 f"active_dims: {active_dims}/{int(cfg['latent_dim'])} | KL_mean_total: {kl_mean_total:.3f}",
             ]
 
-            reports_dir = exp_plots_dir / "reports"
-            reports_dir.mkdir(parents=True, exist_ok=True)
-            png_path = reports_dir / "relatorio_completo_original_style.png"
-            title = f"Relatório Consolidado — Twin + Latente | GRID {gi}/{len(grid)}"
-            save_experiment_report_png(
-                plot_path=png_path, Xv=Xv_center, Yv=Yv, Yp=Yp,
-                std_mu_p=std_mu_p, kl_dim_mean=kl_dim_mean,
-                summary_lines=summary_lines, title=title,
-            )
-            extra_paths = save_candidate_plot_bundle(
-                plots_dir=exp_plots_dir,
-                Xv=Xv_center,
-                Yv=Yv,
-                Yp=Yp,
-                std_mu_p=std_mu_p,
-                kl_dim_mean=kl_dim_mean,
-                history_dict=history_dict,
-                summary_lines=summary_lines,
-                psd_nfft=psd_nfft,
-                title_prefix=f"GRID {gi}/{len(grid)} | {tag}",
-            )
-
             xlsx_path = exp_tables_dir / "relatorio_diagnostico_completo.xlsx"
             save_experiment_xlsx(xlsx_path=xlsx_path, row_dict=row)
 
-            results[-1]["report_png_path"] = str(png_path)
+            results[-1]["report_png_path"] = ""
             results[-1]["report_xlsx_path"] = str(xlsx_path)
-            results[-1]["plot_bundle_dir"] = str(exp_plots_dir)
-            results[-1]["plot_bundle_count"] = int(len(extra_paths) + 1)
+            results[-1]["plot_bundle_dir"] = ""
+            results[-1]["plot_bundle_count"] = 0
 
             # Save individual model
             model_path = model_dir / "model_full.keras"
@@ -662,19 +636,6 @@ def run_gridsearch(
                     psd_nfft=psd_nfft,
                     title_prefix=f"Best grid candidate | {tag}",
                 )
-                legacy_paths = save_legacy_champion_plots(
-                    plots_dir=best_grid_plots_dir,
-                    Xv=Xv_center,
-                    Yv=Yv,
-                    Yp=Yp,
-                    mu_p=mu_p,
-                    std_mu_p=std_mu_p,
-                    kl_dim_mean=kl_dim_mean,
-                    summary_lines=summary_lines + [
-                        f"ranking criterion: provisional best score_v2={score_v2:.4f}",
-                    ],
-                    model_label="Champion",
-                )
                 from src.training.logging import write_artifact_manifest
                 write_artifact_manifest(
                     best_grid_plots_dir,
@@ -684,7 +645,6 @@ def run_gridsearch(
                             best_grid_plots_dir / "reports" / "summary_report.png",
                             best_grid_plots_dir / "core" / "overlay_constellation.png",
                             best_grid_plots_dir / "core" / "overlay_residual_delta.png",
-                            best_grid_plots_dir / "legacy" / "analise_completa_vae.png",
                         ],
                         "distribution": [
                             best_grid_plots_dir / "distribution" / "density_y_real.png",
@@ -698,12 +658,11 @@ def run_gridsearch(
                         "training": [
                             best_grid_plots_dir / "training" / "training_history.png",
                         ],
-                        "legacy": legacy_paths,
                     },
                 )
                 print(
                     f"✓ Best-grid plot bundle salvo: {best_grid_plots_dir} "
-                    f"({len(best_extra_paths) + len(legacy_paths)} plots + report)"
+                    f"({len(best_extra_paths)} plots)"
                 )
 
         except Exception as e:
@@ -772,10 +731,5 @@ def run_gridsearch(
 
     # Also save CSV for convenience
     run_paths.write_table("tables/gridsearch_results.csv", df_results)
-
-    overview_dir = run_paths.plots_dir / "gridsearch"
-    overview_paths = generate_gridsearch_overview_plots(df_results, overview_dir)
-    if overview_paths:
-        print(f"📊 Gridsearch overview plots ({len(overview_paths)}): {overview_dir}")
 
     return df_results

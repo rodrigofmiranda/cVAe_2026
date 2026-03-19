@@ -1686,16 +1686,16 @@ def main():
     exp_paths.write_table("tables/summary_by_regime.xlsx", df_summary)
     print(f"\n📊 Summary table: {summary_csv}")
 
-    # ---- Summary heatmaps (always derived from canonical summary table) ----
+    # ---- Best-model heatmaps (derived from canonical summary table) ----
     try:
         from src.evaluation.summary_plots import generate_all as _summary_plots
 
-        _plot_dir = exp_dir / "plots" / "summary"
+        _plot_dir = exp_dir / "plots" / "best_model"
         _summary_created = _summary_plots(df_summary, _plot_dir)
         if _summary_created:
-            print(f"📈 Summary heatmaps ({len(_summary_created)}): {_plot_dir}")
+            print(f"📈 Best-model heatmaps ({len(_summary_created)}): {_plot_dir}")
     except Exception as _se:
-        print(f"⚠️  Summary heatmaps failed: {_se}")
+        print(f"⚠️  Best-model heatmaps failed: {_se}")
 
     # ---- Etapa A2: Stat fidelity projection (derived from canonical summary) ----
     if args.stat_tests:
@@ -1705,18 +1705,6 @@ def main():
                 sf_csv = exp_paths.write_table("tables/stat_fidelity_by_regime.csv", df_sf)
                 exp_paths.write_table("tables/stat_fidelity_by_regime.xlsx", df_sf)
                 print(f"📊 Stat fidelity table (derived from summary): {sf_csv}")
-
-                # ---- Etapa A3: stat fidelity plots ----
-                try:
-                    from src.evaluation.stat_tests.plots import generate_all as _sf_plots
-                    _plot_dir = exp_dir / "plots" / "stat_tests"
-                    _sf_created = _sf_plots(
-                        df_sf, _plot_dir, df_summary=df_summary,
-                    )
-                    if _sf_created:
-                        print(f"📈 Stat fidelity plots ({len(_sf_created)}): {_plot_dir}")
-                except Exception as _pe:
-                    print(f"⚠️  Stat fidelity plots failed: {_pe}")
 
                 _stat_acceptance = build_stat_acceptance_summary(df_summary)
             else:
