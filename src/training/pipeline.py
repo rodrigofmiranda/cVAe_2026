@@ -35,9 +35,32 @@ def _filter_selected_experiments(
         return exps
     selected = [str(p) for p in selected_experiments]
     before = len(exps)
-    # Support both exact match and prefix match (e.g. curr_100mA/ matches curr_100mA/full_square_...)
+
+    def _dataset_rel(path_str: str) -> str:
+        marker = "dataset_fullsquare_organized/"
+        norm = str(path_str).replace("\\", "/")
+        if marker in norm:
+            return norm.split(marker, 1)[1].rstrip("/")
+        return norm.rstrip("/")
+
+    selected_rel = [_dataset_rel(p) for p in selected]
+
+    # Support:
+    # - exact absolute match
+    # - absolute prefix match (curr_100mA/ -> curr_100mA/full_square_...)
+    # - dataset-relative suffix match so protocol JSONs remain portable across
+    #   different clone roots (e.g. /workspace/2026 vs /workspace/cVAe_2026).
     def _matches(exp_path: str) -> bool:
-        return any(exp_path == s or exp_path.startswith(s.rstrip("/") + "/") for s in selected)
+        exp_norm = str(exp_path).replace("\\", "/")
+        exp_rel = _dataset_rel(exp_norm)
+        return any(
+            exp_norm == s
+            or exp_norm.startswith(s.rstrip("/") + "/")
+            or exp_rel == sr
+            or exp_rel.startswith(sr.rstrip("/") + "/")
+            for s, sr in zip(selected, selected_rel)
+        )
+
     filtered = [(X, Y, D, C, p) for X, Y, D, C, p in exps if _matches(str(p))]
     print(
         f"⚡ selected_experiments filter: {before} → {len(filtered)} experiment(s) "
