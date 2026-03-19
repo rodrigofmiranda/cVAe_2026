@@ -110,17 +110,51 @@ Interpretation:
 - this refinement did **not** beat `/workspace/2026/outputs/exp_20260318_231458`
 - lowering `beta` to `0.0005` looked acceptable on grid rank metrics, but degraded the final pivot regime badly
 
+### 4. Local Winner Refinement
+
+- run: `/workspace/2026/outputs/exp_20260318_235319`
+- preset: `delta_residual_local`
+
+Winning config by grid score:
+
+- `D3delta_lat5_b0p001_fb0p0_lr0p0003_bs16384_anneal80_L128-256-512`
+
+Pivot summary:
+
+- `ΔEVM=-3.678 pp`
+- `ΔSNR=+1.113 dB`
+- `baseline_delta_mean_l2=0.00342`
+- `cvae_delta_mean_l2=0.00903`
+- `baseline_psd_l2=0.22519`
+- `cvae_psd_l2=0.23994`
+- `MMD²=0.001129`
+- `Energy=0.000787`
+- `validation_status=fail`
+
+Interpretation:
+
+- this run is the best current `delta_residual` scientific reference
+- it improved over `/workspace/2026/outputs/exp_20260318_231458` on:
+  - `ΔEVM`
+  - `ΔSNR`
+  - `PSD_L2`
+  - `MMD²`
+- it was slightly worse on:
+  - `delta_mean_l2`
+  - `Energy`
+- it still does not pass the strict protocol gates, so it is not yet a validated digital twin
+
 ## Current Best Reference
 
 Use this as the best current `delta_residual` reference:
 
-- `/workspace/2026/outputs/exp_20260318_231458`
+- `/workspace/2026/outputs/exp_20260318_235319`
 
 Current best config:
 
 - `arch_variant=delta_residual`
 - `layer_sizes=[128,256,512]`
-- `latent_dim=4`
+- `latent_dim=5`
 - `beta=0.001`
 - `free_bits=0.0`
 - `lr=3e-4`
@@ -132,6 +166,7 @@ Current best config:
 - the simplified residual-target idea is viable
 - `free_bits=0.0` helped this line
 - `beta=0.001` is currently better than `0.0005` for final scientific metrics
+- a very small latent space still seems best; the current best run uses `latent_dim=5`
 - grid-ranking metrics alone are not enough; the pivot regime can disagree sharply
 
 ## Next Likely Step
@@ -140,5 +175,6 @@ Refine around the current best reference without changing `beta`:
 
 - keep `beta=0.001`
 - keep `free_bits=0.0`
-- test small `latent_dim` variations and possibly `batch_size=8192` vs `16384`
-- compare against `/workspace/2026/outputs/exp_20260318_231458`
+- test a tighter neighborhood around `latent_dim=5`
+- check whether `batch_size=8192` can recover `delta_mean_l2` without losing the gains in `EVM/SNR/PSD`
+- compare against `/workspace/2026/outputs/exp_20260318_235319`

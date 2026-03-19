@@ -22,14 +22,19 @@
   - run: `/workspace/2026/outputs/exp_20260318_230955`
   - outcome: variant works end-to-end, but poor scientific fidelity
 - best current `delta_residual` candidate:
-  - run: `/workspace/2026/outputs/exp_20260318_231458`
-  - winner: `D1delta_lat4_b0p001_fb0p0_lr0p0003_L128-256-512`
-  - pivot summary: `ΔEVM=-3.512 pp`, `ΔSNR=+1.060 dB`, `Δmean_l2=0.0084`, `PSD_L2=0.2476`, `MMD²=0.001245`, `Energy=0.000682`
+  - run: `/workspace/2026/outputs/exp_20260318_235319`
+  - winner: `D3delta_lat5_b0p001_fb0p0_lr0p0003_bs16384_anneal80_L128-256-512`
+  - pivot summary: `ΔEVM=-3.678 pp`, `ΔSNR=+1.113 dB`, `Δmean_l2=0.0090`, `PSD_L2=0.2399`, `MMD²=0.001129`, `Energy=0.000787`
 - local refinement around the winner:
   - preset commit: `fb7fbd2`
   - run: `/workspace/2026/outputs/exp_20260318_233023`
   - winner by grid score: `D2delta_lat4_b0p0005_fb0p0_lr0p0003_bs16384_anneal80_L128-256-512`
   - scientific outcome: worse than `/workspace/2026/outputs/exp_20260318_231458`
+- local latent/batch refinement around the scientific winner:
+  - preset commit: `05e2774`
+  - run: `/workspace/2026/outputs/exp_20260318_235319`
+  - winner by grid score: `D3delta_lat5_b0p001_fb0p0_lr0p0003_bs16384_anneal80_L128-256-512`
+  - scientific outcome: slightly better overall than `/workspace/2026/outputs/exp_20260318_231458`
 
 ## Main Lessons So Far
 
@@ -38,7 +43,8 @@
   - `beta=0.001`
   - `free_bits=0.0`
   - `layer_sizes=[128,256,512]`
-  - `latent_dim=4`
+  - `latent_dim` in the small range `4–5`
+- `batch_size=16384` remains competitive in the best current run, but `8192` still looked healthier in several intermediate sweeps
 - lowering `beta` to `0.0005` improved grid rank metrics but hurt the final pivot regime:
   - worse `ΔEVM`
   - much worse `PSD_L2`
@@ -57,6 +63,7 @@
 
 Prefer these runs when comparing or resuming:
 
+- `/workspace/2026/outputs/exp_20260318_235319`
 - `/workspace/2026/outputs/exp_20260318_231458`
 - `/workspace/2026/outputs/exp_20260318_233023`
 - `/workspace/2026/outputs/exp_20260318_193036`
