@@ -6,6 +6,13 @@ Reusable functions for comparing residual distributions between real
 and model-predicted data.  Used by the protocol runner (Commit 3O)
 for both deterministic baseline and cVAE evaluations.
 
+Canonical δ definition
+----------------------
+δ = Y − X (element-wise), where X and Y are the float32 arrays stored per experiment:
+  X = input I/Q at symbol rate (pre-pulse-shaping, stored as float32 continuous values).
+  Y = received I/Q at symbol rate (post-matched-filter and timing-recovery, float32).
+δ encodes both the channel gain/phase response and any stochastic noise.
+
 Functions
 ---------
 moment_deltas          Δ mean (L2), Δ covariance (Frobenius), Δ skew (L2), Δ kurtosis (L2)
@@ -19,7 +26,7 @@ Commit 3O.
 
 import math
 import numpy as np
-from typing import Dict
+from typing import Dict, Optional
 
 
 # ---------------------------------------------------------------------------
@@ -209,6 +216,7 @@ def residual_fidelity_metrics(
     gauss_alpha: float = 0.01,
     max_samples: int = 200_000,
     acf_max_lag: int = 128,
+    X: Optional[np.ndarray] = None,
 ) -> Dict:
     """
     All distribution-fidelity metrics between real and predicted residuals.
@@ -220,10 +228,13 @@ def residual_fidelity_metrics(
     psd_nfft       : int
     gauss_alpha    : float
     max_samples    : int — cap to bound computation
+    X              : ndarray (N, 2), optional — pre-RRC input I/Q; if provided,
+                     computes rho_hetero = Pearson(|X_c|, |δ_c|²) for both residuals.
 
     Returns
     -------
-    dict  combining moment_deltas, psd_distance, gaussianity_tests
+    dict  combining moment_deltas, psd_distance, acf_distance, gaussianity_tests,
+          and optionally rho_hetero_real / rho_hetero_pred.
     """
     n = min(len(residuals_real), len(residuals_pred), max_samples)
     rr = residuals_real[:n]
@@ -233,6 +244,13 @@ def residual_fidelity_metrics(
     result.update(moment_deltas(rr, rp))
     result.update(psd_distance(rr, rp, nfft=psd_nfft))
     result.update(acf_distance(rr, rp, max_lag=acf_max_lag))
+
+    try:
+        from src.evaluation.stat_tests.jsd import jsd_2d
+        result["stat_jsd"] = jsd_2d(rr, rp)
+    except ImportError:
+        result["stat_jsd"] = float("nan")
+
     g_real = gaussianity_tests(rr, alpha=gauss_alpha)
     result.update({
         "jb_real_stat_I": g_real["jb_stat_I"],
@@ -246,4 +264,20 @@ def residual_fidelity_metrics(
         "jb_real_reject_gaussian": g_real["reject_gaussian"],
     })
     result.update(gaussianity_tests(rp, alpha=gauss_alpha))
+
+    if X is not None:
+        Xn = np.asarray(X)[:n]
+        xc = Xn[:, 0] + 1j * Xn[:, 1]
+        amp_x = np.abs(xc)
+
+        def _rho(d_arr: np.ndarray) -> float:
+            dc = d_arr[:, 0] + 1j * d_arr[:, 1]
+            amp_d2 = np.abs(dc) ** 2
+            if np.std(amp_x) < 1e-12 or np.std(amp_d2) < 1e-12:
+                return float("nan")
+            return float(np.corrcoef(amp_x, amp_d2)[0, 1])
+
+        result["rho_hetero_real"] = _rho(rr)
+        result["rho_hetero_pred"] = _rho(rp)
+
     return result

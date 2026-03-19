@@ -1227,6 +1227,7 @@ def run_regime(
                 result["baseline_dist"] = residual_fidelity_metrics(
                     res_real, res_pred_bl,
                     psd_nfft=_psd_nfft, max_samples=_max_ds, gauss_alpha=_g_alpha,
+                    X=X_va,
                 )
                 print(f"   📐 Baseline dist: Δmean_l2={result['baseline_dist']['delta_mean_l2']:.4f}  "
                       f"Δacf_l2={result['baseline_dist'].get('delta_acf_l2', float('nan')):.4f}  "
@@ -1411,6 +1412,7 @@ def run_regime(
                     cvae_dm = residual_fidelity_metrics(
                         res_real, res_pred_cvae,
                         psd_nfft=_psd_nfft, max_samples=_n_cmp, gauss_alpha=_g_alpha,
+                        X=_X_va[idx_real],
                     )
                     result["cvae_dist"] = cvae_dm
                     result["dist_metrics_source"] = _dm_source

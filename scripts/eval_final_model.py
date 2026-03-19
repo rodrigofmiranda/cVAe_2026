@@ -181,6 +181,7 @@ idx_dg   = np.sort(rng_dist.choice(res_pred_all.shape[0], n_dist, replace=False)
 distm = residual_fidelity_metrics(
     res_real_all[idx_dr], res_pred_all[idx_dg],
     psd_nfft=2048, gauss_alpha=0.01, max_samples=n_dist,
+    X=X_tiled[idx_dr],
 )
 var_real   = float(np.mean(np.var(res_real_all[idx_dr], axis=0)))
 delta_mean = distm["delta_mean_l2"]
@@ -188,10 +189,15 @@ delta_cov  = distm["delta_cov_fro"]
 delta_skew = distm["delta_skew_l2"]
 delta_kurt = distm["delta_kurt_l2"]
 delta_psd  = distm["psd_l2"]
-jb_log10p  = distm["jb_log10p_min"]       # predicted residuals
-jb_real_l  = distm["jb_real_log10p_min"]  # real residuals
+delta_acf       = distm.get("delta_acf_l2", float("nan"))
+rho_het_real    = distm.get("rho_hetero_real", float("nan"))
+rho_het_pred    = distm.get("rho_hetero_pred", float("nan"))
+stat_jsd        = distm.get("stat_jsd", float("nan"))
+jb_log10p       = distm["jb_log10p_min"]       # predicted residuals
+jb_real_l       = distm["jb_real_log10p_min"]  # real residuals
 print(f"  mean_l2={delta_mean:.6f}  cov_fro={delta_cov:.6f}  var_real={var_real:.6f}")
-print(f"  skew_l2={delta_skew:.4f}  kurt_l2={delta_kurt:.4f}  psd_l2={delta_psd:.4f}")
+print(f"  skew_l2={delta_skew:.4f}  kurt_l2={delta_kurt:.4f}  psd_l2={delta_psd:.4f}  acf_l2={delta_acf:.4f}")
+print(f"  rho_hetero_real={rho_het_real:.4f}  rho_hetero_pred={rho_het_pred:.4f}  stat_jsd={stat_jsd:.6f}")
 print(f"  jb_log10p_pred={jb_log10p:.2f}  jb_log10p_real={jb_real_l:.2f}  n_dist={n_dist:,}")
 
 # ---------------------------------------------------------------------------
@@ -291,6 +297,11 @@ result = {
     "cov_rel_var": cov_rel_var,
     # G4
     "delta_psd_l2": delta_psd,
+    "delta_acf_l2": delta_acf,
+    # Heteroscedasticity + JSD (reported only, no gate)
+    "rho_hetero_real": rho_het_real,
+    "rho_hetero_pred": rho_het_pred,
+    "stat_jsd": stat_jsd,
     # G5
     "delta_skew_l2": delta_skew,
     "delta_kurt_l2": delta_kurt,

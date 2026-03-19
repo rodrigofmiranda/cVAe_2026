@@ -4,6 +4,14 @@ src/evaluation/metrics.py — Shared signal-quality and residual-distribution me
 
 Shared metrics for the canonical training and evaluation pipelines.
 
+Canonical δ definition
+----------------------
+δ = Y − X (element-wise), where X and Y are the float32 arrays stored per experiment:
+  X = input I/Q at symbol rate (pre-pulse-shaping, stored as float32 continuous values).
+  Y = received I/Q at symbol rate (post-matched-filter and timing-recovery, float32).
+δ encodes both the channel gain/phase response and any stochastic noise.
+It is NOT a residual after linear-fit removal.
+
 Functions
 ---------
 calculate_evm   – EVM (%) and EVM (dB) between reference and test I/Q.
@@ -110,8 +118,21 @@ def residual_distribution_metrics(
     gauss_alpha: float = 0.01,
     acf_max_lag: int = 128,
 ):
-    d_real = np.asarray(Y) - np.asarray(X)
-    d_pred = np.asarray(Yp) - np.asarray(X)
+    X_arr  = np.asarray(X)
+    d_real = np.asarray(Y) - X_arr
+    d_pred = np.asarray(Yp) - X_arr
+
+    # Heteroscedasticity: Pearson(|X_c|, |δ_c|²).
+    # rho > 0 → noise power grows with input amplitude (typical IM/DD shot noise).
+    # rho ≈ 0 → noise power is independent of drive level (AWGN regime).
+    def _rho_hetero(x_arr: np.ndarray, d_arr: np.ndarray) -> float:
+        xc = x_arr[:, 0] + 1j * x_arr[:, 1]
+        dc = d_arr[:, 0] + 1j * d_arr[:, 1]
+        amp_x  = np.abs(xc)
+        amp_d2 = np.abs(dc) ** 2
+        if np.std(amp_x) < 1e-12 or np.std(amp_d2) < 1e-12:
+            return float("nan")
+        return float(np.corrcoef(amp_x, amp_d2)[0, 1])
 
     mean_l2 = float(np.linalg.norm(np.mean(d_pred, axis=0) - np.mean(d_real, axis=0)))
     cov_fro = float(np.linalg.norm(np.cov(d_pred.T) - np.cov(d_real.T), ord="fro"))
@@ -133,6 +154,12 @@ def residual_distribution_metrics(
     acf_p = _acf_curve_complex(cp, max_lag=int(acf_max_lag))
     acf_l2 = float(np.linalg.norm(acf_p - acf_r) / np.sqrt(len(acf_r) if len(acf_r) else 1))
 
+    try:
+        from src.evaluation.stat_tests.jsd import jsd_2d
+    except ImportError:
+        jsd_2d = None  # type: ignore[assignment]
+    stat_jsd = jsd_2d(d_real, d_pred) if jsd_2d is not None else float("nan")
+
     out = {
         "delta_mean_l2": mean_l2,
         "delta_cov_fro": cov_fro,
@@ -142,6 +169,9 @@ def residual_distribution_metrics(
         "delta_kurt_l2": kurt_l2,
         "delta_psd_l2": psd_l2,
         "delta_acf_l2": acf_l2,
+        "rho_hetero_real": _rho_hetero(X_arr, d_real),
+        "rho_hetero_pred": _rho_hetero(X_arr, d_pred),
+        "stat_jsd": stat_jsd,
     }
 
     # Keep JB fields aligned with src.metrics.distribution (auditability / underflow-safe log10(p)).

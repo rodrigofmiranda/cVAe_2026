@@ -514,6 +514,9 @@ def evaluate_run(
             "delta_kurt_l2": float("nan"),
             "delta_psd_l2": float("nan"),
             "delta_acf_l2": float("nan"),
+            "rho_hetero_real": float("nan"),
+            "rho_hetero_pred": float("nan"),
+            "stat_jsd": float("nan"),
         }
 
     global_metrics = build_global_metrics(

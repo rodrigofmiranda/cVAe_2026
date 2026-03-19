@@ -91,6 +91,12 @@ SUMMARY_BY_REGIME_COLUMNS: List[str] = [
     "cvae_delta_kurt_l2",
     "cvae_psd_l2",
     "cvae_delta_acf_l2",
+    "cvae_rho_hetero_real",
+    "cvae_rho_hetero_pred",
+    "baseline_rho_hetero_real",
+    "baseline_rho_hetero_pred",
+    "cvae_stat_jsd",
+    "baseline_stat_jsd",
     "cvae_jb_p_min",
     "cvae_jb_log10p_min",
     "cvae_reject_gauss",
@@ -358,6 +364,18 @@ def _build_row(result: Dict[str, Any]) -> Dict[str, Any]:
         "cvae_delta_kurt_l2": _first_finite(cvae_dist.get("delta_kurt_l2"), delta_kurt),
         "cvae_psd_l2": _first_finite(cvae_dist.get("psd_l2"), delta_psd),
         "cvae_delta_acf_l2": _first_finite(cvae_dist.get("delta_acf_l2"), delta_acf),
+        "cvae_rho_hetero_real": _first_finite(
+            metrics.get("rho_hetero_real"), cvae_dist.get("rho_hetero_real")
+        ),
+        "cvae_rho_hetero_pred": _first_finite(
+            metrics.get("rho_hetero_pred"), cvae_dist.get("rho_hetero_pred")
+        ),
+        "baseline_rho_hetero_real": _safe_float(baseline_dist.get("rho_hetero_real")),
+        "baseline_rho_hetero_pred": _safe_float(baseline_dist.get("rho_hetero_pred")),
+        "cvae_stat_jsd": _first_finite(
+            metrics.get("stat_jsd"), cvae_dist.get("stat_jsd")
+        ),
+        "baseline_stat_jsd": _safe_float(baseline_dist.get("stat_jsd")),
         "cvae_jb_p_min": _first_finite(cvae_dist.get("jb_p_min"), jb_p_min),
         "cvae_jb_log10p_min": _first_finite(cvae_dist.get("jb_log10p_min"), jb_log10p_min),
         "cvae_reject_gauss": _first_bool(cvae_dist.get("reject_gaussian"), reject_gaussian),
