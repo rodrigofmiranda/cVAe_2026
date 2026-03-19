@@ -78,6 +78,35 @@ be predicted from $(x, d, c)$ alone.
 - **$\beta$-annealing + free-bits**: stabilize ELBO optimization and
   prevent posterior collapse where $z$ is ignored.
 
+## Architecture Variants
+
+This branch contains multiple cVAE families behind a single builder. The
+active architecture is chosen by the grid/config field:
+
+- `arch_variant="concat"`
+  - original point-wise cVAE
+  - predicts `Y` directly from `(x, d, c, z)`
+- `arch_variant="channel_residual"`
+  - point-wise residual decoder
+  - predicts a residual internally and resolves `Y = X + Δ`
+- `arch_variant="delta_residual"`
+  - point-wise residual-target variant
+  - trains directly on `Δ = Y - X`, then reconstructs `Ŷ = X + Δ̂`
+- `arch_variant="seq_bigru_residual"`
+  - sequence-aware residual model
+  - uses a short input window (`window_size=7`) and a BiGRU prior/encoder
+  - requires `--no_data_reduction` because balanced block reduction breaks temporal context
+- `arch_variant="legacy_2025_zero_y"`
+  - faithful port of the 2025 notebook-era model for controlled comparison
+
+In practice:
+
+- `delta_residual` is the strongest current point-wise research line
+- `seq_bigru_residual` is the strongest temporal line and includes the only
+  reference run that has passed all gates so far
+- mixed-family comparisons are now run inside the same `src.protocol.run`
+  experiment rather than through separate training-only flows
+
 ## Repository layout
 
 ```
@@ -130,7 +159,7 @@ src/
     losses.py                 Reconstruction, KL, free-bits, β schedule
     sampling.py               Reparameterization trick, prior sampling
   training/
-    train.py                  Training entrypoint CLI
+    train.py                  Deprecated shim (kept only for backward compatibility)
     engine.py                 Canonical training engine entrypoint
     pipeline.py               Canonical training pipeline orchestration
     grid_plan.py              Canonical cVAE grid definition + filters
@@ -237,6 +266,34 @@ In practice:
 - exploratory grids should still use `src.protocol.run`, typically with `--train_once_eval_all` and a reduced protocol/config subset
 - final validation should also use `src.protocol.run`, on the target protocol and with the canonical gates/summary tables
 - `src.training.train` is no longer a supported public entrypoint
+
+### Comparative mixed-family preset
+
+The current protocol-first comparison preset is:
+
+- `best_compare_large`
+
+It mixes the strongest current candidates from two families:
+
+- point-wise `delta_residual`
+- temporal `seq_bigru_residual` (including the `lambda_mmd` block)
+
+This is the recommended preset when the goal is to compare the best residual
+and sequential candidates under the same reduced scientific protocol.
+
+```bash
+python -m src.protocol.run \
+  --dataset_root data/dataset_fullsquare_organized \
+  --output_base outputs \
+  --protocol configs/one_regime_1p0m_300mA_sel4curr.json \
+  --train_once_eval_all \
+  --grid_preset best_compare_large \
+  --max_epochs 80 \
+  --patience 8 \
+  --reduce_lr_patience 4 \
+  --stat_tests --stat_mode quick \
+  --no_data_reduction
+```
 
 For the thesis end goal, the target artifact is the **shared global model**:
 
@@ -367,28 +424,35 @@ Each run produces:
 
 ```
 outputs/exp_YYYYMMDD_HHMMSS/
-  manifest.json                 Full run manifest (config, acceptance, timing)
+  manifest.json                 Full run manifest (config, timing, winner summary)
+  logs/                         Shared logs root for the whole experiment
+    protocol_input.json
+    train/
+    eval/
   tables/
     summary_by_regime.csv       Canonical per-regime validation table (source of truth)
-    stat_fidelity_by_regime.*   Derived stat-test projection (csv + xlsx)
+    protocol_leaderboard.csv    Canonical ranking derived from protocol metrics/gates
+    stat_fidelity_by_regime.csv Statistical-fidelity projection
   plots/
-    stat_tests/                 Heatmaps + scatter plots (MMD, q-val, PSD)
-  studies/
-    within_regime/regimes/
-      <regime_id>/
-        state_run.json          Config snapshot + normalization + split info
-        models/
-          best_model_full.keras Best cVAE (encoder + prior + decoder)
-          best_decoder.keras
-          best_prior_net.keras
-        logs/
-          training_history.json
-          metricas_globais_reanalysis.json
-        plots/                  Constellation overlays, PSD, latent diagnostics
-        tables/                 Grid results, dataset inventory, split tables
-  plots/
-    best_grid_model/           Plot bundle for the grid-search champion
-    gridsearch/                Aggregate ranking plots across tested models
+    best_model/
+      heatmap_vae_vs_real_metric_diffs.png
+  train/                        Shared global model directory (only in --train_once_eval_all)
+    models/
+      best_model_full.keras
+      best_decoder.keras
+      best_prior_net.keras
+    plots/
+      champion/
+        analysis_dashboard.png
+    tables/
+      gridsearch_results.csv
+      gridsearch_results.xlsx
+    state_run.json
+  eval/
+    <regime_id>/
+      state_run.json
+      plots/
+      tables/
 ```
 
 ## Key metrics
@@ -416,18 +480,14 @@ outputs/exp_YYYYMMDD_HHMMSS/
 - It includes physical fidelity, residual-distribution metrics, baseline vs cVAE comparisons, and the formal `stat_*` test outputs in one row per regime.
 - Derived columns include `var_ratio_pred_real`, `better_than_baseline_*`, `gate_g1`…`gate_g6`, and `validation_status`.
 
-### Grid-search plots
-- Each tested grid model now gets its own grouped plot bundle under `models/grid_*/plots/`.
-- The provisional champion is mirrored to `plots/best_grid_model/`.
-- Aggregate ranking views across all tested models are written to `plots/gridsearch/`.
-- Plot bundles are now grouped by purpose:
-  - `reports/` — summary panels and executive reports
-  - `core/` — first-look overlays (`overlay_constellation`, `overlay_residual_delta`)
-  - `distribution/` — densities and residual PSD
-  - `latent/` — latent activity and KL diagnostics
-  - `training/` — training curves
-  - `legacy/` — old-style executive plots for the champion only
-- Each plot bundle root also contains a `README.txt` index listing where to open first.
+### Champion plots
+- Only the current champion gets the full visual bundle.
+- The training side writes:
+  - `train/plots/champion/analysis_dashboard.png`
+- The protocol side writes:
+  - `plots/best_model/heatmap_vae_vs_real_metric_diffs.png`
+- The dashboard is the main human-facing artifact for the winner.
+- The heatmap is the canonical compact comparison of champion vs. real channel.
 
 ### Latent diagnostics
 - Active dimensions, KL per dimension, decoder sensitivity to $z$.

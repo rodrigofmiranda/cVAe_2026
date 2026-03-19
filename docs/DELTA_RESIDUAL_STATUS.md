@@ -161,6 +161,18 @@ Current best config:
 - `batch_size=16384`
 - `kl_anneal_epochs=80`
 
+## Additional Point-Wise Candidates Imported From Capacity/Optim Sweep
+
+A later `delta_residual` capacity/optim sweep was run outside the protocol path
+on another machine (`run_20260319_031328`). It should not replace the protocol
+references above, but it produced two point-wise candidates worth carrying into
+protocol-first comparisons:
+
+- `COPT_lat6_b0p001_fb0p0_lr0p0001_bs16384_anneal120_L64-128-256`
+- `COPT_lat4_b0p001_fb0p0_lr0p0002_bs16384_anneal40_L256-256-256`
+
+These are now included in the mixed-family preset `best_compare_large`.
+
 ## What We Learned
 
 - the simplified residual-target idea is viable
@@ -169,19 +181,22 @@ Current best config:
 - a very small latent space still seems best; the current best run uses `latent_dim=5`
 - grid-ranking metrics alone are not enough; the pivot regime can disagree sharply
 
-## Next Likely Step
+## Current Mixed-Family Comparison Step
 
-Use the historical cross-reference to open a new frontier instead of repeating
-the already tested center:
+The branch no longer treats `delta_residual` exploration as an isolated
+training-only lane. The current protocol-first comparison preset is:
 
-- preset: `delta_residual_frontier`
-- keep:
-  - `layer_sizes=[128,256,512]`
-  - `lr=3e-4`
-  - `batch_size=16384`
-  - `kl_anneal_epochs=80`
-- vary:
-  - `latent_dim in {4,5,6}`
-  - `beta in {0.0007, 0.00085, 0.00115}`
-  - `free_bits in {0.0, 0.02, 0.05}`
-- compare against `/workspace/2026/outputs/exp_20260318_235319`
+- preset: `best_compare_large`
+- mode: `src.protocol.run --train_once_eval_all`
+- protocol: `configs/one_regime_1p0m_300mA_sel4curr.json`
+- compare:
+  - best current `delta_residual` scientific references
+  - imported point-wise `COPT_*` candidates
+  - strongest `seq_bigru_residual` candidates, including the `lambda_mmd` line
+
+Important operational note:
+
+- when the preset includes `seq_bigru_residual`, run with `--no_data_reduction`
+- on newer GPUs such as RTX 5090, the sequence line now uses a non-cuDNN GRU
+  fallback for short windows (`window_size=7`), which has been validated in a
+  short protocol smoke

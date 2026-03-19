@@ -7,6 +7,9 @@ The runner supports two distinct execution modes:
 - `per_regime_retrain` (default): train one cVAE per regime, then evaluate it.
 - `train_once_eval_all` (`--train_once_eval_all`): train one shared global cVAE once, then evaluate that same model across all regimes.
 
+This is the only supported public experiment entrypoint. The old
+`src.training.train` path is kept only as a compatibility shim.
+
 ## Quick start
 
 ```bash
@@ -37,6 +40,19 @@ python -m src.protocol.run \
     --output_base  outputs \
     --train_once_eval_all \
     --max_epochs 120 --max_grids 2
+
+# Mixed-family comparison of the strongest current candidates
+python -m src.protocol.run \
+    --dataset_root data/dataset_fullsquare_organized \
+    --output_base  outputs \
+    --protocol configs/one_regime_1p0m_300mA_sel4curr.json \
+    --train_once_eval_all \
+    --grid_preset best_compare_large \
+    --max_epochs 80 \
+    --patience 8 \
+    --reduce_lr_patience 4 \
+    --stat_tests --stat_mode quick \
+    --no_data_reduction
 
 # Custom protocol file (explicit regime subset)
 python -m src.protocol.run \
@@ -147,6 +163,34 @@ Experiments are matched to regimes by `distance_m` / `current_mA`
 with tolerances controlled by `--dist_tol_m` (default 0.05) and
 `--curr_tol_mA` (default 25).
 
+When a protocol contains `_selected_experiments`, the runner now matches them
+portably by dataset-relative suffix as well as absolute path. This keeps the
+same reduced protocol JSON usable across different clone roots, for example:
+
+- `/workspace/2026/...`
+- `/workspace/cVAe_2026/...`
+
+without editing the protocol file.
+
+## Architecture selection inside the protocol
+
+The protocol itself does not hard-code a single model family. Each candidate
+in the selected grid carries its own `cfg.arch_variant`, so a single run can
+compare multiple architectures under the same scientific protocol.
+
+The main families currently supported are:
+
+- `concat`
+- `channel_residual`
+- `delta_residual`
+- `seq_bigru_residual`
+- `legacy_2025_zero_y`
+
+Important constraint:
+
+- `seq_bigru_residual` must be run with `--no_data_reduction`, because the
+  windowed model requires contiguous temporal context.
+
 ## Outputs
 
 ```
@@ -154,7 +198,11 @@ outputs/exp_YYYYMMDD_HHMMSS/
 ├── train/                         (only with --train_once_eval_all)
 │   ├── models/
 │   ├── plots/
+│   │   └── champion/
+│   │       └── analysis_dashboard.png
 │   └── tables/
+│       ├── gridsearch_results.csv
+│       └── gridsearch_results.xlsx
 ├── eval/
 │   ├── dist_0p8m__curr_200mA/
 │   │   ├── plots/
@@ -165,7 +213,8 @@ outputs/exp_YYYYMMDD_HHMMSS/
 ├── logs/
 │   ├── protocol_input.json
 │   ├── protocol_input.yaml   (when YAML config used)
-│   └── ...
+│   ├── train/
+│   └── eval/
 ├── tables/
 │   ├── summary_by_regime.csv
 │   ├── protocol_leaderboard.csv
@@ -180,11 +229,12 @@ outputs/exp_YYYYMMDD_HHMMSS/
 - `per_regime_retrain`:
   - each regime directory contains both the trained model and its evaluation artifacts
 - `train_once_eval_all`:
-- `train/` contains the single shared trained cVAE
-- `eval/` contains only the regime-specific evaluation artifacts produced with that shared model
-- `summary_by_regime.csv` records both `run_dir` (evaluation artifacts) and `model_run_dir` (shared model source)
-- `protocol_leaderboard.csv` is the canonical candidate ranking derived from the same gates/metrics used by the protocol
-- `plots/best_model/heatmap_vae_vs_real_metric_diffs.png` is the canonical visual summary
+  - `train/` contains the single shared trained cVAE
+  - `eval/` contains only the regime-specific evaluation artifacts produced with that shared model
+  - `summary_by_regime.csv` records both `run_dir` (evaluation artifacts) and `model_run_dir` (shared model source)
+  - `protocol_leaderboard.csv` is the canonical candidate ranking derived from the same gates/metrics used by the protocol
+  - `plots/best_model/heatmap_vae_vs_real_metric_diffs.png` is the canonical compact visual summary
+  - `train/plots/champion/analysis_dashboard.png` is the full dashboard of the winning model
 
 ### Summary table columns
 

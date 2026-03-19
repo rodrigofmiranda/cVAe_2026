@@ -1,16 +1,17 @@
 # PROJECT_STATUS.md — Estado Atual do Repositório
 
-> Atualizado em 2026-03-13.
+> Atualizado em 2026-03-19.
 
 ## 1. Estado técnico
 
 O refactor de engenharia está concluído no caminho ativo.
 
-### Entry points canônicos
+### Entry point canônico
 
-- `python -m src.training.train`
-- `python -m src.evaluation.evaluate`
 - `python -m src.protocol.run`
+
+`src.training.train` permanece apenas como shim de compatibilidade e não deve
+mais ser tratado como fluxo público de experimentação.
 
 ### Modos do protocolo
 
@@ -22,9 +23,27 @@ O protocolo agora tem dois modos explícitos:
   - serve para diagnóstico e comparação local contra o baseline
 - `train_once_eval_all`:
   - ativado com `--train_once_eval_all`
-  - treina um único cVAE global em `outputs/exp_.../global_model`
+  - treina um único cVAE global em `outputs/exp_.../train`
   - avalia esse mesmo modelo em todos os regimes, sem retreino por regime
   - este é o modo alinhado ao objetivo final do digital twin universal
+
+### Famílias de arquitetura disponíveis
+
+- `concat`
+  - cVAE point-wise original
+- `channel_residual`
+  - decoder residual point-wise
+- `delta_residual`
+  - residual-target point-wise
+  - melhor linha point-wise atual
+- `seq_bigru_residual`
+  - residual temporal com janela e BiGRU
+  - única linha com referência histórica que já passou todos os gates
+- `legacy_2025_zero_y`
+  - porta o modelo antigo de 2025 para comparação controlada
+
+A escolha entre essas arquiteturas é feita por `arch_variant` no `cfg` de cada
+grid, dentro da mesma branch e do mesmo pipeline.
 
 ### Artefatos canônicos
 
@@ -32,6 +51,9 @@ O protocolo agora tem dois modos explícitos:
 - `manifest.json`: snapshot consolidado de um experimento do protocolo
 - `tables/summary_by_regime.csv`: tabela canônica de validação por regime
 - `tables/stat_fidelity_by_regime.csv`: projeção derivada das métricas estatísticas
+- `tables/protocol_leaderboard.csv`: ranking canônico derivado do próprio protocolo
+- `train/plots/champion/analysis_dashboard.png`: dashboard completo do campeão
+- `plots/best_model/heatmap_vae_vs_real_metric_diffs.png`: heatmap compacto do campeão
 
 ### Métricas consolidadas
 
@@ -44,20 +66,22 @@ O protocolo agora tem dois modos explícitos:
 - gates `G1`–`G6`
 - `validation_status`
 
-### Grid search e plots
+### Layout atual de saída
 
-O grid search gera:
+O layout atual é:
 
-- bundle de plots por modelo testado em `models/grid_*/plots/`
-- bundle do campeão em `plots/best_grid_model/`
-- plots agregados do ranking em `plots/gridsearch/`
+- `train/`
+  - modelo global compartilhado, tabelas de grid e dashboard do campeão
+- `eval/`
+  - artefatos por regime
+- `logs/`
+  - logs centralizados do experimento
+- `tables/`
+  - sumários canônicos do protocolo
+- `plots/best_model/`
+  - heatmap final do campeão
 
-O campeão também recebe um conjunto executivo no estilo do run legado:
-
-- `analise_completa_vae.png`
-- `comparacao_metricas_principais.png`
-- `radar_comparativo.png`
-- `constellation_overlay.png`
+As pastas antigas `global_model/` e `studies/` não são mais o layout-alvo.
 
 ## 2. Estado científico
 
@@ -81,6 +105,12 @@ regime físico.
 - métricas e gates já estão automatizados
 - falhas em `G3`–`G6`, quando persistem após os fixes, devem ser tratadas como
   possível limitação do modelo e não como bug operacional
+- a exploração séria agora é **protocol-first**
+- o preset comparativo atual é `best_compare_large`, que compara:
+  - candidatos `delta_residual`
+  - candidatos `seq_bigru_residual` incluindo o bloco `lambda_mmd`
+- a linha seq agora tem fallback não-cuDNN para janelas curtas, permitindo
+  rodar também em GPUs mais novas como a RTX 5090
 
 ## 3. Documentos ativos
 
