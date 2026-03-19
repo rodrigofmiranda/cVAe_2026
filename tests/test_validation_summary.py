@@ -26,11 +26,11 @@ def _full_result() -> dict:
         "best_grid_tag": "G1_core",
         "metrics": {
             "evm_real_%": 10.0,
-            "evm_pred_%": 12.0,
-            "delta_evm_%": 2.0,
-            "snr_real_db": 9.5,
-            "snr_pred_db": 8.9,
-            "delta_snr_db": -0.6,
+            "evm_pred_%": 10.8,
+            "delta_evm_%": 0.8,
+            "snr_real_db": 10.0,
+            "snr_pred_db": 10.6,
+            "delta_snr_db": 0.6,
             "delta_mean_l2": 0.02,
             "delta_cov_fro": 0.03,
             "var_real_delta": 0.05,
@@ -101,9 +101,13 @@ def test_validation_summary_schema_and_derived_fields():
 
     assert math.isclose(row["var_ratio_pred_real"], 0.8, rel_tol=1e-9)
     assert math.isclose(row["delta_jb_log10p"], 0.2, rel_tol=1e-9)
+    assert math.isclose(row["cvae_rel_evm_error"], 0.08, rel_tol=1e-9)
+    assert math.isclose(row["cvae_rel_snr_error"], 0.06, rel_tol=1e-9)
     assert row["model_run_dir"] == "/tmp/global_model"
     assert row["model_scope"] == "shared_global"
+    assert bool(row["better_than_baseline_mean"]) is True
     assert bool(row["better_than_baseline_cov"]) is True
+    assert bool(row["better_than_baseline_skew"]) is True
     assert bool(row["better_than_baseline_kurt"]) is True
     assert bool(row["better_than_baseline_psd"]) is True
     assert bool(row["gate_g1"]) is True
@@ -115,17 +119,18 @@ def test_validation_summary_schema_and_derived_fields():
     assert row["validation_status"] == "pass"
 
 
-def test_gate_g1_is_anchored_to_real_not_absolute_baseline_evm():
+def test_signal_fidelity_gates_require_10_percent_closeness_to_real():
     result = _full_result()
-    # This would have passed under the old rule (baseline_evm_pred_% < 30),
-    # but it must fail because the baseline is too far from the real channel.
-    result["baseline"]["evm_pred_%"] = 22.0
-    result["baseline"]["delta_evm_%"] = 18.0
+    result["metrics"]["evm_pred_%"] = 12.0
+    result["metrics"]["delta_evm_%"] = 2.0
+    result["metrics"]["snr_pred_db"] = 8.7
+    result["metrics"]["delta_snr_db"] = -1.3
 
     df = build_validation_summary_table([result])
     row = df.iloc[0]
 
     assert bool(row["gate_g1"]) is False
+    assert bool(row["gate_g2"]) is False
     assert row["validation_status"] == "fail"
 
 

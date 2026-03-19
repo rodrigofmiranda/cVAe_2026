@@ -49,10 +49,14 @@ SUMMARY_BY_REGIME_COLUMNS: List[str] = [
     "baseline_snr_pred_db",
     "baseline_delta_evm_%",
     "baseline_delta_snr_db",
+    "baseline_rel_evm_error",
+    "baseline_rel_snr_error",
     "cvae_evm_pred_%",
     "cvae_snr_pred_db",
     "cvae_delta_evm_%",
     "cvae_delta_snr_db",
+    "cvae_rel_evm_error",
+    "cvae_rel_snr_error",
     "baseline_delta_mean_l2",
     "baseline_delta_cov_fro",
     "baseline_delta_skew_l2",
@@ -87,7 +91,9 @@ SUMMARY_BY_REGIME_COLUMNS: List[str] = [
     "n_experiments_selected",
     "dist_target_m",
     "curr_target_mA",
+    "better_than_baseline_mean",
     "better_than_baseline_cov",
+    "better_than_baseline_skew",
     "better_than_baseline_kurt",
     "better_than_baseline_psd",
     "gate_g1",
@@ -198,6 +204,15 @@ def _validation_status(row: pd.Series) -> str:
     if all(v is True for v in gate_values):
         return "pass"
     return "partial"
+
+
+def _gate_all(*values: Any) -> Any:
+    states = [_safe_bool(v) for v in values]
+    if any(v is False for v in states):
+        return False
+    if all(v is True for v in states):
+        return True
+    return None
 
 
 def _empty_summary_frame() -> pd.DataFrame:
@@ -337,6 +352,17 @@ def _apply_derived_metrics(df: pd.DataFrame) -> None:
     num = pd.to_numeric(df["var_pred_delta"], errors="coerce")
     df["var_ratio_pred_real"] = np.where(den > 0, num / den, np.nan)
 
+    evm_real = pd.to_numeric(df["evm_real_%"], errors="coerce").abs()
+    snr_real = pd.to_numeric(df["snr_real_db"], errors="coerce").abs()
+    baseline_delta_evm = pd.to_numeric(df["baseline_delta_evm_%"], errors="coerce").abs()
+    baseline_delta_snr = pd.to_numeric(df["baseline_delta_snr_db"], errors="coerce").abs()
+    cvae_delta_evm = pd.to_numeric(df["cvae_delta_evm_%"], errors="coerce").abs()
+    cvae_delta_snr = pd.to_numeric(df["cvae_delta_snr_db"], errors="coerce").abs()
+    df["baseline_rel_evm_error"] = np.where(evm_real > 0, baseline_delta_evm / evm_real, np.nan)
+    df["baseline_rel_snr_error"] = np.where(snr_real > 0, baseline_delta_snr / snr_real, np.nan)
+    df["cvae_rel_evm_error"] = np.where(evm_real > 0, cvae_delta_evm / evm_real, np.nan)
+    df["cvae_rel_snr_error"] = np.where(snr_real > 0, cvae_delta_snr / snr_real, np.nan)
+
     stat_den = pd.to_numeric(df["var_real_delta"], errors="coerce")
     stat_num = pd.to_numeric(df["stat_mmd2"], errors="coerce")
     df["stat_mmd2_normalized"] = np.where(stat_den > 0, stat_num / stat_den, np.nan)
@@ -354,9 +380,17 @@ def _apply_derived_metrics(df: pd.DataFrame) -> None:
         np.nan,
     )
 
+    df["better_than_baseline_mean"] = [
+        _lt(cv, bl)
+        for cv, bl in zip(df["cvae_delta_mean_l2"], df["baseline_delta_mean_l2"])
+    ]
     df["better_than_baseline_cov"] = [
         _lt(cv, bl)
         for cv, bl in zip(df["cvae_delta_cov_fro"], df["baseline_delta_cov_fro"])
+    ]
+    df["better_than_baseline_skew"] = [
+        _lt(cv, bl)
+        for cv, bl in zip(df["cvae_delta_skew_l2"], df["baseline_delta_skew_l2"])
     ]
     df["better_than_baseline_kurt"] = [
         _lt(cv, bl)
@@ -367,14 +401,36 @@ def _apply_derived_metrics(df: pd.DataFrame) -> None:
         for cv, bl in zip(df["cvae_psd_l2"], df["baseline_psd_l2"])
     ]
 
-    # G1 is a baseline sanity gate anchored on the measured real channel,
-    # not an absolute EVM threshold detached from the regime under test.
-    df["gate_g1"] = [_abs_lt(v, 15.0) for v in df["baseline_delta_evm_%"]]
-    df["gate_g2"] = [_abs_lt(v, 15.0) for v in df["delta_evm_%"]]
-    df["gate_g3"] = list(df["better_than_baseline_cov"])
-    df["gate_g4"] = list(df["better_than_baseline_kurt"])
-    df["gate_g5"] = [_lt(v, 0.20) for v in df["delta_jb_stat_rel"]]
-    df["gate_g6"] = [_gt(v, 0.05) for v in df["stat_mmd_qval"]]
+    jb_rel_ok = [_lt(v, 0.20) for v in df["delta_jb_stat_rel"]]
+    mmd_ok = [_gt(v, 0.05) for v in df["stat_mmd_qval"]]
+    energy_ok = [_gt(v, 0.05) for v in df["stat_energy_qval"]]
+
+    # Gate ladder for a digital-twin reading:
+    # G1/G2 = direct signal fidelity to the measured channel.
+    # G3/G4/G5 = residual-structure fidelity.
+    # G6 = formal distributional indistinguishability.
+    df["gate_g1"] = [_lt(v, 0.10) for v in df["cvae_rel_evm_error"]]
+    df["gate_g2"] = [_lt(v, 0.10) for v in df["cvae_rel_snr_error"]]
+    df["gate_g3"] = [
+        _gate_all(mean_ok, cov_ok)
+        for mean_ok, cov_ok in zip(
+            df["better_than_baseline_mean"],
+            df["better_than_baseline_cov"],
+        )
+    ]
+    df["gate_g4"] = list(df["better_than_baseline_psd"])
+    df["gate_g5"] = [
+        _gate_all(skew_ok, kurt_ok, jb_ok)
+        for skew_ok, kurt_ok, jb_ok in zip(
+            df["better_than_baseline_skew"],
+            df["better_than_baseline_kurt"],
+            jb_rel_ok,
+        )
+    ]
+    df["gate_g6"] = [
+        _gate_all(mmd_pass, energy_pass)
+        for mmd_pass, energy_pass in zip(mmd_ok, energy_ok)
+    ]
     df["validation_status"] = df.apply(_validation_status, axis=1)
 
 
