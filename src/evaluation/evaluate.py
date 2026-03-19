@@ -13,7 +13,7 @@ Usage
     # Evaluate a shared model but write artifacts elsewhere
     python -m src.evaluation.evaluate \\
         --dataset_root /path/to/dataset \\
-        --run_dir /path/to/outputs/global_model \\
+        --run_dir /path/to/outputs/exp_x/train \\
         --output_run_dir /path/to/outputs/per_regime_eval
 
     # Smoke-test (Commit 3H):

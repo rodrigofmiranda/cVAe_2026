@@ -8,7 +8,7 @@ Objetivo:
 
 Uso:
     python scripts/verify_mc_predict.py
-    python scripts/verify_mc_predict.py --run_dir outputs/exp_.../studies/within_regime/regimes/dist_1m__curr_300mA
+    python scripts/verify_mc_predict.py --run_dir outputs/exp_.../eval/dist_1m__curr_300mA
 """
 from __future__ import annotations
 
@@ -31,9 +31,16 @@ from src.protocol.split_strategies import apply_split
 
 
 def _latest_regime_dir() -> Path:
-    cands = sorted(glob.glob(str(ROOT / "outputs/exp_*/studies/within_regime/regimes/*")))
+    patterns = [
+        str(ROOT / "outputs/exp_*/eval/*"),
+        str(ROOT / "outputs/exp_*/eval/*/*"),
+        str(ROOT / "outputs/exp_*/studies/within_regime/regimes/*"),
+    ]
+    cands = []
+    for pattern in patterns:
+        cands.extend(glob.glob(pattern))
     if not cands:
-        raise FileNotFoundError("Nenhum regime em outputs/exp_*/studies/within_regime/regimes/*")
+        raise FileNotFoundError("Nenhum regime em outputs/exp_*/eval/* nem no layout legado studies/.../regimes/*")
     return Path(cands[-1]).resolve()
 
 

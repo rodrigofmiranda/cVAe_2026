@@ -297,7 +297,7 @@ def evaluate_run(
         print(f"✅ dry_run complete — wrote {path}")
         return {"status": "dry_run", "run_dir": str(output_dir)}
 
-    exps, df_info = load_experiments_as_list(runtime.dataset_root, verbose=True)
+    exps, _df_info = load_experiments_as_list(runtime.dataset_root, verbose=True)
 
     selected_experiments = ov.get("_selected_experiments")
     if selected_experiments:
@@ -313,9 +313,6 @@ def evaluate_run(
 
     if not exps:
         raise RuntimeError("Evaluation resolved zero experiments after filtering.")
-
-    run_paths.write_table("tables/dataset_inventory.xlsx", df_info)
-    print(f"✓ dataset_inventory.xlsx salvo: {run_paths.tables_dir / 'dataset_inventory.xlsx'}")
 
     data_split = runtime.state.get("data_split", {})
     split_mode = str(
@@ -370,8 +367,6 @@ def evaluate_run(
             f"train={len(X_train):,} | val={len(X_val):,}"
         )
 
-    run_paths.write_table("tables/split_by_experiment.xlsx", df_split)
-    print(f"✓ split_by_experiment.xlsx salvo: {run_paths.tables_dir / 'split_by_experiment.xlsx'}")
     print(f"✓ Split aplicado | train={len(X_train):,} | val={len(X_val):,} | mode={split_mode}")
 
     # --- Seq windowing (after split+cap, before eval slicing) ---
@@ -537,7 +532,6 @@ def evaluate_run(
     )
 
     metrics_json = run_paths.write_json("logs/metricas_globais_reanalysis.json", global_metrics)
-    run_paths.write_table("tables/metricas_globais_reanalysis.csv", pd.DataFrame([global_metrics]))
     print(f"✓ metricas_globais_reanalysis.json salvo: {metrics_json}")
 
     enc_out = encoder.predict([Xv_in, Dv, Cv, Yv], batch_size=batch_infer, verbose=0)
@@ -559,9 +553,7 @@ def evaluate_run(
     kl_qp_total_mean = lat_diag["kl_qp_total_mean"]
     kl_pN_total_mean = lat_diag["kl_pN_total_mean"]
 
-    run_paths.write_table("tables/latent_diagnostics.xlsx", df_lat)
     run_paths.write_json("logs/latent_summary.json", lat_summary)
-    print(f"✓ latent_diagnostics.xlsx salvo: {run_paths.tables_dir / 'latent_diagnostics.xlsx'}")
 
     nb = min(20000, n_eval)
     if _is_seq:
@@ -592,7 +584,6 @@ def evaluate_run(
         try:
             df_history = load_training_history(Path(history_path))
             if df_history is not None:
-                run_paths.write_table("tables/training_history.xlsx", df_history)
                 plot_groups = ensure_artifact_subdirs(
                     run_paths.plots_dir,
                     groups=("reports", "core", "distribution", "latent", "training"),

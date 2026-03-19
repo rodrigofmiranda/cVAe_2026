@@ -175,8 +175,12 @@ def _load_champion_summary(exp_dir: Path) -> Optional[Dict[str, Any]]:
 
 
 def _load_grid_catalog(exp_dir: Path) -> pd.DataFrame:
-    p = exp_dir / "global_model" / "tables" / "gridsearch_results.csv"
-    if not p.exists():
+    candidates = [
+        exp_dir / "train" / "tables" / "gridsearch_results.csv",
+        exp_dir / "global_model" / "tables" / "gridsearch_results.csv",
+    ]
+    p = next((candidate for candidate in candidates if candidate.exists()), None)
+    if p is None:
         return pd.DataFrame()
     df = pd.read_csv(p)
     if df.empty:

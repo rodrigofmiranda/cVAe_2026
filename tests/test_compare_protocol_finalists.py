@@ -7,7 +7,7 @@ from scripts.compare_protocol_finalists import _build_pivot, _collect_rows
 
 def test_collect_rows_and_build_pivot(tmp_path: Path):
     run_dir = tmp_path / "outputs" / "exp_test"
-    csv_dir = run_dir / "studies" / "within_regime" / "regimes" / "dist_1m__curr_300mA" / "tables"
+    csv_dir = run_dir / "eval" / "dist_1m__curr_300mA" / "tables"
     csv_dir.mkdir(parents=True)
     df = pd.DataFrame(
         [
@@ -55,4 +55,3 @@ def test_collect_rows_and_build_pivot(tmp_path: Path):
     assert len(pivot) == 1
     assert pivot.iloc[0]["winner_by_score_v2"] == "TAG_A"
     assert pivot.iloc[0]["TAG_A::delta_cov_fro"] == 0.01
-

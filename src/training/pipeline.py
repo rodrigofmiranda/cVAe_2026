@@ -127,7 +127,7 @@ def run_training_pipeline(
     )
 
     print("\n📦 Carregando experimentos (sem redução; split por experimento)...")
-    exps, df_info = load_experiments_as_list(
+    exps, _df_info = load_experiments_as_list(
         resolved_dataset_root,
         verbose=True,
         reduction_config=None,
@@ -150,13 +150,6 @@ def run_training_pipeline(
     if not exps:
         raise RuntimeError("Training pipeline resolved zero experiments after filtering.")
 
-    inv_path = run_paths.write_table(
-        "tables/dataset_inventory.xlsx",
-        df_info,
-        sheet_name="inventory",
-    )
-    print(f"🧾 Inventário salvo: {inv_path}")
-
     (
         X_train,
         Y_train,
@@ -175,8 +168,6 @@ def run_training_pipeline(
         within_exp_shuffle=bool(runtime.training_config["within_experiment_shuffle"]),
     )
 
-    split_path = run_paths.write_table("tables/split_by_experiment.xlsx", df_split)
-    print(f"✓ Split por experimento salvo: {split_path}")
     print(
         f"\n✓ Dados ({runtime.training_config['split_mode']}): "
         f"{len(X_train):,} treino | {len(X_val):,} validação"
@@ -265,8 +256,6 @@ def run_training_pipeline(
             )
 
     df_plan = _build_grid_plan(grid)
-    plan_path = run_paths.write_table("tables/gridsearch_plan.xlsx", df_plan)
-    print(f"📌 Grid plan salvo: {plan_path}")
 
     if ov.get("dry_run", False):
         first_cfg = grid[0]["cfg"] if grid else {}
@@ -309,12 +298,11 @@ def run_training_pipeline(
         df_split=df_split,
     )
 
-    res_path = run_paths.run_dir / "tables" / "gridsearch_results.xlsx"
+    grid_csv_path = run_paths.run_dir / "tables" / "gridsearch_results.csv"
+    grid_xlsx_path = run_paths.run_dir / "tables" / "gridsearch_results.xlsx"
     artifacts = {
-        "dataset_inventory_xlsx": str(inv_path),
-        "split_by_experiment_xlsx": str(split_path),
-        "grid_plan_xlsx": str(plan_path),
-        "grid_results_xlsx": str(res_path),
+        "grid_results_csv": str(grid_csv_path),
+        "grid_results_xlsx": str(grid_xlsx_path),
         "best_model_full": str(run_paths.models_dir / "best_model_full.keras"),
         "best_decoder": str(run_paths.models_dir / "best_decoder.keras"),
         "best_prior_net": str(run_paths.models_dir / "best_prior_net.keras"),
@@ -328,13 +316,12 @@ def run_training_pipeline(
         "n_val": int(len(X_val)),
         "validation_split": float(runtime.training_config["validation_split"]),
         "seed": int(runtime.training_config["seed"]),
-        "split_by_experiment_xlsx": str(split_path),
         "seq_variant_detected": bool(_seq_in_grid),
     }
     grid_state = {
         "n_models": int(len(grid)),
-        "grid_plan_xlsx": str(plan_path),
-        "grid_results_xlsx": str(res_path),
+        "grid_results_csv": str(grid_csv_path),
+        "grid_results_xlsx": str(grid_xlsx_path),
     }
 
     state_path = write_state_run(

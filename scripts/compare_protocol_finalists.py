@@ -31,10 +31,29 @@ def parse_args() -> argparse.Namespace:
 
 def _collect_rows(run_dir: Path, tags: List[str]) -> pd.DataFrame:
     rows = []
-    for csv_path in sorted(run_dir.glob("studies/*/regimes/*/tables/gridsearch_results.csv")):
-        regime_dir = csv_path.parent.parent
-        study = regime_dir.parent.parent.name
-        regime_id = regime_dir.name
+    patterns = [
+        "studies/*/regimes/*/tables/gridsearch_results.csv",  # legacy
+        "eval/*/tables/gridsearch_results.csv",               # flat single-study
+        "eval/*/*/tables/gridsearch_results.csv",             # flat multi-study
+    ]
+    csv_paths = []
+    for pattern in patterns:
+        csv_paths.extend(run_dir.glob(pattern))
+
+    for csv_path in sorted({p.resolve() for p in csv_paths}):
+        rel = csv_path.relative_to(run_dir)
+        parts = rel.parts
+        if len(parts) >= 5 and parts[0] == "studies":
+            study = parts[1]
+            regime_id = parts[3]
+        elif len(parts) == 4 and parts[0] == "eval":
+            study = "within_regime"
+            regime_id = parts[1]
+        elif len(parts) >= 5 and parts[0] == "eval":
+            study = parts[1]
+            regime_id = parts[2]
+        else:
+            continue
         df = pd.read_csv(csv_path)
         if "tag" not in df.columns:
             continue

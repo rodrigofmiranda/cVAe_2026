@@ -5,7 +5,7 @@ Extrai e compara kurtosis real vs predita (MC-concat) para um run de regime.
 
 Uso:
     python scripts/check_kurt_pred.py
-    python scripts/check_kurt_pred.py outputs/exp_.../studies/.../regimes/<regime_id>
+    python scripts/check_kurt_pred.py outputs/exp_.../eval/<regime_id>
 
 O script reconstrói o split de validacao a partir de ``state_run.json`` e
 usa ``_quick_cvae_predict(..., mode="mc_concat")`` para verificar kurtosis
@@ -38,10 +38,17 @@ from src.protocol.split_strategies import apply_split
 
 
 def _latest_regime_dir() -> Path:
-    candidates = sorted(ROOT.glob("outputs/exp_*/studies/*/regimes/*"))
+    patterns = [
+        "outputs/exp_*/eval/*",
+        "outputs/exp_*/eval/*/*",
+        "outputs/exp_*/studies/*/regimes/*",
+    ]
+    candidates = []
+    for pattern in patterns:
+        candidates.extend(ROOT.glob(pattern))
     candidates = [p for p in candidates if (p / "state_run.json").exists()]
     if not candidates:
-        raise FileNotFoundError("No regime run found under outputs/exp_*/studies/*/regimes/*")
+        raise FileNotFoundError("No regime run found under outputs/exp_*/eval/* or legacy studies/*/regimes/*")
     return candidates[-1].resolve()
 
 
@@ -241,7 +248,7 @@ def main() -> None:
     parser.add_argument(
         "run_dir",
         nargs="?",
-        help="Regime directory under outputs/exp_.../studies/.../regimes/<regime_id>",
+        help="Regime directory under outputs/exp_.../eval/<regime_id>",
     )
     parser.add_argument("--n_eval", type=int, default=None, help="Validation samples to inspect.")
     parser.add_argument("--mc_samples", type=int, default=16, help="Number of MC samples.")

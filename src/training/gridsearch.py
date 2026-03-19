@@ -43,6 +43,7 @@ def _save_keras_model_compat(model: Any, path: Path) -> None:
     supported, but transparently retry without that argument when the local
     Keras version disallows it.
     """
+    path.parent.mkdir(parents=True, exist_ok=True)
     try:
         model.save(str(path), include_optimizer=False)
         return
@@ -145,6 +146,7 @@ def save_experiment_report_png(
 
 def save_experiment_xlsx(xlsx_path: Path, row_dict: dict) -> None:
     """Save per-grid-item diagnostic Excel workbook."""
+    xlsx_path.parent.mkdir(parents=True, exist_ok=True)
     summary = pd.DataFrame([row_dict])
     cfg_keys = [
         "activation", "kl_anneal_epochs", "batch_size", "lr",
@@ -570,10 +572,8 @@ def run_gridsearch(
             }
             results.append(row)
 
-            # Per-grid artifact directory
+            # Per-grid artifact directory: model only.
             model_dir = _grid_artifact_dir(MODELS_DIR, gi, tag)
-            exp_tables_dir = model_dir / "tables"
-            exp_tables_dir.mkdir(parents=True, exist_ok=True)
 
             kl_dim_mean = np.mean(
                 0.5 * (np.exp(logvar_p) + mu_p ** 2 - 1.0 - logvar_p), axis=0
@@ -591,11 +591,8 @@ def run_gridsearch(
                 f"active_dims: {active_dims}/{int(cfg['latent_dim'])} | KL_mean_total: {kl_mean_total:.3f}",
             ]
 
-            xlsx_path = exp_tables_dir / "relatorio_diagnostico_completo.xlsx"
-            save_experiment_xlsx(xlsx_path=xlsx_path, row_dict=row)
-
             results[-1]["report_png_path"] = ""
-            results[-1]["report_xlsx_path"] = str(xlsx_path)
+            results[-1]["report_xlsx_path"] = ""
             results[-1]["plot_bundle_dir"] = ""
             results[-1]["plot_bundle_count"] = 0
 
@@ -754,6 +751,7 @@ def run_gridsearch(
     ])
 
     res_path = run_paths.run_dir / "tables" / "gridsearch_results.xlsx"
+    res_path.parent.mkdir(parents=True, exist_ok=True)
     with pd.ExcelWriter(res_path, engine="openpyxl") as w:
         df_results.to_excel(w, index=False, sheet_name="results_sorted")
         if df_plan is not None:

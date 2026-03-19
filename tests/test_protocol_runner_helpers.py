@@ -1,4 +1,9 @@
+from pathlib import Path
+
+import pandas as pd
+
 from src.protocol.run import (
+    _extract_best_grid_tag,
     _effective_baseline_config,
     _effective_cvae_config,
     _effective_dist_metrics_config,
@@ -97,3 +102,17 @@ def test_effective_dist_metrics_config_uses_overrides_and_defaults():
         "gauss_alpha": 0.05,
         "max_dist_samples": 1234,
     }
+
+
+def test_extract_best_grid_tag_prefers_csv_when_available(tmp_path: Path):
+    csv_path = tmp_path / "gridsearch_results.csv"
+    pd.DataFrame(
+        [
+            {"rank": 1, "tag": "BEST_A"},
+            {"rank": 2, "tag": "WORSE_B"},
+        ]
+    ).to_csv(csv_path, index=False)
+
+    state = {"artifacts": {"grid_results_csv": str(csv_path)}}
+
+    assert _extract_best_grid_tag(state) == "BEST_A"

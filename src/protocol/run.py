@@ -760,10 +760,18 @@ def _read_train_state(run_dir: Path) -> dict:
 def _extract_best_grid_tag(state: dict) -> str:
     """Extract best grid tag from the training state if available."""
     try:
-        res_path = state.get("artifacts", {}).get("grid_results_xlsx", "")
-        if res_path and Path(res_path).exists():
-            import pandas as pd
-            df = pd.read_excel(res_path, sheet_name="results_sorted")
+        import pandas as pd
+
+        artifacts = state.get("artifacts", {})
+        csv_path = artifacts.get("grid_results_csv", "")
+        if csv_path and Path(csv_path).exists():
+            df = pd.read_csv(csv_path)
+            if len(df) > 0 and "tag" in df.columns:
+                return str(df.iloc[0]["tag"])
+
+        xlsx_path = artifacts.get("grid_results_xlsx", "")
+        if xlsx_path and Path(xlsx_path).exists():
+            df = pd.read_excel(xlsx_path, sheet_name="results_sorted")
             if len(df) > 0 and "tag" in df.columns:
                 return str(df.iloc[0]["tag"])
     except Exception:
@@ -1025,7 +1033,7 @@ def run_regime(
     Returns a result dict with run_dir, metrics, and status.
     """
     regime_id = regime["regime_id"]
-    run_id = regime_id   # lives under protocol_dir/<regime_id>/
+    run_id = str(regime_id).split("/", 1)[-1]   # lives under protocol_dir/<run_id>/
     model_run_dir = Path(shared_model_run_dir).resolve() if shared_model_run_dir is not None else None
 
     # --- Resolve experiment filter ---
@@ -1584,6 +1592,7 @@ def main():
     exp_dir = exp_paths.run_dir                         # backward compat
 
     studies_meta = protocol.get("_studies", [])
+    n_studies = len(studies_meta)
 
     print(f"🚀 Protocol runner — {len(studies_meta)} study(ies), {len(regimes)} regime(s)")
     print(f"🧭 Execution mode: {execution_mode}")
@@ -1599,9 +1608,9 @@ def main():
 
     shared_model_run_dir: Optional[Path] = None
     if execution_mode == "train_once_eval_all":
-        shared_model_run_dir = exp_dir / "global_model"
+        shared_model_run_dir = exp_dir / "train"
         shared_train_overrides = dict(base_overrides_dict)
-        shared_train_overrides["_logs_dir"] = str((exp_dir / "logs" / "global_model").resolve())
+        shared_train_overrides["_logs_dir"] = str((exp_dir / "logs" / "train").resolve())
         print(f"\n{'='*70}")
         print("🌐 GLOBAL MODEL TRAINING (train once, evaluate all regimes)")
         print(f"📁 Shared model dir: {shared_model_run_dir}")
@@ -1613,7 +1622,7 @@ def main():
             _global_summary = train_engine(
                 dataset_root=args.dataset_root,
                 output_base=str(exp_dir),
-                run_id="global_model",
+                run_id="train",
                 overrides=shared_train_overrides,
             )
             shared_model_run_dir = Path(
@@ -1661,9 +1670,12 @@ def main():
         study_rids = set(study_info["regime_ids"])
         study_regimes = [r for r in regimes if r["regime_id"] in study_rids]
 
-        # Regime output directory: exp_dir/studies/<study>/regimes/
-        regimes_dir = exp_dir / "studies" / sname / "regimes"
-        study_logs_root = exp_dir / "logs" / "regimes" / sname
+        # Regime output directory: exp_dir/eval[/<study>]/
+        regimes_dir = exp_dir / "eval"
+        study_logs_root = exp_dir / "logs" / "eval"
+        if n_studies > 1:
+            regimes_dir = regimes_dir / sname
+            study_logs_root = study_logs_root / sname
         regimes_dir.mkdir(parents=True, exist_ok=True)
 
         print(f"\n{'='*70}")
@@ -1700,7 +1712,6 @@ def main():
     df_summary = build_summary_table(results)
 
     summary_csv = exp_paths.write_table("tables/summary_by_regime.csv", df_summary)
-    exp_paths.write_table("tables/summary_by_regime.xlsx", df_summary)
     print(f"\n📊 Summary table: {summary_csv}")
 
     # ---- Best-model heatmaps (derived from canonical summary table) ----
@@ -1720,7 +1731,6 @@ def main():
             df_sf = build_stat_fidelity_table(df_summary)
             if not df_sf.empty:
                 sf_csv = exp_paths.write_table("tables/stat_fidelity_by_regime.csv", df_sf)
-                exp_paths.write_table("tables/stat_fidelity_by_regime.xlsx", df_sf)
                 print(f"📊 Stat fidelity table (derived from summary): {sf_csv}")
 
                 _stat_acceptance = build_stat_acceptance_summary(df_summary)

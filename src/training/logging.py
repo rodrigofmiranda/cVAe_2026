@@ -5,7 +5,7 @@ src.training.logging — RunPaths and artifact-writing utilities.
 Responsible for:
 - Resolving OUTPUT_BASE from environment.
 - Generating or reading RUN_ID.
-- Creating canonical subdirectories (plots, tables, models, logs).
+- Managing canonical artifact paths (plots, tables, models, logs).
 - Writing ``_last_run.txt`` pointer.
 - Artifact-writer helpers (:meth:`RunPaths.write_json`,
   :meth:`RunPaths.write_table`, :meth:`RunPaths.write_text`).
@@ -44,8 +44,9 @@ class RunPaths:
     models_dir : Path
     logs_dir : Path
 
-    The five subdirectories are created automatically on construction
-    (unless ``_mkdir=False``).
+    Only ``run_dir`` and ``logs_dir`` are created eagerly on construction
+    (unless ``_mkdir=False``). Other artifact directories are created lazily
+    when a writer or caller actually uses them.
     """
 
     __slots__ = ("run_id", "run_dir", "plots_dir", "tables_dir",
@@ -70,8 +71,7 @@ class RunPaths:
             else self.run_dir / "logs"
         )
         if _mkdir:
-            for p in (self.run_dir, self.plots_dir, self.tables_dir,
-                      self.models_dir, self.logs_dir):
+            for p in (self.run_dir, self.logs_dir):
                 p.mkdir(parents=True, exist_ok=True)
 
     # ----------------------------------------------------------
