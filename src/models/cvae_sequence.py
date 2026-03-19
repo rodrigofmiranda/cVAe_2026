@@ -167,20 +167,32 @@ def _bigru_stack(
     Returns
     -------
     Tensor of shape (batch, seq_hidden * (2 if seq_bidir else 1)).
+
+    Notes
+    -----
+    We force ``unroll=True`` for the seq_bigru_residual family.
+
+    The sequence window is intentionally short (typically W=7), so explicit
+    unrolling is cheap and keeps execution on the stable Keras/TensorFlow GRU
+    path instead of the fused cuDNN kernel. This avoids runtime incompatibility
+    on newer GPU/cuDNN stacks (e.g. cuDNN 9 on RTX 5090) while preserving the
+    same model semantics for the short-window regime we use here.
     """
     for i in range(seq_layers):
         return_seqs = i < seq_layers - 1
+        gru = layers.GRU(
+            seq_hidden,
+            return_sequences=return_seqs,
+            unroll=True,
+            name=f"{name_prefix}_gru_{i}",
+        )
         if seq_bidir:
             h = layers.Bidirectional(
-                layers.GRU(seq_hidden, return_sequences=return_seqs),
+                gru,
                 name=f"{name_prefix}_bigru_{i}",
             )(h)
         else:
-            h = layers.GRU(
-                seq_hidden,
-                return_sequences=return_seqs,
-                name=f"{name_prefix}_gru_{i}",
-            )(h)
+            h = gru(h)
         if dropout > 0 and return_seqs:
             h = layers.Dropout(dropout, name=f"{name_prefix}_seq_drop_{i}")(h)
     return h
