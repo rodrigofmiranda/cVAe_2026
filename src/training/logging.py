@@ -56,6 +56,7 @@ class RunPaths:
         run_id: str,
         run_dir: Union[str, Path],
         *,
+        logs_dir: Union[str, Path, None] = None,
         _mkdir: bool = True,
     ) -> None:
         self.run_id: str = run_id
@@ -63,7 +64,11 @@ class RunPaths:
         self.plots_dir: Path = self.run_dir / "plots"
         self.tables_dir: Path = self.run_dir / "tables"
         self.models_dir: Path = self.run_dir / "models"
-        self.logs_dir: Path = self.run_dir / "logs"
+        self.logs_dir: Path = (
+            Path(logs_dir).resolve()
+            if logs_dir is not None
+            else self.run_dir / "logs"
+        )
         if _mkdir:
             for p in (self.run_dir, self.plots_dir, self.tables_dir,
                       self.models_dir, self.logs_dir):
@@ -77,7 +82,11 @@ class RunPaths:
         """Resolve *filename* relative to *run_dir*.  Creates parents."""
         p = Path(filename)
         if not p.is_absolute():
-            p = self.run_dir / p
+            parts = p.parts
+            if parts and parts[0] == "logs":
+                p = self.logs_dir.joinpath(*parts[1:])
+            else:
+                p = self.run_dir / p
         p.parent.mkdir(parents=True, exist_ok=True)
         return p
 
@@ -179,10 +188,15 @@ class RunPaths:
     # ----------------------------------------------------------
 
     @classmethod
-    def from_existing(cls, run_dir: Union[str, Path]) -> "RunPaths":
+    def from_existing(
+        cls,
+        run_dir: Union[str, Path],
+        *,
+        logs_dir: Union[str, Path, None] = None,
+    ) -> "RunPaths":
         """Wrap an existing run directory (run_id = dir name)."""
         run_dir = Path(run_dir)
-        return cls(run_id=run_dir.name, run_dir=run_dir)
+        return cls(run_id=run_dir.name, run_dir=run_dir, logs_dir=logs_dir)
 
     def __repr__(self) -> str:
         return f"RunPaths(run_id={self.run_id!r}, run_dir={self.run_dir})"
@@ -195,6 +209,7 @@ class RunPaths:
 def bootstrap_run(
     output_base: Path | str | None = None,
     run_id: str | None = None,
+    logs_dir: Path | str | None = None,
 ) -> RunPaths:
     """Create (or reuse) a timestamped run directory with standard subdirs.
 
@@ -223,7 +238,7 @@ def bootstrap_run(
     if run_id is None:
         run_id = os.environ.get("RUN_ID", "").strip() or datetime.now().strftime("run_%Y%m%d_%H%M%S")
 
-    rp = RunPaths(run_id=run_id, run_dir=output_base / run_id)
+    rp = RunPaths(run_id=run_id, run_dir=output_base / run_id, logs_dir=logs_dir)
 
     # Pointer file so that evaluation can find the latest run.
     try:
@@ -300,6 +315,7 @@ def write_state_run(
     grid: Optional[Dict[str, Any]] = None,
     artifacts: Optional[Dict[str, Any]] = None,
     extra: Optional[Dict[str, Any]] = None,
+    logs_dir: Optional[Union[str, Path]] = None,
 ) -> Path:
     """Write (or overwrite) the canonical ``state_run.json``.
 
@@ -331,7 +347,7 @@ def write_state_run(
         "plots": str(run_dir / "plots"),
         "tables": str(run_dir / "tables"),
         "models": str(run_dir / "models"),
-        "logs": str(run_dir / "logs"),
+        "logs": str(Path(logs_dir).resolve() if logs_dir is not None else run_dir / "logs"),
     }
 
     state: Dict[str, Any] = {

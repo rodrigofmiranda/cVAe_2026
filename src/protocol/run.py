@@ -1004,6 +1004,7 @@ def run_regime(
     dataset_root: str,
     base_overrides: Union[RunOverrides, Mapping[str, Any]],
     protocol_dir: Path,
+    logs_root: Optional[Path] = None,
     shared_model_run_dir: Optional[Path] = None,
     run_cvae: bool = True,
     skip_eval: bool = False,
@@ -1035,6 +1036,8 @@ def run_regime(
 
     # Build per-regime overrides
     ov = _override_dict(base_overrides)
+    if logs_root is not None:
+        ov["_logs_dir"] = str((Path(logs_root) / run_id).resolve())
 
     # If regime specifies experiment_paths, we filter via max_experiments = len
     # AND set the DATASET_ROOT to the parent so only those experiments are found.
@@ -1313,6 +1316,7 @@ def run_regime(
                 output_run_dir=run_dir,
             )
             result["eval_status"] = _eval_summary.get("status", "completed")
+            result["metrics"] = dict(_eval_summary.get("metrics", {}))
             _eval_ran = True
         except Exception as e:
             result["eval_status"] = "failed"
@@ -1321,7 +1325,8 @@ def run_regime(
             print(f"❌ Evaluation failed for regime '{regime_id}': {e}")
 
     # Read eval metrics
-    result["metrics"] = _read_eval_metrics(run_dir)
+    if not result["metrics"]:
+        result["metrics"] = _read_eval_metrics(run_dir)
 
     # ---- cVAE DISTRIBUTION-FIDELITY METRICS (single source of truth) ----
     # Priority order:
@@ -1571,8 +1576,11 @@ def main():
         execution_mode = "per_regime_retrain"
 
     # Experiment output directory (single folder per protocol run)
-    exp_paths = RunPaths(run_id=f"exp_{ts_label}",
-                         run_dir=Path(args.output_base) / f"exp_{ts_label}")
+    exp_paths = RunPaths(
+        run_id=f"exp_{ts_label}",
+        run_dir=Path(args.output_base) / f"exp_{ts_label}",
+        logs_dir=Path(args.output_base) / f"exp_{ts_label}" / "logs",
+    )
     exp_dir = exp_paths.run_dir                         # backward compat
 
     studies_meta = protocol.get("_studies", [])
@@ -1587,11 +1595,13 @@ def main():
     # Also save original YAML when applicable
     if _proto_config_path is not None:
         import shutil
-        shutil.copy2(_proto_config_path, exp_dir / "logs" / "protocol_input.yaml")
+        shutil.copy2(_proto_config_path, exp_paths.logs_dir / "protocol_input.yaml")
 
     shared_model_run_dir: Optional[Path] = None
     if execution_mode == "train_once_eval_all":
         shared_model_run_dir = exp_dir / "global_model"
+        shared_train_overrides = dict(base_overrides_dict)
+        shared_train_overrides["_logs_dir"] = str((exp_dir / "logs" / "global_model").resolve())
         print(f"\n{'='*70}")
         print("🌐 GLOBAL MODEL TRAINING (train once, evaluate all regimes)")
         print(f"📁 Shared model dir: {shared_model_run_dir}")
@@ -1604,7 +1614,7 @@ def main():
                 dataset_root=args.dataset_root,
                 output_base=str(exp_dir),
                 run_id="global_model",
-                overrides=base_overrides_dict,
+                overrides=shared_train_overrides,
             )
             shared_model_run_dir = Path(
                 _global_summary.get("run_dir", shared_model_run_dir)
@@ -1653,6 +1663,7 @@ def main():
 
         # Regime output directory: exp_dir/studies/<study>/regimes/
         regimes_dir = exp_dir / "studies" / sname / "regimes"
+        study_logs_root = exp_dir / "logs" / "regimes" / sname
         regimes_dir.mkdir(parents=True, exist_ok=True)
 
         print(f"\n{'='*70}")
@@ -1671,6 +1682,7 @@ def main():
                 dataset_root=args.dataset_root,
                 base_overrides=base_overrides,
                 protocol_dir=regimes_dir,
+                logs_root=study_logs_root,
                 shared_model_run_dir=shared_model_run_dir,
                 run_cvae=run_cvae,
                 skip_eval=args.skip_eval,

@@ -178,7 +178,8 @@ def evaluate_run(
 
     model_run_dir = Path(run_dir).resolve()
     output_dir = Path(output_run_dir).resolve() if output_run_dir is not None else model_run_dir
-    run_paths = RunPaths.from_existing(output_dir)
+    _incoming_ov = dict(overrides or {})
+    run_paths = RunPaths.from_existing(output_dir, logs_dir=_incoming_ov.get("_logs_dir"))
     state_path = model_run_dir / "state_run.json"
 
     if state_path.exists():
@@ -192,7 +193,7 @@ def evaluate_run(
         run_dir=model_run_dir,
         dataset_root=dataset_root,
         state=state,
-        overrides=overrides,
+        overrides=_incoming_ov,
     )
     ov = dict(runtime.overrides)
 
@@ -707,5 +708,6 @@ def evaluate_run(
         "run_dir": str(output_dir),
         "model_run_dir": str(model_run_dir),
         "metrics_path": str(metrics_json),
+        "metrics": global_metrics,
         "n_eval": int(n_eval),
     }

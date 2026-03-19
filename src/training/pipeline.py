@@ -104,7 +104,12 @@ def run_training_pipeline(
         overrides=overrides,
     )
     ov = dict(runtime.overrides)
-    run_paths = bootstrap_run(output_base=runtime.output_base, run_id=runtime.run_id)
+    shared_logs_dir = ov.get("_logs_dir")
+    run_paths = bootstrap_run(
+        output_base=runtime.output_base,
+        run_id=runtime.run_id,
+        logs_dir=shared_logs_dir,
+    )
 
     print(f"📁 DATASET_ROOT (hint) = {runtime.dataset_root_hint}")
     print(f"📦 OUTPUT_BASE        = {runtime.output_base}")
@@ -345,6 +350,7 @@ def run_training_pipeline(
         eval_protocol=runtime.eval_protocol,
         grid=grid_state,
         artifacts=artifacts,
+        logs_dir=run_paths.logs_dir,
     )
     print(f"✓ state_run.json salvo: {state_path}")
 
