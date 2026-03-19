@@ -61,23 +61,22 @@ def _psd_log(xc: np.ndarray, nfft: int = 2048, eps: float = 1e-12):
     if nfft < 256 or n < 256:
         nfft = max(1, n)
     win = np.hanning(nfft) if nfft >= 8 else np.ones(nfft)
-    nseg = 4
-    hop = max(1, (n - nfft) // max(1, nseg-1)) if n > nfft else nfft
+    hop = max(1, nfft // 2)   # 50 % overlap — standard Welch
+    max_segs = 256             # cap to bound runtime
     acc = None
     cnt = 0
     for start in range(0, max(1, n - nfft + 1), hop):
-        seg = xc[start:start+nfft]
+        seg = xc[start:start + nfft]
         if len(seg) < nfft:
             break
-        segw = seg * win
-        X = np.fft.fft(segw, n=nfft)
-        P = (np.abs(X)**2) / (np.sum(win**2) + eps)
+        X = np.fft.fft(seg * win, n=nfft)
+        P = (np.abs(X) ** 2) / (np.sum(win ** 2) + eps)
         acc = P if acc is None else (acc + P)
         cnt += 1
-        if cnt >= nseg:
+        if cnt >= max_segs:
             break
     if acc is None:
-        acc = (np.abs(np.fft.fft(xc, n=nfft))**2) / max(1, nfft)
+        acc = (np.abs(np.fft.fft(xc, n=nfft)) ** 2) / max(1, nfft)
         cnt = 1
     psd = acc / max(1, cnt)
     return np.log10(psd + eps)

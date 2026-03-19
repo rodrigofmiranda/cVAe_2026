@@ -1,16 +1,30 @@
 # -*- coding: utf-8 -*-
 """
-Eval do modelo final (exp_20260318_234955) sem retreinar.
+Eval do modelo final (exp_20260318_204149) sem retreinar.
 
-Carrega o modelo salvo, avalia no regime 1m/300mA, roda MMD+Energy
-com n_perm=2000 e gera summary_by_regime.csv com todos os gates.
+Carrega o modelo salvo, avalia no regime 1m/300mA e computa TODOS os
+gates G1-G6 ao vivo — sem ler métricas de CSVs gerados anteriormente.
+
+  G1/G2  EVM/SNR          — média por MC draw individual (evita bias da média de ensemble)
+  G3     mean/cov          — live sobre pool mc×N_val (cap 200 K)
+  G4     PSD L2            — live, Welch 50% overlap
+  G5     skew/kurt/JB      — live, mesmo pool de G3
+  G6     MMD + Energy      — live, sub-amostra 5 K (evita OOM Gram matrix)
+
+Notas de design
+---------------
+* cov_rel_var = ||ΔCov||_F / var_real  (ambos em signal²; threshold 0.20 calibrado
+  considerando que ||Cov_real||_F ≈ √2·var_real para ruído I/Q não correlacionado).
+* G6 usa p-value bruto (não BH-corrigido). Com 1 único regime o ajuste
+  Benjamini-Hochberg é a identidade (q = p), portanto equivale ao pipeline
+  canônico de validation_summary.py.
 
 Uso:
     cd /workspace/2026
-    python scripts/eval_final_model.py 2>&1 | tee outputs/eval_final_model.log
+    nohup python -u scripts/eval_final_model.py > outputs/eval_final_model.log 2>&1 &
 """
 from __future__ import annotations
-import sys, os, json
+import sys, os, json, math
 sys.path.insert(0, "/workspace/2026")
 os.chdir("/workspace/2026")
 
@@ -18,14 +32,15 @@ import numpy as np
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-MODEL_RUN_DIR  = Path("outputs/exp_20260318_204149/global_model")
-DATASET_ROOT   = Path("data/dataset_fullsquare_organized")
-REGIME_DIST_M  = 1.0
-REGIME_CURR_MA = 300.0
-MC_SAMPLES     = 16
-N_PERM         = 2000
-STAT_N         = 5_000
-SEED           = 42
+MODEL_RUN_DIR    = Path("outputs/exp_20260318_204149/global_model")
+DATASET_ROOT     = Path("data/dataset_fullsquare_organized")
+REGIME_DIST_M    = 1.0
+REGIME_CURR_MA   = 300.0
+MC_SAMPLES       = 16
+N_PERM           = 2000
+STAT_N           = 5_000     # n for MMD/Energy (Gram matrix is O(n²), keep small)
+MAX_DIST_SAMPLES = 200_000   # n for G3-G5 distribution metrics
+SEED             = 42
 # ---------------------------------------------------------------------------
 
 print("Carregando deps...")
@@ -41,6 +56,7 @@ from src.data.windowing import build_windows_single_experiment
 from src.evaluation.stat_tests.mmd import mmd_rbf
 from src.evaluation.stat_tests.energy import energy_test
 from src.evaluation.metrics import calculate_evm, calculate_snr
+from src.metrics.distribution import residual_fidelity_metrics
 
 # ---------------------------------------------------------------------------
 # Load model + state
@@ -49,9 +65,9 @@ state_path = MODEL_RUN_DIR / "state_run.json"
 with open(state_path) as f:
     state = json.load(f)
 
-norm        = state["normalization"]
+norm         = state["normalization"]
 training_cfg = state["training_config"]
-model_path  = state["artifacts"]["best_model_full"]
+model_path   = state["artifacts"]["best_model_full"]
 
 print(f"Carregando modelo: {model_path}")
 vae = load_seq_model(model_path)
@@ -121,104 +137,99 @@ for i in range(MC_SAMPLES):
 print()
 
 # ---------------------------------------------------------------------------
-# EVM / SNR from individual MC draws (avoids ensemble-mean bias)
+# G1/G2 — EVM/SNR: per-draw mean (avoids ensemble-mean bias)
+#
+# Using the ensemble mean Ys.mean(axis=0) cancels stochastic noise and
+# produces artificially low EVM, making the twin appear "cleaner" than the
+# real channel.  Per-draw mean gives the correct expected EVM per realisation.
 # ---------------------------------------------------------------------------
 print("Calculando EVM/SNR por MC draw...")
-Ys_mc = np.stack(samples, axis=0)  # (MC_SAMPLES, N_val, 2)
-evm_real_live, _ = calculate_evm(X_va, Y_va)
-snr_real_live     = calculate_snr(X_va, Y_va)
-evm_pred_live = float(np.mean([calculate_evm(X_va, Ys_mc[i])[0]
-                                for i in range(MC_SAMPLES)]))
-snr_pred_live = float(np.mean([calculate_snr(X_va, Ys_mc[i])
-                                for i in range(MC_SAMPLES)]))
-print(f"  evm_real={evm_real_live:.4f}%  evm_pred={evm_pred_live:.4f}%  "
-      f"delta_evm={evm_pred_live - evm_real_live:+.4f}%")
-print(f"  snr_real={snr_real_live:.4f}dB  snr_pred={snr_pred_live:.4f}dB  "
-      f"delta_snr={snr_pred_live - snr_real_live:+.4f}dB")
-
-Y_pred_all = np.concatenate(samples, axis=0)
-X_tiled = np.tile(X_va, (MC_SAMPLES, 1))
-Y_tiled = np.tile(Y_va, (MC_SAMPLES, 1))
-res_real_all = Y_tiled - X_tiled
-res_pred_all = Y_pred_all - X_tiled
+Ys_mc = np.stack(samples, axis=0)   # (MC_SAMPLES, N_val, 2)
+evm_real, _  = calculate_evm(X_va, Y_va)
+snr_real      = calculate_snr(X_va, Y_va)
+evm_pred      = float(np.mean([calculate_evm(X_va, Ys_mc[i])[0] for i in range(MC_SAMPLES)]))
+snr_pred      = float(np.mean([calculate_snr(X_va, Ys_mc[i])    for i in range(MC_SAMPLES)]))
+delta_evm     = evm_pred - evm_real
+delta_snr     = snr_pred - snr_real
+print(f"  evm_real={evm_real:.4f}%  evm_pred={evm_pred:.4f}%  delta={delta_evm:+.4f}%")
+print(f"  snr_real={snr_real:.4f}dB  snr_pred={snr_pred:.4f}dB  delta={delta_snr:+.4f}dB")
 
 # ---------------------------------------------------------------------------
-# Sub-sample
+# Build residual pools for G3-G6
 # ---------------------------------------------------------------------------
-rng = np.random.RandomState(SEED)
-n = min(STAT_N, res_real_all.shape[0], res_pred_all.shape[0])
-idx_r = rng.choice(res_real_all.shape[0], n, replace=False)
-idx_g = rng.choice(res_pred_all.shape[0], n, replace=False)
+Y_pred_all  = np.concatenate(samples, axis=0)           # (MC*N_val, 2)
+X_tiled     = np.tile(X_va, (MC_SAMPLES, 1))
+Y_tiled     = np.tile(Y_va, (MC_SAMPLES, 1))
+res_real_all = Y_tiled - X_tiled                        # real channel residuals
+res_pred_all = Y_pred_all - X_tiled                     # predicted residuals
+
+# ---------------------------------------------------------------------------
+# G3-G5 — distribution metrics (live, same residual pool, cap MAX_DIST_SAMPLES)
+#
+# cov_rel_var = ||ΔCov||_F / var_real
+#   Both numerator and denominator are in signal² units (dimensionless ratio).
+#   For uncorrelated I/Q noise (var_I ≈ var_Q, small cross-covariance),
+#   ||Cov_real||_F ≈ √2·var_real, so this formula returns values ~√2 larger
+#   than the relative Frobenius error of the covariance matrix.
+#   Threshold 0.20 is calibrated accordingly.
+# ---------------------------------------------------------------------------
+print(f"\nMétricas de distribuição (n≤{MAX_DIST_SAMPLES:,})...")
+rng_dist = np.random.RandomState(SEED + 100)
+n_dist   = min(MAX_DIST_SAMPLES, res_real_all.shape[0], res_pred_all.shape[0])
+idx_dr   = np.sort(rng_dist.choice(res_real_all.shape[0], n_dist, replace=False))
+idx_dg   = np.sort(rng_dist.choice(res_pred_all.shape[0], n_dist, replace=False))
+distm = residual_fidelity_metrics(
+    res_real_all[idx_dr], res_pred_all[idx_dg],
+    psd_nfft=2048, gauss_alpha=0.01, max_samples=n_dist,
+)
+var_real   = float(np.mean(np.var(res_real_all[idx_dr], axis=0)))
+delta_mean = distm["delta_mean_l2"]
+delta_cov  = distm["delta_cov_fro"]
+delta_skew = distm["delta_skew_l2"]
+delta_kurt = distm["delta_kurt_l2"]
+delta_psd  = distm["psd_l2"]
+jb_log10p  = distm["jb_log10p_min"]       # predicted residuals
+jb_real_l  = distm["jb_real_log10p_min"]  # real residuals
+print(f"  mean_l2={delta_mean:.6f}  cov_fro={delta_cov:.6f}  var_real={var_real:.6f}")
+print(f"  skew_l2={delta_skew:.4f}  kurt_l2={delta_kurt:.4f}  psd_l2={delta_psd:.4f}")
+print(f"  jb_log10p_pred={jb_log10p:.2f}  jb_log10p_real={jb_real_l:.2f}  n_dist={n_dist:,}")
+
+# ---------------------------------------------------------------------------
+# G6 — MMD + Energy (sub-sample to STAT_N to avoid O(n²) Gram matrix OOM)
+#
+# Note: with 1 regime the Benjamini-Hochberg correction is the identity
+# (q_val = p_val), so raw p-values are equivalent to the canonical
+# q-value-based gate in validation_summary.py.
+# ---------------------------------------------------------------------------
+rng_stat = np.random.RandomState(SEED)
+n_stat   = min(STAT_N, res_real_all.shape[0], res_pred_all.shape[0])
+idx_r    = rng_stat.choice(res_real_all.shape[0], n_stat, replace=False)
+idx_g    = rng_stat.choice(res_pred_all.shape[0], n_stat, replace=False)
 res_real = res_real_all[idx_r]
 res_pred = res_pred_all[idx_g]
-print(f"  n={n:,} amostras para stat tests")
+print(f"\n  n={n_stat:,} amostras para stat tests")
 
-# ---------------------------------------------------------------------------
-# Stat tests
-# ---------------------------------------------------------------------------
-print(f"\nMMD (n_perm={N_PERM})...")
+print(f"MMD (n_perm={N_PERM})...")
 mmd_res    = mmd_rbf(res_real, res_pred, n_perm=N_PERM, seed=SEED)
 print(f"Energy (n_perm={N_PERM})...")
 energy_res = energy_test(res_real, res_pred, n_perm=N_PERM, seed=SEED)
 
 # ---------------------------------------------------------------------------
-# Gate computation (TWIN_GATE_THRESHOLDS — linter update)
+# Gate computation
 # ---------------------------------------------------------------------------
-import math, csv
-
-metrics_path = (
-    MODEL_RUN_DIR.parent
-    / "studies/within_regime/regimes/dist_1m__curr_300mA"
-    / "tables/metricas_globais_reanalysis.csv"
-)
-with open(metrics_path) as f:
-    m = next(csv.DictReader(f))
-
-def flt(k): return float(m[k]) if m.get(k) and m[k] not in ('', 'nan') else float('nan')
-
-evm_real   = flt("evm_real_%")
-evm_pred   = flt("evm_pred_%")
-delta_evm  = flt("delta_evm_%")
-snr_real   = flt("snr_real_db")
-delta_snr  = flt("delta_snr_db")
-var_real   = flt("var_real_delta")
-delta_mean = flt("delta_mean_l2")
-delta_cov  = flt("delta_cov_fro")
-delta_skew = flt("delta_skew_l2")
-delta_kurt = flt("delta_kurt_l2")
-delta_psd  = flt("delta_psd_l2")
-jb_log10p  = flt("jb_log10p_min")
-jb_real_l  = flt("jb_real_log10p_min")
-
-# Override EVM/SNR: live computation per MC draw supersedes stale CSV values.
-# CSV stores EVM from ensemble mean → cancels noise → artificially low EVM.
-evm_real  = evm_real_live
-evm_pred  = evm_pred_live
-delta_evm = evm_pred_live - evm_real_live
-snr_real  = snr_real_live
-delta_snr = snr_pred_live - snr_real_live
-
-# Baseline values (fixed for this regime — from exp_20260318_182809)
-bl_delta_cov  = 0.011495
-bl_delta_kurt = 0.7322
-bl_delta_mean = 0.000992
-bl_psd_l2     = 0.2238
-
-sigma_real = math.sqrt(var_real) if var_real > 0 else float('nan')
-
-# Derived
+sigma_real   = math.sqrt(var_real) if var_real > 0 else float('nan')
 rel_evm_err  = abs(delta_evm)  / abs(evm_real)
 rel_snr_err  = abs(delta_snr)  / abs(snr_real)
 mean_rel_sig = delta_mean      / sigma_real
 cov_rel_var  = delta_cov       / var_real
 jb_rel       = abs(jb_log10p - jb_real_l) / abs(jb_real_l)
 
+mmd_pval    = mmd_res['pval']
+energy_pval = energy_res['pval']
+
 T = dict(rel_evm_error=0.10, rel_snr_error=0.10, mean_rel_sigma=0.10,
          cov_rel_var=0.20, delta_psd_l2=0.25, delta_skew_l2=0.30,
          delta_kurt_l2=1.25, delta_jb_stat_rel=0.20, stat_qval=0.05)
-
-mmd_pval = mmd_res['pval']
-energy_pval = energy_res['pval']
 
 gate_g1 = rel_evm_err  < T["rel_evm_error"]
 gate_g2 = rel_snr_err  < T["rel_snr_error"]
@@ -230,27 +241,30 @@ gate_g6 = (mmd_pval    > T["stat_qval"]) and (energy_pval > T["stat_qval"])
 # ---------------------------------------------------------------------------
 # Report
 # ---------------------------------------------------------------------------
-def yn(b): return "✅ PASS" if b else "❌ FAIL"
+def yn(b): return "PASS" if b else "FAIL"
 
 print()
-print("=" * 66)
+print("=" * 70)
 print(f"RESULTADO FINAL — exp_20260318_204149 (λ_mmd=1.0, β=0.001)")
-print(f"Regime: {REGIME_DIST_M}m / {REGIME_CURR_MA}mA | mc={MC_SAMPLES} | n_perm={N_PERM} | n={n:,}")
-print("=" * 66)
+print(f"Regime: {REGIME_DIST_M}m / {REGIME_CURR_MA}mA | mc={MC_SAMPLES} | n_perm={N_PERM} | n_stat={n_stat:,} | n_dist={n_dist:,}")
+print("=" * 70)
 print(f"G1  rel_evm_error  = {rel_evm_err:.4f}  (thr<0.10)  {yn(gate_g1)}")
 print(f"G2  rel_snr_error  = {rel_snr_err:.4f}  (thr<0.10)  {yn(gate_g2)}")
-print(f"G3  mean_rel_sigma = {mean_rel_sig:.4f}  (thr<0.10)  ", end="")
-print(f"cov_rel_var={cov_rel_var:.4f}  (thr<0.20)  {yn(gate_g3)}")
+print(f"G3  mean_rel_sigma = {mean_rel_sig:.4f}  (thr<0.10)  "
+      f"cov_rel_var={cov_rel_var:.4f}  (thr<0.20)  {yn(gate_g3)}")
 print(f"G4  delta_psd_l2   = {delta_psd:.4f}  (thr<0.25)  {yn(gate_g4)}")
-print(f"G5  delta_skew_l2  = {delta_skew:.4f}  (thr<0.30)  ", end="")
-print(f"delta_kurt_l2={delta_kurt:.4f}  (thr<1.25)  jb_rel={jb_rel:.4f}  (thr<0.20)  {yn(gate_g5)}")
+print(f"G5  delta_skew_l2  = {delta_skew:.4f}  (thr<0.30)  "
+      f"delta_kurt_l2={delta_kurt:.4f}  (thr<1.25)  "
+      f"jb_rel={jb_rel:.4f}  (thr<0.20)  {yn(gate_g5)}")
 print(f"G6  MMD p={mmd_pval:.4f}  Energy p={energy_pval:.4f}  (thr>0.05 ambos)  {yn(gate_g6)}")
-print("=" * 66)
+print("=" * 70)
 passed = sum([gate_g1, gate_g2, gate_g3, gate_g4, gate_g5, gate_g6])
 print(f"Gates: {passed}/6 passed")
 print()
 
+# ---------------------------------------------------------------------------
 # Save results
+# ---------------------------------------------------------------------------
 out_dir = MODEL_RUN_DIR.parent / "tables"
 out_dir.mkdir(parents=True, exist_ok=True)
 result = {
@@ -258,19 +272,37 @@ result = {
     "regime": "dist_1m__curr_300mA",
     "mc_samples": MC_SAMPLES,
     "n_perm": N_PERM,
-    "n_stat": n,
+    "n_stat": n_stat,
+    "n_dist": n_dist,
+    # G1/G2
+    "evm_real_%": evm_real,
+    "evm_pred_%": evm_pred,
+    "delta_evm_%": delta_evm,
+    "snr_real_db": snr_real,
+    "snr_pred_db": snr_pred,
+    "delta_snr_db": delta_snr,
     "rel_evm_error": rel_evm_err,
     "rel_snr_error": rel_snr_err,
+    # G3
+    "delta_mean_l2": delta_mean,
+    "delta_cov_fro": delta_cov,
+    "var_real": var_real,
     "mean_rel_sigma": mean_rel_sig,
     "cov_rel_var": cov_rel_var,
+    # G4
     "delta_psd_l2": delta_psd,
+    # G5
     "delta_skew_l2": delta_skew,
     "delta_kurt_l2": delta_kurt,
+    "jb_log10p_pred": jb_log10p,
+    "jb_log10p_real": jb_real_l,
     "delta_jb_stat_rel": jb_rel,
+    # G6
     "stat_mmd2": mmd_res['mmd2'],
     "stat_mmd_pval": mmd_pval,
     "stat_energy": energy_res['energy'],
     "stat_energy_pval": energy_pval,
+    # Gates
     "gate_g1": gate_g1, "gate_g2": gate_g2, "gate_g3": gate_g3,
     "gate_g4": gate_g4, "gate_g5": gate_g5, "gate_g6": gate_g6,
     "validation_status": "pass" if passed == 6 else f"partial ({passed}/6)",
