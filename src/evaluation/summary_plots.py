@@ -212,6 +212,91 @@ _METRIC_SPECS = [
     },
 ]
 
+_GATE_METRIC_SPECS = [
+    {
+        "cols": ("cvae_delta_evm_%", "delta_evm_%"),
+        "title": "G1 — EVM error (pred - real) [pp]",
+        "fmt": ".2f",
+        "cmap": "RdBu_r",
+        "cbar": "ΔEVM (pp)",
+        "mode": "signed",
+    },
+    {
+        "cols": ("cvae_delta_snr_db", "delta_snr_db"),
+        "title": "G2 — SNR error (pred - real) [dB]",
+        "fmt": ".2f",
+        "cmap": "RdBu",
+        "cbar": "ΔSNR (dB)",
+        "mode": "signed",
+    },
+    {
+        "cols": ("cvae_mean_rel_sigma",),
+        "title": "G3 — mean error / sigma_real",
+        "fmt": ".3f",
+        "cmap": "YlOrRd",
+        "cbar": "mean_rel_sigma",
+        "mode": "lower_better",
+    },
+    {
+        "cols": ("cvae_cov_rel_var",),
+        "title": "G3 — covariance error / var_real",
+        "fmt": ".3f",
+        "cmap": "YlOrRd",
+        "cbar": "cov_rel_var",
+        "mode": "lower_better",
+    },
+    {
+        "cols": ("cvae_psd_l2", "delta_psd_l2"),
+        "title": "G4 — PSD mismatch",
+        "fmt": ".3f",
+        "cmap": "YlOrRd",
+        "cbar": "PSD L2",
+        "mode": "lower_better",
+    },
+    {
+        "cols": ("cvae_delta_skew_l2", "delta_skew_l2"),
+        "title": "G5 — skew mismatch",
+        "fmt": ".3f",
+        "cmap": "YlOrRd",
+        "cbar": "skew L2",
+        "mode": "lower_better",
+    },
+    {
+        "cols": ("cvae_delta_kurt_l2", "delta_kurt_l2"),
+        "title": "G5 — kurtosis mismatch",
+        "fmt": ".3f",
+        "cmap": "YlOrRd",
+        "cbar": "kurt L2",
+        "mode": "lower_better",
+    },
+    {
+        "cols": ("delta_jb_stat_rel",),
+        "title": "G5 — JB relative mismatch",
+        "fmt": ".3f",
+        "cmap": "YlOrRd",
+        "cbar": "JB rel",
+        "mode": "lower_better",
+    },
+    {
+        "cols": ("stat_mmd_qval",),
+        "title": "G6 — MMD q-value",
+        "fmt": ".3f",
+        "cmap": "RdYlGn",
+        "cbar": "q_MMD",
+        "mode": "higher_better",
+        "threshold": 0.05,
+    },
+    {
+        "cols": ("stat_energy_qval",),
+        "title": "G6 — Energy q-value",
+        "fmt": ".3f",
+        "cmap": "RdYlGn",
+        "cbar": "q_Energy",
+        "mode": "higher_better",
+        "threshold": 0.05,
+    },
+]
+
 
 def plot_vae_vs_real_metric_diffs(
     df_summary: pd.DataFrame,
@@ -288,16 +373,90 @@ def plot_vae_vs_real_metric_diffs(
     return _savefig(Path(out_dir) / fname)
 
 
+def plot_gate_metric_heatmaps(
+    df_summary: pd.DataFrame,
+    out_dir: Path,
+    *,
+    fname: str = "heatmap_gate_metrics_by_regime.png",
+) -> Optional[Path]:
+    """Render gate-focused regime heatmaps for the selected cVAE model."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    df_summary = df_summary.copy()
+    resolved = []
+    for spec in _GATE_METRIC_SPECS:
+        col = _pick_column(df_summary, spec["cols"])
+        if col is None:
+            continue
+        piv = _pivot_for_heatmap(df_summary, col)
+        if piv is None:
+            continue
+        resolved.append((spec, piv))
+
+    if not resolved:
+        return None
+
+    ncols = 2
+    nrows = int(math.ceil(len(resolved) / ncols))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(7.0 * ncols, 4.8 * nrows))
+    axes = np.atleast_1d(axes).ravel()
+
+    for ax, (spec, piv) in zip(axes, resolved):
+        vals = piv.to_numpy(dtype=float)
+        vals = vals[np.isfinite(vals)]
+        if vals.size == 0:
+            ax.axis("off")
+            continue
+
+        mode = spec["mode"]
+        if mode == "signed":
+            vmax = float(np.max(np.abs(vals)))
+            vmin = -vmax
+            center = 0.0
+        elif mode == "higher_better":
+            vmin = 0.0
+            vmax = float(max(np.max(vals), spec.get("threshold", 0.0)))
+            center = float(spec.get("threshold")) if "threshold" in spec else None
+        else:
+            vmin = 0.0
+            vmax = float(np.max(vals))
+            center = None
+
+        _draw_heatmap(
+            ax,
+            piv,
+            title=spec["title"],
+            cmap=spec["cmap"],
+            fmt=spec["fmt"],
+            cbar_label=spec["cbar"],
+            vmin=vmin,
+            vmax=vmax,
+            center=center,
+        )
+
+    for ax in axes[len(resolved):]:
+        ax.axis("off")
+
+    fig.suptitle(
+        "Gate metrics by regime — best model vs real",
+        fontsize=15,
+    )
+    return _savefig(Path(out_dir) / fname)
+
+
 def generate_all(df_summary: pd.DataFrame, out_dir: Path) -> List[Path]:
-    """Generate only best-model real-vs-cVAE heatmaps."""
+    """Generate the canonical gate-focused regime heatmap bundle."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     created: List[Path] = []
     try:
-        p = plot_vae_vs_real_metric_diffs(df_summary, out_dir)
+        p = plot_gate_metric_heatmaps(df_summary, out_dir)
         if p is not None:
             created.append(p)
             print(f"   📈 {p.name}")
     except Exception as exc:
-        print(f"⚠️  plot_vae_vs_real_metric_diffs failed: {exc}")
+        print(f"⚠️  plot_gate_metric_heatmaps failed: {exc}")
     return created

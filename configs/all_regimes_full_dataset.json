@@ -1,0 +1,173 @@
+{
+  "protocol_version": "1.0",
+  "description": "Global train + full-dataset evaluation over all 27 VLC regimes. Intended for regime heatmaps across the complete distance × current grid.",
+  "global_settings": {
+    "seed": 42,
+    "val_split": 0.2,
+    "psd_nfft": 2048
+  },
+  "regimes": [
+    {
+      "regime_id": "dist_0p8m__curr_100mA",
+      "description": "0.8 m / 100 mA",
+      "distance_m": 0.8,
+      "current_mA": 100
+    },
+    {
+      "regime_id": "dist_0p8m__curr_200mA",
+      "description": "0.8 m / 200 mA",
+      "distance_m": 0.8,
+      "current_mA": 200
+    },
+    {
+      "regime_id": "dist_0p8m__curr_300mA",
+      "description": "0.8 m / 300 mA",
+      "distance_m": 0.8,
+      "current_mA": 300
+    },
+    {
+      "regime_id": "dist_0p8m__curr_400mA",
+      "description": "0.8 m / 400 mA",
+      "distance_m": 0.8,
+      "current_mA": 400
+    },
+    {
+      "regime_id": "dist_0p8m__curr_500mA",
+      "description": "0.8 m / 500 mA",
+      "distance_m": 0.8,
+      "current_mA": 500
+    },
+    {
+      "regime_id": "dist_0p8m__curr_600mA",
+      "description": "0.8 m / 600 mA",
+      "distance_m": 0.8,
+      "current_mA": 600
+    },
+    {
+      "regime_id": "dist_0p8m__curr_700mA",
+      "description": "0.8 m / 700 mA",
+      "distance_m": 0.8,
+      "current_mA": 700
+    },
+    {
+      "regime_id": "dist_0p8m__curr_800mA",
+      "description": "0.8 m / 800 mA",
+      "distance_m": 0.8,
+      "current_mA": 800
+    },
+    {
+      "regime_id": "dist_0p8m__curr_900mA",
+      "description": "0.8 m / 900 mA",
+      "distance_m": 0.8,
+      "current_mA": 900
+    },
+    {
+      "regime_id": "dist_1p0m__curr_100mA",
+      "description": "1.0 m / 100 mA",
+      "distance_m": 1.0,
+      "current_mA": 100
+    },
+    {
+      "regime_id": "dist_1p0m__curr_200mA",
+      "description": "1.0 m / 200 mA",
+      "distance_m": 1.0,
+      "current_mA": 200
+    },
+    {
+      "regime_id": "dist_1p0m__curr_300mA",
+      "description": "1.0 m / 300 mA",
+      "distance_m": 1.0,
+      "current_mA": 300
+    },
+    {
+      "regime_id": "dist_1p0m__curr_400mA",
+      "description": "1.0 m / 400 mA",
+      "distance_m": 1.0,
+      "current_mA": 400
+    },
+    {
+      "regime_id": "dist_1p0m__curr_500mA",
+      "description": "1.0 m / 500 mA",
+      "distance_m": 1.0,
+      "current_mA": 500
+    },
+    {
+      "regime_id": "dist_1p0m__curr_600mA",
+      "description": "1.0 m / 600 mA",
+      "distance_m": 1.0,
+      "current_mA": 600
+    },
+    {
+      "regime_id": "dist_1p0m__curr_700mA",
+      "description": "1.0 m / 700 mA",
+      "distance_m": 1.0,
+      "current_mA": 700
+    },
+    {
+      "regime_id": "dist_1p0m__curr_800mA",
+      "description": "1.0 m / 800 mA",
+      "distance_m": 1.0,
+      "current_mA": 800
+    },
+    {
+      "regime_id": "dist_1p0m__curr_900mA",
+      "description": "1.0 m / 900 mA",
+      "distance_m": 1.0,
+      "current_mA": 900
+    },
+    {
+      "regime_id": "dist_1p5m__curr_100mA",
+      "description": "1.5 m / 100 mA",
+      "distance_m": 1.5,
+      "current_mA": 100
+    },
+    {
+      "regime_id": "dist_1p5m__curr_200mA",
+      "description": "1.5 m / 200 mA",
+      "distance_m": 1.5,
+      "current_mA": 200
+    },
+    {
+      "regime_id": "dist_1p5m__curr_300mA",
+      "description": "1.5 m / 300 mA",
+      "distance_m": 1.5,
+      "current_mA": 300
+    },
+    {
+      "regime_id": "dist_1p5m__curr_400mA",
+      "description": "1.5 m / 400 mA",
+      "distance_m": 1.5,
+      "current_mA": 400
+    },
+    {
+      "regime_id": "dist_1p5m__curr_500mA",
+      "description": "1.5 m / 500 mA",
+      "distance_m": 1.5,
+      "current_mA": 500
+    },
+    {
+      "regime_id": "dist_1p5m__curr_600mA",
+      "description": "1.5 m / 600 mA",
+      "distance_m": 1.5,
+      "current_mA": 600
+    },
+    {
+      "regime_id": "dist_1p5m__curr_700mA",
+      "description": "1.5 m / 700 mA",
+      "distance_m": 1.5,
+      "current_mA": 700
+    },
+    {
+      "regime_id": "dist_1p5m__curr_800mA",
+      "description": "1.5 m / 800 mA",
+      "distance_m": 1.5,
+      "current_mA": 800
+    },
+    {
+      "regime_id": "dist_1p5m__curr_900mA",
+      "description": "1.5 m / 900 mA",
+      "distance_m": 1.5,
+      "current_mA": 900
+    }
+  ]
+}
