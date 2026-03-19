@@ -302,7 +302,7 @@ end-to-end learned communication system, use this sequence:
 
 1. `src.protocol.run --train_once_eval_all` with a focused global grid to identify strong shared-model candidates.
 2. `src.protocol.run --train_once_eval_all` on the target protocol to train the shared model once and evaluate it across all regimes.
-3. Read `tables/summary_by_regime.csv` and the consolidated heatmap in `plots/best_model/`.
+3. Read `tables/summary_by_regime.csv`, `tables/protocol_leaderboard.csv`, and the consolidated heatmap in `plots/best_model/`.
 
 The canonical visual summary is:
 

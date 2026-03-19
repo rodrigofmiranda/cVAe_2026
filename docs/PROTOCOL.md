@@ -168,6 +168,7 @@ outputs/exp_YYYYMMDD_HHMMSS/
 │   └── ...
 ├── tables/
 │   ├── summary_by_regime.csv
+│   ├── protocol_leaderboard.csv
 │   └── stat_fidelity_by_regime.csv
 └── plots/
     └── best_model/
@@ -182,6 +183,7 @@ outputs/exp_YYYYMMDD_HHMMSS/
 - `train/` contains the single shared trained cVAE
 - `eval/` contains only the regime-specific evaluation artifacts produced with that shared model
 - `summary_by_regime.csv` records both `run_dir` (evaluation artifacts) and `model_run_dir` (shared model source)
+- `protocol_leaderboard.csv` is the canonical candidate ranking derived from the same gates/metrics used by the protocol
 - `plots/best_model/heatmap_vae_vs_real_metric_diffs.png` is the canonical visual summary
 
 ### Summary table columns

@@ -45,6 +45,7 @@ from src.config.overrides import RunOverrides
 from src.config.gpu_guard import warn_if_no_gpu_and_confirm
 from src.config.runtime_env import ensure_writable_mpl_config_dir
 from src.evaluation.validation_summary import (
+    build_protocol_leaderboard,
     build_stat_acceptance_summary,
     build_stat_fidelity_table,
     build_validation_summary_table,
@@ -1714,6 +1715,14 @@ def main():
     summary_csv = exp_paths.write_table("tables/summary_by_regime.csv", df_summary)
     print(f"\n📊 Summary table: {summary_csv}")
 
+    try:
+        df_leaderboard = build_protocol_leaderboard(df_summary)
+        leaderboard_csv = exp_paths.write_table("tables/protocol_leaderboard.csv", df_leaderboard)
+        print(f"🏆 Protocol leaderboard: {leaderboard_csv}")
+    except Exception as e:
+        df_leaderboard = None
+        print(f"⚠️  Protocol leaderboard failed: {e}")
+
     # ---- Best-model heatmaps (derived from canonical summary table) ----
     try:
         from src.evaluation.summary_plots import generate_all as _summary_plots
@@ -1794,6 +1803,24 @@ def main():
         },
         "shared_model_run_dir": str(shared_model_run_dir) if shared_model_run_dir is not None else None,
         "stat_acceptance": _stat_acceptance,
+        "protocol_leaderboard": (
+            {
+                "path": str(exp_dir / "tables" / "protocol_leaderboard.csv"),
+                "n_candidates": int(len(df_leaderboard)) if df_leaderboard is not None else 0,
+                "winner_candidate_id": (
+                    str(df_leaderboard.iloc[0]["candidate_id"])
+                    if df_leaderboard is not None and not df_leaderboard.empty
+                    else None
+                ),
+                "winner_best_grid_tag": (
+                    str(df_leaderboard.iloc[0]["best_grid_tag"])
+                    if df_leaderboard is not None and not df_leaderboard.empty
+                    else None
+                ),
+            }
+            if df_leaderboard is not None
+            else None
+        ),
         "base_overrides": base_overrides_dict,
         "n_studies": len(studies_meta),
         "studies": [

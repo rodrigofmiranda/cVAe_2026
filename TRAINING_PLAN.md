@@ -12,6 +12,8 @@
   - `train_once_eval_all`: treino global unico + avaliacao por regime sem retreino
 - Tabela canonica de validacao:
   - `outputs/exp_*/tables/summary_by_regime.csv`
+- Ranking canônico por candidato avaliado:
+  - `outputs/exp_*/tables/protocol_leaderboard.csv`
 - Artefatos secundarios:
   - `outputs/exp_*/tables/stat_fidelity_by_regime.csv`
   - JSONs e logs por regime

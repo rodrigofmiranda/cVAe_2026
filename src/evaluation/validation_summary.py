@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
 import numpy as np
@@ -145,6 +146,39 @@ STAT_FIDELITY_COLUMNS: List[str] = [
     "stat_mode",
 ]
 
+PROTOCOL_LEADERBOARD_COLUMNS: List[str] = [
+    "rank",
+    "candidate_id",
+    "best_grid_tag",
+    "model_run_dir",
+    "model_scope",
+    "n_studies",
+    "n_regimes",
+    "n_pass",
+    "n_fail",
+    "n_partial",
+    "all_regimes_passed",
+    "gate_g1_pass",
+    "gate_g2_pass",
+    "gate_g3_pass",
+    "gate_g4_pass",
+    "gate_g5_pass",
+    "gate_g6_pass",
+    "gate_pass_ratio",
+    "mean_cvae_rel_evm_error",
+    "mean_cvae_rel_snr_error",
+    "mean_cvae_mean_rel_sigma",
+    "mean_cvae_cov_rel_var",
+    "mean_cvae_psd_l2",
+    "mean_cvae_delta_acf_l2",
+    "mean_cvae_delta_skew_l2",
+    "mean_cvae_delta_kurt_l2",
+    "mean_delta_jb_stat_rel",
+    "mean_stat_mmd_qval",
+    "mean_stat_energy_qval",
+    "protocol_score_v1",
+]
+
 
 def _safe_float(value: Any) -> float:
     try:
@@ -237,6 +271,10 @@ def _gate_all(*values: Any) -> Any:
 
 def _empty_summary_frame() -> pd.DataFrame:
     return pd.DataFrame(columns=SUMMARY_BY_REGIME_COLUMNS)
+
+
+def _empty_protocol_leaderboard() -> pd.DataFrame:
+    return pd.DataFrame(columns=PROTOCOL_LEADERBOARD_COLUMNS)
 
 
 def _build_row(result: Dict[str, Any]) -> Dict[str, Any]:
@@ -482,6 +520,79 @@ def _apply_derived_metrics(df: pd.DataFrame) -> None:
     df["validation_status"] = df.apply(_validation_status, axis=1)
 
 
+def _candidate_id(best_grid_tag: Any, model_run_dir: Any, model_scope: Any) -> str:
+    tag = str(best_grid_tag or "").strip()
+    if tag:
+        return tag
+    run_dir = str(model_run_dir or "").strip()
+    if run_dir:
+        return Path(run_dir).name
+    return str(model_scope or "candidate")
+
+
+def _finite_ratio(series: pd.Series) -> float:
+    vals = pd.to_numeric(series, errors="coerce")
+    vals = vals[np.isfinite(vals)]
+    if len(vals) == 0:
+        return float("nan")
+    return float(vals.mean())
+
+
+def _normalized_lower_better(series: pd.Series, threshold: float) -> pd.Series:
+    vals = pd.to_numeric(series, errors="coerce")
+    out = vals / float(threshold)
+    return out.clip(lower=0.0, upper=100.0)
+
+
+def _normalized_higher_better(series: pd.Series, threshold: float) -> pd.Series:
+    vals = pd.to_numeric(series, errors="coerce")
+    safe = vals.where(vals > 1e-12, np.nan)
+    out = float(threshold) / safe
+    return out.clip(lower=0.0, upper=100.0)
+
+
+def _gate_pass_ratio(df_group: pd.DataFrame) -> float:
+    gate_cols = [f"gate_g{i}" for i in range(1, 7)]
+    total = 0
+    passed = 0
+    for col in gate_cols:
+        for raw in df_group[col].tolist():
+            state = _safe_bool(raw)
+            if state is None:
+                continue
+            total += 1
+            if state:
+                passed += 1
+    if total == 0:
+        return float("nan")
+    return float(passed / total)
+
+
+def _protocol_score_v1(df_group: pd.DataFrame) -> float:
+    parts = [
+        _normalized_lower_better(df_group["cvae_rel_evm_error"], TWIN_GATE_THRESHOLDS["rel_evm_error"]),
+        _normalized_lower_better(df_group["cvae_rel_snr_error"], TWIN_GATE_THRESHOLDS["rel_snr_error"]),
+        _normalized_lower_better(df_group["cvae_mean_rel_sigma"], TWIN_GATE_THRESHOLDS["mean_rel_sigma"]),
+        _normalized_lower_better(df_group["cvae_cov_rel_var"], TWIN_GATE_THRESHOLDS["cov_rel_var"]),
+        _normalized_lower_better(df_group["cvae_psd_l2"], TWIN_GATE_THRESHOLDS["delta_psd_l2"]),
+        _normalized_lower_better(df_group["cvae_delta_skew_l2"], TWIN_GATE_THRESHOLDS["delta_skew_l2"]),
+        _normalized_lower_better(df_group["cvae_delta_kurt_l2"], TWIN_GATE_THRESHOLDS["delta_kurt_l2"]),
+        _normalized_lower_better(df_group["delta_jb_stat_rel"], TWIN_GATE_THRESHOLDS["delta_jb_stat_rel"]),
+        _normalized_higher_better(df_group["stat_mmd_qval"], TWIN_GATE_THRESHOLDS["stat_qval"]),
+        _normalized_higher_better(df_group["stat_energy_qval"], TWIN_GATE_THRESHOLDS["stat_qval"]),
+    ]
+    stacked = np.concatenate(
+        [
+            pd.to_numeric(part, errors="coerce").to_numpy(dtype=float)
+            for part in parts
+        ]
+    )
+    stacked = stacked[np.isfinite(stacked)]
+    if len(stacked) == 0:
+        return float("nan")
+    return float(np.mean(stacked))
+
+
 def _normalize_column_set(df: pd.DataFrame) -> pd.DataFrame:
     for col in SUMMARY_BY_REGIME_COLUMNS:
         if col not in df.columns:
@@ -499,6 +610,93 @@ def build_validation_summary_table(results: Iterable[Dict[str, Any]]) -> pd.Data
     _apply_fdr(df)
     _apply_derived_metrics(df)
     return _normalize_column_set(df)
+
+
+def build_protocol_leaderboard(df_summary: pd.DataFrame) -> pd.DataFrame:
+    """Aggregate the canonical summary into a candidate leaderboard.
+
+    This is the protocol-first ranking surface. It summarizes each evaluated
+    candidate using the same per-regime gates and fidelity metrics that drive
+    the scientific validation, instead of relying on training-only scores.
+    """
+    if df_summary is None or df_summary.empty:
+        return _empty_protocol_leaderboard()
+
+    df = df_summary.copy()
+    for col in SUMMARY_BY_REGIME_COLUMNS:
+        if col not in df.columns:
+            df[col] = np.nan
+
+    df["candidate_id"] = [
+        _candidate_id(tag, run_dir, scope)
+        for tag, run_dir, scope in zip(
+            df["best_grid_tag"],
+            df["model_run_dir"],
+            df["model_scope"],
+        )
+    ]
+
+    rows = []
+    group_cols = ["candidate_id", "best_grid_tag", "model_run_dir", "model_scope"]
+    for key, grp in df.groupby(group_cols, dropna=False, sort=False):
+        candidate_id, best_grid_tag, model_run_dir, model_scope = key
+        n_regimes = int(len(grp))
+        statuses = grp["validation_status"].astype(str)
+        gate_passes = {
+            f"gate_g{i}_pass": int(sum(_safe_bool(v) is True for v in grp[f"gate_g{i}"].tolist()))
+            for i in range(1, 7)
+        }
+        rows.append(
+            {
+                "candidate_id": candidate_id,
+                "best_grid_tag": best_grid_tag,
+                "model_run_dir": model_run_dir,
+                "model_scope": model_scope,
+                "n_studies": int(grp["study"].astype(str).nunique()),
+                "n_regimes": n_regimes,
+                "n_pass": int((statuses == "pass").sum()),
+                "n_fail": int((statuses == "fail").sum()),
+                "n_partial": int((statuses == "partial").sum()),
+                "all_regimes_passed": bool(n_regimes > 0 and (statuses == "pass").all()),
+                **gate_passes,
+                "gate_pass_ratio": _gate_pass_ratio(grp),
+                "mean_cvae_rel_evm_error": _finite_ratio(grp["cvae_rel_evm_error"]),
+                "mean_cvae_rel_snr_error": _finite_ratio(grp["cvae_rel_snr_error"]),
+                "mean_cvae_mean_rel_sigma": _finite_ratio(grp["cvae_mean_rel_sigma"]),
+                "mean_cvae_cov_rel_var": _finite_ratio(grp["cvae_cov_rel_var"]),
+                "mean_cvae_psd_l2": _finite_ratio(grp["cvae_psd_l2"]),
+                "mean_cvae_delta_acf_l2": _finite_ratio(grp["cvae_delta_acf_l2"]),
+                "mean_cvae_delta_skew_l2": _finite_ratio(grp["cvae_delta_skew_l2"]),
+                "mean_cvae_delta_kurt_l2": _finite_ratio(grp["cvae_delta_kurt_l2"]),
+                "mean_delta_jb_stat_rel": _finite_ratio(grp["delta_jb_stat_rel"]),
+                "mean_stat_mmd_qval": _finite_ratio(grp["stat_mmd_qval"]),
+                "mean_stat_energy_qval": _finite_ratio(grp["stat_energy_qval"]),
+                "protocol_score_v1": _protocol_score_v1(grp),
+            }
+        )
+
+    out = pd.DataFrame(rows)
+    if out.empty:
+        return _empty_protocol_leaderboard()
+
+    out = out.sort_values(
+        by=[
+            "all_regimes_passed",
+            "n_pass",
+            "gate_pass_ratio",
+            "protocol_score_v1",
+            "mean_cvae_rel_evm_error",
+            "mean_cvae_psd_l2",
+        ],
+        ascending=[False, False, False, True, True, True],
+        na_position="last",
+    ).reset_index(drop=True)
+    out.insert(0, "rank", np.arange(1, len(out) + 1))
+
+    for col in PROTOCOL_LEADERBOARD_COLUMNS:
+        if col not in out.columns:
+            out[col] = np.nan
+    return out.loc[:, PROTOCOL_LEADERBOARD_COLUMNS]
 
 
 def recompute_validation_summary(df_summary: pd.DataFrame) -> pd.DataFrame:
