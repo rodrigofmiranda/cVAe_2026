@@ -688,6 +688,133 @@ def _preset_seq_residual_mmd_final() -> List[Dict[str, Any]]:
     }]
 
 
+def _preset_best_compare_large() -> List[Dict[str, Any]]:
+    """Comparative protocol-first grid using the strongest current candidates.
+
+    This preset is intentionally mixed-family:
+      - ``delta_residual`` anchors from the best point-wise residual experiments
+      - ``seq_bigru_residual`` anchors from the MMD-augmented sequential line
+
+    It is designed for protocol-first comparison, not broad discovery:
+      - reuse the best protocol-tested delta candidates
+      - include the strongest non-MMD seq anchor
+      - include the full 2×3 MMD seq block around the all-gates-passed final eval
+      - include two promising delta candidates imported from the capacity/optim
+        sweep that was run outside the protocol path
+
+    Because seq_bigru_residual requires contiguous context, this preset should
+    be executed with ``--no_data_reduction``.
+    """
+    grid: List[Dict[str, Any]] = []
+
+    # Strongest current point-wise residual anchors.
+    delta_candidates = [
+        dict(
+            group="C5_best_compare",
+            tag="D1delta_lat4_b0p001_fb0p0_lr0p0003_L128-256-512",
+            cfg=_cfg(
+                arch_variant="delta_residual",
+                layer_sizes=[128, 256, 512],
+                latent_dim=4,
+                beta=0.001,
+                free_bits=0.0,
+                lr=3e-4,
+                batch_size=16384,
+                kl_anneal_epochs=80,
+            ),
+        ),
+        dict(
+            group="C5_best_compare",
+            tag="D3delta_lat5_b0p001_fb0p0_lr0p0003_bs16384_anneal80_L128-256-512",
+            cfg=_cfg(
+                arch_variant="delta_residual",
+                layer_sizes=[128, 256, 512],
+                latent_dim=5,
+                beta=0.001,
+                free_bits=0.0,
+                lr=3e-4,
+                batch_size=16384,
+                kl_anneal_epochs=80,
+            ),
+        ),
+        dict(
+            group="C5_best_compare",
+            tag="COPT_lat6_b0p001_fb0p0_lr0p0001_bs16384_anneal120_L64-128-256",
+            cfg=_cfg(
+                arch_variant="delta_residual",
+                layer_sizes=[64, 128, 256],
+                latent_dim=6,
+                beta=0.001,
+                free_bits=0.0,
+                lr=1e-4,
+                batch_size=16384,
+                kl_anneal_epochs=120,
+            ),
+        ),
+        dict(
+            group="C5_best_compare",
+            tag="COPT_lat4_b0p001_fb0p0_lr0p0002_bs16384_anneal40_L256-256-256",
+            cfg=_cfg(
+                arch_variant="delta_residual",
+                layer_sizes=[256, 256, 256],
+                latent_dim=4,
+                beta=0.001,
+                free_bits=0.0,
+                lr=2e-4,
+                batch_size=16384,
+                kl_anneal_epochs=40,
+            ),
+        ),
+    ]
+    grid.extend(delta_candidates)
+
+    def _seq_cfg(*, beta: float, seq_hidden_size: int, lambda_mmd: float = 0.0) -> Dict[str, Any]:
+        return _cfg(
+            arch_variant="seq_bigru_residual",
+            layer_sizes=[128, 256, 512],
+            latent_dim=4,
+            beta=beta,
+            free_bits=0.10,
+            lr=3e-4,
+            batch_size=8192,
+            kl_anneal_epochs=80,
+            window_size=7,
+            window_stride=1,
+            window_pad_mode="edge",
+            seq_hidden_size=seq_hidden_size,
+            seq_num_layers=1,
+            seq_bidirectional=True,
+            lambda_mmd=lambda_mmd,
+        )
+
+    # Best seq anchors before and after MMD augmentation.
+    seq_candidates = [
+        dict(
+            group="C5_best_compare",
+            tag="S1seq_W7_h64_lat4_b0p001_fb0p10_lr0p0003_L128-256-512",
+            cfg=_seq_cfg(beta=0.001, seq_hidden_size=64, lambda_mmd=0.0),
+        ),
+        dict(
+            group="C5_best_compare",
+            tag="S1seq_W7_h64_lat4_b0p003_fb0p10_lr0p0003_L128-256-512",
+            cfg=_seq_cfg(beta=0.003, seq_hidden_size=64, lambda_mmd=0.0),
+        ),
+    ]
+    for beta in [0.001, 0.003]:
+        beta_tag = _tag_beta(beta)
+        for lam in [0.1, 0.5, 1.0]:
+            lam_tag = str(lam).replace(".", "p")
+            seq_candidates.append(
+                dict(
+                    group="C5_best_compare",
+                    tag=f"S2seq_W7_h64_lat4_b{beta_tag}_lmmd{lam_tag}_fb0p10_lr0p0003_L128-256-512",
+                    cfg=_seq_cfg(beta=beta, seq_hidden_size=64, lambda_mmd=lam),
+                )
+            )
+    grid.extend(seq_candidates)
+    return grid
+
+
 def select_grid(
     overrides: Optional[Mapping[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
@@ -729,6 +856,8 @@ def select_grid(
             grid = _preset_seq_residual_mmd()
         elif preset_name == "seq_residual_mmd_final":
             grid = _preset_seq_residual_mmd_final()
+        elif preset_name == "best_compare_large":
+            grid = _preset_best_compare_large()
         else:
             raise ValueError(f"Unknown grid_preset={preset!r}")
 

@@ -91,6 +91,31 @@ def test_select_grid_delta_residual_frontier_opens_new_non_repeated_band():
     assert all(item["cfg"]["beta"] != 0.001 for item in grid)
 
 
+def test_select_grid_best_compare_large_mixes_delta_and_seq_anchors():
+    grid = select_grid({"grid_preset": "best_compare_large"})
+
+    assert len(grid) == 12
+    assert {item["group"] for item in grid} == {"C5_best_compare"}
+
+    delta = [item for item in grid if item["cfg"]["arch_variant"] == "delta_residual"]
+    seq = [item for item in grid if item["cfg"]["arch_variant"] == "seq_bigru_residual"]
+
+    assert len(delta) == 4
+    assert len(seq) == 8
+
+    assert {item["cfg"]["free_bits"] for item in delta} == {0.0}
+    assert {item["cfg"]["batch_size"] for item in delta} == {16384}
+    assert {item["cfg"]["batch_size"] for item in seq} == {8192}
+    assert {item["cfg"]["seq_hidden_size"] for item in seq} == {64}
+    assert {item["cfg"]["window_size"] for item in seq} == {7}
+    assert {item["cfg"]["lambda_mmd"] for item in seq} == {0.0, 0.1, 0.5, 1.0}
+
+    tags = {item["tag"] for item in grid}
+    assert "D3delta_lat5_b0p001_fb0p0_lr0p0003_bs16384_anneal80_L128-256-512" in tags
+    assert "COPT_lat6_b0p001_fb0p0_lr0p0001_bs16384_anneal120_L64-128-256" in tags
+    assert "S2seq_W7_h64_lat4_b0p001_lmmd1p0_fb0p10_lr0p0003_L128-256-512" in tags
+
+
 def test_select_grid_legacy2025_ref_matches_expected_reference_cfg():
     grid = select_grid({"grid_preset": "legacy2025_ref"})
 
