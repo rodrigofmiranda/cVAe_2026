@@ -218,12 +218,11 @@ python -c "from src.models.cvae import build_cvae; build_cvae({'layer_sizes':[12
 
 ### Which entrypoint to use
 
-There are two canonical execution modes, and they answer different questions:
+There is one canonical experiment entrypoint:
 
-- `python -m src.training.train`: cVAE training engine only. Use this for exploratory grid search, throughput testing, and finding a strong cVAE candidate from a single aggregated train/validation run.
-- `python -m src.protocol.run`: full experimental protocol. Use this for thesis-grade validation, baseline comparison, per-regime evaluation, and statistical fidelity tests.
+- `python -m src.protocol.run`: full experimental protocol for both exploratory grids and final scientific validation.
 
-Inside `src.protocol.run`, there are now **two protocol modes**:
+Inside `src.protocol.run`, there are **two protocol modes**:
 
 - default: `per_regime_retrain`
   - trains one cVAE per regime
@@ -235,13 +234,9 @@ Inside `src.protocol.run`, there are now **two protocol modes**:
 
 In practice:
 
-- `src.training.train` trains the cVAE, runs the grid, ranks candidates with the internal training score, and saves training artifacts. It does **not** produce the full per-regime scientific comparison against the deterministic baseline.
-- `src.protocol.run` orchestrates baseline + cVAE + final evaluation per regime, and produces the canonical validation outputs such as `manifest.json`, `tables/summary_by_regime.csv`, and `tables/stat_fidelity_by_regime.csv`.
-
-This means:
-
-- use `src.training.train` to answer: "which cVAE configuration trains best?"
-- use `src.protocol.run` to answer: "does the digital twin reproduce the real channel, regime by regime, better than the baseline?"
+- exploratory grids should still use `src.protocol.run`, typically with `--train_once_eval_all` and a reduced protocol/config subset
+- final validation should also use `src.protocol.run`, on the target protocol and with the canonical gates/summary tables
+- `src.training.train` is no longer a supported public entrypoint
 
 For the thesis end goal, the target artifact is the **shared global model**:
 
@@ -253,10 +248,10 @@ For the thesis end goal, the target artifact is the **shared global model**:
 Example: full-data exploratory cVAE grid search, without post-split train reduction:
 
 ```bash
-python -m src.training.train \
+python -m src.protocol.run \
   --dataset_root data/dataset_fullsquare_organized \
   --output_base outputs \
-  --run_id full_dataset_exploratory_20260312 \
+  --train_once_eval_all \
   --no_data_reduction
 ```
 
@@ -266,10 +261,10 @@ while enabling a structural ablation where the decoder predicts
 `Δ = Y - X` internally and resolves the final mean as `Y = X + Δ`.
 
 ```bash
-python -m src.training.train \
+python -m src.protocol.run \
   --dataset_root data/dataset_fullsquare_organized \
   --output_base outputs \
-  --run_id residual_small_global \
+  --train_once_eval_all \
   --no_data_reduction \
   --grid_preset residual_small \
   --max_epochs 120 \
@@ -281,10 +276,10 @@ For a cheaper full-data exploratory run, prefer the compact preset plus explicit
 training patience overrides:
 
 ```bash
-python -m src.training.train \
+python -m src.protocol.run \
   --dataset_root data/dataset_fullsquare_organized \
   --output_base outputs \
-  --run_id full_dataset_exploratory_small \
+  --train_once_eval_all \
   --no_data_reduction \
   --grid_preset exploratory_small \
   --max_epochs 120 \
@@ -305,16 +300,15 @@ Note: reducing patience helps, but very long runs are still mostly driven by
 For the final differentiable digital twin that will later sit inside the
 end-to-end learned communication system, use this sequence:
 
-1. `src.training.train` or a focused global grid to identify strong shared-model candidates.
-2. `src.protocol.run --train_once_eval_all` to train the shared model once and evaluate it across all regimes.
-3. Read `tables/summary_by_regime.csv` and the summary heatmaps in `plots/summary/`.
+1. `src.protocol.run --train_once_eval_all` with a focused global grid to identify strong shared-model candidates.
+2. `src.protocol.run --train_once_eval_all` on the target protocol to train the shared model once and evaluate it across all regimes.
+3. Read `tables/summary_by_regime.csv` and the consolidated heatmap in `plots/best_model/`.
 
-The most direct visual diagnostic for EVM is:
+The canonical visual summary is:
 
-- `plots/summary/heatmap_abs_delta_evm_vs_real_models.png`
-  - left: `|EVM_baseline - EVM_real|`
-  - right: `|EVM_cVAE - EVM_real|`
-  - hotter colors = regimes further outside prediction
+- `plots/best_model/heatmap_vae_vs_real_metric_diffs.png`
+  - compares real-vs-cVAE gaps across the active fidelity metrics
+  - hotter colors = larger mismatch between the champion model and the real channel
 
 Example:
 
@@ -334,7 +328,7 @@ python -m src.protocol.run \
 ### Legacy wrappers
 
 ```bash
-# Train (grid search over ~42 configurations)
+# Shared-global protocol run (wrapper over src.protocol.run --train_once_eval_all)
 bash scripts/train.sh
 
 # Evaluate the latest (or a specific) run

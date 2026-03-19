@@ -151,26 +151,27 @@ with tolerances controlled by `--dist_tol_m` (default 0.05) and
 
 ```
 outputs/exp_YYYYMMDD_HHMMSS/
-├── global_model/                  (only with --train_once_eval_all)
+├── train/                         (only with --train_once_eval_all)
 │   ├── models/
-│   ├── logs/
+│   ├── plots/
 │   └── tables/
+├── eval/
+│   ├── dist_0p8m__curr_200mA/
+│   │   ├── plots/
+│   │   └── tables/
+│   ├── dist_0p8m__curr_400mA/
+│   └── ...
 ├── manifest.json
 ├── logs/
 │   ├── protocol_input.json
-│   └── protocol_input.yaml   (when YAML config used)
+│   ├── protocol_input.yaml   (when YAML config used)
+│   └── ...
 ├── tables/
 │   ├── summary_by_regime.csv
-│   └── summary_by_regime.xlsx
-└── studies/
-    └── within_regime/
-        └── regimes/
-            ├── dist_0p8m__curr_200mA/
-            │   ├── models/
-            │   ├── logs/
-            │   └── tables/
-            ├── dist_0p8m__curr_400mA/
-            └── ...
+│   └── stat_fidelity_by_regime.csv
+└── plots/
+    └── best_model/
+        └── heatmap_vae_vs_real_metric_diffs.png
 ```
 
 ### Output semantics by mode
@@ -178,13 +179,10 @@ outputs/exp_YYYYMMDD_HHMMSS/
 - `per_regime_retrain`:
   - each regime directory contains both the trained model and its evaluation artifacts
 - `train_once_eval_all`:
-- `global_model/` contains the single shared trained cVAE
-- each regime directory contains only the regime-specific evaluation artifacts produced with that shared model
+- `train/` contains the single shared trained cVAE
+- `eval/` contains only the regime-specific evaluation artifacts produced with that shared model
 - `summary_by_regime.csv` records both `run_dir` (evaluation artifacts) and `model_run_dir` (shared model source)
-- `plots/summary/` includes EVM heatmaps for:
-  - real vs baseline vs cVAE
-  - signed `ΔEVM`
-  - absolute EVM error vs the real channel, which is the fastest visual diagnostic for regimes outside prediction
+- `plots/best_model/heatmap_vae_vs_real_metric_diffs.png` is the canonical visual summary
 
 ### Summary table columns
 

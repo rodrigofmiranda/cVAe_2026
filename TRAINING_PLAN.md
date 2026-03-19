@@ -6,8 +6,6 @@
 ## 0. Estado atual
 
 - Pipeline canonico ativo:
-  - `python -m src.training.train`
-  - `python -m src.evaluation.evaluate`
   - `python -m src.protocol.run`
 - Modos ativos de protocolo:
   - `per_regime_retrain`: diagnostico local com treino separado por regime
@@ -19,8 +17,7 @@
   - JSONs e logs por regime
 - Diagnosticos de grid disponiveis:
   - `tables/gridsearch_results.csv`
-  - `models/grid_*__tag/plots/`
-  - `plots/best_grid_model/`
+  - `plots/champion/analysis_dashboard.png`
 - Ultima checagem local da suite:
   - `python -m pytest tests -q` -> `46 passed`
 - Run pivo de referencia:
