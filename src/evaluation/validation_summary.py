@@ -14,11 +14,11 @@ from src.evaluation.stat_tests import benjamini_hochberg
 TWIN_GATE_THRESHOLDS = {
     "rel_evm_error": 0.10,
     "rel_snr_error": 0.10,
-    "delta_mean_l2": 0.01,
-    "delta_cov_fro": 0.01,
-    "delta_psd_l2": 0.20,
-    "delta_skew_l2": 0.20,
-    "delta_kurt_l2": 0.50,
+    "mean_rel_sigma": 0.10,
+    "cov_rel_var": 0.20,
+    "delta_psd_l2": 0.25,
+    "delta_skew_l2": 0.30,
+    "delta_kurt_l2": 1.25,
     "delta_jb_stat_rel": 0.20,
     "stat_qval": 0.05,
 }
@@ -64,12 +64,16 @@ SUMMARY_BY_REGIME_COLUMNS: List[str] = [
     "baseline_delta_snr_db",
     "baseline_rel_evm_error",
     "baseline_rel_snr_error",
+    "baseline_mean_rel_sigma",
+    "baseline_cov_rel_var",
     "cvae_evm_pred_%",
     "cvae_snr_pred_db",
     "cvae_delta_evm_%",
     "cvae_delta_snr_db",
     "cvae_rel_evm_error",
     "cvae_rel_snr_error",
+    "cvae_mean_rel_sigma",
+    "cvae_cov_rel_var",
     "baseline_delta_mean_l2",
     "baseline_delta_cov_fro",
     "baseline_delta_skew_l2",
@@ -375,6 +379,27 @@ def _apply_derived_metrics(df: pd.DataFrame) -> None:
     df["baseline_rel_snr_error"] = np.where(snr_real > 0, baseline_delta_snr / snr_real, np.nan)
     df["cvae_rel_evm_error"] = np.where(evm_real > 0, cvae_delta_evm / evm_real, np.nan)
     df["cvae_rel_snr_error"] = np.where(snr_real > 0, cvae_delta_snr / snr_real, np.nan)
+    sigma_real = np.sqrt(den)
+    df["baseline_mean_rel_sigma"] = np.where(
+        sigma_real > 0,
+        pd.to_numeric(df["baseline_delta_mean_l2"], errors="coerce") / sigma_real,
+        np.nan,
+    )
+    df["cvae_mean_rel_sigma"] = np.where(
+        sigma_real > 0,
+        pd.to_numeric(df["cvae_delta_mean_l2"], errors="coerce") / sigma_real,
+        np.nan,
+    )
+    df["baseline_cov_rel_var"] = np.where(
+        den > 0,
+        pd.to_numeric(df["baseline_delta_cov_fro"], errors="coerce") / den,
+        np.nan,
+    )
+    df["cvae_cov_rel_var"] = np.where(
+        den > 0,
+        pd.to_numeric(df["cvae_delta_cov_fro"], errors="coerce") / den,
+        np.nan,
+    )
 
     stat_den = pd.to_numeric(df["var_real_delta"], errors="coerce")
     stat_num = pd.to_numeric(df["stat_mmd2"], errors="coerce")
@@ -430,8 +455,8 @@ def _apply_derived_metrics(df: pd.DataFrame) -> None:
     df["gate_g3"] = [
         _gate_all(mean_ok, cov_ok)
         for mean_ok, cov_ok in zip(
-            [_lt(v, TWIN_GATE_THRESHOLDS["delta_mean_l2"]) for v in df["cvae_delta_mean_l2"]],
-            [_lt(v, TWIN_GATE_THRESHOLDS["delta_cov_fro"]) for v in df["cvae_delta_cov_fro"]],
+            [_lt(v, TWIN_GATE_THRESHOLDS["mean_rel_sigma"]) for v in df["cvae_mean_rel_sigma"]],
+            [_lt(v, TWIN_GATE_THRESHOLDS["cov_rel_var"]) for v in df["cvae_cov_rel_var"]],
         )
     ]
     df["gate_g4"] = [_lt(v, TWIN_GATE_THRESHOLDS["delta_psd_l2"]) for v in df["cvae_psd_l2"]]

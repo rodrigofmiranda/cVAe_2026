@@ -103,6 +103,8 @@ def test_validation_summary_schema_and_derived_fields():
     assert math.isclose(row["delta_jb_log10p"], 0.2, rel_tol=1e-9)
     assert math.isclose(row["cvae_rel_evm_error"], 0.08, rel_tol=1e-9)
     assert math.isclose(row["cvae_rel_snr_error"], 0.06, rel_tol=1e-9)
+    assert math.isclose(row["cvae_mean_rel_sigma"], 0.005 / math.sqrt(0.05), rel_tol=1e-9)
+    assert math.isclose(row["cvae_cov_rel_var"], 0.008 / 0.05, rel_tol=1e-9)
     assert row["model_run_dir"] == "/tmp/global_model"
     assert row["model_scope"] == "shared_global"
     assert bool(row["better_than_baseline_mean"]) is True
@@ -131,6 +133,21 @@ def test_signal_fidelity_gates_require_10_percent_closeness_to_real():
 
     assert bool(row["gate_g1"]) is False
     assert bool(row["gate_g2"]) is False
+    assert row["validation_status"] == "fail"
+
+
+def test_residual_scale_gate_uses_real_residual_power_not_baseline():
+    result = _full_result()
+    result["metrics"]["delta_mean_l2"] = 0.020
+    result["metrics"]["delta_cov_fro"] = 0.009
+    result["cvae_dist"]["delta_mean_l2"] = 0.020
+    result["cvae_dist"]["delta_cov_fro"] = 0.009
+
+    df = build_validation_summary_table([result])
+    row = df.iloc[0]
+
+    assert math.isclose(row["cvae_mean_rel_sigma"], 0.020 / math.sqrt(0.05), rel_tol=1e-9)
+    assert bool(row["gate_g3"]) is False
     assert row["validation_status"] == "fail"
 
 
