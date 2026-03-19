@@ -722,6 +722,7 @@ def _extract_cvae_dist_from_eval_metrics(metrics: dict) -> dict:
         "delta_kurt_l2": _f(metrics.get("delta_kurt_l2")),
         # eval JSON uses delta_psd_l2 naming; protocol table expects psd_l2.
         "psd_l2": _f(metrics.get("delta_psd_l2", metrics.get("psd_l2"))),
+        "delta_acf_l2": _f(metrics.get("delta_acf_l2")),
         # Optional JB fields (present after CORREÇÃO 3 propagation in eval metrics).
         "jb_stat_I": _f(metrics.get("jb_stat_I")),
         "jb_stat_Q": _f(metrics.get("jb_stat_Q")),
@@ -742,7 +743,7 @@ def _extract_cvae_dist_from_eval_metrics(metrics: dict) -> dict:
         ),
     }
     # Require at least one core distance metric to consider mapping valid.
-    _core = ("delta_mean_l2", "delta_cov_fro", "delta_skew_l2", "delta_kurt_l2", "psd_l2")
+    _core = ("delta_mean_l2", "delta_cov_fro", "delta_skew_l2", "delta_kurt_l2", "psd_l2", "delta_acf_l2")
     if all(out.get(k) is None for k in _core):
         return {}
     return out
@@ -1216,6 +1217,7 @@ def run_regime(
                     psd_nfft=_psd_nfft, max_samples=_max_ds, gauss_alpha=_g_alpha,
                 )
                 print(f"   📐 Baseline dist: Δmean_l2={result['baseline_dist']['delta_mean_l2']:.4f}  "
+                      f"Δacf_l2={result['baseline_dist'].get('delta_acf_l2', float('nan')):.4f}  "
                       f"psd_l2={result['baseline_dist']['psd_l2']:.4f}  "
                       f"reject_gauss={result['baseline_dist']['reject_gaussian']}")
                 del Y_pred_bl, res_pred_bl
@@ -1336,9 +1338,11 @@ def run_regime(
                 print(f"\n🔍 cVAE dist-metrics for regime '{regime_id}' "
                       f"(source={_dm_source}, N_eval={result.get('metrics', {}).get('N_eval', 'n/a')})")
                 _dm_mean = _eval_dm.get("delta_mean_l2")
+                _dm_acf = _eval_dm.get("delta_acf_l2")
                 _dm_psd = _eval_dm.get("psd_l2")
                 print(f"   📐 cVAE dist ({_dm_source}): "
                       f"Δmean_l2={(float(_dm_mean) if _dm_mean is not None else float('nan')):.4f}  "
+                      f"Δacf_l2={(float(_dm_acf) if _dm_acf is not None else float('nan')):.4f}  "
                       f"psd_l2={(float(_dm_psd) if _dm_psd is not None else float('nan')):.4f}  "
                       f"reject_gauss={_eval_dm.get('reject_gaussian')}")
             else:
@@ -1398,6 +1402,7 @@ def run_regime(
                     result["dist_metrics_source"] = _dm_source
                     print(f"   📐 cVAE dist ({_dm_source}): "
                           f"Δmean_l2={cvae_dm['delta_mean_l2']:.4f}  "
+                          f"Δacf_l2={cvae_dm.get('delta_acf_l2', float('nan')):.4f}  "
                           f"psd_l2={cvae_dm['psd_l2']:.4f}  "
                           f"reject_gauss={cvae_dm['reject_gaussian']}")
                     del _pred_pack, Y_pred_cvae, X_tiled, _D_tiled, _C_tiled
@@ -1826,8 +1831,12 @@ def main():
             delta += f" | baseline EVM={bl['evm_pred_%']:.3f}%"
         if bd.get("delta_mean_l2") is not None:
             delta += f" | bl_Δmean={bd['delta_mean_l2']:.4f}"
+        if bd.get("delta_acf_l2") is not None:
+            delta += f" | bl_Δacf={bd['delta_acf_l2']:.4f}"
         if cd.get("delta_mean_l2") is not None:
             delta += f" | cv_Δmean={cd['delta_mean_l2']:.4f}"
+        if cd.get("delta_acf_l2") is not None:
+            delta += f" | cv_Δacf={cd['delta_acf_l2']:.4f}"
         sf = r.get("stat_fidelity", {})
         if sf.get("mmd2") is not None:
             delta += f" | MMD²={sf['mmd2']:.6f}(p={sf['mmd_pval']:.3f})"

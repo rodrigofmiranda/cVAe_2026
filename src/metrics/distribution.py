@@ -10,6 +10,7 @@ Functions
 ---------
 moment_deltas          Δ mean (L2), Δ covariance (Frobenius), Δ skew (L2), Δ kurtosis (L2)
 psd_distance           Welch PSD L2 distance (log-domain)
+acf_distance           Normalised ACF L2 distance on complex residuals
 gaussianity_tests      Jarque–Bera per I/Q component → p-values + reject flag
 residual_fidelity_metrics  All-in-one convenience wrapper
 
@@ -107,6 +108,20 @@ def psd_distance(a: np.ndarray, b: np.ndarray, nfft: int = 2048) -> Dict[str, fl
     return {"psd_l2": psd_l2}
 
 
+def acf_distance(a: np.ndarray, b: np.ndarray, max_lag: int = 128) -> Dict[str, float]:
+    """Normalised ACF distance between two [N, 2] I/Q arrays."""
+    from src.evaluation.metrics import _acf_curve_complex
+
+    a = np.asarray(a, dtype=np.float64)
+    b = np.asarray(b, dtype=np.float64)
+    ca = a[:, 0] + 1j * a[:, 1]
+    cb = b[:, 0] + 1j * b[:, 1]
+    acf_a = _acf_curve_complex(ca, max_lag=int(max_lag))
+    acf_b = _acf_curve_complex(cb, max_lag=int(max_lag))
+    acf_l2 = float(np.linalg.norm(acf_b - acf_a) / np.sqrt(max(len(acf_a), 1)))
+    return {"delta_acf_l2": acf_l2}
+
+
 # ---------------------------------------------------------------------------
 # Gaussianity tests
 # ---------------------------------------------------------------------------
@@ -193,6 +208,7 @@ def residual_fidelity_metrics(
     psd_nfft: int = 2048,
     gauss_alpha: float = 0.01,
     max_samples: int = 200_000,
+    acf_max_lag: int = 128,
 ) -> Dict:
     """
     All distribution-fidelity metrics between real and predicted residuals.
@@ -216,6 +232,7 @@ def residual_fidelity_metrics(
     result = {}
     result.update(moment_deltas(rr, rp))
     result.update(psd_distance(rr, rp, nfft=psd_nfft))
+    result.update(acf_distance(rr, rp, max_lag=acf_max_lag))
     g_real = gaussianity_tests(rr, alpha=gauss_alpha)
     result.update({
         "jb_real_stat_I": g_real["jb_stat_I"],

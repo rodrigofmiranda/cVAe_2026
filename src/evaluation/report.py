@@ -264,7 +264,7 @@ def build_summary_text(
         f"N_eval: {N_eval}\n"
         f"EVM real: {evm_real:.3f}% | EVM pred: {evm_pred:.3f}% | ΔEVM: {evm_pred-evm_real:+.3f} p.p.\n"
         f"SNR real: {snr_real:.3f} dB | SNR pred: {snr_pred:.3f} dB | ΔSNR: {snr_pred-snr_real:+.3f} dB\n"
-        f"Δ mean L2: {distm['delta_mean_l2']:.4g} | Δ cov Fro: {distm['delta_cov_fro']:.4g} | Δ PSD L2: {distm['delta_psd_l2']:.4g}\n"
+        f"Δ mean L2: {distm['delta_mean_l2']:.4g} | Δ cov Fro: {distm['delta_cov_fro']:.4g} | Δ ACF L2: {distm.get('delta_acf_l2', float('nan')):.4g} | Δ PSD L2: {distm['delta_psd_l2']:.4g}\n"
         f"Latent active dims (std μ_p>0.05): {active_dims}\n"
         f"Latent prior semantics: {prior_semantics}\n"
         f"KL(q||p) total mean: {_fmt_metric(kl_qp_total_mean)} | KL(p||N) total mean: {_fmt_metric(kl_pN_total_mean)}\n"

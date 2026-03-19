@@ -10,6 +10,7 @@ calculate_evm   – EVM (%) and EVM (dB) between reference and test I/Q.
 calculate_snr   – SNR (dB) between reference and test I/Q.
 _skew_kurt      – Per-axis skewness and excess kurtosis.
 _psd_log        – Log10 PSD estimate (Welch-like, Hanning window).
+_acf_curve_complex – Normalised residual ACF curve on complex IQ.
 residual_distribution_metrics – Aggregate residual Δ statistics.
 """
 
@@ -82,6 +83,23 @@ def _psd_log(xc: np.ndarray, nfft: int = 2048, eps: float = 1e-12):
     return np.log10(psd + eps)
 
 
+def _acf_curve_complex(xc: np.ndarray, max_lag: int = 128) -> np.ndarray:
+    xc = np.asarray(xc, dtype=np.complex128).ravel()
+    xc = xc - np.mean(xc)
+    if len(xc) == 0:
+        return np.zeros(1, dtype=np.float64)
+    denom = float(np.vdot(xc, xc).real)
+    if denom <= 1e-12:
+        return np.zeros(max_lag + 1, dtype=np.float64)
+    out = np.empty(max_lag + 1, dtype=np.float64)
+    for lag in range(max_lag + 1):
+        if lag == 0:
+            out[lag] = 1.0
+        else:
+            out[lag] = float(np.vdot(xc[:-lag], xc[lag:]).real / denom)
+    return out
+
+
 # ==========================================================================
 # Residual distribution comparison
 # ==========================================================================
@@ -91,6 +109,7 @@ def residual_distribution_metrics(
     Yp: np.ndarray,
     psd_nfft: int = 2048,
     gauss_alpha: float = 0.01,
+    acf_max_lag: int = 128,
 ):
     d_real = np.asarray(Y) - np.asarray(X)
     d_pred = np.asarray(Yp) - np.asarray(X)
@@ -111,6 +130,9 @@ def residual_distribution_metrics(
     psd_r = _psd_log(cr, nfft=int(psd_nfft))
     psd_p = _psd_log(cp, nfft=int(psd_nfft))
     psd_l2 = float(np.linalg.norm(psd_p - psd_r) / np.sqrt(len(psd_r) if len(psd_r) else 1))
+    acf_r = _acf_curve_complex(cr, max_lag=int(acf_max_lag))
+    acf_p = _acf_curve_complex(cp, max_lag=int(acf_max_lag))
+    acf_l2 = float(np.linalg.norm(acf_p - acf_r) / np.sqrt(len(acf_r) if len(acf_r) else 1))
 
     out = {
         "delta_mean_l2": mean_l2,
@@ -120,6 +142,7 @@ def residual_distribution_metrics(
         "delta_skew_l2": skew_l2,
         "delta_kurt_l2": kurt_l2,
         "delta_psd_l2": psd_l2,
+        "delta_acf_l2": acf_l2,
     }
 
     # Keep JB fields aligned with src.metrics.distribution (auditability / underflow-safe log10(p)).

@@ -168,6 +168,16 @@ Os gates sao criterios de aceite por regime. Eles ja aparecem em `summary_by_reg
 - `G5` cobre forma de distribuicao: skew, kurtosis e nao-gaussianidade, sempre contra o real.
 - `G6` e o gate formal mais forte para indistinguibilidade de distribuicao.
 
+### Nota futura — Mutual Information
+
+- `mutual information` **nao entra nos gates por enquanto**
+- se entrar depois, deve ser adicionada como diagnostico auxiliar:
+  - `MI_real = I(X; Y_real)`
+  - `MI_cvae = I(X; Y_model)`
+  - `mi_gap_rel = |MI_cvae - MI_real| / MI_real`
+- usar a mesma rotina de estimacao, o mesmo `N` e bootstrap/IC
+- MI so faz sentido como complemento; ela nao substitui `MMD`, `Energy`, `PSD` e as metricas do residual
+
 ### Status derivado por regime
 
 - `validation_status = pass` se todos os gates disponiveis forem `True`

@@ -38,6 +38,7 @@ def _full_result() -> dict:
             "delta_skew_l2": 0.10,
             "delta_kurt_l2": 0.30,
             "delta_psd_l2": 0.15,
+            "delta_acf_l2": 0.09,
             "jb_p_min": 1e-6,
             "jb_log10p_min": -6.0,
             "reject_gaussian": True,
@@ -57,6 +58,7 @@ def _full_result() -> dict:
             "delta_skew_l2": 0.09,
             "delta_kurt_l2": 0.12,
             "psd_l2": 0.14,
+            "delta_acf_l2": 0.16,
             "jb_p_min": 1e-5,
             "jb_log10p_min": -5.0,
             "reject_gaussian": True,
@@ -67,6 +69,7 @@ def _full_result() -> dict:
             "delta_skew_l2": 0.10,
             "delta_kurt_l2": 0.30,
             "psd_l2": 0.15,
+            "delta_acf_l2": 0.09,
             "jb_p_min": 1e-6,
             "jb_log10p_min": -6.0,
             "reject_gaussian": True,
@@ -105,6 +108,7 @@ def test_validation_summary_schema_and_derived_fields():
     assert math.isclose(row["cvae_rel_snr_error"], 0.06, rel_tol=1e-9)
     assert math.isclose(row["cvae_mean_rel_sigma"], 0.005 / math.sqrt(0.05), rel_tol=1e-9)
     assert math.isclose(row["cvae_cov_rel_var"], 0.008 / 0.05, rel_tol=1e-9)
+    assert math.isclose(row["cvae_delta_acf_l2"], 0.09, rel_tol=1e-9)
     assert row["model_run_dir"] == "/tmp/global_model"
     assert row["model_scope"] == "shared_global"
     assert bool(row["better_than_baseline_mean"]) is True

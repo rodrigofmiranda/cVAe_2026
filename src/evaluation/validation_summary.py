@@ -50,6 +50,7 @@ SUMMARY_BY_REGIME_COLUMNS: List[str] = [
     "delta_skew_l2",
     "delta_kurt_l2",
     "delta_psd_l2",
+    "delta_acf_l2",
     "jb_p_min",
     "jb_log10p_min",
     "reject_gaussian",
@@ -79,6 +80,7 @@ SUMMARY_BY_REGIME_COLUMNS: List[str] = [
     "baseline_delta_skew_l2",
     "baseline_delta_kurt_l2",
     "baseline_psd_l2",
+    "baseline_delta_acf_l2",
     "baseline_jb_p_min",
     "baseline_jb_log10p_min",
     "baseline_reject_gauss",
@@ -87,6 +89,7 @@ SUMMARY_BY_REGIME_COLUMNS: List[str] = [
     "cvae_delta_skew_l2",
     "cvae_delta_kurt_l2",
     "cvae_psd_l2",
+    "cvae_delta_acf_l2",
     "cvae_jb_p_min",
     "cvae_jb_log10p_min",
     "cvae_reject_gauss",
@@ -248,6 +251,7 @@ def _build_row(result: Dict[str, Any]) -> Dict[str, Any]:
     delta_skew = _first_finite(metrics.get("delta_skew_l2"), cvae_dist.get("delta_skew_l2"))
     delta_kurt = _first_finite(metrics.get("delta_kurt_l2"), cvae_dist.get("delta_kurt_l2"))
     delta_psd = _first_finite(metrics.get("delta_psd_l2"), cvae_dist.get("psd_l2"))
+    delta_acf = _first_finite(metrics.get("delta_acf_l2"), cvae_dist.get("delta_acf_l2"))
     jb_p_min = _first_finite(metrics.get("jb_p_min"), cvae_dist.get("jb_p_min"))
     jb_log10p_min = _first_finite(metrics.get("jb_log10p_min"), cvae_dist.get("jb_log10p_min"))
     reject_gaussian = _first_bool(metrics.get("reject_gaussian"), cvae_dist.get("reject_gaussian"))
@@ -286,6 +290,7 @@ def _build_row(result: Dict[str, Any]) -> Dict[str, Any]:
         "delta_skew_l2": delta_skew,
         "delta_kurt_l2": delta_kurt,
         "delta_psd_l2": delta_psd,
+        "delta_acf_l2": delta_acf,
         "jb_p_min": jb_p_min,
         "jb_log10p_min": jb_log10p_min,
         "reject_gaussian": reject_gaussian,
@@ -305,6 +310,7 @@ def _build_row(result: Dict[str, Any]) -> Dict[str, Any]:
         "baseline_delta_skew_l2": _safe_float(baseline_dist.get("delta_skew_l2")),
         "baseline_delta_kurt_l2": _safe_float(baseline_dist.get("delta_kurt_l2")),
         "baseline_psd_l2": _safe_float(baseline_dist.get("psd_l2")),
+        "baseline_delta_acf_l2": _safe_float(baseline_dist.get("delta_acf_l2")),
         "baseline_jb_p_min": _safe_float(baseline_dist.get("jb_p_min")),
         "baseline_jb_log10p_min": _safe_float(baseline_dist.get("jb_log10p_min")),
         "baseline_reject_gauss": _safe_bool(baseline_dist.get("reject_gaussian")),
@@ -313,6 +319,7 @@ def _build_row(result: Dict[str, Any]) -> Dict[str, Any]:
         "cvae_delta_skew_l2": _first_finite(cvae_dist.get("delta_skew_l2"), delta_skew),
         "cvae_delta_kurt_l2": _first_finite(cvae_dist.get("delta_kurt_l2"), delta_kurt),
         "cvae_psd_l2": _first_finite(cvae_dist.get("psd_l2"), delta_psd),
+        "cvae_delta_acf_l2": _first_finite(cvae_dist.get("delta_acf_l2"), delta_acf),
         "cvae_jb_p_min": _first_finite(cvae_dist.get("jb_p_min"), jb_p_min),
         "cvae_jb_log10p_min": _first_finite(cvae_dist.get("jb_log10p_min"), jb_log10p_min),
         "cvae_reject_gauss": _first_bool(cvae_dist.get("reject_gaussian"), reject_gaussian),

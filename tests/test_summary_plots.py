@@ -8,12 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.evaluation.summary_plots import (
-    generate_all,
-    plot_abs_delta_evm_vs_real_models,
-    plot_delta_evm_models,
-    plot_evm_real_vs_models,
-)
+from src.evaluation.summary_plots import generate_all
 
 
 @pytest.fixture()
@@ -28,48 +23,28 @@ def _make_summary_df(n_dist: int = 3, n_curr: int = 4) -> pd.DataFrame:
     rows = []
     for d in np.linspace(0.8, 1.5, n_dist):
         for c in np.linspace(100, 400, n_curr):
-            evm_real = rng.uniform(20.0, 35.0)
-            baseline = evm_real + rng.uniform(-2.0, 4.0)
-            cvae = evm_real + rng.uniform(-3.0, 3.0)
             rows.append({
                 "regime_id": f"dist_{d:.1f}m__curr_{int(c)}mA",
                 "dist_target_m": round(d, 2),
                 "curr_target_mA": round(c, 0),
-                "evm_real_%": evm_real,
-                "baseline_evm_pred_%": baseline,
-                "baseline_delta_evm_%": baseline - evm_real,
-                "cvae_evm_pred_%": cvae,
-                "cvae_delta_evm_%": cvae - evm_real,
+                "cvae_delta_evm_%": rng.uniform(-3.0, 3.0),
+                "cvae_delta_snr_db": rng.uniform(-1.0, 1.0),
+                "cvae_delta_mean_l2": rng.uniform(0.001, 0.050),
+                "cvae_delta_cov_fro": rng.uniform(0.001, 0.050),
+                "cvae_delta_skew_l2": rng.uniform(0.050, 0.500),
+                "cvae_delta_kurt_l2": rng.uniform(0.050, 1.500),
+                "cvae_psd_l2": rng.uniform(0.050, 0.500),
+                "cvae_delta_acf_l2": rng.uniform(0.050, 0.500),
+                "stat_mmd2": rng.uniform(0.0001, 0.0100),
+                "stat_energy": rng.uniform(0.0001, 0.0100),
+                "stat_psd_dist": rng.uniform(0.050, 0.500),
             })
     return pd.DataFrame(rows)
 
 
-def test_plot_evm_real_vs_models_creates_png(out_dir):
-    df = _make_summary_df()
-    p = plot_evm_real_vs_models(df, out_dir)
-    assert p is not None
-    assert p.exists() and p.stat().st_size > 500
-
-
-def test_plot_delta_evm_models_creates_png(out_dir):
-    df = _make_summary_df()
-    p = plot_delta_evm_models(df, out_dir)
-    assert p is not None
-    assert p.exists() and p.stat().st_size > 500
-
-
-def test_plot_abs_delta_evm_vs_real_models_creates_png(out_dir):
-    df = _make_summary_df()
-    p = plot_abs_delta_evm_vs_real_models(df, out_dir)
-    assert p is not None
-    assert p.exists() and p.stat().st_size > 500
-
-
-def test_generate_all_creates_three_files(out_dir):
+def test_generate_all_creates_best_model_heatmap(out_dir):
     df = _make_summary_df()
     paths = generate_all(df, out_dir)
-    assert len(paths) == 3
-    names = {p.name for p in paths}
-    assert "heatmap_evm_real_vs_models.png" in names
-    assert "heatmap_delta_evm_models.png" in names
-    assert "heatmap_abs_delta_evm_vs_real_models.png" in names
+    assert len(paths) == 1
+    assert paths[0].name == "heatmap_vae_vs_real_metric_diffs.png"
+    assert paths[0].exists() and paths[0].stat().st_size > 500

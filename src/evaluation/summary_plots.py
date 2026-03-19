@@ -163,6 +163,14 @@ _METRIC_SPECS = [
         "signed": False,
     },
     {
+        "cols": ("cvae_delta_acf_l2", "delta_acf_l2"),
+        "title": "Residual ACF mismatch (L2)",
+        "fmt": ".4f",
+        "cmap": "YlOrRd",
+        "cbar": "ACF L2",
+        "signed": False,
+    },
+    {
         "cols": ("stat_mmd2",),
         "title": "MMD² (real vs cVAE)",
         "fmt": ".4f",

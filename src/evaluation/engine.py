@@ -514,6 +514,7 @@ def evaluate_run(
             "delta_skew_l2": float("nan"),
             "delta_kurt_l2": float("nan"),
             "delta_psd_l2": float("nan"),
+            "delta_acf_l2": float("nan"),
         }
 
     global_metrics = build_global_metrics(

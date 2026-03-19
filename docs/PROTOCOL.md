@@ -202,7 +202,7 @@ outputs/exp_YYYYMMDD_HHMMSS/
 | `evm_real_%`, `evm_pred_%`, `delta_evm_%` | EVM metrics |
 | `snr_real_db`, `snr_pred_db`, `delta_snr_db` | SNR metrics |
 | `delta_mean_l2`, `delta_cov_fro`, `var_real_delta`, `var_pred_delta`, `var_ratio_pred_real` | Residual distribution metrics |
-| `delta_skew_l2`, `delta_kurt_l2`, `delta_psd_l2`, `jb_p_min`, `jb_log10p_min` | Higher-order stats + gaussianity |
+| `delta_skew_l2`, `delta_kurt_l2`, `delta_psd_l2`, `delta_acf_l2`, `jb_p_min`, `jb_log10p_min` | Higher-order stats + gaussianity |
 | `baseline_*`, `cvae_*` | Side-by-side baseline vs cVAE validation metrics |
 | `stat_mmd2`, `stat_mmd_pval`, `stat_mmd_qval`, `stat_mmd2_normalized` | Formal two-sample MMD outputs |
 | `stat_energy`, `stat_energy_pval`, `stat_energy_qval` | Formal Energy test outputs |
