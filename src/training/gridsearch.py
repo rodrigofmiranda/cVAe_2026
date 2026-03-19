@@ -35,6 +35,28 @@ def _grid_artifact_dir(models_dir: Path, gi: int, tag: str) -> Path:
     return d
 
 
+def _save_keras_model_compat(model: Any, path: Path) -> None:
+    """Save a Keras model across TF-Keras/Keras format differences.
+
+    Some environments reject ``include_optimizer=False`` when the target uses
+    the native ``.keras`` format. We prefer excluding the optimizer state when
+    supported, but transparently retry without that argument when the local
+    Keras version disallows it.
+    """
+    try:
+        model.save(str(path), include_optimizer=False)
+        return
+    except ValueError as exc:
+        msg = str(exc)
+        if "include_optimizer" not in msg:
+            raise
+        print(
+            "⚠️  Keras local não aceita include_optimizer no formato .keras; "
+            f"repetindo save sem esse argumento: {path}"
+        )
+        model.save(str(path))
+
+
 def checklist_table() -> "pd.DataFrame":
     """Return the collapse-vs-healthy checklist as a DataFrame."""
     rows = [
@@ -579,7 +601,7 @@ def run_gridsearch(
 
             # Save individual model
             model_path = model_dir / "model_full.keras"
-            vae.save(str(model_path), include_optimizer=False)
+            _save_keras_model_compat(vae, model_path)
             results[-1]["model_full_path"] = str(model_path)
 
             is_best = (best_score is None) or (score_v2 < best_score)
@@ -588,13 +610,15 @@ def run_gridsearch(
                 print("🏆 Novo melhor modelo do grid — salvando como 'best_model_full.keras'...")
 
                 best_path = MODELS_DIR / "best_model_full.keras"
-                vae.save(str(best_path), include_optimizer=False)
+                _save_keras_model_compat(vae, best_path)
 
-                vae.get_layer("decoder").save(
-                    str(MODELS_DIR / "best_decoder.keras"), include_optimizer=False
+                _save_keras_model_compat(
+                    vae.get_layer("decoder"),
+                    MODELS_DIR / "best_decoder.keras",
                 )
-                vae.get_layer("prior_net").save(
-                    str(MODELS_DIR / "best_prior_net.keras"), include_optimizer=False
+                _save_keras_model_compat(
+                    vae.get_layer("prior_net"),
+                    MODELS_DIR / "best_prior_net.keras",
                 )
 
                 payload = {
