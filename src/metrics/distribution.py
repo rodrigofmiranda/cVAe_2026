@@ -8,10 +8,9 @@ for both deterministic baseline and cVAE evaluations.
 
 Canonical δ definition
 ----------------------
-δ = Y − X (element-wise), where X and Y are the float32 arrays stored per experiment:
-  X = input I/Q at symbol rate (pre-pulse-shaping, stored as float32 continuous values).
-  Y = received I/Q at symbol rate (post-matched-filter and timing-recovery, float32).
-δ encodes both the channel gain/phase response and any stochastic noise.
+δ = Y − X (element-wise).  X and Y are the float32 (N, 2) arrays stored per
+experiment; their signal-chain semantics are defined by the dataset preparation
+pipeline (see src/data/channel_dataset.py), not asserted here.
 
 Functions
 ---------
@@ -217,6 +216,7 @@ def residual_fidelity_metrics(
     max_samples: int = 200_000,
     acf_max_lag: int = 128,
     X: Optional[np.ndarray] = None,
+    X_pred: Optional[np.ndarray] = None,
 ) -> Dict:
     """
     All distribution-fidelity metrics between real and predicted residuals.
@@ -228,8 +228,12 @@ def residual_fidelity_metrics(
     psd_nfft       : int
     gauss_alpha    : float
     max_samples    : int — cap to bound computation
-    X              : ndarray (N, 2), optional — pre-RRC input I/Q; if provided,
-                     computes rho_hetero = Pearson(|X_c|, |δ_c|²) for both residuals.
+    X              : ndarray (N, 2), optional — input I/Q paired with residuals_real;
+                     if provided, computes rho_hetero_real = Pearson(|X_c|, |δ_real_c|²).
+    X_pred         : ndarray (N, 2), optional — input I/Q paired with residuals_pred;
+                     if None, falls back to X (only use X_pred when residuals_pred was
+                     drawn from a different index than residuals_real, e.g. independent
+                     MC sub-samples in the protocol runner).
 
     Returns
     -------
@@ -266,18 +270,21 @@ def residual_fidelity_metrics(
     result.update(gaussianity_tests(rp, alpha=gauss_alpha))
 
     if X is not None:
-        Xn = np.asarray(X)[:n]
-        xc = Xn[:, 0] + 1j * Xn[:, 1]
-        amp_x = np.abs(xc)
-
-        def _rho(d_arr: np.ndarray) -> float:
+        def _rho(x_arr: np.ndarray, d_arr: np.ndarray) -> float:
+            xc = x_arr[:, 0] + 1j * x_arr[:, 1]
             dc = d_arr[:, 0] + 1j * d_arr[:, 1]
+            amp_x = np.abs(xc)
             amp_d2 = np.abs(dc) ** 2
             if np.std(amp_x) < 1e-12 or np.std(amp_d2) < 1e-12:
                 return float("nan")
             return float(np.corrcoef(amp_x, amp_d2)[0, 1])
 
-        result["rho_hetero_real"] = _rho(rr)
-        result["rho_hetero_pred"] = _rho(rp)
+        Xn_real = np.asarray(X)[:n]
+        result["rho_hetero_real"] = _rho(Xn_real, rr)
+
+        # Use X_pred when the predicted residuals are paired with a different X
+        # sub-sample (e.g. independent MC draws in the protocol runner).
+        Xn_pred = np.asarray(X_pred)[:n] if X_pred is not None else Xn_real
+        result["rho_hetero_pred"] = _rho(Xn_pred, rp)
 
     return result

@@ -1413,6 +1413,7 @@ def run_regime(
                         res_real, res_pred_cvae,
                         psd_nfft=_psd_nfft, max_samples=_n_cmp, gauss_alpha=_g_alpha,
                         X=_X_va[idx_real],
+                        X_pred=X_tiled[idx_pred],
                     )
                     result["cvae_dist"] = cvae_dm
                     result["dist_metrics_source"] = _dm_source

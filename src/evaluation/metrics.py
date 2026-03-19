@@ -6,11 +6,9 @@ Shared metrics for the canonical training and evaluation pipelines.
 
 Canonical δ definition
 ----------------------
-δ = Y − X (element-wise), where X and Y are the float32 arrays stored per experiment:
-  X = input I/Q at symbol rate (pre-pulse-shaping, stored as float32 continuous values).
-  Y = received I/Q at symbol rate (post-matched-filter and timing-recovery, float32).
-δ encodes both the channel gain/phase response and any stochastic noise.
-It is NOT a residual after linear-fit removal.
+δ = Y − X (element-wise).  X and Y are the float32 (N, 2) arrays stored per
+experiment; their signal-chain semantics are defined by the dataset preparation
+pipeline (see src/data/channel_dataset.py), not asserted here.
 
 Functions
 ---------

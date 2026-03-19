@@ -513,6 +513,13 @@ def _apply_derived_metrics(df: pd.DataFrame) -> None:
     #
     # Baseline columns remain in the canonical CSV as benchmark diagnostics only;
     # they do not participate in validation_status anymore.
+    #
+    # DEFERRED (Phase 4 — pending empirical calibration):
+    #   G7 (delta_acf_l2):  spectro-temporal ACF gate.  delta_acf_l2 is computed
+    #       and reported in all runs; threshold will be set from mean+2σ of passing
+    #       experiments after the calibration protocol run.
+    #   rho_hetero, stat_jsd:  heteroscedasticity and distributional divergence
+    #       metrics.  Reported in all runs; not yet gate-driving.
     df["gate_g1"] = [_lt(v, TWIN_GATE_THRESHOLDS["rel_evm_error"]) for v in df["cvae_rel_evm_error"]]
     df["gate_g2"] = [_lt(v, TWIN_GATE_THRESHOLDS["rel_snr_error"]) for v in df["cvae_rel_snr_error"]]
     df["gate_g3"] = [
