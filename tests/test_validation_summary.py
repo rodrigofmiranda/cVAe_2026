@@ -115,6 +115,20 @@ def test_validation_summary_schema_and_derived_fields():
     assert row["validation_status"] == "pass"
 
 
+def test_gate_g1_is_anchored_to_real_not_absolute_baseline_evm():
+    result = _full_result()
+    # This would have passed under the old rule (baseline_evm_pred_% < 30),
+    # but it must fail because the baseline is too far from the real channel.
+    result["baseline"]["evm_pred_%"] = 22.0
+    result["baseline"]["delta_evm_%"] = 18.0
+
+    df = build_validation_summary_table([result])
+    row = df.iloc[0]
+
+    assert bool(row["gate_g1"]) is False
+    assert row["validation_status"] == "fail"
+
+
 def test_validation_summary_keeps_schema_without_optional_families():
     result = _full_result()
     result["baseline"] = {}

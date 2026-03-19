@@ -367,7 +367,9 @@ def _apply_derived_metrics(df: pd.DataFrame) -> None:
         for cv, bl in zip(df["cvae_psd_l2"], df["baseline_psd_l2"])
     ]
 
-    df["gate_g1"] = [_lt(v, 30.0) for v in df["baseline_evm_pred_%"]]
+    # G1 is a baseline sanity gate anchored on the measured real channel,
+    # not an absolute EVM threshold detached from the regime under test.
+    df["gate_g1"] = [_abs_lt(v, 15.0) for v in df["baseline_delta_evm_%"]]
     df["gate_g2"] = [_abs_lt(v, 15.0) for v in df["delta_evm_%"]]
     df["gate_g3"] = list(df["better_than_baseline_cov"])
     df["gate_g4"] = list(df["better_than_baseline_kurt"])

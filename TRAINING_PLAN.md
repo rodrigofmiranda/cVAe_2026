@@ -152,17 +152,18 @@ Os gates sao criterios de aceite por regime. Eles ja aparecem em `summary_by_reg
 
 | Gate | Regra atual |
 |---|---|
-| `G1` | `baseline_evm_pred_% < 30` |
+| `G1` | `abs(baseline_delta_evm_%) < 15` |
 | `G2` | `abs(delta_evm_%) < 15` |
 | `G3` | `cvae_delta_cov_fro < baseline_delta_cov_fro` |
 | `G4` | `cvae_delta_kurt_l2 < baseline_delta_kurt_l2` |
-| `G5` | `abs(cvae_jb_log10p_min - jb_real_log10p_min) < 1.0` |
+| `G5` | `delta_jb_stat_rel < 0.20` |
 | `G6` | `stat_mmd_qval > 0.05` |
 
 ### Observacoes criticas
 
+- `G1` e um gate de sanidade do baseline contra o canal real, nao um limiar absoluto.
 - `G4` mede melhora sobre o baseline, nao "kurtosis zero".
-- `G5` deve ser lido em `log10(p)`, nao em `p-value` bruto.
+- `G5` usa a versao relativa `delta_jb_stat_rel`, pensada para ser menos dependente de `N`.
 - `G6` e o gate formal mais forte para indistinguibilidade de distribuicao.
 
 ### Status derivado por regime
