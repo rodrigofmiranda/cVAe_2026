@@ -31,13 +31,13 @@ def _full_result() -> dict:
             "snr_real_db": 10.0,
             "snr_pred_db": 10.6,
             "delta_snr_db": 0.6,
-            "delta_mean_l2": 0.02,
-            "delta_cov_fro": 0.03,
+            "delta_mean_l2": 0.005,
+            "delta_cov_fro": 0.008,
             "var_real_delta": 0.05,
             "var_pred_delta": 0.04,
-            "delta_skew_l2": 0.06,
-            "delta_kurt_l2": 0.08,
-            "delta_psd_l2": 0.10,
+            "delta_skew_l2": 0.10,
+            "delta_kurt_l2": 0.30,
+            "delta_psd_l2": 0.15,
             "jb_p_min": 1e-6,
             "jb_log10p_min": -6.0,
             "reject_gaussian": True,
@@ -62,11 +62,11 @@ def _full_result() -> dict:
             "reject_gaussian": True,
         },
         "cvae_dist": {
-            "delta_mean_l2": 0.02,
-            "delta_cov_fro": 0.03,
-            "delta_skew_l2": 0.06,
-            "delta_kurt_l2": 0.08,
-            "psd_l2": 0.10,
+            "delta_mean_l2": 0.005,
+            "delta_cov_fro": 0.008,
+            "delta_skew_l2": 0.10,
+            "delta_kurt_l2": 0.30,
+            "psd_l2": 0.15,
             "jb_p_min": 1e-6,
             "jb_log10p_min": -6.0,
             "reject_gaussian": True,
@@ -147,7 +147,7 @@ def test_validation_summary_keeps_schema_without_optional_families():
     assert pd.isna(row["baseline_evm_pred_%"])
     assert pd.isna(row["stat_mmd2"])
     assert pd.isna(row["stat_mmd_qval"])
-    assert row["gate_g1"] is None
+    assert bool(row["gate_g1"]) is True
     assert row["gate_g6"] is None
     assert row["validation_status"] == "partial"
 

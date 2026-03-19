@@ -154,16 +154,17 @@ Os gates sao criterios de aceite por regime. Eles ja aparecem em `summary_by_reg
 |---|---|
 | `G1` | `abs(delta_evm_%) / abs(evm_real_%) < 0.10` |
 | `G2` | `abs(delta_snr_db) / abs(snr_real_db) < 0.10` |
-| `G3` | `cvae_delta_mean_l2 < baseline_delta_mean_l2` **e** `cvae_delta_cov_fro < baseline_delta_cov_fro` |
-| `G4` | `cvae_psd_l2 < baseline_psd_l2` |
-| `G5` | `cvae_delta_skew_l2 < baseline_delta_skew_l2` **e** `cvae_delta_kurt_l2 < baseline_delta_kurt_l2` **e** `delta_jb_stat_rel < 0.20` |
+| `G3` | `cvae_delta_mean_l2 < 0.01` **e** `cvae_delta_cov_fro < 0.01` |
+| `G4` | `cvae_psd_l2 < 0.20` |
+| `G5` | `cvae_delta_skew_l2 < 0.20` **e** `cvae_delta_kurt_l2 < 0.50` **e** `delta_jb_stat_rel < 0.20` |
 | `G6` | `stat_mmd_qval > 0.05` **e** `stat_energy_qval > 0.05` |
 
 ### Observacoes criticas
 
 - `G1` e `G2` agora medem fidelidade direta do cVAE ao canal real.
-- `G3` e `G4` cobrem a estrutura do residuo: momentos de baixa ordem e espectro.
-- `G5` cobre forma de distribuicao: skew, kurtosis e nao-gaussianidade.
+- `baseline_*` continua no CSV para benchmark contra AWGN/modelo tradicional, mas nao decide `validation_status`.
+- `G3` e `G4` cobrem a estrutura do residuo em relacao ao canal real: momentos de baixa ordem e espectro.
+- `G5` cobre forma de distribuicao: skew, kurtosis e nao-gaussianidade, sempre contra o real.
 - `G6` e o gate formal mais forte para indistinguibilidade de distribuicao.
 
 ### Status derivado por regime

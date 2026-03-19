@@ -11,6 +11,19 @@ import pandas as pd
 from src.evaluation.stat_tests import benjamini_hochberg
 
 
+TWIN_GATE_THRESHOLDS = {
+    "rel_evm_error": 0.10,
+    "rel_snr_error": 0.10,
+    "delta_mean_l2": 0.01,
+    "delta_cov_fro": 0.01,
+    "delta_psd_l2": 0.20,
+    "delta_skew_l2": 0.20,
+    "delta_kurt_l2": 0.50,
+    "delta_jb_stat_rel": 0.20,
+    "stat_qval": 0.05,
+}
+
+
 SUMMARY_BY_REGIME_COLUMNS: List[str] = [
     "study",
     "regime_id",
@@ -401,29 +414,32 @@ def _apply_derived_metrics(df: pd.DataFrame) -> None:
         for cv, bl in zip(df["cvae_psd_l2"], df["baseline_psd_l2"])
     ]
 
-    jb_rel_ok = [_lt(v, 0.20) for v in df["delta_jb_stat_rel"]]
-    mmd_ok = [_gt(v, 0.05) for v in df["stat_mmd_qval"]]
-    energy_ok = [_gt(v, 0.05) for v in df["stat_energy_qval"]]
+    jb_rel_ok = [_lt(v, TWIN_GATE_THRESHOLDS["delta_jb_stat_rel"]) for v in df["delta_jb_stat_rel"]]
+    mmd_ok = [_gt(v, TWIN_GATE_THRESHOLDS["stat_qval"]) for v in df["stat_mmd_qval"]]
+    energy_ok = [_gt(v, TWIN_GATE_THRESHOLDS["stat_qval"]) for v in df["stat_energy_qval"]]
 
     # Gate ladder for a digital-twin reading:
     # G1/G2 = direct signal fidelity to the measured channel.
-    # G3/G4/G5 = residual-structure fidelity.
+    # G3/G4/G5 = residual-structure fidelity to the measured channel.
     # G6 = formal distributional indistinguishability.
-    df["gate_g1"] = [_lt(v, 0.10) for v in df["cvae_rel_evm_error"]]
-    df["gate_g2"] = [_lt(v, 0.10) for v in df["cvae_rel_snr_error"]]
+    #
+    # Baseline columns remain in the canonical CSV as benchmark diagnostics only;
+    # they do not participate in validation_status anymore.
+    df["gate_g1"] = [_lt(v, TWIN_GATE_THRESHOLDS["rel_evm_error"]) for v in df["cvae_rel_evm_error"]]
+    df["gate_g2"] = [_lt(v, TWIN_GATE_THRESHOLDS["rel_snr_error"]) for v in df["cvae_rel_snr_error"]]
     df["gate_g3"] = [
         _gate_all(mean_ok, cov_ok)
         for mean_ok, cov_ok in zip(
-            df["better_than_baseline_mean"],
-            df["better_than_baseline_cov"],
+            [_lt(v, TWIN_GATE_THRESHOLDS["delta_mean_l2"]) for v in df["cvae_delta_mean_l2"]],
+            [_lt(v, TWIN_GATE_THRESHOLDS["delta_cov_fro"]) for v in df["cvae_delta_cov_fro"]],
         )
     ]
-    df["gate_g4"] = list(df["better_than_baseline_psd"])
+    df["gate_g4"] = [_lt(v, TWIN_GATE_THRESHOLDS["delta_psd_l2"]) for v in df["cvae_psd_l2"]]
     df["gate_g5"] = [
         _gate_all(skew_ok, kurt_ok, jb_ok)
         for skew_ok, kurt_ok, jb_ok in zip(
-            df["better_than_baseline_skew"],
-            df["better_than_baseline_kurt"],
+            [_lt(v, TWIN_GATE_THRESHOLDS["delta_skew_l2"]) for v in df["cvae_delta_skew_l2"]],
+            [_lt(v, TWIN_GATE_THRESHOLDS["delta_kurt_l2"]) for v in df["cvae_delta_kurt_l2"]],
             jb_rel_ok,
         )
     ]
