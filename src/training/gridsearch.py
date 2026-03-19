@@ -342,7 +342,7 @@ def run_gridsearch(
         calculate_evm, calculate_snr, residual_distribution_metrics,
     )
     from src.training.grid_plots import (
-        save_candidate_plot_bundle,
+        save_champion_analysis_dashboard,
     )
 
     _ov = overrides or {}
@@ -642,50 +642,23 @@ def run_gridsearch(
                 )
                 print(f"✓ training_history.json salvo: {hist_path}")
 
-                best_grid_plots_dir = run_paths.plots_dir / "best_grid_model"
+                best_grid_plots_dir = run_paths.plots_dir
                 try:
-                    best_extra_paths = save_candidate_plot_bundle(
+                    dashboard_path = save_champion_analysis_dashboard(
                         plots_dir=best_grid_plots_dir,
                         Xv=Xv_center,
                         Yv=Yv,
                         Yp=Yp,
                         std_mu_p=std_mu_p,
                         kl_dim_mean=kl_dim_mean,
-                        history_dict=history_dict,
                         summary_lines=summary_lines + [
                             f"ranking criterion: provisional best score_v2={score_v2:.4f}",
                         ],
-                        psd_nfft=psd_nfft,
-                        title_prefix=f"Best grid candidate | {tag}",
-                    )
-                    from src.training.logging import write_artifact_manifest
-
-                    write_artifact_manifest(
-                        best_grid_plots_dir,
-                        title="Best-grid plot bundle",
-                        sections={
-                            "open_first": [
-                                best_grid_plots_dir / "reports" / "summary_report.png",
-                                best_grid_plots_dir / "core" / "overlay_constellation.png",
-                                best_grid_plots_dir / "core" / "overlay_residual_delta.png",
-                            ],
-                            "distribution": [
-                                best_grid_plots_dir / "distribution" / "density_y_real.png",
-                                best_grid_plots_dir / "distribution" / "density_y_pred.png",
-                                best_grid_plots_dir / "distribution" / "psd_residual_delta.png",
-                            ],
-                            "latent": [
-                                best_grid_plots_dir / "latent" / "latent_activity_std_mu_p.png",
-                                best_grid_plots_dir / "latent" / "latent_kl_qp_per_dim.png",
-                            ],
-                            "training": [
-                                best_grid_plots_dir / "training" / "training_history.png",
-                            ],
-                        },
+                        model_label=f"Champion ({tag})",
+                        title=f"Champion Analysis Dashboard | {tag}",
                     )
                     print(
-                        f"✓ Best-grid plot bundle salvo: {best_grid_plots_dir} "
-                        f"({len(best_extra_paths)} plots)"
+                        f"✓ Champion analysis dashboard salvo: {dashboard_path}"
                     )
                 except ModuleNotFoundError as exc:
                     if exc.name != "matplotlib":

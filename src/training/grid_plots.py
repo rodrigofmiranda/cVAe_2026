@@ -100,6 +100,21 @@ def _acf_curve_complex(x: np.ndarray, max_lag: int = 128) -> np.ndarray:
     return out
 
 
+def _acf_curve_real(x: np.ndarray, max_lag: int = 64) -> np.ndarray:
+    x = np.asarray(x, dtype=np.float64).ravel()
+    x = x - np.mean(x)
+    if len(x) == 0:
+        return np.zeros(1, dtype=np.float64)
+    denom = float(np.dot(x, x))
+    if denom <= 1e-12:
+        return np.zeros(max_lag + 1, dtype=np.float64)
+    out = np.empty(max_lag + 1, dtype=np.float64)
+    out[0] = 1.0
+    for lag in range(1, max_lag + 1):
+        out[lag] = float(np.dot(x[:-lag], x[lag:]) / denom)
+    return out
+
+
 def _acf_mse(Xv: np.ndarray, Y_real: np.ndarray, Y_pred: np.ndarray, max_lag: int = 128) -> float:
     dr = (Y_real - Xv)[:, 0] + 1j * (Y_real - Xv)[:, 1]
     dp = (Y_pred - Xv)[:, 0] + 1j * (Y_pred - Xv)[:, 1]
@@ -521,6 +536,179 @@ def save_legacy_champion_plots(
         ),
     ]
     return created
+
+
+def save_champion_analysis_dashboard(
+    *,
+    plots_dir: Path,
+    Xv: np.ndarray,
+    Yv: np.ndarray,
+    Yp: np.ndarray,
+    std_mu_p: np.ndarray,
+    kl_dim_mean: np.ndarray,
+    summary_lines: Sequence[str],
+    model_label: str = "Champion",
+    title: str = "Champion Analysis Dashboard",
+) -> Path:
+    """Save a single comprehensive dashboard for the winning model only."""
+    import matplotlib.pyplot as plt
+    from src.evaluation.metrics import (
+        _psd_log,
+        _skew_kurt,
+        calculate_evm,
+        calculate_snr,
+        residual_distribution_metrics,
+    )
+
+    plots_dir = Path(plots_dir)
+    plots_dir.mkdir(parents=True, exist_ok=True)
+    groups = ensure_artifact_subdirs(plots_dir, groups=("champion",))
+    out_path = groups["champion"] / "analysis_dashboard.png"
+
+    n = min(len(Xv), len(Yv), len(Yp), 40_000)
+    Xs = np.asarray(Xv[:n], dtype=np.float64)
+    Yr = np.asarray(Yv[:n], dtype=np.float64)
+    Yc = np.asarray(Yp[:n], dtype=np.float64)
+    Dr = Yr - Xs
+    Dc = Yc - Xs
+
+    evm_real, _ = calculate_evm(Xs, Yr)
+    evm_pred, _ = calculate_evm(Xs, Yc)
+    snr_real = calculate_snr(Xs, Yr)
+    snr_pred = calculate_snr(Xs, Yc)
+    distm = residual_distribution_metrics(Xs, Yr, Yc)
+    skew_r, kurt_r = _skew_kurt(Dr)
+    skew_c, kurt_c = _skew_kurt(Dc)
+
+    acf_i_real = _acf_curve_real(Dr[:, 0], max_lag=64)
+    acf_i_pred = _acf_curve_real(Dc[:, 0], max_lag=64)
+    acf_q_real = _acf_curve_real(Dr[:, 1], max_lag=64)
+    acf_q_pred = _acf_curve_real(Dc[:, 1], max_lag=64)
+
+    psd_i_real = _psd_log(Dr[:, 0], nfft=2048)
+    psd_i_pred = _psd_log(Dc[:, 0], nfft=2048)
+    psd_q_real = _psd_log(Dr[:, 1], nfft=2048)
+    psd_q_pred = _psd_log(Dc[:, 1], nfft=2048)
+
+    fig, axes = plt.subplots(5, 3, figsize=(18, 24))
+    fig.suptitle(title, fontsize=18, y=0.995)
+    ax = axes.ravel()
+
+    width = 0.35
+    x_main = np.arange(2)
+    ax[0].bar(x_main - width / 2, [evm_real, snr_real], width=width, label="Canal real")
+    ax[0].bar(x_main + width / 2, [evm_pred, snr_pred], width=width, label=model_label)
+    ax[0].set_xticks(x_main)
+    ax[0].set_xticklabels(["EVM (%)", "SNR (dB)"])
+    ax[0].set_title("Primary Performance Metrics")
+    ax[0].legend(loc="best")
+
+    x_mom = np.arange(4)
+    ax[1].bar(
+        x_mom - width / 2,
+        [skew_r[0], skew_r[1], kurt_r[0], kurt_r[1]],
+        width=width,
+        label="Canal real",
+    )
+    ax[1].bar(
+        x_mom + width / 2,
+        [skew_c[0], skew_c[1], kurt_c[0], kurt_c[1]],
+        width=width,
+        label=model_label,
+    )
+    ax[1].set_xticks(x_mom)
+    ax[1].set_xticklabels(["Skew I", "Skew Q", "Kurt I", "Kurt Q"])
+    ax[1].set_title("Residual Statistical Moments (I & Q)")
+    ax[1].legend(loc="best")
+
+    fidelity_labels = ["Δmean", "Δcov", "PSD L2", "ACF L2", "Skew L2", "Kurt L2"]
+    fidelity_vals = [
+        distm["delta_mean_l2"],
+        distm["delta_cov_fro"],
+        distm["delta_psd_l2"],
+        distm.get("delta_acf_l2", float("nan")),
+        distm["delta_skew_l2"],
+        distm["delta_kurt_l2"],
+    ]
+    ax[2].bar(np.arange(len(fidelity_labels)), fidelity_vals, color="#C98A18")
+    ax[2].set_xticks(np.arange(len(fidelity_labels)))
+    ax[2].set_xticklabels(fidelity_labels, rotation=25, ha="right")
+    ax[2].set_title("Residual Fidelity Metrics")
+
+    ax[3].hist(Dr[:, 0], bins=80, density=True, alpha=0.45, label="Real")
+    ax[3].hist(Dc[:, 0], bins=80, density=True, alpha=0.45, label=model_label)
+    ax[3].set_title("Noise Distribution (I)")
+    ax[3].legend(loc="best")
+
+    ax[4].hist(Dr[:, 1], bins=80, density=True, alpha=0.45, label="Real")
+    ax[4].hist(Dc[:, 1], bins=80, density=True, alpha=0.45, label=model_label)
+    ax[4].set_title("Noise Distribution (Q)")
+    ax[4].legend(loc="best")
+
+    ax[5].scatter(Dr[:, 0], Dr[:, 1], s=1, alpha=0.20, label="Real")
+    ax[5].scatter(Dc[:, 0], Dc[:, 1], s=1, alpha=0.20, label=model_label)
+    ax[5].set_title("Residual Constellation Overlay")
+    ax[5].legend(loc="best", markerscale=4)
+
+    ax[6].plot(acf_i_real, label="Real")
+    ax[6].plot(acf_i_pred, label=model_label)
+    ax[6].set_title("Noise Autocorrelation (I)")
+    ax[6].legend(loc="best")
+
+    ax[7].plot(acf_q_real, label="Real")
+    ax[7].plot(acf_q_pred, label=model_label)
+    ax[7].set_title("Noise Autocorrelation (Q)")
+    ax[7].legend(loc="best")
+
+    ax[8].plot(psd_i_real, label="Real")
+    ax[8].plot(psd_i_pred, label=model_label)
+    ax[8].set_title("Power Spectral Density (I)")
+    ax[8].legend(loc="best")
+
+    ax[9].plot(psd_q_real, label="Real")
+    ax[9].plot(psd_q_pred, label=model_label)
+    ax[9].set_title("Power Spectral Density (Q)")
+    ax[9].legend(loc="best")
+
+    ax[10].scatter(Yr[:, 0], Yr[:, 1], s=1, alpha=0.35, color="#2F7C4F")
+    ax[10].set_title("Real Channel Constellation")
+
+    ax[11].scatter(Yc[:, 0], Yc[:, 1], s=1, alpha=0.35, color="#2C57FF")
+    ax[11].set_title(f"{model_label} Constellation")
+
+    ax[12].scatter(Yr[:, 0], Yr[:, 1], s=1, alpha=0.20, label="Real")
+    ax[12].scatter(Yc[:, 0], Yc[:, 1], s=1, alpha=0.20, label=model_label)
+    ax[12].set_title("Constellation Overlay")
+    ax[12].legend(loc="best", markerscale=4)
+
+    ax[13].bar(np.arange(len(std_mu_p)), std_mu_p, label="std(μ_p)")
+    ax[13].plot(np.arange(len(kl_dim_mean)), kl_dim_mean, color="crimson", marker="o", label="KL dim")
+    ax[13].set_title("Latent Activity & KL")
+    ax[13].legend(loc="best")
+
+    ax[14].axis("off")
+    ax[14].text(
+        0.02,
+        0.98,
+        "\n".join(summary_lines),
+        va="top",
+        ha="left",
+        fontsize=10,
+        family="monospace",
+        bbox=dict(boxstyle="round", facecolor="lightsteelblue", alpha=0.9),
+    )
+    ax[14].set_title("Run Summary")
+
+    for axis in ax[:14]:
+        axis.grid(True, alpha=0.20)
+
+    dashboard_path = _savefig(out_path, dpi=170)
+    write_artifact_manifest(
+        plots_dir,
+        title="Champion-only plot bundle",
+        sections={"open_first": [dashboard_path]},
+    )
+    return dashboard_path
 
 
 def plot_top_models_score(

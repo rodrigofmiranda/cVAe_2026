@@ -9,6 +9,7 @@ import pytest
 from src.training.grid_plots import (
     generate_gridsearch_overview_plots,
     save_candidate_plot_bundle,
+    save_champion_analysis_dashboard,
     save_legacy_champion_plots,
 )
 
@@ -145,3 +146,31 @@ def test_save_legacy_champion_plots_creates_old_style_files(out_dir):
         "legacy/radar_comparativo.png",
     } == {str(p.relative_to(out_dir)) for p in paths}
     assert all(p.exists() and p.stat().st_size > 500 for p in paths)
+
+
+def test_save_champion_analysis_dashboard_creates_single_dashboard(out_dir):
+    n = 1024
+    rng = np.random.default_rng(2)
+    Xv = rng.normal(size=(n, 2)).astype(np.float32)
+    Yv = Xv + 0.08 * rng.normal(size=(n, 2)).astype(np.float32)
+    Yp = Xv + 0.09 * rng.normal(size=(n, 2)).astype(np.float32)
+    std_mu_p = np.abs(rng.normal(size=4)).astype(np.float32)
+    kl_dim_mean = np.abs(rng.normal(size=4)).astype(np.float32)
+
+    out = save_champion_analysis_dashboard(
+        plots_dir=out_dir,
+        Xv=Xv,
+        Yv=Yv,
+        Yp=Yp,
+        std_mu_p=std_mu_p,
+        kl_dim_mean=kl_dim_mean,
+        summary_lines=["Champion summary", "score_v2: 1.23"],
+        model_label="Champion",
+        title="Champion Analysis Dashboard",
+    )
+
+    assert str(out.relative_to(out_dir)) == "champion/analysis_dashboard.png"
+    assert out.exists() and out.stat().st_size > 500
+    manifest = out_dir / "README.txt"
+    assert manifest.exists()
+    assert "analysis_dashboard.png" in manifest.read_text(encoding="utf-8")
