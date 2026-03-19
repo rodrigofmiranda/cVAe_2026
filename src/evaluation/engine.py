@@ -463,9 +463,22 @@ def evaluate_run(
         var_mc = float(np.mean(np.var(Ys, axis=0)))
 
     evm_real, _ = calculate_evm(Xv_center, Yv)
-    evm_pred, _ = calculate_evm(Xv_center, Yp)
     snr_real = calculate_snr(Xv_center, Yv)
-    snr_pred = calculate_snr(Xv_center, Yp)
+    # For stochastic inference, compute EVM/SNR as the mean over individual MC
+    # draws rather than from the ensemble mean Yp.  The ensemble mean cancels
+    # stochastic noise and produces artificially low EVM, making the digital
+    # twin appear "cleaner" than the real channel.  Individual-draw EVM
+    # reflects the per-realisation fidelity that G1/G2 intend to measure.
+    if not (det_inf or mc_samples <= 1 or rank_mode == "det") and len(Ys) > 0:
+        evm_mc = float(np.mean([calculate_evm(Xv_center, Ys[i])[0]
+                                for i in range(len(Ys))]))
+        snr_mc = float(np.mean([calculate_snr(Xv_center, Ys[i])
+                                for i in range(len(Ys))]))
+        evm_pred = evm_mc
+        snr_pred = snr_mc
+    else:
+        evm_pred, _ = calculate_evm(Xv_center, Yp)
+        snr_pred = calculate_snr(Xv_center, Yp)
 
     dist_on = bool(analysis_quick.get("dist_metrics", True)) and not bool(ov.get("no_dist_metrics", False))
     psd_nfft = int(ov.get("psd_nfft", analysis_quick.get("psd_nfft", 2048)))
