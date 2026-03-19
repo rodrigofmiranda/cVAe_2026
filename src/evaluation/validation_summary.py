@@ -501,6 +501,31 @@ def build_validation_summary_table(results: Iterable[Dict[str, Any]]) -> pd.Data
     return _normalize_column_set(df)
 
 
+def recompute_validation_summary(df_summary: pd.DataFrame) -> pd.DataFrame:
+    """Recompute derived validation columns from an existing summary table.
+
+    This is intended for backfilling older experiment outputs after gate
+    changes. It preserves raw metric columns already present in the CSV and
+    refreshes only the derived helpers:
+
+    - relative error columns
+    - baseline-vs-cVAE helper flags
+    - gate_g1 ... gate_g6
+    - validation_status
+    - FDR-corrected q-values when p-values are available
+    """
+    if df_summary is None or df_summary.empty:
+        return _empty_summary_frame()
+
+    df = df_summary.copy()
+    for col in SUMMARY_BY_REGIME_COLUMNS:
+        if col not in df.columns:
+            df[col] = np.nan
+    _apply_fdr(df)
+    _apply_derived_metrics(df)
+    return _normalize_column_set(df)
+
+
 def build_stat_fidelity_table(df_summary: pd.DataFrame) -> pd.DataFrame:
     """Project the canonical summary into the legacy stat-fidelity table."""
     if df_summary is None or df_summary.empty:
