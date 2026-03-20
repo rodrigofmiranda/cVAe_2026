@@ -318,8 +318,6 @@ def _mc_point_metric_means(Xv_center: np.ndarray, Ys: np.ndarray) -> tuple[float
     evm_vals = [calculate_evm(Xv_center, Ys[i])[0] for i in range(Ys.shape[0])]
     snr_vals = [calculate_snr(Xv_center, Ys[i]) for i in range(Ys.shape[0])]
     return float(np.mean(evm_vals)), float(np.mean(snr_vals))
-
-
 def _history_series(
     history_dict: Dict[str, Sequence[float]],
     *keys: str,
@@ -946,6 +944,10 @@ def run_gridsearch(
                 w_psd=w_psd, w_skew=w_skew, w_kurt=w_kurt,
             )
             score = abs(evm_pred - evm_real) + abs(snr_pred - snr_real)
+            history_dict = {
+                k: [float(x) for x in v]
+                for k, v in hist.history.items()
+            }
 
             row: Dict[str, Any] = {
                 "grid_id": gi,

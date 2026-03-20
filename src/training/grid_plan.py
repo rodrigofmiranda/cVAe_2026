@@ -688,6 +688,170 @@ def _preset_seq_residual_mmd_final() -> List[Dict[str, Any]]:
     }]
 
 
+def _preset_seq_residual_nightly() -> List[Dict[str, Any]]:
+    """Larger overnight sweep around the current seq_bigru_residual winner.
+
+    Focuses only on the strongest family observed so far:
+      - latent_dim fixed at 4 (active_dim_ratio has been healthy)
+      - window_size fixed at 7
+      - production MLP kept at [128,256,512]
+      - batch_size fixed at 8192
+      - free_bits fixed at 0.10
+
+    Overnight variables:
+      seq_hidden_size in {64, 96, 128}
+      beta            in {0.001, 0.003}
+      lambda_mmd      in {0.25, 0.5, 0.75, 1.0}
+
+    Total: 3 × 2 × 4 = 24 runs.
+
+    Requires --no_data_reduction.
+    """
+    grid: List[Dict[str, Any]] = []
+    for seq_hidden_size in [64, 96, 128]:
+        for beta in [0.001, 0.003]:
+            beta_tag = _tag_beta(beta)
+            for lam in [0.25, 0.5, 0.75, 1.0]:
+                lam_tag = str(lam).replace(".", "p")
+                grid.append(
+                    dict(
+                        group="S3_seq_nightly",
+                        tag=(
+                            f"S3seq_W7_h{seq_hidden_size}_lat4_b{beta_tag}_"
+                            f"lmmd{lam_tag}_fb0p10_lr0p0003_L128-256-512"
+                        ),
+                        cfg=_cfg(
+                            arch_variant="seq_bigru_residual",
+                            layer_sizes=[128, 256, 512],
+                            latent_dim=4,
+                            beta=beta,
+                            free_bits=0.10,
+                            lr=3e-4,
+                            batch_size=8192,
+                            kl_anneal_epochs=80,
+                            seq_hidden_size=seq_hidden_size,
+                            seq_num_layers=1,
+                            seq_bidirectional=True,
+                            window_size=7,
+                            window_stride=1,
+                            window_pad_mode="edge",
+                            lambda_mmd=lam,
+                        ),
+                    )
+                )
+    return grid
+
+
+def _preset_seq_investigation_large() -> List[Dict[str, Any]]:
+    """Focused follow-up sweep around the current multi-regime seq winner.
+
+    Design goals:
+      - keep the strongest point-wise anchor for calibration
+      - expand temporal context to test the hard 0.8 m regimes
+      - increase seq capacity moderately without exploding runtime
+      - probe slightly stronger MMD regularization around the current winner
+      - keep latent_dim/free_bits fixed because recent runs showed healthy
+        active-dimension usage and no posterior-collapse signal
+
+    Structure:
+      - Block A: 12 seq runs
+          window_size    in {7, 9, 11}
+          seq_hidden     in {64, 96}
+          lambda_mmd     in {1.0, 1.25}
+          beta           fixed at 0.003
+      - Block B: 4 seq runs
+          window_size    fixed at 9
+          seq_hidden     fixed at 96
+          lambda_mmd     in {1.0, 1.25}
+          beta           in {0.002, 0.004}
+      - Block C: 1 point-wise anchor
+
+    Total: 17 runs.
+
+    Requires --no_data_reduction.
+    """
+
+    def _seq_cfg(*, beta: float, window_size: int, seq_hidden_size: int, lambda_mmd: float) -> Dict[str, Any]:
+        return _cfg(
+            arch_variant="seq_bigru_residual",
+            layer_sizes=[128, 256, 512],
+            latent_dim=4,
+            beta=beta,
+            free_bits=0.10,
+            lr=3e-4,
+            batch_size=8192,
+            kl_anneal_epochs=80,
+            window_size=window_size,
+            window_stride=1,
+            window_pad_mode="edge",
+            seq_hidden_size=seq_hidden_size,
+            seq_num_layers=1,
+            seq_bidirectional=True,
+            lambda_mmd=lambda_mmd,
+        )
+
+    grid: List[Dict[str, Any]] = []
+
+    for window_size in [7, 9, 11]:
+        for seq_hidden_size in [64, 96]:
+            for lambda_mmd in [1.0, 1.25]:
+                lam_tag = str(lambda_mmd).replace(".", "p")
+                grid.append(
+                    dict(
+                        group="S4_seq_investigation",
+                        tag=(
+                            f"S4seq_W{window_size}_h{seq_hidden_size}_lat4_b0p003_"
+                            f"lmmd{lam_tag}_fb0p10_lr0p0003_L128-256-512"
+                        ),
+                        cfg=_seq_cfg(
+                            beta=0.003,
+                            window_size=window_size,
+                            seq_hidden_size=seq_hidden_size,
+                            lambda_mmd=lambda_mmd,
+                        ),
+                    )
+                )
+
+    for beta in [0.002, 0.004]:
+        beta_tag = _tag_beta(beta)
+        for lambda_mmd in [1.0, 1.25]:
+            lam_tag = str(lambda_mmd).replace(".", "p")
+            grid.append(
+                dict(
+                    group="S4_seq_investigation",
+                    tag=(
+                        f"S4seq_W9_h96_lat4_b{beta_tag}_lmmd{lam_tag}_"
+                        f"fb0p10_lr0p0003_L128-256-512"
+                    ),
+                    cfg=_seq_cfg(
+                        beta=beta,
+                        window_size=9,
+                        seq_hidden_size=96,
+                        lambda_mmd=lambda_mmd,
+                    ),
+                )
+            )
+
+    grid.append(
+        dict(
+            group="S4_seq_investigation",
+            tag="COPT_lat6_b0p001_fb0p0_lr0p0001_bs16384_anneal120_L64-128-256",
+            cfg=_cfg(
+                arch_variant="delta_residual",
+                layer_sizes=[64, 128, 256],
+                latent_dim=6,
+                beta=0.001,
+                free_bits=0.0,
+                lr=1e-4,
+                batch_size=16384,
+                kl_anneal_epochs=120,
+            ),
+        )
+    )
+
+    return grid
+
+
 def _preset_best_compare_large() -> List[Dict[str, Any]]:
     """Comparative protocol-first grid using the strongest current candidates.
 
@@ -965,6 +1129,10 @@ def select_grid(
             grid = _preset_seq_residual_mmd()
         elif preset_name == "seq_residual_mmd_final":
             grid = _preset_seq_residual_mmd_final()
+        elif preset_name == "seq_residual_nightly":
+            grid = _preset_seq_residual_nightly()
+        elif preset_name == "seq_investigation_large":
+            grid = _preset_seq_investigation_large()
         elif preset_name == "best_compare_large":
             grid = _preset_best_compare_large()
         elif preset_name == "delta_residual_adv_smoke":

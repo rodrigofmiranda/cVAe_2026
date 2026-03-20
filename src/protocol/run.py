@@ -809,6 +809,33 @@ def _extract_best_grid_tag(state: dict) -> str:
     return ""
 
 
+def _extract_training_operational_artifacts(run_dir: Optional[Path]) -> Dict[str, Optional[str]]:
+    """Resolve compact training-operational artifacts from a training run dir."""
+    if run_dir is None:
+        return {
+            "grid_training_diagnostics_csv": None,
+            "training_dashboard_png": None,
+        }
+
+    state = _read_train_state(run_dir)
+    artifacts = state.get("artifacts", {}) if isinstance(state, dict) else {}
+
+    diag_path = artifacts.get("grid_training_diagnostics_csv")
+    dash_path = artifacts.get("training_dashboard_png")
+
+    if not diag_path:
+        candidate = run_dir / "tables" / "grid_training_diagnostics.csv"
+        diag_path = str(candidate) if candidate.exists() else None
+    if not dash_path:
+        candidate = run_dir / "plots" / "training" / "dashboard_analysis_complete.png"
+        dash_path = str(candidate) if candidate.exists() else None
+
+    return {
+        "grid_training_diagnostics_csv": diag_path,
+        "training_dashboard_png": dash_path,
+    }
+
+
 def _filter_experiments_for_regime(
     exps: list,
     regime: dict,
@@ -1646,18 +1673,32 @@ def main():
         shutil.copy2(_proto_config_path, exp_paths.logs_dir / "protocol_input.yaml")
 
     shared_model_run_dir: Optional[Path] = None
+    training_operational_artifacts = {
+        "grid_training_diagnostics_csv": None,
+        "training_dashboard_png": None,
+        "source_run_dir": None,
+        "reused": False,
+    }
     if execution_mode == "train_once_eval_all":
         print(f"\n{'='*70}")
         if reused_model_run_dir is not None:
             shared_model_run_dir = reused_model_run_dir
             _reused_state = _read_train_state(shared_model_run_dir)
             _reused_best_tag = _extract_best_grid_tag(_reused_state)
+            _reused_training_artifacts = _extract_training_operational_artifacts(shared_model_run_dir)
+            training_operational_artifacts = {
+                **_reused_training_artifacts,
+                "source_run_dir": str(shared_model_run_dir),
+                "reused": True,
+            }
             exp_paths.write_json(
                 "logs/train/reused_model.json",
                 {
                     "shared_model_run_dir": str(shared_model_run_dir),
                     "best_grid_tag": _reused_best_tag,
                     "state_run_present": bool(_reused_state),
+                    "grid_training_diagnostics_csv": _reused_training_artifacts["grid_training_diagnostics_csv"],
+                    "training_dashboard_png": _reused_training_artifacts["training_dashboard_png"],
                 },
             )
             print("🌐 GLOBAL MODEL REUSE (skip training, evaluate all regimes)")
@@ -1685,6 +1726,11 @@ def main():
                 shared_model_run_dir = Path(
                     _global_summary.get("run_dir", shared_model_run_dir)
                 ).resolve()
+                training_operational_artifacts = {
+                    **_extract_training_operational_artifacts(shared_model_run_dir),
+                    "source_run_dir": str(shared_model_run_dir),
+                    "reused": False,
+                }
                 print(
                     f"✅ Shared global model status={_global_summary.get('status', 'completed')} "
                     f"| run_dir={shared_model_run_dir} "
@@ -1718,6 +1764,7 @@ def main():
                         ),
                     },
                     "execution_mode": execution_mode,
+                    "training_operational_artifacts": training_operational_artifacts,
                     "error": err,
                 }
                 exp_paths.write_json("manifest.json", manifest)
@@ -1864,6 +1911,7 @@ def main():
             "stat_max_n": args.stat_max_n,
         },
         "shared_model_run_dir": str(shared_model_run_dir) if shared_model_run_dir is not None else None,
+        "training_operational_artifacts": training_operational_artifacts,
         "stat_acceptance": _stat_acceptance,
         "protocol_leaderboard": (
             {
