@@ -42,6 +42,11 @@ def _save_keras_model_compat(model: Any, path: Path) -> None:
     the native ``.keras`` format. We prefer excluding the optimizer state when
     supported, but transparently retry without that argument when the local
     Keras version disallows it.
+
+    For subclassed models (e.g. ``AdvResidualCVAEModel``) that cannot be
+    serialised as HDF5/``.keras``, we fall back to TF SavedModel format,
+    saving to a directory at the same path. ``tf.keras.models.load_model``
+    auto-detects whether a path is a file or directory and loads accordingly.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -55,7 +60,20 @@ def _save_keras_model_compat(model: Any, path: Path) -> None:
             "⚠️  Keras local não aceita include_optimizer no formato .keras; "
             f"repetindo save sem esse argumento: {path}"
         )
-        model.save(str(path))
+        try:
+            model.save(str(path))
+            return
+        except NotImplementedError:
+            pass  # fall through to SavedModel fallback below
+    except NotImplementedError:
+        pass  # fall through to SavedModel fallback below
+
+    # Subclassed model: save as TF SavedModel format.
+    # tf.keras.models.load_model auto-detects directories as SavedModel.
+    print(
+        f"⚠️  Modelo subclasse — salvando como SavedModel (TF format) em: {path}"
+    )
+    model.save(str(path), save_format="tf")
 
 
 def checklist_table() -> "pd.DataFrame":
@@ -604,9 +622,22 @@ def run_gridsearch(
             results[-1]["plot_bundle_dir"] = ""
             results[-1]["plot_bundle_count"] = 0
 
-            # Save individual model
+            # Save individual model.
+            # For subclassed wrappers (e.g. delta_residual_adv) that cannot be
+            # serialised as HDF5, save the functional inference model instead.
+            # The inference model contains prior_net and decoder sub-models, so
+            # create_inference_model_from_full still works on reload.
+            try:
+                from src.models.adversarial import AdvResidualCVAEModel as _AdvCls
+                _is_adv = isinstance(vae, _AdvCls)
+            except ImportError:
+                _is_adv = False
+            _vae_to_save = (
+                create_inference_model_from_full(vae, deterministic=True)
+                if _is_adv else vae
+            )
             model_path = model_dir / "model_full.keras"
-            _save_keras_model_compat(vae, model_path)
+            _save_keras_model_compat(_vae_to_save, model_path)
             results[-1]["model_full_path"] = str(model_path)
 
             is_best = (best_score is None) or (score_v2 < best_score)
@@ -615,7 +646,7 @@ def run_gridsearch(
                 print("🏆 Novo melhor modelo do grid — salvando como 'best_model_full.keras'...")
 
                 best_path = MODELS_DIR / "best_model_full.keras"
-                _save_keras_model_compat(vae, best_path)
+                _save_keras_model_compat(_vae_to_save, best_path)
 
                 _save_keras_model_compat(
                     vae.get_layer("decoder"),

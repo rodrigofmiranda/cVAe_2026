@@ -215,10 +215,10 @@ def evaluate_run(
             "decoder": "decoder" in layer_names,
         },
     )
-    if not {"encoder", "prior_net", "decoder"}.issubset(layer_names):
-        raise ValueError("Modelo carregado não contém encoder/prior_net/decoder.")
+    if not {"prior_net", "decoder"}.issubset(layer_names):
+        raise ValueError("Modelo carregado não contém prior_net/decoder.")
 
-    encoder = vae.get_layer("encoder")
+    encoder = vae.get_layer("encoder") if "encoder" in layer_names else None
     prior = vae.get_layer("prior_net")
     decoder = vae.get_layer("decoder")
 
@@ -540,10 +540,17 @@ def evaluate_run(
     metrics_json = run_paths.write_json("logs/metricas_globais_reanalysis.json", global_metrics)
     print(f"✓ metricas_globais_reanalysis.json salvo: {metrics_json}")
 
-    enc_out = encoder.predict([Xv_in, Dv, Cv, Yv], batch_size=batch_infer, verbose=0)
     pri_out = prior.predict([Xv_in, Dv, Cv], batch_size=batch_infer, verbose=0)
-    z_mean_q, z_log_var_q = _first2(enc_out)
     z_mean_p, z_log_var_p = _first2(pri_out)
+
+    if encoder is not None:
+        enc_out = encoder.predict([Xv_in, Dv, Cv, Yv], batch_size=batch_infer, verbose=0)
+        z_mean_q, z_log_var_q = _first2(enc_out)
+    else:
+        # Adversarial wrapper saved as inference model: encoder not available.
+        # Use prior as a stand-in so latent diagnostics can still report prior stats.
+        z_mean_q = z_mean_p
+        z_log_var_q = z_log_var_p
 
     lat_diag = compute_latent_diagnostics(
         z_mean_q,

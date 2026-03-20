@@ -815,6 +815,59 @@ def _preset_best_compare_large() -> List[Dict[str, Any]]:
     return grid
 
 
+def _preset_delta_residual_adv_smoke() -> List[Dict[str, Any]]:
+    """Single-item smoke preset for the delta_residual_adv (cVAE-GAN) variant."""
+    return [
+        dict(
+            group="A0_adv_smoke",
+            tag="A0adv_lat4_b0p001_fb0p0_lam0p05_L128-256-512",
+            cfg=_cfg(
+                arch_variant="delta_residual_adv",
+                layer_sizes=[128, 256, 512],
+                latent_dim=4,
+                beta=0.001,
+                free_bits=0.0,
+                lambda_adv=0.05,
+                disc_layer_sizes=(128, 128),
+                kl_anneal_epochs=3,
+                batch_size=16384,
+                lr=3e-4,
+            ),
+        )
+    ]
+
+
+def _preset_delta_residual_adv_small() -> List[Dict[str, Any]]:
+    """4-config exploratory sweep for delta_residual_adv.
+
+    Sweeps λ_adv ∈ {0.01, 0.05, 0.1} × latent_dim ∈ {4, 6},
+    keeping other hyperparameters fixed at the best delta_residual anchor.
+    Truncated to 4 configs (keeping λ_adv ∈ {0.01, 0.05} × lat ∈ {4, 6}).
+    """
+    base = dict(
+        arch_variant="delta_residual_adv",
+        layer_sizes=[128, 256, 512],
+        beta=0.001,
+        free_bits=0.0,
+        disc_layer_sizes=(128, 128),
+        kl_anneal_epochs=80,
+        batch_size=16384,
+        lr=3e-4,
+    )
+    grid: List[Dict[str, Any]] = []
+    for lam in [0.01, 0.05, 0.1]:
+        for lat in [4, 6]:
+            lam_tag = f"{lam:.2f}".replace(".", "p")
+            grid.append(
+                dict(
+                    group="A1_adv_small",
+                    tag=f"A1adv_lat{lat}_b0p001_lam{lam_tag}_L128-256-512",
+                    cfg=_cfg(latent_dim=lat, lambda_adv=lam, **base),
+                )
+            )
+    return grid[:4]
+
+
 def select_grid(
     overrides: Optional[Mapping[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
@@ -858,6 +911,10 @@ def select_grid(
             grid = _preset_seq_residual_mmd_final()
         elif preset_name == "best_compare_large":
             grid = _preset_best_compare_large()
+        elif preset_name == "delta_residual_adv_smoke":
+            grid = _preset_delta_residual_adv_smoke()
+        elif preset_name == "delta_residual_adv_small":
+            grid = _preset_delta_residual_adv_small()
         else:
             raise ValueError(f"Unknown grid_preset={preset!r}")
 
