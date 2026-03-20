@@ -131,6 +131,34 @@ def test_select_grid_seq_residual_nightly_builds_large_seq_only_sweep():
     assert {item["cfg"]["window_size"] for item in grid} == {7}
 
 
+def test_select_grid_seq_investigation_large_focuses_on_context_and_mmd():
+    grid = select_grid({"grid_preset": "seq_investigation_large"})
+
+    assert len(grid) == 17
+    assert {item["group"] for item in grid} == {"S4_seq_investigation"}
+
+    seq = [item for item in grid if item["cfg"]["arch_variant"] == "seq_bigru_residual"]
+    delta = [item for item in grid if item["cfg"]["arch_variant"] == "delta_residual"]
+
+    assert len(seq) == 16
+    assert len(delta) == 1
+
+    assert {item["cfg"]["window_size"] for item in seq} == {7, 9, 11}
+    assert {item["cfg"]["seq_hidden_size"] for item in seq} == {64, 96}
+    assert {item["cfg"]["lambda_mmd"] for item in seq} == {1.0, 1.25}
+    assert {item["cfg"]["beta"] for item in seq} == {0.002, 0.003, 0.004}
+    assert {item["cfg"]["latent_dim"] for item in seq} == {4}
+    assert {item["cfg"]["free_bits"] for item in seq} == {0.10}
+    assert {item["cfg"]["batch_size"] for item in seq} == {8192}
+
+    anchor = delta[0]
+    assert anchor["tag"] == "COPT_lat6_b0p001_fb0p0_lr0p0001_bs16384_anneal120_L64-128-256"
+    assert anchor["cfg"]["layer_sizes"] == [64, 128, 256]
+    assert anchor["cfg"]["latent_dim"] == 6
+    assert anchor["cfg"]["beta"] == 0.001
+    assert anchor["cfg"]["free_bits"] == 0.0
+
+
 def test_select_grid_legacy2025_ref_matches_expected_reference_cfg():
     grid = select_grid({"grid_preset": "legacy2025_ref"})
 
