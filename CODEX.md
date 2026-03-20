@@ -7,10 +7,12 @@
   current protocol-first workflow and compare it fairly against the strongest
   non-adversarial references
 - Main notes:
+  - `docs/ACTIVE_CONTEXT.md`
   - `PROJECT_STATUS.md`
   - `docs/DELTA_RESIDUAL_ADV_STATUS.md`
   - `docs/DELTA_RESIDUAL_STATUS.md`
   - `docs/PROTOCOL.md`
+  - `docs/RUN_REANALYSIS_PLAYBOOK.md`
   - `TRAINING_PLAN.md`
 
 ## Current Checkpoint
@@ -99,19 +101,19 @@ These runs are useful only as historical debugging evidence.
 On a fresh Codex session, begin with:
 
 1. read `CODEX.md`
-2. read `PROJECT_STATUS.md`
-3. read `docs/PROTOCOL.md`
-4. read `docs/DELTA_RESIDUAL_ADV_STATUS.md`
-5. read `docs/DELTA_RESIDUAL_STATUS.md`
+2. read `docs/ACTIVE_CONTEXT.md`
+3. read `PROJECT_STATUS.md`
+4. read `docs/PROTOCOL.md`
+5. read `docs/DELTA_RESIDUAL_ADV_STATUS.md`
 6. inspect `git status --short`
 7. if a run is active, inspect `pgrep -af "src.protocol.run|src.training.train"`
-8. inspect the latest `outputs/exp_*/train/tables/gridsearch_results.csv`
+8. run `python scripts/summarize_experiment.py` on the latest `outputs/exp_*`
 
 ## Suggested Resume Prompt
 
 Use this at session restart:
 
-`Leia CODEX.md, PROJECT_STATUS.md, docs/PROTOCOL.md, docs/DELTA_RESIDUAL_ADV_STATUS.md e docs/DELTA_RESIDUAL_STATUS.md. Resuma o estado atual da branch feat/delta-residual-adv, diga quais runs adversariais estão obsoletos, qual é a melhor referência seq e acompanhe apenas o experimento em andamento sem mudar a configuração.`
+`Leia CODEX.md, docs/ACTIVE_CONTEXT.md, PROJECT_STATUS.md e docs/DELTA_RESIDUAL_ADV_STATUS.md. Rode python scripts/summarize_experiment.py no último exp_*. Resuma o estado atual da branch feat/delta-residual-adv, diga quais runs adversariais estão obsoletos, qual é a melhor referência seq e acompanhe apenas o experimento em andamento sem mudar a configuração.`
 
 ## Verification Focus
 

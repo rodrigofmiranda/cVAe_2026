@@ -8,9 +8,11 @@ Autoencoder (cVAE) with heteroscedastic decoding and conditional prior.
 
 Use these documents in this order:
 
+- [docs/ACTIVE_CONTEXT.md](/workspace/2026/docs/ACTIVE_CONTEXT.md) — shortest path for current branch context
 - [PROJECT_STATUS.md](/workspace/2026/PROJECT_STATUS.md) — current architecture and repo state
 - [TRAINING_PLAN.md](/workspace/2026/TRAINING_PLAN.md) — active scientific plan and gates
 - [docs/DELTA_RESIDUAL_ADV_STATUS.md](/workspace/2026/docs/DELTA_RESIDUAL_ADV_STATUS.md) — status of the experimental point-wise cVAE-GAN line
+- [docs/RUN_REANALYSIS_PLAYBOOK.md](/workspace/2026/docs/RUN_REANALYSIS_PLAYBOOK.md) — how to review new `exp_*` runs quickly
 - [docs/DIAGNOSTIC_CHECKLIST.md](/workspace/2026/docs/DIAGNOSTIC_CHECKLIST.md) — executable diagnostic workflow
 - [docs/PROTOCOL.md](/workspace/2026/docs/PROTOCOL.md) — protocol runner, artifacts, CLI
 - [docs/MODELING_ASSUMPTIONS.md](/workspace/2026/docs/MODELING_ASSUMPTIONS.md) — modeling rationale

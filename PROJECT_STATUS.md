@@ -134,9 +134,11 @@ regime físico.
 ## 3. Documentos ativos
 
 - [README.md](/workspace/2026/README.md): visão geral e uso
+- [docs/ACTIVE_CONTEXT.md](/workspace/2026/docs/ACTIVE_CONTEXT.md): ponto de entrada curto para a branch ativa
 - [PROJECT_STATUS.md](/workspace/2026/PROJECT_STATUS.md): estado atual do código
 - [TRAINING_PLAN.md](/workspace/2026/TRAINING_PLAN.md): plano científico e gates
 - [docs/DELTA_RESIDUAL_ADV_STATUS.md](/workspace/2026/docs/DELTA_RESIDUAL_ADV_STATUS.md): status da linha adversarial experimental
+- [docs/RUN_REANALYSIS_PLAYBOOK.md](/workspace/2026/docs/RUN_REANALYSIS_PLAYBOOK.md): como reavaliar rapidamente novos `exp_*`
 - [docs/PROTOCOL.md](/workspace/2026/docs/PROTOCOL.md): protocolo, artefatos e CLI
 - [docs/MODELING_ASSUMPTIONS.md](/workspace/2026/docs/MODELING_ASSUMPTIONS.md): premissas do modelo
 
@@ -150,7 +152,7 @@ regime físico.
 cd /workspace/2026
 git status -sb
 git log --oneline -5
-python -m pytest tests -q
+python scripts/summarize_experiment.py
 ```
 
 Depois disso:
