@@ -4,6 +4,7 @@ import pandas as pd
 
 from src.protocol.run import (
     _extract_best_grid_tag,
+    _extract_training_operational_artifacts,
     _effective_baseline_config,
     _effective_cvae_config,
     _effective_dist_metrics_config,
@@ -140,3 +141,20 @@ def test_resolve_reuse_model_run_dir_requires_best_model_file(tmp_path: Path):
         assert "best_model_full.keras" in str(exc)
     else:
         raise AssertionError("Expected FileNotFoundError when reusable model is missing")
+
+
+def test_extract_training_operational_artifacts_reads_saved_paths(tmp_path: Path):
+    run_dir = tmp_path / "exp_001" / "train"
+    (run_dir / "models").mkdir(parents=True, exist_ok=True)
+    (run_dir / "models" / "best_model_full.keras").write_text("stub", encoding="utf-8")
+    diag = run_dir / "tables" / "grid_training_diagnostics.csv"
+    dash = run_dir / "plots" / "training" / "dashboard_analysis_complete.png"
+    diag.parent.mkdir(parents=True, exist_ok=True)
+    dash.parent.mkdir(parents=True, exist_ok=True)
+    diag.write_text("grid_id,tag\n1,best\n", encoding="utf-8")
+    dash.write_text("stub", encoding="utf-8")
+
+    out = _extract_training_operational_artifacts(run_dir)
+
+    assert out["grid_training_diagnostics_csv"] == str(diag)
+    assert out["training_dashboard_png"] == str(dash)
