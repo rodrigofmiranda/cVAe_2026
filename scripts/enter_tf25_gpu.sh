@@ -1,25 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CONTAINER_NAME="${CVAE_TF25_CONTAINER_NAME:-cvae_tf25_gpu}"
+SESSION_NAME="${CVAE_TF25_TMUX_SESSION:-cvae_tf25_gpu}"
 
-if ! docker ps --format '{{.Names}}' | grep -Fxq "${CONTAINER_NAME}"; then
-  echo "Container '${CONTAINER_NAME}' is not running." >&2
+if ! command -v tmux >/dev/null 2>&1; then
+  echo "tmux is required on the host for persistent container sessions." >&2
+  exit 1
+fi
+
+if ! tmux has-session -t "${SESSION_NAME}" 2>/dev/null; then
+  echo "tmux session '${SESSION_NAME}' is not running." >&2
   echo "Start it first with: scripts/run_tf25_gpu.sh" >&2
   exit 1
 fi
 
-if docker exec -it "${CONTAINER_NAME}" bash; then
-  exit 0
+if [ -n "${TMUX:-}" ]; then
+  exec tmux switch-client -t "${SESSION_NAME}"
 fi
 
-STATUS=$?
-if command -v sudo >/dev/null && sudo -n true 2>/dev/null; then
-  echo "docker exec failed; retrying with sudo docker..." >&2
-  exec sudo docker exec -it "${CONTAINER_NAME}" bash
-fi
-
-echo "docker exec failed for '${CONTAINER_NAME}'." >&2
-echo "If the host reports an AppArmor permission error, try:" >&2
-echo "  sudo docker exec -it ${CONTAINER_NAME} bash" >&2
-exit "${STATUS}"
+exec tmux attach -t "${SESSION_NAME}"

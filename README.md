@@ -192,8 +192,8 @@ src/
 
 ### Persistent GPU container helpers
 
-For long runs on a remote host, prefer a detached container instead of
-`docker run --rm -it ... bash`. The repo now ships helper scripts:
+For long runs on a remote host, prefer a persistent `tmux` session on the host
+that owns the interactive Docker container. The repo now ships helper scripts:
 
 ```bash
 ./scripts/run_tf25_gpu.sh
@@ -201,9 +201,9 @@ For long runs on a remote host, prefer a detached container instead of
 ./scripts/stop_tf25_gpu.sh
 ```
 
-These mount the repo at `/workspace/cVAe_2026`, keep the container alive with
-`sleep infinity`, and make it safe to disconnect your local editor without
-killing the container.
+These start a host-side `tmux` session named `cvae_tf25_gpu`, launch
+`docker run --rm -it ... bash` inside it, and let you reattach later without
+killing the container when your local editor disconnects.
 
 ### Protocol runner (recommended)
 
