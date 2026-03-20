@@ -117,6 +117,16 @@ def parse_args():
             "across all regimes without per-regime retraining"
         ),
     )
+    p.add_argument(
+        "--reuse_model_run_dir",
+        type=str,
+        default=None,
+        help=(
+            "Reuse an existing shared model run directory (must contain "
+            "models/best_model_full.keras) and skip global retraining. "
+            "Intended for protocol re-evaluation of a previously trained winner."
+        ),
+    )
     # --- Statistical Fidelity Suite (Etapa A2) ---
     p.add_argument("--stat_tests", action="store_true",
                    help="Run two-sample statistical tests (MMD, Energy, PSD) per regime")
@@ -756,6 +766,25 @@ def _read_train_state(run_dir: Path) -> dict:
     if p.exists():
         return json.loads(p.read_text(encoding="utf-8"))
     return {}
+
+
+def _resolve_reuse_model_run_dir(path_str: Optional[str]) -> Optional[Path]:
+    """Validate and resolve a reusable shared-model run directory."""
+    if path_str is None or str(path_str).strip() == "":
+        return None
+
+    run_dir = Path(path_str).expanduser().resolve()
+    if not run_dir.exists():
+        raise FileNotFoundError(f"--reuse_model_run_dir not found: {run_dir}")
+    if not run_dir.is_dir():
+        raise NotADirectoryError(f"--reuse_model_run_dir is not a directory: {run_dir}")
+
+    model_path = run_dir / "models" / "best_model_full.keras"
+    if not model_path.exists():
+        raise FileNotFoundError(
+            f"--reuse_model_run_dir must contain models/best_model_full.keras: {model_path}"
+        )
+    return run_dir
 
 
 def _extract_best_grid_tag(state: dict) -> str:
@@ -1563,6 +1592,7 @@ def main():
         train_once_eval_all=bool(args.train_once_eval_all) and bool(run_cvae),
     )
     args.stat_max_n = _effective_stat_max_n(args.stat_mode, args.stat_max_n)
+    reused_model_run_dir = _resolve_reuse_model_run_dir(args.reuse_model_run_dir)
 
     # Merge protocol globals + CLI overrides → typed RunOverrides
     base_overrides = _merge_overrides(proto_globals, args)
@@ -1586,6 +1616,11 @@ def main():
     if args.train_once_eval_all and not run_cvae:
         print("⚠️  --train_once_eval_all has no effect when cVAE execution is disabled.")
         execution_mode = "per_regime_retrain"
+    if reused_model_run_dir is not None:
+        if not run_cvae:
+            raise ValueError("--reuse_model_run_dir requires the cVAE path to be enabled.")
+        if execution_mode != "train_once_eval_all":
+            raise ValueError("--reuse_model_run_dir requires --train_once_eval_all.")
 
     # Experiment output directory (single folder per protocol run)
     exp_paths = RunPaths(
@@ -1612,60 +1647,81 @@ def main():
 
     shared_model_run_dir: Optional[Path] = None
     if execution_mode == "train_once_eval_all":
-        shared_model_run_dir = exp_dir / "train"
-        shared_train_overrides = dict(base_overrides_dict)
-        shared_train_overrides["_logs_dir"] = str((exp_dir / "logs" / "train").resolve())
         print(f"\n{'='*70}")
-        print("🌐 GLOBAL MODEL TRAINING (train once, evaluate all regimes)")
-        print(f"📁 Shared model dir: {shared_model_run_dir}")
-        print(f"{'='*70}")
-        _shared_t0 = time.time()
-        try:
-            from src.training.engine import train_engine
-
-            _global_summary = train_engine(
-                dataset_root=args.dataset_root,
-                output_base=str(exp_dir),
-                run_id="train",
-                overrides=shared_train_overrides,
-            )
-            shared_model_run_dir = Path(
-                _global_summary.get("run_dir", shared_model_run_dir)
-            ).resolve()
-            print(
-                f"✅ Shared global model status={_global_summary.get('status', 'completed')} "
-                f"| run_dir={shared_model_run_dir} "
-                f"| time={time.time() - _shared_t0:.1f}s"
-            )
-        except Exception as e:
-            err = f"global_train: {e}\n{traceback.format_exc()}"
-            manifest = {
-                "protocol_version": protocol.get("protocol_version", "1.0"),
-                "timestamp_start": ts_start.isoformat(timespec="seconds"),
-                "timestamp_end": datetime.now().isoformat(timespec="seconds"),
-                "duration_seconds": (datetime.now() - ts_start).total_seconds(),
-                "git_commit": _git_commit_hash(),
-                "versions": _runtime_versions(),
-                "args": {
-                    "dataset_root": args.dataset_root,
-                    "output_base": args.output_base,
-                    "protocol": args.protocol,
-                    "protocol_config": _proto_config_path,
-                    "max_regimes": args.max_regimes,
-                    "skip_eval": args.skip_eval,
-                    "no_baseline": args.no_baseline,
-                    "no_cvae": args.no_cvae,
-                    "baseline_only": args.baseline_only,
-                    "no_dist_metrics": args.no_dist_metrics,
-                    "dry_run": args.dry_run,
-                    "stat_tests": args.stat_tests,
-                    "train_once_eval_all": args.train_once_eval_all,
+        if reused_model_run_dir is not None:
+            shared_model_run_dir = reused_model_run_dir
+            _reused_state = _read_train_state(shared_model_run_dir)
+            _reused_best_tag = _extract_best_grid_tag(_reused_state)
+            exp_paths.write_json(
+                "logs/train/reused_model.json",
+                {
+                    "shared_model_run_dir": str(shared_model_run_dir),
+                    "best_grid_tag": _reused_best_tag,
+                    "state_run_present": bool(_reused_state),
                 },
-                "execution_mode": execution_mode,
-                "error": err,
-            }
-            exp_paths.write_json("manifest.json", manifest)
-            raise RuntimeError(f"Shared global training failed: {e}") from e
+            )
+            print("🌐 GLOBAL MODEL REUSE (skip training, evaluate all regimes)")
+            print(f"📁 Reused model dir: {shared_model_run_dir}")
+            if _reused_best_tag:
+                print(f"🏷️  Reused best_grid_tag: {_reused_best_tag}")
+            print(f"{'='*70}")
+        else:
+            shared_model_run_dir = exp_dir / "train"
+            shared_train_overrides = dict(base_overrides_dict)
+            shared_train_overrides["_logs_dir"] = str((exp_dir / "logs" / "train").resolve())
+            print("🌐 GLOBAL MODEL TRAINING (train once, evaluate all regimes)")
+            print(f"📁 Shared model dir: {shared_model_run_dir}")
+            print(f"{'='*70}")
+            _shared_t0 = time.time()
+            try:
+                from src.training.engine import train_engine
+
+                _global_summary = train_engine(
+                    dataset_root=args.dataset_root,
+                    output_base=str(exp_dir),
+                    run_id="train",
+                    overrides=shared_train_overrides,
+                )
+                shared_model_run_dir = Path(
+                    _global_summary.get("run_dir", shared_model_run_dir)
+                ).resolve()
+                print(
+                    f"✅ Shared global model status={_global_summary.get('status', 'completed')} "
+                    f"| run_dir={shared_model_run_dir} "
+                    f"| time={time.time() - _shared_t0:.1f}s"
+                )
+            except Exception as e:
+                err = f"global_train: {e}\n{traceback.format_exc()}"
+                manifest = {
+                    "protocol_version": protocol.get("protocol_version", "1.0"),
+                    "timestamp_start": ts_start.isoformat(timespec="seconds"),
+                    "timestamp_end": datetime.now().isoformat(timespec="seconds"),
+                    "duration_seconds": (datetime.now() - ts_start).total_seconds(),
+                    "git_commit": _git_commit_hash(),
+                    "versions": _runtime_versions(),
+                    "args": {
+                        "dataset_root": args.dataset_root,
+                        "output_base": args.output_base,
+                        "protocol": args.protocol,
+                        "protocol_config": _proto_config_path,
+                        "max_regimes": args.max_regimes,
+                        "skip_eval": args.skip_eval,
+                        "no_baseline": args.no_baseline,
+                        "no_cvae": args.no_cvae,
+                        "baseline_only": args.baseline_only,
+                        "no_dist_metrics": args.no_dist_metrics,
+                        "dry_run": args.dry_run,
+                        "stat_tests": args.stat_tests,
+                        "train_once_eval_all": args.train_once_eval_all,
+                        "reuse_model_run_dir": (
+                            str(reused_model_run_dir) if reused_model_run_dir is not None else None
+                        ),
+                    },
+                    "execution_mode": execution_mode,
+                    "error": err,
+                }
+                exp_paths.write_json("manifest.json", manifest)
+                raise RuntimeError(f"Shared global training failed: {e}") from e
 
     # ---- Run studies → regimes ----
     results = []
@@ -1788,6 +1844,9 @@ def main():
             "dry_run": args.dry_run,
             "stat_tests": args.stat_tests,
             "train_once_eval_all": args.train_once_eval_all,
+            "reuse_model_run_dir": (
+                str(reused_model_run_dir) if reused_model_run_dir is not None else None
+            ),
         },
         "execution_mode": execution_mode,
         "baseline_config": _baseline_cfg,

@@ -10,6 +10,7 @@ from src.protocol.run import (
     _effective_stat_max_n,
     _limit_protocol_regimes,
     _protocol_execution_mode,
+    _resolve_reuse_model_run_dir,
     _should_run_cvae,
 )
 
@@ -116,3 +117,26 @@ def test_extract_best_grid_tag_prefers_csv_when_available(tmp_path: Path):
     state = {"artifacts": {"grid_results_csv": str(csv_path)}}
 
     assert _extract_best_grid_tag(state) == "BEST_A"
+
+
+def test_resolve_reuse_model_run_dir_accepts_valid_training_run(tmp_path: Path):
+    run_dir = tmp_path / "exp_001" / "train"
+    models_dir = run_dir / "models"
+    models_dir.mkdir(parents=True, exist_ok=True)
+    (models_dir / "best_model_full.keras").write_text("stub", encoding="utf-8")
+
+    out = _resolve_reuse_model_run_dir(str(run_dir))
+
+    assert out == run_dir.resolve()
+
+
+def test_resolve_reuse_model_run_dir_requires_best_model_file(tmp_path: Path):
+    run_dir = tmp_path / "exp_001" / "train"
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        _resolve_reuse_model_run_dir(str(run_dir))
+    except FileNotFoundError as exc:
+        assert "best_model_full.keras" in str(exc)
+    else:
+        raise AssertionError("Expected FileNotFoundError when reusable model is missing")
