@@ -41,6 +41,30 @@ python -m src.protocol.run \
     --train_once_eval_all \
     --max_epochs 120 --max_grids 2
 
+# Reduced 12-regime protocol (0.8/1.0/1.5 m × 100/300/500/700 mA)
+python -m src.protocol.run \
+    --dataset_root data/dataset_fullsquare_organized \
+    --output_base  outputs \
+    --protocol configs/all_regimes_sel4curr.json \
+    --train_once_eval_all \
+    --grid_preset best_compare_large \
+    --max_epochs 80 \
+    --patience 8 \
+    --reduce_lr_patience 4 \
+    --stat_tests --stat_mode quick \
+    --no_data_reduction \
+    --no_baseline
+
+# Reuse a previously trained shared model, skip retraining
+python -m src.protocol.run \
+    --dataset_root data/dataset_fullsquare_organized \
+    --output_base  outputs \
+    --protocol configs/all_regimes_sel4curr.json \
+    --train_once_eval_all \
+    --reuse_model_run_dir outputs/exp_YYYYMMDD_HHMMSS/train \
+    --stat_tests --stat_mode quick \
+    --no_baseline
+
 # Mixed-family comparison of the strongest current candidates
 python -m src.protocol.run \
     --dataset_root data/dataset_fullsquare_organized \
@@ -200,7 +224,10 @@ outputs/exp_YYYYMMDD_HHMMSS/
 │   ├── plots/
 │   │   └── champion/
 │   │       └── analysis_dashboard.png
+│   │   └── training/
+│   │       └── dashboard_analysis_complete.png
 │   └── tables/
+│       ├── grid_training_diagnostics.csv
 │       ├── gridsearch_results.csv
 │       └── gridsearch_results.xlsx
 ├── eval/
@@ -221,7 +248,7 @@ outputs/exp_YYYYMMDD_HHMMSS/
 │   └── stat_fidelity_by_regime.csv
 └── plots/
     └── best_model/
-        └── heatmap_vae_vs_real_metric_diffs.png
+        └── heatmap_gate_metrics_by_regime.png
 ```
 
 ### Output semantics by mode
@@ -233,8 +260,15 @@ outputs/exp_YYYYMMDD_HHMMSS/
   - `eval/` contains only the regime-specific evaluation artifacts produced with that shared model
   - `summary_by_regime.csv` records both `run_dir` (evaluation artifacts) and `model_run_dir` (shared model source)
   - `protocol_leaderboard.csv` is the canonical candidate ranking derived from the same gates/metrics used by the protocol
-  - `plots/best_model/heatmap_vae_vs_real_metric_diffs.png` is the canonical compact visual summary
+  - `plots/best_model/heatmap_gate_metrics_by_regime.png` is the canonical scientific visual summary
   - `train/plots/champion/analysis_dashboard.png` is the full dashboard of the winning model
+  - `train/plots/training/dashboard_analysis_complete.png` is the operational convergence dashboard for the full grid
+  - `train/tables/grid_training_diagnostics.csv` is the compact per-grid diagnostics table
+- `train_once_eval_all + --reuse_model_run_dir`:
+  - skips the shared-model training phase
+  - reuses `models/best_model_full.keras` from the referenced `train/` directory
+  - evaluates that same model under a different protocol without retraining
+  - does not regenerate the training dashboard; it references the source training run instead
 
 ### Summary table columns
 
@@ -269,6 +303,7 @@ CLI flags take precedence.
 |---|---|
 | `--protocol PATH` | Explicit JSON protocol (default: auto-discover) |
 | `--protocol_config PATH` | YAML protocol config (takes precedence over `--protocol`) |
+| `--reuse_model_run_dir PATH` | Reuse a previous shared-model `train/` directory and skip retraining |
 | `--max_epochs N` | Limit training epochs |
 | `--max_grids N` | Limit grid configurations per regime |
 | `--max_regimes N` | Limit regimes executed after protocol resolution |

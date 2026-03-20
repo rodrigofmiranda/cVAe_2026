@@ -10,6 +10,7 @@ Use these documents in this order:
 
 - [PROJECT_STATUS.md](/workspace/2026/PROJECT_STATUS.md) — current architecture and repo state
 - [TRAINING_PLAN.md](/workspace/2026/TRAINING_PLAN.md) — active scientific plan and gates
+- [docs/DELTA_RESIDUAL_ADV_STATUS.md](/workspace/2026/docs/DELTA_RESIDUAL_ADV_STATUS.md) — status of the experimental point-wise cVAE-GAN line
 - [docs/DIAGNOSTIC_CHECKLIST.md](/workspace/2026/docs/DIAGNOSTIC_CHECKLIST.md) — executable diagnostic workflow
 - [docs/PROTOCOL.md](/workspace/2026/docs/PROTOCOL.md) — protocol runner, artifacts, CLI
 - [docs/MODELING_ASSUMPTIONS.md](/workspace/2026/docs/MODELING_ASSUMPTIONS.md) — modeling rationale
@@ -92,6 +93,10 @@ active architecture is chosen by the grid/config field:
 - `arch_variant="delta_residual"`
   - point-wise residual-target variant
   - trains directly on `Δ = Y - X`, then reconstructs `Ŷ = X + Δ̂`
+- `arch_variant="delta_residual_adv"`
+  - experimental point-wise conditional residual cVAE-GAN
+  - keeps the `delta_residual` backbone and adds a conditional discriminator
+  - current research line on this branch; scientifically pending fresh reruns after the March 20 fixes
 - `arch_variant="seq_bigru_residual"`
   - sequence-aware residual model
   - uses a short input window (`window_size=7`) and a BiGRU prior/encoder
@@ -157,6 +162,8 @@ src/
     distribution.py           Distribution-fidelity metrics (moments, PSD, Gaussianity)
   models/
     cvae.py                   cVAE encoder/decoder/prior architecture
+    discriminator.py          Conditional discriminator for adversarial residual variants
+    adversarial.py            Adversarial cVAE wrapper + helper utilities
     cvae_components.py        Sub-network building blocks
     callbacks.py              Early stopping, ReduceLR, logging
     losses.py                 Reconstruction, KL, free-bits, β schedule
@@ -204,6 +211,38 @@ that owns the interactive Docker container. The repo now ships helper scripts:
 These start a host-side `tmux` session named `cvae_tf25_gpu`, launch
 `docker run --rm -it ... bash` inside it, and let you reattach later without
 killing the container when your local editor disconnects.
+
+### Reduced multi-regime and model-reuse workflow
+
+For the current 12-regime reduced protocol (`0.8/1.0/1.5 m × 100/300/500/700 mA`):
+
+```bash
+python -m src.protocol.run \
+  --dataset_root data/dataset_fullsquare_organized \
+  --output_base outputs \
+  --protocol configs/all_regimes_sel4curr.json \
+  --train_once_eval_all \
+  --grid_preset best_compare_large \
+  --max_epochs 80 \
+  --patience 8 \
+  --reduce_lr_patience 4 \
+  --stat_tests --stat_mode quick \
+  --no_data_reduction \
+  --no_baseline
+```
+
+To reuse a previously trained shared model and skip retraining:
+
+```bash
+python -m src.protocol.run \
+  --dataset_root data/dataset_fullsquare_organized \
+  --output_base outputs \
+  --protocol configs/all_regimes_sel4curr.json \
+  --train_once_eval_all \
+  --reuse_model_run_dir outputs/exp_YYYYMMDD_HHMMSS/train \
+  --stat_tests --stat_mode quick \
+  --no_baseline
+```
 
 ### Protocol runner (recommended)
 
@@ -381,9 +420,9 @@ end-to-end learned communication system, use this sequence:
 
 The canonical visual summary is:
 
-- `plots/best_model/heatmap_vae_vs_real_metric_diffs.png`
-  - compares real-vs-cVAE gaps across the active fidelity metrics
-  - hotter colors = larger mismatch between the champion model and the real channel
+- `plots/best_model/heatmap_gate_metrics_by_regime.png`
+  - matrix of regime-level fidelity/gate metrics for the champion model
+  - intended to answer whether the trained twin remains valid across the active `(distance, current)` conditions
 
 Example:
 
@@ -417,6 +456,7 @@ bash scripts/eval.sh
 | `--dataset_root` | *(required)* | Path to organized dataset |
 | `--output_base` | *(required)* | Root for run artifacts |
 | `--protocol` | auto-discover when omitted | Protocol JSON defining regimes |
+| `--reuse_model_run_dir` | unset | Reuse a previous shared-model `train/` directory and skip retraining |
 | `--max_epochs` | per-protocol | Maximum training epochs |
 | `--max_grids` | all | Limit grid-search configs to N |
 | `--grid_preset` | all | Named grid subset, e.g. `exploratory_small` |
@@ -453,7 +493,7 @@ outputs/exp_YYYYMMDD_HHMMSS/
     stat_fidelity_by_regime.csv Statistical-fidelity projection
   plots/
     best_model/
-      heatmap_vae_vs_real_metric_diffs.png
+      heatmap_gate_metrics_by_regime.png
   train/                        Shared global model directory (only in --train_once_eval_all)
     models/
       best_model_full.keras
@@ -462,7 +502,10 @@ outputs/exp_YYYYMMDD_HHMMSS/
     plots/
       champion/
         analysis_dashboard.png
+      training/
+        dashboard_analysis_complete.png
     tables/
+      grid_training_diagnostics.csv
       gridsearch_results.csv
       gridsearch_results.xlsx
     state_run.json
@@ -502,10 +545,12 @@ outputs/exp_YYYYMMDD_HHMMSS/
 - Only the current champion gets the full visual bundle.
 - The training side writes:
   - `train/plots/champion/analysis_dashboard.png`
+  - `train/plots/training/dashboard_analysis_complete.png`
 - The protocol side writes:
-  - `plots/best_model/heatmap_vae_vs_real_metric_diffs.png`
+  - `plots/best_model/heatmap_gate_metrics_by_regime.png`
 - The dashboard is the main human-facing artifact for the winner.
-- The heatmap is the canonical compact comparison of champion vs. real channel.
+- The training dashboard is the operational artifact for convergence and hyperparameter decisions.
+- The heatmap is the scientific artifact for regime-by-regime twin validation.
 
 ### Latent diagnostics
 - Active dimensions, KL per dimension, decoder sensitivity to $z$.
@@ -556,6 +601,7 @@ Recommended branches:
 - `release/cvae-online` — recommended base for a functional online cVAE deployment
 - `feat/channel-residual-architecture` — residual-architecture branch
 - `feat/seq-bigru-residual-cvae` — sequence-model research branch for the digital twin
+- `feat/delta-residual-adv` — experimental point-wise cVAE-GAN branch aligned with the current protocol flow
 
 Clone directly into the recommended online branch:
 
@@ -581,6 +627,9 @@ git switch feat/channel-residual-architecture
 git lfs pull
 
 git switch feat/seq-bigru-residual-cvae
+git lfs pull
+
+git switch feat/delta-residual-adv
 git lfs pull
 ```
 
