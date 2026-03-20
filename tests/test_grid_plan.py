@@ -116,6 +116,21 @@ def test_select_grid_best_compare_large_mixes_delta_and_seq_anchors():
     assert "S2seq_W7_h64_lat4_b0p001_lmmd1p0_fb0p10_lr0p0003_L128-256-512" in tags
 
 
+def test_select_grid_seq_residual_nightly_builds_large_seq_only_sweep():
+    grid = select_grid({"grid_preset": "seq_residual_nightly"})
+
+    assert len(grid) == 24
+    assert {item["group"] for item in grid} == {"S3_seq_nightly"}
+    assert all(item["cfg"]["arch_variant"] == "seq_bigru_residual" for item in grid)
+    assert {item["cfg"]["seq_hidden_size"] for item in grid} == {64, 96, 128}
+    assert {item["cfg"]["beta"] for item in grid} == {0.001, 0.003}
+    assert {item["cfg"]["lambda_mmd"] for item in grid} == {0.25, 0.5, 0.75, 1.0}
+    assert {item["cfg"]["latent_dim"] for item in grid} == {4}
+    assert {item["cfg"]["free_bits"] for item in grid} == {0.10}
+    assert {item["cfg"]["batch_size"] for item in grid} == {8192}
+    assert {item["cfg"]["window_size"] for item in grid} == {7}
+
+
 def test_select_grid_legacy2025_ref_matches_expected_reference_cfg():
     grid = select_grid({"grid_preset": "legacy2025_ref"})
 
