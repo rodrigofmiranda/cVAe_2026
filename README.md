@@ -199,6 +199,52 @@ src/
 
 ## Quick start
 
+### New collaborator: first run
+
+If you are joining this project for the first time, use this path first.
+It downloads the full repository with dataset pointers, opens the standard GPU
+container, and runs the safest possible smoke test before any real training.
+
+On the host:
+
+```bash
+git lfs install
+git clone -b feat/delta-residual-adv https://github.com/rodrigofmiranda/cVAe_2026.git
+cd cVAe_2026
+git lfs pull
+
+bash scripts/run_tf25_gpu.sh
+bash scripts/enter_tf25_gpu.sh
+```
+
+Inside the container:
+
+```bash
+cd /workspace/cVAe_2026
+
+# safest first check: validates config + dataset discovery, no training
+python -m src.protocol.run \
+  --dataset_root data/dataset_fullsquare_organized \
+  --output_base outputs \
+  --dry_run
+```
+
+If that works, the next simple example is a tiny one-regime smoke test:
+
+```bash
+python -m src.protocol.run \
+  --dataset_root data/dataset_fullsquare_organized \
+  --output_base outputs \
+  --protocol configs/one_regime_1p0m_300mA.json \
+  --max_epochs 1 \
+  --max_grids 1 \
+  --max_experiments 1 \
+  --max_samples_per_exp 2000
+```
+
+Do not start with a full 27-regime run or a long `--train_once_eval_all`
+experiment until the two commands above work on your machine.
+
 ### Persistent GPU container helpers
 
 For long runs on a remote host, prefer a persistent `tmux` session on the host
@@ -597,6 +643,18 @@ git lfs pull
 ```
 
 ### Clone on another PC
+
+If you want the same branch used in the current active research flow, clone:
+
+```bash
+git clone -b feat/delta-residual-adv https://github.com/rodrigofmiranda/cVAe_2026.git
+cd cVAe_2026
+git lfs install
+git lfs pull
+```
+
+This is the recommended path for collaborators working on the current
+protocol-first point-wise vs seq comparison flow.
 
 Recommended branches:
 
