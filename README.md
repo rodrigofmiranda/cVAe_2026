@@ -132,6 +132,9 @@ outputs/                      Run artifacts (exp_YYYYMMDD_HHMMSS/)
 scripts/
   train.sh                    Training wrapper
   eval.sh                     Evaluation wrapper
+  run_tf25_gpu.sh             Start persistent TF 2.5 GPU container
+  enter_tf25_gpu.sh           Open an interactive shell inside the container
+  stop_tf25_gpu.sh            Stop and remove the persistent container
   smoke_dist_metrics.sh       Quick smoke test for distribution metrics
 tests/
   test_stat_tests.py          18 unit tests for MMD, Energy, PSD, FDR
@@ -186,6 +189,21 @@ src/
 ```
 
 ## Quick start
+
+### Persistent GPU container helpers
+
+For long runs on a remote host, prefer a detached container instead of
+`docker run --rm -it ... bash`. The repo now ships helper scripts:
+
+```bash
+./scripts/run_tf25_gpu.sh
+./scripts/enter_tf25_gpu.sh
+./scripts/stop_tf25_gpu.sh
+```
+
+These mount the repo at `/workspace/cVAe_2026`, keep the container alive with
+`sleep infinity`, and make it safe to disconnect your local editor without
+killing the container.
 
 ### Protocol runner (recommended)
 
