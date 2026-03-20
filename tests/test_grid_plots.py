@@ -11,6 +11,7 @@ from src.training.grid_plots import (
     save_candidate_plot_bundle,
     save_champion_analysis_dashboard,
     save_legacy_champion_plots,
+    save_training_analysis_dashboard,
 )
 
 
@@ -174,3 +175,88 @@ def test_save_champion_analysis_dashboard_creates_single_dashboard(out_dir):
     manifest = out_dir / "README.txt"
     assert manifest.exists()
     assert "analysis_dashboard.png" in manifest.read_text(encoding="utf-8")
+
+
+def test_save_training_analysis_dashboard_creates_operational_dashboard(out_dir):
+    df = pd.DataFrame(
+        [
+            {
+                "rank": 1,
+                "grid_id": 1,
+                "group": "g",
+                "tag": "seq_best",
+                "status": "ok",
+                "arch_variant": "seq_bigru_residual",
+                "latent_dim": 4,
+                "beta": 0.003,
+                "free_bits": 0.1,
+                "lr": 3e-4,
+                "layer_sizes": [128, 256, 512],
+                "epochs_ran": 60,
+                "best_epoch": 41,
+                "best_epoch_ratio": 0.51,
+                "active_dim_ratio": 1.0,
+                "kl_mean_per_dim": 0.9,
+                "score_v2": 1.2,
+                "delta_psd_l2": 0.04,
+                "delta_acf_l2": 0.01,
+                "late_val_std": 0.001,
+                "lr_drop_count": 2,
+                "late_val_slope": -5e-5,
+                "flag_posterior_collapse": False,
+                "flag_undertrained": False,
+                "flag_overfit": False,
+                "flag_unstable": False,
+                "flag_lr_floor": False,
+                "recommend_lr": "keep",
+                "recommend_beta_free_bits": "keep",
+                "recommend_latent_dim": "keep",
+                "recommend_capacity": "keep",
+                "recommend_architecture": "keep",
+                "recommend_epochs_patience": "keep",
+            },
+            {
+                "rank": 2,
+                "grid_id": 2,
+                "group": "g",
+                "tag": "delta_alt",
+                "status": "ok",
+                "arch_variant": "delta_residual",
+                "latent_dim": 6,
+                "beta": 0.001,
+                "free_bits": 0.0,
+                "lr": 1e-4,
+                "layer_sizes": [64, 128, 256],
+                "epochs_ran": 80,
+                "best_epoch": 72,
+                "best_epoch_ratio": 0.90,
+                "active_dim_ratio": 0.2,
+                "kl_mean_per_dim": 0.1,
+                "score_v2": 2.4,
+                "delta_psd_l2": 0.22,
+                "delta_acf_l2": 0.07,
+                "late_val_std": 0.02,
+                "lr_drop_count": 5,
+                "late_val_slope": -2e-4,
+                "flag_posterior_collapse": True,
+                "flag_undertrained": True,
+                "flag_overfit": False,
+                "flag_unstable": True,
+                "flag_lr_floor": True,
+                "recommend_lr": "lower_initial_lr",
+                "recommend_beta_free_bits": "increase_free_bits_or_reduce_beta",
+                "recommend_latent_dim": "reduce_latent_dim",
+                "recommend_capacity": "increase_capacity_or_use_seq",
+                "recommend_architecture": "prefer_seq_family",
+                "recommend_epochs_patience": "increase_epochs_or_patience",
+            },
+        ]
+    )
+
+    out = save_training_analysis_dashboard(df_diag=df, plots_dir=out_dir)
+
+    assert str(out.relative_to(out_dir)) == "training/dashboard_analysis_complete.png"
+    assert out.exists() and out.stat().st_size > 500
+    manifest = out_dir / "training" / "README.txt"
+    assert manifest.exists()
+    assert "dashboard_analysis_complete.png" in manifest.read_text(encoding="utf-8")

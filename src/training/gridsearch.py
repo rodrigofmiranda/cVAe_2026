@@ -14,7 +14,7 @@ import json
 import re
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 import numpy as np
 import pandas as pd
@@ -68,12 +68,28 @@ def _save_keras_model_compat(model: Any, path: Path) -> None:
     except NotImplementedError:
         pass  # fall through to SavedModel fallback below
 
-    # Subclassed model: save as TF SavedModel format.
-    # tf.keras.models.load_model auto-detects directories as SavedModel.
+    # Subclassed model: save as a Keras SavedModel directory, then rename the
+    # directory to the canonical artifact path. Older TF/Keras builds route
+    # ``model.save(..., save_format="tf")`` through the HDF5 branch whenever
+    # the filepath ends with ``.keras``. Saving first to a suffix-free temp dir
+    # preserves the Keras metadata, and renaming keeps the expected path.
     print(
         f"⚠️  Modelo subclasse — salvando como SavedModel (TF format) em: {path}"
     )
-    model.save(str(path), save_format="tf")
+    import shutil
+    import tensorflow as tf
+    import uuid
+
+    if path.exists():
+        if path.is_dir():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+    tmp_path = path.parent / f".{path.name}.{uuid.uuid4().hex}.savedmodel"
+    if tmp_path.exists():
+        shutil.rmtree(tmp_path)
+    tf.keras.models.save_model(model, str(tmp_path), save_format="tf")
+    tmp_path.rename(path)
 
 
 def checklist_table() -> "pd.DataFrame":
@@ -230,6 +246,364 @@ def compute_score_v2(
     )
 
 
+TRAINING_DIAGNOSTIC_COLUMNS: List[str] = [
+    "rank",
+    "grid_id",
+    "group",
+    "tag",
+    "status",
+    "arch_variant",
+    "latent_dim",
+    "beta",
+    "free_bits",
+    "lr",
+    "batch_size",
+    "kl_anneal_epochs",
+    "layer_sizes",
+    "window_size",
+    "seq_hidden_size",
+    "lambda_mmd",
+    "epochs_ran",
+    "best_epoch",
+    "best_epoch_ratio",
+    "epochs_since_best",
+    "best_val_recon_loss",
+    "last_val_recon_loss",
+    "val_recon_improvement",
+    "worse_from_best",
+    "train_recon_at_best",
+    "train_recon_last",
+    "final_lr",
+    "lr_drop_count",
+    "late_val_slope",
+    "late_val_std",
+    "active_dims",
+    "active_dim_ratio",
+    "kl_mean_total",
+    "kl_mean_per_dim",
+    "score_v2",
+    "delta_evm_%",
+    "delta_snr_db",
+    "delta_mean_l2",
+    "delta_cov_fro",
+    "delta_psd_l2",
+    "delta_acf_l2",
+    "delta_skew_l2",
+    "delta_kurt_l2",
+    "var_real_delta",
+    "var_pred_delta",
+    "pen_var_mismatch",
+    "flag_posterior_collapse",
+    "flag_undertrained",
+    "flag_overfit",
+    "flag_unstable",
+    "flag_lr_floor",
+    "recommend_lr",
+    "recommend_beta_free_bits",
+    "recommend_latent_dim",
+    "recommend_capacity",
+    "recommend_architecture",
+    "recommend_epochs_patience",
+]
+
+
+def _mc_point_metric_means(Xv_center: np.ndarray, Ys: np.ndarray) -> tuple[float, float]:
+    """Average EVM/SNR across individual MC draws instead of the ensemble mean."""
+    from src.evaluation.metrics import calculate_evm, calculate_snr
+
+    Ys = np.asarray(Ys)
+    if Ys.ndim != 3 or Ys.shape[0] == 0:
+        raise ValueError("Ys must have shape (K, N, 2) with K >= 1")
+
+    evm_vals = [calculate_evm(Xv_center, Ys[i])[0] for i in range(Ys.shape[0])]
+    snr_vals = [calculate_snr(Xv_center, Ys[i]) for i in range(Ys.shape[0])]
+    return float(np.mean(evm_vals)), float(np.mean(snr_vals))
+
+
+def _history_series(
+    history_dict: Dict[str, Sequence[float]],
+    *keys: str,
+) -> List[float]:
+    """Return the first non-empty metric series found in ``history_dict``."""
+    for key in keys:
+        values = history_dict.get(key, [])
+        if values:
+            return [float(v) for v in values]
+    return []
+
+
+def _late_series_slope(values: Sequence[float], tail: int = 5) -> float:
+    """Linear slope over the tail of a validation curve."""
+    arr = np.asarray(list(values), dtype=np.float64)
+    arr = arr[np.isfinite(arr)]
+    if arr.size < 2:
+        return 0.0
+    arr = arr[-min(int(tail), arr.size):]
+    if arr.size < 2:
+        return 0.0
+    x = np.arange(arr.size, dtype=np.float64)
+    return float(np.polyfit(x, arr, 1)[0])
+
+
+def _late_series_std(values: Sequence[float], tail: int = 5) -> float:
+    """Standard deviation over the tail of a validation curve."""
+    arr = np.asarray(list(values), dtype=np.float64)
+    arr = arr[np.isfinite(arr)]
+    if arr.size == 0:
+        return 0.0
+    arr = arr[-min(int(tail), arr.size):]
+    return float(np.std(arr))
+
+
+def _count_lr_drops(values: Sequence[float]) -> int:
+    """Count strict learning-rate drops across epochs."""
+    arr = np.asarray(list(values), dtype=np.float64)
+    arr = arr[np.isfinite(arr)]
+    if arr.size < 2:
+        return 0
+    drops = 0
+    prev = float(arr[0])
+    for current in arr[1:]:
+        curr = float(current)
+        tol = max(1e-12, 1e-6 * max(abs(prev), 1.0))
+        if curr < prev - tol:
+            drops += 1
+        prev = curr
+    return int(drops)
+
+
+def _build_training_diagnostics(
+    *,
+    history_dict: Dict[str, Sequence[float]],
+    cfg: Dict[str, Any],
+    max_epochs: int,
+    active_dims: int,
+    kl_mean_total: float,
+    kl_mean_per_dim: float,
+) -> Dict[str, Any]:
+    """Extract compact convergence and latent diagnostics for one grid row."""
+    val_hist = _history_series(history_dict, "val_recon_loss", "val_loss")
+    train_hist = _history_series(history_dict, "recon_loss", "loss")
+    lr_hist = _history_series(history_dict, "lr", "learning_rate")
+
+    epochs_ran = max(
+        len(val_hist),
+        len(train_hist),
+        len(lr_hist),
+        max((len(v) for v in history_dict.values()), default=0),
+    )
+
+    if val_hist:
+        best_idx = int(np.argmin(np.asarray(val_hist, dtype=np.float64)))
+        best_epoch = best_idx + 1
+        best_val = float(val_hist[best_idx])
+        last_val = float(val_hist[-1])
+        first_val = float(val_hist[0])
+    else:
+        best_idx = -1
+        best_epoch = 0
+        best_val = float("nan")
+        last_val = float("nan")
+        first_val = float("nan")
+
+    train_recon_at_best = (
+        float(train_hist[best_idx])
+        if train_hist and best_idx >= 0 and best_idx < len(train_hist)
+        else float("nan")
+    )
+    train_recon_last = float(train_hist[-1]) if train_hist else float("nan")
+    final_lr = float(lr_hist[-1]) if lr_hist else float(cfg.get("lr", float("nan")))
+    lr_drop_count = _count_lr_drops(lr_hist)
+    late_val_slope = _late_series_slope(val_hist)
+    late_val_std = _late_series_std(val_hist)
+
+    latent_dim = max(int(cfg.get("latent_dim", 0)), 1)
+    active_dim_ratio = float(active_dims) / float(latent_dim)
+    best_epoch_ratio = (
+        float(best_epoch) / float(max(int(max_epochs), 1))
+        if best_epoch > 0
+        else 0.0
+    )
+    epochs_since_best = max(int(epochs_ran) - int(best_epoch), 0)
+    val_recon_improvement = (
+        float(first_val - best_val)
+        if np.isfinite(first_val) and np.isfinite(best_val)
+        else float("nan")
+    )
+    worse_from_best = (
+        float(last_val - best_val)
+        if np.isfinite(last_val) and np.isfinite(best_val)
+        else float("nan")
+    )
+
+    flag_posterior_collapse = bool(
+        active_dim_ratio < 0.5 or float(kl_mean_per_dim) < 0.2
+    )
+    flag_undertrained = bool(
+        best_epoch_ratio >= 0.85 and float(late_val_slope) < -1e-4
+    )
+    flag_overfit = bool(
+        np.isfinite(worse_from_best)
+        and np.isfinite(best_val)
+        and np.isfinite(train_recon_last)
+        and np.isfinite(train_recon_at_best)
+        and worse_from_best > max(0.01 * abs(best_val), 1e-3)
+        and train_recon_last <= train_recon_at_best
+    )
+    flag_unstable = bool(
+        (
+            np.isfinite(late_val_std)
+            and np.isfinite(best_val)
+            and late_val_std > max(0.02 * abs(best_val), 1e-3)
+        )
+        or lr_drop_count >= 4
+    )
+    flag_lr_floor = bool(np.isfinite(final_lr) and final_lr <= 1.1e-6)
+
+    return {
+        "epochs_ran": int(epochs_ran),
+        "best_epoch": int(best_epoch),
+        "best_epoch_ratio": float(best_epoch_ratio),
+        "epochs_since_best": int(epochs_since_best),
+        "best_val_recon_loss": float(best_val),
+        "last_val_recon_loss": float(last_val),
+        "val_recon_improvement": float(val_recon_improvement),
+        "worse_from_best": float(worse_from_best),
+        "train_recon_at_best": float(train_recon_at_best),
+        "train_recon_last": float(train_recon_last),
+        "final_lr": float(final_lr),
+        "lr_drop_count": int(lr_drop_count),
+        "late_val_slope": float(late_val_slope),
+        "late_val_std": float(late_val_std),
+        "active_dims": int(active_dims),
+        "active_dim_ratio": float(active_dim_ratio),
+        "kl_mean_total": float(kl_mean_total),
+        "kl_mean_per_dim": float(kl_mean_per_dim),
+        "flag_posterior_collapse": flag_posterior_collapse,
+        "flag_undertrained": flag_undertrained,
+        "flag_overfit": flag_overfit,
+        "flag_unstable": flag_unstable,
+        "flag_lr_floor": flag_lr_floor,
+    }
+
+
+def _apply_training_recommendations(df_results: pd.DataFrame) -> pd.DataFrame:
+    """Attach heuristic tuning recommendations to the per-grid summary."""
+    from src.evaluation.validation_summary import TWIN_GATE_THRESHOLDS
+
+    df = df_results.copy()
+    if df.empty:
+        for col in (
+            "recommend_lr",
+            "recommend_beta_free_bits",
+            "recommend_latent_dim",
+            "recommend_capacity",
+            "recommend_architecture",
+            "recommend_epochs_patience",
+        ):
+            df[col] = pd.Series(dtype=object)
+        return df
+
+    arch_norm = (
+        df.get("arch_variant", pd.Series("", index=df.index))
+        .fillna("")
+        .astype(str)
+        .str.lower()
+    )
+    is_seq = arch_norm.str.contains("seq")
+
+    seq_family_preferred = False
+    seq_ok = df.loc[is_seq & np.isfinite(df["score_v2"]), :]
+    pt_ok = df.loc[~is_seq & np.isfinite(df["score_v2"]), :]
+    if not seq_ok.empty and not pt_ok.empty:
+        best_seq = seq_ok.sort_values(["score_v2", "delta_psd_l2"], ascending=[True, True]).iloc[0]
+        best_pt = pt_ok.sort_values(["score_v2", "delta_psd_l2"], ascending=[True, True]).iloc[0]
+        seq_family_preferred = bool(
+            float(best_seq.get("delta_psd_l2", np.inf))
+            <= 0.85 * float(best_pt.get("delta_psd_l2", np.inf))
+            or float(best_seq.get("delta_acf_l2", np.inf))
+            <= 0.85 * float(best_pt.get("delta_acf_l2", np.inf))
+        )
+
+    def _row_recommendations(row: pd.Series) -> pd.Series:
+        recommend_lr = "keep"
+        recommend_beta_free_bits = "keep"
+        recommend_latent_dim = "keep"
+        recommend_capacity = "keep"
+        recommend_architecture = "keep"
+        recommend_epochs_patience = "keep"
+
+        if bool(row.get("flag_undertrained", False)):
+            recommend_epochs_patience = "increase_epochs_or_patience"
+
+        if bool(row.get("flag_lr_floor", False)) and float(row.get("late_val_slope", 0.0)) < -1e-4:
+            recommend_lr = "lower_initial_lr"
+
+        if bool(row.get("flag_posterior_collapse", False)):
+            recommend_beta_free_bits = "increase_free_bits_or_reduce_beta"
+            if float(row.get("active_dim_ratio", 1.0)) < 0.25:
+                recommend_latent_dim = "reduce_latent_dim"
+
+        stable_training = not any(
+            bool(row.get(flag, False))
+            for flag in ("flag_undertrained", "flag_overfit", "flag_unstable")
+        )
+        high_structural_error = (
+            float(row.get("delta_mean_l2", 0.0)) > 0.05
+            or float(row.get("delta_cov_fro", 0.0)) > TWIN_GATE_THRESHOLDS["cov_rel_var"]
+            or float(row.get("delta_psd_l2", 0.0)) > TWIN_GATE_THRESHOLDS["delta_psd_l2"]
+        )
+        if stable_training and high_structural_error:
+            recommend_capacity = "increase_capacity_or_use_seq"
+
+        proxy_g1_to_g4_good = (
+            abs(float(row.get("delta_evm_%", 0.0))) <= 1.0
+            and abs(float(row.get("delta_snr_db", 0.0))) <= 1.0
+            and float(row.get("delta_mean_l2", np.inf)) <= 0.05
+            and float(row.get("delta_cov_fro", np.inf)) <= TWIN_GATE_THRESHOLDS["cov_rel_var"]
+            and float(row.get("delta_psd_l2", np.inf)) <= TWIN_GATE_THRESHOLDS["delta_psd_l2"]
+        )
+        proxy_g5_bad = (
+            float(row.get("delta_skew_l2", 0.0)) > TWIN_GATE_THRESHOLDS["delta_skew_l2"]
+            or float(row.get("delta_kurt_l2", 0.0)) > TWIN_GATE_THRESHOLDS["delta_kurt_l2"]
+        )
+        if proxy_g1_to_g4_good and proxy_g5_bad:
+            recommend_architecture = "increase_distributional_regularization"
+
+        if seq_family_preferred and "seq" not in str(row.get("arch_variant", "")).lower():
+            recommend_architecture = "prefer_seq_family"
+
+        return pd.Series(
+            {
+                "recommend_lr": recommend_lr,
+                "recommend_beta_free_bits": recommend_beta_free_bits,
+                "recommend_latent_dim": recommend_latent_dim,
+                "recommend_capacity": recommend_capacity,
+                "recommend_architecture": recommend_architecture,
+                "recommend_epochs_patience": recommend_epochs_patience,
+            }
+        )
+
+    recs = df.apply(_row_recommendations, axis=1)
+    for col in recs.columns:
+        df[col] = recs[col]
+    return df
+
+
+def _build_training_diagnostics_table(df_results: pd.DataFrame) -> pd.DataFrame:
+    """Return the compact canonical training-diagnostics table."""
+    df = df_results.copy()
+    for col in TRAINING_DIAGNOSTIC_COLUMNS:
+        if col not in df.columns:
+            if col.startswith("flag_"):
+                df[col] = False
+            elif col.startswith("recommend_"):
+                df[col] = "keep"
+            else:
+                df[col] = np.nan
+    return df.loc[:, TRAINING_DIAGNOSTIC_COLUMNS]
+
+
 def _stratified_val_indices_by_experiment(
     *,
     n_total: int,
@@ -369,6 +743,7 @@ def run_gridsearch(
     )
     from src.training.grid_plots import (
         save_champion_analysis_dashboard,
+        save_training_analysis_dashboard,
     )
 
     _ov = overrides or {}
@@ -497,7 +872,6 @@ def run_gridsearch(
                         verbose=0,
                     ))
                 Ys = np.stack(Ys, axis=0)
-                # Point metrics (EVM/SNR) stay on MC mean.
                 Yp = Ys.mean(axis=0)
                 # Distribution metrics must use MC concatenation (marginal predictive sample).
                 Yp_dist = Ys.reshape((-1, Ys.shape[-1]))
@@ -506,9 +880,12 @@ def run_gridsearch(
                 var_mc = float(np.mean(np.var(Ys, axis=0)))
 
             evm_real, _ = calculate_evm(Xv_center, Yv)
-            evm_pred, _ = calculate_evm(Xv_center, Yp)
             snr_real = calculate_snr(Xv_center, Yv)
-            snr_pred = calculate_snr(Xv_center, Yp)
+            if rank_mode != "det" and K > 1:
+                evm_pred, snr_pred = _mc_point_metric_means(Xv_center, Ys)
+            else:
+                evm_pred, _ = calculate_evm(Xv_center, Yp)
+                snr_pred = calculate_snr(Xv_center, Yp)
 
             prior_net = vae.get_layer("prior_net")
             mu_p, logvar_p = prior_net.predict(
@@ -539,6 +916,7 @@ def run_gridsearch(
                 skew_l2 = float(distm["delta_skew_l2"])
                 kurt_l2 = float(distm["delta_kurt_l2"])
                 psd_l2 = float(distm["delta_psd_l2"])
+                acf_l2 = float(distm.get("delta_acf_l2", float("nan")))
             else:
                 d_real = (Y_dist - X_dist)
                 d_pred = (Yp_dist - X_dist)
@@ -546,11 +924,16 @@ def run_gridsearch(
                 var_pred = float(np.mean(np.var(d_pred, axis=0)))
                 mean_l2 = float(np.linalg.norm(np.mean(d_pred, 0) - np.mean(d_real, 0)))
                 cov_fro = float(np.linalg.norm(np.cov(d_pred.T) - np.cov(d_real.T), ord="fro"))
-                skew_l2 = 0.0; kurt_l2 = 0.0; psd_l2 = 0.0
+                skew_l2 = 0.0; kurt_l2 = 0.0; psd_l2 = 0.0; acf_l2 = float("nan")
 
             pen_var_mismatch = 0.0
             if not np.isnan(var_mc):
                 pen_var_mismatch = float(abs(var_mc - var_real))
+
+            history_dict = {
+                k: [float(x) for x in v]
+                for k, v in hist.history.items()
+            }
 
             score_v2 = compute_score_v2(
                 evm_real=evm_real, evm_pred=evm_pred,
@@ -589,6 +972,7 @@ def run_gridsearch(
                 "var_real_delta": float(var_real),
                 "var_pred_delta": float(var_pred),
                 "delta_psd_l2": float(psd_l2),
+                "delta_acf_l2": float(acf_l2),
                 "delta_skew_l2": float(skew_l2),
                 "delta_kurt_l2": float(kurt_l2),
                 "var_mc_gen": (float(var_mc) if not np.isnan(var_mc) else float("nan")),
@@ -596,6 +980,16 @@ def run_gridsearch(
                 "rank_mode": str(analysis_quick.get("rank_mode", "mc")).lower(),
                 "mc_samples": int(analysis_quick.get("mc_samples", 8)),
             }
+            row.update(
+                _build_training_diagnostics(
+                    history_dict=history_dict,
+                    cfg=cfg,
+                    max_epochs=int(training_config["epochs"]),
+                    active_dims=active_dims,
+                    kl_mean_total=kl_mean_total,
+                    kl_mean_per_dim=kl_mean_per_dim,
+                )
+            )
             results.append(row)
 
             # Per-grid artifact directory: model only.
@@ -604,10 +998,6 @@ def run_gridsearch(
             kl_dim_mean = np.mean(
                 0.5 * (np.exp(logvar_p) + mu_p ** 2 - 1.0 - logvar_p), axis=0
             )
-            history_dict = {
-                k: [float(x) for x in v]
-                for k, v in hist.history.items()
-            }
             summary_lines = [
                 f"grid_id: {gi} | group={group} | tag={tag}",
                 f"EVM real: {evm_real:.2f}% | EVM pred: {evm_pred:.2f}% | ΔEVM: {(evm_pred - evm_real):+.2f}%",
@@ -615,6 +1005,8 @@ def run_gridsearch(
                 f"score_abs_delta: {score:.4f}",
                 f"score_v2: {score_v2:.4f}",
                 f"active_dims: {active_dims}/{int(cfg['latent_dim'])} | KL_mean_total: {kl_mean_total:.3f}",
+                f"epochs_ran: {row['epochs_ran']} | best_epoch: {row['best_epoch']} | "
+                f"best_epoch_ratio: {row['best_epoch_ratio']:.2f}",
             ]
 
             results[-1]["report_png_path"] = ""
@@ -622,22 +1014,9 @@ def run_gridsearch(
             results[-1]["plot_bundle_dir"] = ""
             results[-1]["plot_bundle_count"] = 0
 
-            # Save individual model.
-            # For subclassed wrappers (e.g. delta_residual_adv) that cannot be
-            # serialised as HDF5, save the functional inference model instead.
-            # The inference model contains prior_net and decoder sub-models, so
-            # create_inference_model_from_full still works on reload.
-            try:
-                from src.models.adversarial import AdvResidualCVAEModel as _AdvCls
-                _is_adv = isinstance(vae, _AdvCls)
-            except ImportError:
-                _is_adv = False
-            _vae_to_save = (
-                create_inference_model_from_full(vae, deterministic=True)
-                if _is_adv else vae
-            )
+            # Save the full trainable model, including adversarial wrappers.
             model_path = model_dir / "model_full.keras"
-            _save_keras_model_compat(_vae_to_save, model_path)
+            _save_keras_model_compat(vae, model_path)
             results[-1]["model_full_path"] = str(model_path)
 
             is_best = (best_score is None) or (score_v2 < best_score)
@@ -646,7 +1025,7 @@ def run_gridsearch(
                 print("🏆 Novo melhor modelo do grid — salvando como 'best_model_full.keras'...")
 
                 best_path = MODELS_DIR / "best_model_full.keras"
-                _save_keras_model_compat(_vae_to_save, best_path)
+                _save_keras_model_compat(vae, best_path)
 
                 _save_keras_model_compat(
                     vae.get_layer("decoder"),
@@ -731,6 +1110,13 @@ def run_gridsearch(
                 "kl_mean_per_dim": float("nan"),
                 "delta_mean_l2": float("nan"),
                 "delta_cov_fro": float("nan"),
+                "delta_psd_l2": float("nan"),
+                "delta_acf_l2": float("nan"),
+                "delta_skew_l2": float("nan"),
+                "delta_kurt_l2": float("nan"),
+                "var_real_delta": float("nan"),
+                "var_pred_delta": float("nan"),
+                "pen_var_mismatch": float("nan"),
                 "model_full_path": "",
                 "report_png_path": "",
                 "report_xlsx_path": "",
@@ -743,6 +1129,8 @@ def run_gridsearch(
         ["score_v2", "score_abs_delta"], ascending=[True, True]
     )
     df_results.insert(0, "rank", np.arange(1, len(df_results) + 1))
+    df_results = _apply_training_recommendations(df_results)
+    df_diag = _build_training_diagnostics_table(df_results)
 
     df_rank_readme = pd.DataFrame([
         {
@@ -774,5 +1162,21 @@ def run_gridsearch(
 
     # Also save CSV for convenience
     run_paths.write_table("tables/gridsearch_results.csv", df_results)
+    diag_csv_path = run_paths.write_table("tables/grid_training_diagnostics.csv", df_diag)
+    print(f"📈 Training diagnostics salvo: {diag_csv_path}")
+
+    try:
+        training_dashboard_path = save_training_analysis_dashboard(
+            df_diag=df_diag,
+            plots_dir=run_paths.plots_dir,
+        )
+        print(f"✓ Training analysis dashboard salvo: {training_dashboard_path}")
+    except ModuleNotFoundError as exc:
+        if exc.name != "matplotlib":
+            raise
+        print(
+            "⚠️  matplotlib não está instalado neste ambiente; "
+            "pulando dashboard operacional de treinamento."
+        )
 
     return df_results

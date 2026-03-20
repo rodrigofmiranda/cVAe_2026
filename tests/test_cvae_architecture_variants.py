@@ -7,6 +7,8 @@ from src.models.cvae import (
     build_decoder,
     create_inference_model_from_full,
 )
+from src.models.cvae_sequence import load_seq_model
+from src.training.gridsearch import _save_keras_model_compat
 
 
 def _zero_dense_head(model, layer_name: str) -> None:
@@ -143,6 +145,36 @@ def test_build_cvae_and_inference_support_delta_residual_variant():
     y_mc = inf_mc.predict([x, d, c], verbose=0)
 
     assert vae.name == "cvae_condprior_delta_residual"
+    assert y_det.shape == (3, 2)
+    assert y_mc.shape == (3, 2)
+
+
+def test_delta_residual_adv_roundtrips_full_wrapper_save_and_load(tmp_path):
+    vae, _ = build_cvae(
+        _point_cfg(
+            "delta_residual_adv",
+            lambda_adv=0.05,
+        )
+    )
+    x = np.zeros((3, 2), dtype=np.float32)
+    d = np.zeros((3, 1), dtype=np.float32)
+    c = np.zeros((3, 1), dtype=np.float32)
+    _ = vae([x, d, c], training=False)
+
+    out = tmp_path / "adv_model.keras"
+    _save_keras_model_compat(vae, out)
+
+    loaded = load_seq_model(str(out))
+    inf_det = create_inference_model_from_full(loaded, deterministic=True)
+    inf_mc = create_inference_model_from_full(loaded, deterministic=False)
+
+    y_det = inf_det.predict([x, d, c], verbose=0)
+    y_mc = inf_mc.predict([x, d, c], verbose=0)
+
+    assert loaded.get_layer("encoder") is not None
+    assert loaded.get_layer("prior_net") is not None
+    assert loaded.get_layer("decoder") is not None
+    assert loaded.get_layer("discriminator") is not None
     assert y_det.shape == (3, 2)
     assert y_mc.shape == (3, 2)
 

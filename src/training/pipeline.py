@@ -303,7 +303,7 @@ def run_training_pipeline(
             "status": "dry_run",
         }
 
-    run_gridsearch(
+    df_results = run_gridsearch(
         grid=grid,
         training_config=runtime.training_config,
         analysis_quick=runtime.analysis_quick,
@@ -323,9 +323,28 @@ def run_training_pipeline(
 
     grid_csv_path = run_paths.run_dir / "tables" / "gridsearch_results.csv"
     grid_xlsx_path = run_paths.run_dir / "tables" / "gridsearch_results.xlsx"
+    grid_diag_csv_path = run_paths.run_dir / "tables" / "grid_training_diagnostics.csv"
+    training_dashboard_path = (
+        run_paths.run_dir / "plots" / "training" / "dashboard_analysis_complete.png"
+    )
+    best_grid_tag = (
+        str(df_results.iloc[0]["tag"])
+        if isinstance(df_results, pd.DataFrame) and not df_results.empty and "tag" in df_results.columns
+        else ""
+    )
+    best_score_v2 = (
+        float(df_results.iloc[0]["score_v2"])
+        if isinstance(df_results, pd.DataFrame)
+        and not df_results.empty
+        and "score_v2" in df_results.columns
+        and np.isfinite(df_results.iloc[0]["score_v2"])
+        else float("nan")
+    )
     artifacts = {
         "grid_results_csv": str(grid_csv_path),
         "grid_results_xlsx": str(grid_xlsx_path),
+        "grid_training_diagnostics_csv": str(grid_diag_csv_path),
+        "training_dashboard_png": str(training_dashboard_path),
         "best_model_full": str(run_paths.models_dir / "best_model_full.keras"),
         "best_decoder": str(run_paths.models_dir / "best_decoder.keras"),
         "best_prior_net": str(run_paths.models_dir / "best_prior_net.keras"),
@@ -345,6 +364,10 @@ def run_training_pipeline(
         "n_models": int(len(grid)),
         "grid_results_csv": str(grid_csv_path),
         "grid_results_xlsx": str(grid_xlsx_path),
+        "grid_training_diagnostics_csv": str(grid_diag_csv_path),
+        "training_dashboard_png": str(training_dashboard_path),
+        "best_grid_tag": best_grid_tag,
+        "best_score_v2": best_score_v2,
     }
 
     state_path = write_state_run(

@@ -166,7 +166,7 @@ class AdvResidualCVAEModel(tf.keras.Model):
             eps = tf.random.normal(tf.shape(z_mean_q))
             z_q = z_mean_q + tf.exp(0.5 * z_log_var_q) * eps
             out_params = self.decoder([z_q, cond], training=True)
-            delta_fake = out_params[:, :2]
+            delta_fake = self._sample_delta(out_params)
 
             disc_in_real = tf.concat([x_in, d_in, c_in, delta_real], axis=-1)
             disc_in_fake = tf.concat([x_in, d_in, c_in, delta_fake], axis=-1)
@@ -199,6 +199,7 @@ class AdvResidualCVAEModel(tf.keras.Model):
             out_params = self.decoder([z_q, cond], training=True)
             delta_fake_mean = out_params[:, :2]
             delta_fake_logvar = out_params[:, 2:]
+            delta_fake = self._sample_delta(out_params)
 
             delta_true = y_in - x_in
             recon = tf.reduce_mean(
@@ -206,7 +207,7 @@ class AdvResidualCVAEModel(tf.keras.Model):
             )
             kl_raw = kl_divergence(z_mean_q, z_log_var_q, z_mean_p, z_log_var_p)
             kl = tf.reduce_mean(kl_with_freebits(kl_raw, self.free_bits))
-            disc_in_fake = tf.concat([x_in, d_in, c_in, delta_fake_mean], axis=-1)
+            disc_in_fake = tf.concat([x_in, d_in, c_in, delta_fake], axis=-1)
             # Discriminator is not updated in this step (training=False).
             adv = hinge_generator_loss(
                 self.discriminator(disc_in_fake, training=False),
@@ -252,3 +253,17 @@ class AdvResidualCVAEModel(tf.keras.Model):
         kl_raw = kl_divergence(z_mean_q, z_log_var_q, z_mean_p, z_log_var_p)
         kl = tf.reduce_mean(kl_with_freebits(kl_raw, self.free_bits))
         return {"recon_loss": recon, "kl_loss": kl}
+
+    @staticmethod
+    def _sample_delta(out_params: tf.Tensor) -> tf.Tensor:
+        """Sample residuals from the heteroscedastic decoder head.
+
+        The adversarial discriminator must see the full predictive
+        distribution, not only the residual mean. Otherwise the GAN term
+        never pushes the decoder variance head that controls stochastic
+        fidelity and heteroscedasticity.
+        """
+        delta_mean = out_params[:, :2]
+        delta_logvar = out_params[:, 2:]
+        eps = tf.random.normal(tf.shape(delta_mean))
+        return delta_mean + tf.exp(0.5 * delta_logvar) * eps
