@@ -50,6 +50,13 @@ from src.evaluation.validation_summary import (
     build_stat_fidelity_table,
     build_validation_summary_table,
 )
+from src.protocol.experiment_tracking import (
+    RUN_STATUS_COMPLETED,
+    RUN_STATUS_FAILED,
+    RUN_STATUS_RUNNING,
+    RUN_TYPE_PROTOCOL,
+    write_latest_completed_experiment_record,
+)
 from src.training.logging import RunPaths
 
 
@@ -836,6 +843,68 @@ def _extract_training_operational_artifacts(run_dir: Optional[Path]) -> Dict[str
     }
 
 
+def _protocol_manifest_args(
+    args: argparse.Namespace,
+    *,
+    proto_config_path: Optional[str],
+    reused_model_run_dir: Optional[Path],
+) -> Dict[str, Any]:
+    return {
+        "dataset_root": args.dataset_root,
+        "output_base": args.output_base,
+        "protocol": args.protocol,
+        "protocol_config": proto_config_path,
+        "max_regimes": args.max_regimes,
+        "skip_eval": args.skip_eval,
+        "no_baseline": args.no_baseline,
+        "no_cvae": args.no_cvae,
+        "baseline_only": args.baseline_only,
+        "no_dist_metrics": args.no_dist_metrics,
+        "dry_run": args.dry_run,
+        "stat_tests": args.stat_tests,
+        "train_once_eval_all": args.train_once_eval_all,
+        "reuse_model_run_dir": (
+            str(reused_model_run_dir) if reused_model_run_dir is not None else None
+        ),
+    }
+
+
+def _write_protocol_running_manifest(
+    exp_paths: RunPaths,
+    *,
+    ts_start: datetime,
+    git_commit: Optional[str],
+    versions: Dict[str, Any],
+    args_payload: Dict[str, Any],
+    execution_mode: str,
+    studies_meta: List[dict],
+    regimes: List[dict],
+) -> Path:
+    payload = {
+        "run_type": RUN_TYPE_PROTOCOL,
+        "run_status": RUN_STATUS_RUNNING,
+        "timestamp_start": ts_start.isoformat(timespec="seconds"),
+        "timestamp_end": None,
+        "duration_seconds": None,
+        "git_commit": git_commit,
+        "versions": versions,
+        "args": args_payload,
+        "execution_mode": execution_mode,
+        "n_studies": len(studies_meta),
+        "studies": [
+            {
+                "name": s["name"],
+                "split_strategy": s.get("split_strategy", "per_experiment"),
+                "n_regimes": len(s["regime_ids"]),
+                "regime_ids": s["regime_ids"],
+            }
+            for s in studies_meta
+        ],
+        "n_regimes": len(regimes),
+    }
+    return exp_paths.write_json("manifest.json", payload)
+
+
 def _filter_experiments_for_regime(
     exps: list,
     regime: dict,
@@ -1591,6 +1660,8 @@ def main():
     warn_if_no_gpu_and_confirm("protocol run")
     ts_start = datetime.now()
     ts_label = ts_start.strftime("%Y%m%d_%H%M%S")
+    git_commit = _git_commit_hash()
+    versions = _runtime_versions()
 
     # --- Commit 3M: resolve dataset_root to absolute path ---
     args.dataset_root = str(Path(args.dataset_root).resolve())
@@ -1659,11 +1730,27 @@ def main():
 
     studies_meta = protocol.get("_studies", [])
     n_studies = len(studies_meta)
+    manifest_args = _protocol_manifest_args(
+        args,
+        proto_config_path=_proto_config_path,
+        reused_model_run_dir=reused_model_run_dir,
+    )
 
     print(f"🚀 Protocol runner — {len(studies_meta)} study(ies), {len(regimes)} regime(s)")
     print(f"🧭 Execution mode: {execution_mode}")
     print(f"📁 Experiment dir: {exp_dir}")
     print(f"🔧 Base overrides: {base_overrides}")
+
+    _write_protocol_running_manifest(
+        exp_paths,
+        ts_start=ts_start,
+        git_commit=git_commit,
+        versions=versions,
+        args_payload=manifest_args,
+        execution_mode=execution_mode,
+        studies_meta=studies_meta,
+        regimes=regimes,
+    )
 
     # Save a copy of the protocol used (always the resolved dict as JSON)
     exp_paths.write_json("logs/protocol_input.json", protocol)
@@ -1739,30 +1826,15 @@ def main():
             except Exception as e:
                 err = f"global_train: {e}\n{traceback.format_exc()}"
                 manifest = {
+                    "run_type": RUN_TYPE_PROTOCOL,
+                    "run_status": RUN_STATUS_FAILED,
                     "protocol_version": protocol.get("protocol_version", "1.0"),
                     "timestamp_start": ts_start.isoformat(timespec="seconds"),
                     "timestamp_end": datetime.now().isoformat(timespec="seconds"),
                     "duration_seconds": (datetime.now() - ts_start).total_seconds(),
-                    "git_commit": _git_commit_hash(),
-                    "versions": _runtime_versions(),
-                    "args": {
-                        "dataset_root": args.dataset_root,
-                        "output_base": args.output_base,
-                        "protocol": args.protocol,
-                        "protocol_config": _proto_config_path,
-                        "max_regimes": args.max_regimes,
-                        "skip_eval": args.skip_eval,
-                        "no_baseline": args.no_baseline,
-                        "no_cvae": args.no_cvae,
-                        "baseline_only": args.baseline_only,
-                        "no_dist_metrics": args.no_dist_metrics,
-                        "dry_run": args.dry_run,
-                        "stat_tests": args.stat_tests,
-                        "train_once_eval_all": args.train_once_eval_all,
-                        "reuse_model_run_dir": (
-                            str(reused_model_run_dir) if reused_model_run_dir is not None else None
-                        ),
-                    },
+                    "git_commit": git_commit,
+                    "versions": versions,
+                    "args": manifest_args,
                     "execution_mode": execution_mode,
                     "training_operational_artifacts": training_operational_artifacts,
                     "error": err,
@@ -1871,30 +1943,15 @@ def main():
         enabled=not args.no_dist_metrics,
     )
     manifest = {
+        "run_type": RUN_TYPE_PROTOCOL,
+        "run_status": RUN_STATUS_COMPLETED,
         "protocol_version": protocol.get("protocol_version", "1.0"),
         "timestamp_start": ts_start.isoformat(timespec="seconds"),
         "timestamp_end": ts_end.isoformat(timespec="seconds"),
         "duration_seconds": (ts_end - ts_start).total_seconds(),
-        "git_commit": _git_commit_hash(),
-        "versions": _runtime_versions(),
-        "args": {
-            "dataset_root": args.dataset_root,
-            "output_base": args.output_base,
-            "protocol": args.protocol,
-            "protocol_config": _proto_config_path,
-            "max_regimes": args.max_regimes,
-            "skip_eval": args.skip_eval,
-            "no_baseline": args.no_baseline,
-            "no_cvae": args.no_cvae,
-            "baseline_only": args.baseline_only,
-            "no_dist_metrics": args.no_dist_metrics,
-            "dry_run": args.dry_run,
-            "stat_tests": args.stat_tests,
-            "train_once_eval_all": args.train_once_eval_all,
-            "reuse_model_run_dir": (
-                str(reused_model_run_dir) if reused_model_run_dir is not None else None
-            ),
-        },
+        "git_commit": git_commit,
+        "versions": versions,
+        "args": manifest_args,
         "execution_mode": execution_mode,
         "baseline_config": _baseline_cfg,
         "cvae_config": _effective_cvae_config(
@@ -1969,6 +2026,7 @@ def main():
         ],
     }
     manifest_path = exp_paths.write_json("manifest.json", manifest)
+    write_latest_completed_experiment_record(args.output_base, exp_dir)
     print(f"📋 Manifest: {manifest_path}")
 
     # ---- Final summary to stdout ----
