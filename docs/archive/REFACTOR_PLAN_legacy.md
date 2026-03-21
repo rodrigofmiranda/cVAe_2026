@@ -16,9 +16,9 @@ O objetivo principal do plano foi concluído:
 
 ## Documento ativo que substitui este plano
 
-- [PROJECT_STATUS.md](/workspace/2026/PROJECT_STATUS.md)
-- [TRAINING_PLAN.md](/workspace/2026/TRAINING_PLAN.md)
-- [docs/PROTOCOL.md](/workspace/2026/docs/PROTOCOL.md)
+- [PROJECT_STATUS.md](/workspace/2026/feat_delta_residual_adv/PROJECT_STATUS.md)
+- [TRAINING_PLAN.md](/workspace/2026/feat_delta_residual_adv/TRAINING_PLAN.md)
+- [docs/PROTOCOL.md](/workspace/2026/feat_delta_residual_adv/docs/PROTOCOL.md)
 
 ## Motivo do arquivamento
 

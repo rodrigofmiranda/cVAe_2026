@@ -40,7 +40,7 @@ Implementation commit:
 
 ### 1. Operational Smoke
 
-- run: `/workspace/2026/outputs/exp_20260318_230955`
+- run: `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_230955`
 - preset: `delta_residual_smoke`
 
 Outcome:
@@ -59,7 +59,7 @@ Use only as operational proof that the variant works in the full pipeline.
 
 ### 2. First Useful Sweep
 
-- run: `/workspace/2026/outputs/exp_20260318_231458`
+- run: `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_231458`
 - preset: `delta_residual_small`
 
 Winning config:
@@ -86,7 +86,7 @@ Interpretation:
 
 ### 3. Winner-Centric Refinement
 
-- run: `/workspace/2026/outputs/exp_20260318_233023`
+- run: `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_233023`
 - preset: `delta_residual_refine`
 
 Winning config by grid score:
@@ -107,12 +107,12 @@ Pivot summary:
 
 Interpretation:
 
-- this refinement did **not** beat `/workspace/2026/outputs/exp_20260318_231458`
+- this refinement did **not** beat `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_231458`
 - lowering `beta` to `0.0005` looked acceptable on grid rank metrics, but degraded the final pivot regime badly
 
 ### 4. Local Winner Refinement
 
-- run: `/workspace/2026/outputs/exp_20260318_235319`
+- run: `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_235319`
 - preset: `delta_residual_local`
 
 Winning config by grid score:
@@ -134,7 +134,7 @@ Pivot summary:
 Interpretation:
 
 - this run is the best current `delta_residual` scientific reference
-- it improved over `/workspace/2026/outputs/exp_20260318_231458` on:
+- it improved over `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_231458` on:
   - `ΔEVM`
   - `ΔSNR`
   - `PSD_L2`
@@ -148,7 +148,7 @@ Interpretation:
 
 Use this as the best current `delta_residual` reference:
 
-- `/workspace/2026/outputs/exp_20260318_235319`
+- `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_235319`
 
 Current best config:
 

@@ -4,25 +4,42 @@ A PhD-level research repository implementing a **data-driven digital twin** of a
 Visible Light Communication (VLC) channel using a Conditional Variational
 Autoencoder (cVAE) with heteroscedastic decoding and conditional prior.
 
+## Folder Name
+
+This folder is:
+
+- `/workspace/2026/feat_delta_residual_adv`
+
+Meaning of the name:
+
+- `feat_delta_residual_adv` comes from the Git branch name `feat/delta-residual-adv`
+- this is the branch-specific worktree for the point-wise adversarial cVAE-GAN line
+- use it when you want to isolate the dedicated history and experiments of `delta_residual_adv`
+
+The other worktree is:
+
+- `/workspace/2026/feat_seq_bigru_residual_cvae`
+- that folder is the main unified worktree for switching architectures by `arch_variant`
+
 ## Current Docs
 
 Use these documents in this order:
 
-- [docs/ACTIVE_CONTEXT.md](/workspace/2026/docs/ACTIVE_CONTEXT.md) — shortest path for current branch context
-- [PROJECT_STATUS.md](/workspace/2026/PROJECT_STATUS.md) — current architecture and repo state
-- [TRAINING_PLAN.md](/workspace/2026/TRAINING_PLAN.md) — active scientific plan and gates
-- [docs/DELTA_RESIDUAL_ADV_STATUS.md](/workspace/2026/docs/DELTA_RESIDUAL_ADV_STATUS.md) — status of the experimental point-wise cVAE-GAN line
-- [docs/RUN_REANALYSIS_PLAYBOOK.md](/workspace/2026/docs/RUN_REANALYSIS_PLAYBOOK.md) — how to review new `exp_*` runs quickly
-- [docs/DIAGNOSTIC_CHECKLIST.md](/workspace/2026/docs/DIAGNOSTIC_CHECKLIST.md) — executable diagnostic workflow
-- [docs/PROTOCOL.md](/workspace/2026/docs/PROTOCOL.md) — protocol runner, artifacts, CLI
-- [docs/MODELING_ASSUMPTIONS.md](/workspace/2026/docs/MODELING_ASSUMPTIONS.md) — modeling rationale
-- [docs/GEMINI_BOOTSTRAP.md](/workspace/2026/docs/GEMINI_BOOTSTRAP.md) — concise handoff for a secondary AI
-- [docs/GEMINI_PLAYBOOK.md](/workspace/2026/docs/GEMINI_PLAYBOOK.md) — operational playbook for known situations
-- [docs/GEMINI_PROMPTS.md](/workspace/2026/docs/GEMINI_PROMPTS.md) — prompt templates for Gemini or other copilots
+- [docs/ACTIVE_CONTEXT.md](/workspace/2026/feat_delta_residual_adv/docs/ACTIVE_CONTEXT.md) — shortest path for current branch context
+- [PROJECT_STATUS.md](/workspace/2026/feat_delta_residual_adv/PROJECT_STATUS.md) — current architecture and repo state
+- [TRAINING_PLAN.md](/workspace/2026/feat_delta_residual_adv/TRAINING_PLAN.md) — active scientific plan and gates
+- [docs/DELTA_RESIDUAL_ADV_STATUS.md](/workspace/2026/feat_delta_residual_adv/docs/DELTA_RESIDUAL_ADV_STATUS.md) — status of the experimental point-wise cVAE-GAN line
+- [docs/RUN_REANALYSIS_PLAYBOOK.md](/workspace/2026/feat_delta_residual_adv/docs/RUN_REANALYSIS_PLAYBOOK.md) — how to review new `exp_*` runs quickly
+- [docs/DIAGNOSTIC_CHECKLIST.md](/workspace/2026/feat_delta_residual_adv/docs/DIAGNOSTIC_CHECKLIST.md) — executable diagnostic workflow
+- [docs/PROTOCOL.md](/workspace/2026/feat_delta_residual_adv/docs/PROTOCOL.md) — protocol runner, artifacts, CLI
+- [docs/MODELING_ASSUMPTIONS.md](/workspace/2026/feat_delta_residual_adv/docs/MODELING_ASSUMPTIONS.md) — modeling rationale
+- [docs/GEMINI_BOOTSTRAP.md](/workspace/2026/feat_delta_residual_adv/docs/GEMINI_BOOTSTRAP.md) — concise handoff for a secondary AI
+- [docs/GEMINI_PLAYBOOK.md](/workspace/2026/feat_delta_residual_adv/docs/GEMINI_PLAYBOOK.md) — operational playbook for known situations
+- [docs/GEMINI_PROMPTS.md](/workspace/2026/feat_delta_residual_adv/docs/GEMINI_PROMPTS.md) — prompt templates for Gemini or other copilots
 
 Historical refactor planning has been archived under:
 
-- [docs/archive/REFACTOR_PLAN_legacy.md](/workspace/2026/docs/archive/REFACTOR_PLAN_legacy.md)
+- [docs/archive/REFACTOR_PLAN_legacy.md](/workspace/2026/feat_delta_residual_adv/docs/archive/REFACTOR_PLAN_legacy.md)
 
 ## Objective
 
@@ -220,7 +237,7 @@ bash scripts/enter_tf25_gpu.sh
 Inside the container:
 
 ```bash
-cd /workspace/cVAe_2026
+cd /workspace/2026/feat_delta_residual_adv
 
 # safest first check: validates config + dataset discovery, no training
 python -m src.protocol.run \

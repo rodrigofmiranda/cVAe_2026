@@ -95,7 +95,7 @@ Nao chame de limitacao do modelo antes disso:
 Checklist minima:
 
 ```bash
-cd /workspace/2026
+cd /workspace/2026/feat_delta_residual_adv
 python -m pytest tests -q
 python -m src.protocol.run \
   --dataset_root data/dataset_fullsquare_organized \

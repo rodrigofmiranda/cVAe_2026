@@ -15,7 +15,7 @@ Answer quickly:
 ## Primary Tool
 
 ```bash
-cd /workspace/2026
+cd /workspace/2026/feat_delta_residual_adv
 python scripts/summarize_experiment.py outputs/exp_YYYYMMDD_HHMMSS
 ```
 

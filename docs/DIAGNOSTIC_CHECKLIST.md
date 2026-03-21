@@ -6,16 +6,16 @@ Checklist executavel para diagnosticar o twin cVAE no regime pivo e decidir entr
 - ajuste de hiperparametros
 - mudanca estrutural do modelo
 
-Este documento operacionaliza o [TRAINING_PLAN.md](/workspace/2026/TRAINING_PLAN.md).
+Este documento operacionaliza o [TRAINING_PLAN.md](/workspace/2026/feat_delta_residual_adv/TRAINING_PLAN.md).
 
 ## 1. Pre-condicoes
 
-- Estar em `/workspace/2026`
+- Estar em `/workspace/2026/feat_delta_residual_adv`
 - Dataset acessivel em `data/dataset_fullsquare_organized`
 - Branch e worktree conferidos:
 
 ```bash
-cd /workspace/2026
+cd /workspace/2026/feat_delta_residual_adv
 git status -sb
 git log --oneline -3
 ```
@@ -25,7 +25,7 @@ git log --oneline -3
 Use estas variaveis para evitar erro manual:
 
 ```bash
-cd /workspace/2026
+cd /workspace/2026/feat_delta_residual_adv
 
 export DATASET_ROOT=data/dataset_fullsquare_organized
 export OUTPUT_BASE=outputs

@@ -133,23 +133,23 @@ regime físico.
 
 ## 3. Documentos ativos
 
-- [README.md](/workspace/2026/README.md): visão geral e uso
-- [docs/ACTIVE_CONTEXT.md](/workspace/2026/docs/ACTIVE_CONTEXT.md): ponto de entrada curto para a branch ativa
-- [PROJECT_STATUS.md](/workspace/2026/PROJECT_STATUS.md): estado atual do código
-- [TRAINING_PLAN.md](/workspace/2026/TRAINING_PLAN.md): plano científico e gates
-- [docs/DELTA_RESIDUAL_ADV_STATUS.md](/workspace/2026/docs/DELTA_RESIDUAL_ADV_STATUS.md): status da linha adversarial experimental
-- [docs/RUN_REANALYSIS_PLAYBOOK.md](/workspace/2026/docs/RUN_REANALYSIS_PLAYBOOK.md): como reavaliar rapidamente novos `exp_*`
-- [docs/PROTOCOL.md](/workspace/2026/docs/PROTOCOL.md): protocolo, artefatos e CLI
-- [docs/MODELING_ASSUMPTIONS.md](/workspace/2026/docs/MODELING_ASSUMPTIONS.md): premissas do modelo
+- [README.md](/workspace/2026/feat_delta_residual_adv/README.md): visão geral e uso
+- [docs/ACTIVE_CONTEXT.md](/workspace/2026/feat_delta_residual_adv/docs/ACTIVE_CONTEXT.md): ponto de entrada curto para a branch ativa
+- [PROJECT_STATUS.md](/workspace/2026/feat_delta_residual_adv/PROJECT_STATUS.md): estado atual do código
+- [TRAINING_PLAN.md](/workspace/2026/feat_delta_residual_adv/TRAINING_PLAN.md): plano científico e gates
+- [docs/DELTA_RESIDUAL_ADV_STATUS.md](/workspace/2026/feat_delta_residual_adv/docs/DELTA_RESIDUAL_ADV_STATUS.md): status da linha adversarial experimental
+- [docs/RUN_REANALYSIS_PLAYBOOK.md](/workspace/2026/feat_delta_residual_adv/docs/RUN_REANALYSIS_PLAYBOOK.md): como reavaliar rapidamente novos `exp_*`
+- [docs/PROTOCOL.md](/workspace/2026/feat_delta_residual_adv/docs/PROTOCOL.md): protocolo, artefatos e CLI
+- [docs/MODELING_ASSUMPTIONS.md](/workspace/2026/feat_delta_residual_adv/docs/MODELING_ASSUMPTIONS.md): premissas do modelo
 
 ## 4. Documentos arquivados
 
-- [docs/archive/REFACTOR_PLAN_legacy.md](/workspace/2026/docs/archive/REFACTOR_PLAN_legacy.md)
+- [docs/archive/REFACTOR_PLAN_legacy.md](/workspace/2026/feat_delta_residual_adv/docs/archive/REFACTOR_PLAN_legacy.md)
 
 ## 5. Como retomar rapidamente
 
 ```bash
-cd /workspace/2026
+cd /workspace/2026/feat_delta_residual_adv
 git status -sb
 git log --oneline -5
 python scripts/summarize_experiment.py
@@ -157,6 +157,6 @@ python scripts/summarize_experiment.py
 
 Depois disso:
 
-- leia [PROJECT_STATUS.md](/workspace/2026/PROJECT_STATUS.md)
-- leia [TRAINING_PLAN.md](/workspace/2026/TRAINING_PLAN.md)
+- leia [PROJECT_STATUS.md](/workspace/2026/feat_delta_residual_adv/PROJECT_STATUS.md)
+- leia [TRAINING_PLAN.md](/workspace/2026/feat_delta_residual_adv/TRAINING_PLAN.md)
 - rode o smoke ou o protocolo desejado

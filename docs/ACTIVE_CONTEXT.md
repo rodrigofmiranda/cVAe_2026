@@ -6,12 +6,12 @@ Use this file to avoid reading the whole repo every time.
 
 Read only these files first:
 
-1. [CODEX.md](/workspace/2026/CODEX.md)
-2. [PROJECT_STATUS.md](/workspace/2026/PROJECT_STATUS.md)
-3. [docs/PROTOCOL.md](/workspace/2026/docs/PROTOCOL.md)
-4. [docs/DELTA_RESIDUAL_ADV_STATUS.md](/workspace/2026/docs/DELTA_RESIDUAL_ADV_STATUS.md)
-5. [docs/DELTA_RESIDUAL_STATUS.md](/workspace/2026/docs/DELTA_RESIDUAL_STATUS.md)
-6. [docs/RUN_REANALYSIS_PLAYBOOK.md](/workspace/2026/docs/RUN_REANALYSIS_PLAYBOOK.md)
+1. [CODEX.md](/workspace/2026/feat_delta_residual_adv/CODEX.md)
+2. [PROJECT_STATUS.md](/workspace/2026/feat_delta_residual_adv/PROJECT_STATUS.md)
+3. [docs/PROTOCOL.md](/workspace/2026/feat_delta_residual_adv/docs/PROTOCOL.md)
+4. [docs/DELTA_RESIDUAL_ADV_STATUS.md](/workspace/2026/feat_delta_residual_adv/docs/DELTA_RESIDUAL_ADV_STATUS.md)
+5. [docs/DELTA_RESIDUAL_STATUS.md](/workspace/2026/feat_delta_residual_adv/docs/DELTA_RESIDUAL_STATUS.md)
+6. [docs/RUN_REANALYSIS_PLAYBOOK.md](/workspace/2026/feat_delta_residual_adv/docs/RUN_REANALYSIS_PLAYBOOK.md)
 
 Everything else is secondary unless a specific task requires it.
 
@@ -33,17 +33,17 @@ Current purpose:
 
 Strongest current seq reference in this workspace:
 
-- `/workspace/2026/outputs/exp_20260320_171510`
+- `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260320_171510`
 - winner:
   - `S2seq_W7_h64_lat4_b0p003_lmmd1p0_fb0p10_lr0p0003_L128-256-512`
 
 Historical all-gates-passed seq reference:
 
-- `/workspace/2026/outputs/exp_20260318_204149`
+- `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_204149`
 
 Best current non-adversarial point-wise reference:
 
-- `/workspace/2026/outputs/exp_20260318_235319`
+- `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_235319`
 
 Current strong point-wise anchor carried into comparisons:
 
@@ -60,9 +60,9 @@ Current strong point-wise anchor carried into comparisons:
 
 Do not use these as final scientific references:
 
-- `/workspace/2026/outputs/exp_20260320_012223`
-- `/workspace/2026/outputs/exp_20260320_014614`
-- `/workspace/2026/outputs/exp_20260320_020652`
+- `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260320_012223`
+- `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260320_014614`
+- `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260320_020652`
 
 ## Canonical Artifacts
 
@@ -84,7 +84,7 @@ Protocol-side:
 For any future run copied into `outputs/`, use:
 
 ```bash
-cd /workspace/2026
+cd /workspace/2026/feat_delta_residual_adv
 python scripts/summarize_experiment.py outputs/exp_YYYYMMDD_HHMMSS
 ```
 

@@ -5,7 +5,7 @@ Current status of the `legacy_2025_zero_y` batch-size sweep under the strict
 
 Protocol basis:
 
-- config: [one_regime_1p0m_300mA_sel4curr.json](/workspace/2026/configs/one_regime_1p0m_300mA_sel4curr.json)
+- config: [one_regime_1p0m_300mA_sel4curr.json](/workspace/2026/feat_delta_residual_adv/configs/one_regime_1p0m_300mA_sel4curr.json)
 - preset family: `legacy2025_batch_sweep`
 - fixed model config: `layer_sizes=[32,64,128,256]`, `latent_dim=16`,
   `beta=0.1`, `lr=1e-4`, `free_bits=0.0`, `kl_anneal_epochs=50`
@@ -13,7 +13,7 @@ Protocol basis:
 ## Reference
 
 - batch size: `4096`
-- run: [exp_20260318_193036](/workspace/2026/outputs/exp_20260318_193036)
+- run: [exp_20260318_193036](/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_193036)
 - best val loss: `-1.8306`
 - train time: `591.9 s`
 - pivot metrics:
@@ -27,7 +27,7 @@ Protocol basis:
 
 ### `bs8192` — PASS
 
-- run: [exp_20260318_195010](/workspace/2026/outputs/exp_20260318_195010)
+- run: [exp_20260318_195010](/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_195010)
 - best val loss: `-1.6959`
 - train time: `291.3 s`
 - pivot metrics:
@@ -46,12 +46,12 @@ Interpretation:
 
 Overlay paths:
 
-- [overlay_constellation.png](/workspace/2026/outputs/exp_20260318_195010/studies/within_regime/regimes/dist_1m__curr_300mA/plots/overlay_constellation.png)
-- [overlay_residual_delta.png](/workspace/2026/outputs/exp_20260318_195010/studies/within_regime/regimes/dist_1m__curr_300mA/plots/overlay_residual_delta.png)
+- [overlay_constellation.png](/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_195010/studies/within_regime/regimes/dist_1m__curr_300mA/plots/overlay_constellation.png)
+- [overlay_residual_delta.png](/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_195010/studies/within_regime/regimes/dist_1m__curr_300mA/plots/overlay_residual_delta.png)
 
 ### `bs16384` — FAIL
 
-- run: [exp_20260318_195709](/workspace/2026/outputs/exp_20260318_195709)
+- run: [exp_20260318_195709](/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_195709)
 - best val loss: `-1.3882`
 - train time: `145.6 s`
 - pivot metrics:
@@ -70,8 +70,8 @@ Interpretation:
 
 Overlay paths:
 
-- [overlay_constellation.png](/workspace/2026/outputs/exp_20260318_195709/studies/within_regime/regimes/dist_1m__curr_300mA/plots/overlay_constellation.png)
-- [overlay_residual_delta.png](/workspace/2026/outputs/exp_20260318_195709/studies/within_regime/regimes/dist_1m__curr_300mA/plots/overlay_residual_delta.png)
+- [overlay_constellation.png](/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_195709/studies/within_regime/regimes/dist_1m__curr_300mA/plots/overlay_constellation.png)
+- [overlay_residual_delta.png](/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_195709/studies/within_regime/regimes/dist_1m__curr_300mA/plots/overlay_residual_delta.png)
 
 ## Current conclusion
 
