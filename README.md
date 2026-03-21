@@ -8,21 +8,21 @@ Autoencoder (cVAE) with heteroscedastic decoding and conditional prior.
 
 Use these documents in this order:
 
-- [docs/ACTIVE_CONTEXT.md](/workspace/2026/docs/ACTIVE_CONTEXT.md) — shortest path for current branch context
-- [PROJECT_STATUS.md](/workspace/2026/PROJECT_STATUS.md) — current architecture and repo state
-- [TRAINING_PLAN.md](/workspace/2026/TRAINING_PLAN.md) — active scientific plan and gates
-- [docs/DELTA_RESIDUAL_ADV_STATUS.md](/workspace/2026/docs/DELTA_RESIDUAL_ADV_STATUS.md) — status of the experimental point-wise cVAE-GAN line
-- [docs/RUN_REANALYSIS_PLAYBOOK.md](/workspace/2026/docs/RUN_REANALYSIS_PLAYBOOK.md) — how to review new `exp_*` runs quickly
-- [docs/DIAGNOSTIC_CHECKLIST.md](/workspace/2026/docs/DIAGNOSTIC_CHECKLIST.md) — executable diagnostic workflow
-- [docs/PROTOCOL.md](/workspace/2026/docs/PROTOCOL.md) — protocol runner, artifacts, CLI
-- [docs/MODELING_ASSUMPTIONS.md](/workspace/2026/docs/MODELING_ASSUMPTIONS.md) — modeling rationale
-- [docs/GEMINI_BOOTSTRAP.md](/workspace/2026/docs/GEMINI_BOOTSTRAP.md) — concise handoff for a secondary AI
-- [docs/GEMINI_PLAYBOOK.md](/workspace/2026/docs/GEMINI_PLAYBOOK.md) — operational playbook for known situations
-- [docs/GEMINI_PROMPTS.md](/workspace/2026/docs/GEMINI_PROMPTS.md) — prompt templates for Gemini or other copilots
+- [docs/ACTIVE_CONTEXT.md](docs/ACTIVE_CONTEXT.md) — shortest path for the unified branch context
+- [PROJECT_STATUS.md](PROJECT_STATUS.md) — current architecture and repo state
+- [TRAINING_PLAN.md](TRAINING_PLAN.md) — active scientific plan and gates
+- [docs/DELTA_RESIDUAL_ADV_STATUS.md](docs/DELTA_RESIDUAL_ADV_STATUS.md) — status of the experimental point-wise cVAE-GAN line
+- [docs/RUN_REANALYSIS_PLAYBOOK.md](docs/RUN_REANALYSIS_PLAYBOOK.md) — how to review new `exp_*` runs quickly
+- [docs/DIAGNOSTIC_CHECKLIST.md](docs/DIAGNOSTIC_CHECKLIST.md) — executable diagnostic workflow
+- [docs/PROTOCOL.md](docs/PROTOCOL.md) — protocol runner, artifacts, CLI
+- [docs/MODELING_ASSUMPTIONS.md](docs/MODELING_ASSUMPTIONS.md) — modeling rationale
+- [docs/GEMINI_BOOTSTRAP.md](docs/GEMINI_BOOTSTRAP.md) — concise handoff for a secondary AI
+- [docs/GEMINI_PLAYBOOK.md](docs/GEMINI_PLAYBOOK.md) — operational playbook for known situations
+- [docs/GEMINI_PROMPTS.md](docs/GEMINI_PROMPTS.md) — prompt templates for Gemini or other copilots
 
 Historical refactor planning has been archived under:
 
-- [docs/archive/REFACTOR_PLAN_legacy.md](/workspace/2026/docs/archive/REFACTOR_PLAN_legacy.md)
+- [docs/archive/REFACTOR_PLAN_legacy.md](docs/archive/REFACTOR_PLAN_legacy.md)
 
 ## Objective
 
@@ -98,7 +98,7 @@ active architecture is chosen by the grid/config field:
 - `arch_variant="delta_residual_adv"`
   - experimental point-wise conditional residual cVAE-GAN
   - keeps the `delta_residual` backbone and adds a conditional discriminator
-  - current research line on this branch; scientifically pending fresh reruns after the March 20 fixes
+  - available in this unified branch, but still scientifically pending fresh reruns after the March 20 fixes
 - `arch_variant="seq_bigru_residual"`
   - sequence-aware residual model
   - uses a short input window (`window_size=7`) and a BiGRU prior/encoder
@@ -108,6 +108,10 @@ active architecture is chosen by the grid/config field:
 
 In practice:
 
+- this branch is now the unified research branch for `seq_bigru_residual`,
+  `delta_residual`, and `delta_residual_adv`
+- prefer switching `arch_variant`, `grid_tag`, or `grid_preset` instead of
+  switching branches for day-to-day experiments
 - `delta_residual` is the strongest current point-wise research line
 - `seq_bigru_residual` is the strongest temporal line and includes the only
   reference run that has passed all gates so far
@@ -209,7 +213,7 @@ On the host:
 
 ```bash
 git lfs install
-git clone -b feat/delta-residual-adv https://github.com/rodrigofmiranda/cVAe_2026.git
+git clone -b feat/seq-bigru-residual-cvae https://github.com/rodrigofmiranda/cVAe_2026.git
 cd cVAe_2026
 git lfs pull
 
@@ -644,24 +648,26 @@ git lfs pull
 
 ### Clone on another PC
 
-If you want the same branch used in the current active research flow, clone:
+If you want the current unified research branch, clone:
 
 ```bash
-git clone -b feat/delta-residual-adv https://github.com/rodrigofmiranda/cVAe_2026.git
+git clone -b feat/seq-bigru-residual-cvae https://github.com/rodrigofmiranda/cVAe_2026.git
 cd cVAe_2026
 git lfs install
 git lfs pull
 ```
 
 This is the recommended path for collaborators working on the current
-protocol-first point-wise vs seq comparison flow.
+protocol-first flow. This same branch contains the sequential line, the
+non-adversarial point-wise residual line, and the experimental adversarial
+line. Select between them with `arch_variant` and the corresponding grid preset.
 
 Recommended branches:
 
 - `release/cvae-online` — recommended base for a functional online cVAE deployment
 - `feat/channel-residual-architecture` — residual-architecture branch
-- `feat/seq-bigru-residual-cvae` — sequence-model research branch for the digital twin
-- `feat/delta-residual-adv` — experimental point-wise cVAE-GAN branch aligned with the current protocol flow
+- `feat/seq-bigru-residual-cvae` — unified research branch for `seq_bigru_residual`, `delta_residual`, and `delta_residual_adv`
+- `feat/delta-residual-adv` — historical integration branch kept for traceability during the unification work
 
 Clone directly into the recommended online branch:
 
@@ -680,16 +686,13 @@ git switch release/cvae-online
 git lfs pull
 ```
 
-Switch to the residual or seq-bigru branches when needed:
+Switch to the residual or unified research branch when needed:
 
 ```bash
 git switch feat/channel-residual-architecture
 git lfs pull
 
 git switch feat/seq-bigru-residual-cvae
-git lfs pull
-
-git switch feat/delta-residual-adv
 git lfs pull
 ```
 

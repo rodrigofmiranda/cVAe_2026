@@ -1,5 +1,10 @@
 # Branch Strategy
 
+> Historical note: this document describes the older branch split.
+> Current daily work is unified in `feat/seq-bigru-residual-cvae`, and
+> experiments should now be separated primarily by `arch_variant`,
+> `grid_tag`, or `grid_preset` rather than by switching branches.
+
 ## Objetivo
 
 Separar claramente:
