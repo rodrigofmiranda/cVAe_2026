@@ -3,18 +3,18 @@
   "description": "Global train + evaluation over the reduced 12-regime grid: 3 distances x 4 currents (100, 300, 500, 700 mA). Intended for gate heatmaps before the full 27-regime sweep.",
   "global_settings": {
     "_selected_experiments": [
-      "/workspace/2026/data/dataset_fullsquare_organized/dist_0.8m/curr_100mA",
-      "/workspace/2026/data/dataset_fullsquare_organized/dist_0.8m/curr_300mA",
-      "/workspace/2026/data/dataset_fullsquare_organized/dist_0.8m/curr_500mA",
-      "/workspace/2026/data/dataset_fullsquare_organized/dist_0.8m/curr_700mA",
-      "/workspace/2026/data/dataset_fullsquare_organized/dist_1.0m/curr_100mA",
-      "/workspace/2026/data/dataset_fullsquare_organized/dist_1.0m/curr_300mA",
-      "/workspace/2026/data/dataset_fullsquare_organized/dist_1.0m/curr_500mA",
-      "/workspace/2026/data/dataset_fullsquare_organized/dist_1.0m/curr_700mA",
-      "/workspace/2026/data/dataset_fullsquare_organized/dist_1.5m/curr_100mA",
-      "/workspace/2026/data/dataset_fullsquare_organized/dist_1.5m/curr_300mA",
-      "/workspace/2026/data/dataset_fullsquare_organized/dist_1.5m/curr_500mA",
-      "/workspace/2026/data/dataset_fullsquare_organized/dist_1.5m/curr_700mA"
+      "/workspace/2026/feat_seq_bigru_residual_cvae/data/dataset_fullsquare_organized/dist_0.8m/curr_100mA",
+      "/workspace/2026/feat_seq_bigru_residual_cvae/data/dataset_fullsquare_organized/dist_0.8m/curr_300mA",
+      "/workspace/2026/feat_seq_bigru_residual_cvae/data/dataset_fullsquare_organized/dist_0.8m/curr_500mA",
+      "/workspace/2026/feat_seq_bigru_residual_cvae/data/dataset_fullsquare_organized/dist_0.8m/curr_700mA",
+      "/workspace/2026/feat_seq_bigru_residual_cvae/data/dataset_fullsquare_organized/dist_1.0m/curr_100mA",
+      "/workspace/2026/feat_seq_bigru_residual_cvae/data/dataset_fullsquare_organized/dist_1.0m/curr_300mA",
+      "/workspace/2026/feat_seq_bigru_residual_cvae/data/dataset_fullsquare_organized/dist_1.0m/curr_500mA",
+      "/workspace/2026/feat_seq_bigru_residual_cvae/data/dataset_fullsquare_organized/dist_1.0m/curr_700mA",
+      "/workspace/2026/feat_seq_bigru_residual_cvae/data/dataset_fullsquare_organized/dist_1.5m/curr_100mA",
+      "/workspace/2026/feat_seq_bigru_residual_cvae/data/dataset_fullsquare_organized/dist_1.5m/curr_300mA",
+      "/workspace/2026/feat_seq_bigru_residual_cvae/data/dataset_fullsquare_organized/dist_1.5m/curr_500mA",
+      "/workspace/2026/feat_seq_bigru_residual_cvae/data/dataset_fullsquare_organized/dist_1.5m/curr_700mA"
     ]
   },
   "regimes": [

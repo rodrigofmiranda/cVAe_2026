@@ -6,7 +6,7 @@ Bootstrap curto para entregar contexto a outra IA sem despejar todo o historico.
 
 Atualize estes campos antes de reutilizar o arquivo:
 
-- repo: `/workspace/2026`
+- repo: `/workspace/2026/feat_seq_bigru_residual_cvae`
 - branch: `feat/channel-residual-architecture`
 - commit: `eaef7f0`
 - worktree: limpa

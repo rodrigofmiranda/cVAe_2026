@@ -321,7 +321,7 @@ python scripts/check_kurt_pred.py \
 
 Roteiro operacional:
 
-- [docs/DIAGNOSTIC_CHECKLIST.md](/workspace/2026/docs/DIAGNOSTIC_CHECKLIST.md)
+- [docs/DIAGNOSTIC_CHECKLIST.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/DIAGNOSTIC_CHECKLIST.md)
 
 ## 8. Leitura do run pivo de referencia
 
@@ -388,7 +388,7 @@ Mudancas estruturais candidatas so entram depois disso:
 
 ## 11. Documentos complementares
 
-- [PROJECT_STATUS.md](/workspace/2026/PROJECT_STATUS.md)
-- [docs/DIAGNOSTIC_CHECKLIST.md](/workspace/2026/docs/DIAGNOSTIC_CHECKLIST.md)
-- [docs/PROTOCOL.md](/workspace/2026/docs/PROTOCOL.md)
-- [docs/MODELING_ASSUMPTIONS.md](/workspace/2026/docs/MODELING_ASSUMPTIONS.md)
+- [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_cvae/PROJECT_STATUS.md)
+- [docs/DIAGNOSTIC_CHECKLIST.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/DIAGNOSTIC_CHECKLIST.md)
+- [docs/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/PROTOCOL.md)
+- [docs/MODELING_ASSUMPTIONS.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/MODELING_ASSUMPTIONS.md)

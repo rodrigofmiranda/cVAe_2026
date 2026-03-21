@@ -90,7 +90,7 @@ Protocol-side:
 For any future run copied into `outputs/`, use:
 
 ```bash
-cd /workspace/cVAe_2026
+cd /workspace/2026/feat_seq_bigru_residual_cvae
 python scripts/summarize_experiment.py outputs/exp_YYYYMMDD_HHMMSS
 ```
 

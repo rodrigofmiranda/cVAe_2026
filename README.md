@@ -4,6 +4,29 @@ A PhD-level research repository implementing a **data-driven digital twin** of a
 Visible Light Communication (VLC) channel using a Conditional Variational
 Autoencoder (cVAE) with heteroscedastic decoding and conditional prior.
 
+## Folder Name
+
+This folder is:
+
+- `/workspace/2026/feat_seq_bigru_residual_cvae`
+
+Meaning of the name:
+
+- `feat_seq_bigru_residual_cvae` comes from the Git branch name `feat/seq-bigru-residual-cvae`
+- the name is historical; this folder is now the main unified worktree
+- this folder contains the current code for all active architecture families
+
+Use this folder when:
+
+- you want the main day-to-day repository
+- you want to switch architecture by `arch_variant`
+- you want to compare `seq_bigru_residual`, `delta_residual`, and `delta_residual_adv`
+
+The other worktree is:
+
+- `/workspace/2026/feat_delta_residual_adv`
+- that folder keeps the branch-specific history for the adversarial line
+
 ## Current Docs
 
 Use these documents in this order:
@@ -224,7 +247,7 @@ bash scripts/enter_tf25_gpu.sh
 Inside the container:
 
 ```bash
-cd /workspace/cVAe_2026
+cd /workspace/2026/feat_seq_bigru_residual_cvae
 
 # safest first check: validates config + dataset discovery, no training
 python -m src.protocol.run \

@@ -14,7 +14,7 @@ Principios praticos:
 
 ```text
 Contexto:
-- Repo: /workspace/2026
+- Repo: /workspace/2026/feat_seq_bigru_residual_cvae
 - Branch: feat/channel-residual-architecture
 - Commit: eaef7f0
 - Objetivo atual: avaliar se a arquitetura residual reduz o vies por regime visto no concat

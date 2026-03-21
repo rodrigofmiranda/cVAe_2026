@@ -44,14 +44,14 @@ These fixes are the baseline for any valid scientific rerun:
 
 ### 1. Original adversarial sweep
 
-- run: `/workspace/2026/outputs/exp_20260320_012223`
+- run: `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260320_012223`
 - note:
   - obsolete for scientific comparison
   - used the pre-fix adversarial path
 
 ### 2. Corrected setup attempt before the core fix
 
-- run: `/workspace/2026/outputs/exp_20260320_014614`
+- run: `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260320_014614`
 - preset: `delta_residual_adv_med`
 - note:
   - still obsolete as scientific reference
@@ -59,7 +59,7 @@ These fixes are the baseline for any valid scientific rerun:
 
 ### 3. Non-adversarial comparison run
 
-- run: `/workspace/2026/outputs/exp_20260320_020652`
+- run: `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260320_020652`
 - preset: `delta_residual_fast`
 - note:
   - useful only as historical comparison
@@ -82,11 +82,11 @@ At the moment, the branch should be treated as:
 Use these as the current references when evaluating new adversarial reruns:
 
 - strongest current temporal reference:
-  - `/workspace/2026/outputs/exp_20260320_171510`
+  - `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260320_171510`
 - historical all-gates-passed seq reference:
-  - `/workspace/2026/outputs/exp_20260318_204149`
+  - `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_204149`
 - best current non-adversarial point-wise scientific reference:
-  - `/workspace/2026/outputs/exp_20260318_235319`
+  - `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_235319`
 
 ## Recommended Next Step
 

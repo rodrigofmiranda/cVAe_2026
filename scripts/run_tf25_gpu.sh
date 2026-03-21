@@ -7,7 +7,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 CONTAINER_NAME="${CVAE_TF25_CONTAINER_NAME:-cvae_tf25_gpu}"
 SESSION_NAME="${CVAE_TF25_TMUX_SESSION:-cvae_tf25_gpu}"
 IMAGE_NAME="${CVAE_TF25_IMAGE:-vlc/tf25-gpu-ready:1}"
-CONTAINER_WORKDIR="${CVAE_TF25_WORKDIR:-/workspace/cVAe_2026}"
+CONTAINER_WORKDIR="${CVAE_TF25_WORKDIR:-/workspace/2026/feat_seq_bigru_residual_cvae}"
 
 if ! command -v tmux >/dev/null 2>&1; then
   echo "tmux is required on the host for persistent container sessions." >&2
