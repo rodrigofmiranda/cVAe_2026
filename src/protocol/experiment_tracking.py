@@ -46,7 +46,26 @@ def _parse_iso_dt(raw: Any) -> Optional[datetime]:
         return None
 
 
+def _legacy_protocol_required_artifacts(exp_dir: Path) -> List[str]:
+    """Completion contract for older protocol runs without manifest.json.
+
+    Older runs in this repository often stored the shared winner under
+    ``global_model/`` and produced the final protocol verdict only in
+    ``tables/eval_final_gates.json``. Those runs are scientifically useful and
+    should not be auto-pruned just because they predate the modern manifest.
+    """
+    return [
+        "logs/protocol_input.json",
+        "tables/eval_final_gates.json",
+        "global_model/state_run.json",
+        "global_model/models/best_model_full.keras",
+    ]
+
+
 def _protocol_required_artifacts(exp_dir: Path, manifest: Optional[dict]) -> List[str]:
+    if manifest is None:
+        return _legacy_protocol_required_artifacts(exp_dir)
+
     raw_status = ""
     if isinstance(manifest, dict):
         raw_status = str(manifest.get("run_status", "")).strip().lower()
@@ -96,7 +115,7 @@ def inspect_protocol_experiment(exp_dir: str | Path) -> Dict[str, Any]:
 
     status = RUN_STATUS_INCOMPLETE
     if manifest is None:
-        status = RUN_STATUS_INCOMPLETE
+        status = RUN_STATUS_COMPLETED if not missing else RUN_STATUS_INCOMPLETE
     elif raw_status == RUN_STATUS_COMPLETED:
         status = RUN_STATUS_COMPLETED if not missing else RUN_STATUS_INCOMPLETE
     elif raw_status == RUN_STATUS_FAILED:

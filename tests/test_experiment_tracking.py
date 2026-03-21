@@ -43,6 +43,21 @@ def _make_complete_protocol_run(base: Path, run_id: str, *, timestamp_end: str) 
     return exp_dir
 
 
+def _make_complete_legacy_protocol_run(base: Path, run_id: str) -> Path:
+    exp_dir = base / run_id
+    (exp_dir / "logs").mkdir(parents=True, exist_ok=True)
+    (exp_dir / "tables").mkdir(parents=True, exist_ok=True)
+    (exp_dir / "global_model" / "models").mkdir(parents=True, exist_ok=True)
+    (exp_dir / "logs" / "protocol_input.json").write_text("{}", encoding="utf-8")
+    (exp_dir / "tables" / "eval_final_gates.json").write_text("{}", encoding="utf-8")
+    (exp_dir / "global_model" / "state_run.json").write_text("{}", encoding="utf-8")
+    (exp_dir / "global_model" / "models" / "best_model_full.keras").write_text(
+        "stub",
+        encoding="utf-8",
+    )
+    return exp_dir
+
+
 def test_latest_complete_protocol_experiment_ignores_running_runs(tmp_path: Path):
     outputs = tmp_path / "outputs"
     _make_complete_protocol_run(outputs, "exp_20260321_100000", timestamp_end="2026-03-21T10:10:00")
@@ -83,6 +98,16 @@ def test_inspect_protocol_experiment_marks_completed_only_when_artifacts_exist(t
     assert "tables/summary_by_regime.csv" in info["missing_artifacts"]
 
 
+def test_inspect_protocol_experiment_accepts_complete_legacy_layout(tmp_path: Path):
+    outputs = tmp_path / "outputs"
+    exp_dir = _make_complete_legacy_protocol_run(outputs, "exp_20260318_204149")
+
+    info = inspect_protocol_experiment(exp_dir)
+
+    assert info["status"] == RUN_STATUS_COMPLETED
+    assert info["missing_artifacts"] == []
+
+
 def test_prune_stale_incomplete_protocol_experiments_removes_old_running_runs(tmp_path: Path):
     outputs = tmp_path / "outputs"
     stale = outputs / "exp_20260320_010000"
@@ -107,3 +132,17 @@ def test_prune_stale_incomplete_protocol_experiments_removes_old_running_runs(tm
     assert len(actions) == 1
     assert actions[0]["deleted"] is True
     assert not stale.exists()
+
+
+def test_prune_stale_incomplete_protocol_experiments_keeps_complete_legacy_runs(tmp_path: Path):
+    outputs = tmp_path / "outputs"
+    _make_complete_legacy_protocol_run(outputs, "exp_20260318_204149")
+
+    actions = prune_stale_incomplete_protocol_experiments(
+        outputs,
+        older_than_hours=24,
+        dry_run=False,
+    )
+
+    assert actions == []
+    assert (outputs / "exp_20260318_204149").exists()
