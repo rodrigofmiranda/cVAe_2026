@@ -81,10 +81,10 @@ For the recent seq winner:
 - `0.8 m` is the hard zone
 - this points more toward context/capacity/regularization than latent collapse
 
-For the adversarial point-wise line:
+If the task is about reviving the archived adversarial strategy:
 
-- do not compare using the pre-fix March 20 runs
-- always compare against:
+- first read [docs/FUTURE_ADVERSARIAL_STRATEGY.md](FUTURE_ADVERSARIAL_STRATEGY.md)
+- compare only against:
   - current best point-wise non-adversarial reference
   - current best seq reference
 

@@ -113,30 +113,6 @@ def _log_regime_tolerance(overrides: Dict[str, Any], d_unique, c_unique) -> None
                 )
 
 
-def _prime_model_for_dry_run(
-    vae: tf.keras.Model,
-    cfg: Dict[str, Any],
-    X_train,
-    Dn_train,
-    Cn_train,
-) -> None:
-    """Build subclassed wrappers before dry-run summary/counts.
-
-    Functional variants arrive already built. The adversarial wrapper is a
-    subclassed ``tf.keras.Model`` and needs one forward call before
-    ``count_params()`` and ``summary()`` are safe.
-    """
-    if getattr(vae, "built", False) or len(X_train) == 0:
-        return
-    if str(cfg.get("arch_variant", "")).strip().lower() != "delta_residual_adv":
-        return
-
-    x_sample = tf.convert_to_tensor(np.asarray(X_train[:1]), dtype=tf.float32)
-    d_sample = tf.convert_to_tensor(np.asarray(Dn_train[:1]), dtype=tf.float32)
-    c_sample = tf.convert_to_tensor(np.asarray(Cn_train[:1]), dtype=tf.float32)
-    _ = vae([x_sample, d_sample, c_sample], training=False)
-
-
 def run_training_pipeline(
     dataset_root: str | Path,
     output_base: str | Path,
@@ -309,7 +285,6 @@ def run_training_pipeline(
         first_cfg = grid[0]["cfg"] if grid else {}
         if first_cfg:
             vae, _ = build_cvae(first_cfg)
-            _prime_model_for_dry_run(vae, first_cfg, X_train, Dn_train, Cn_train)
             print(f"🔍 dry_run: model built | params={vae.count_params():,}")
             vae.summary(print_fn=lambda s: print("  " + s))
             del vae

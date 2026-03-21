@@ -1,8 +1,5 @@
 import numpy as np
-import pytest
-
 from src.models.cvae import build_cvae
-from src.training.pipeline import _prime_model_for_dry_run
 
 
 def _point_cfg(arch_variant="concat", **overrides):
@@ -22,23 +19,6 @@ def _point_cfg(arch_variant="concat", **overrides):
     return cfg
 
 
-def test_prime_model_for_dry_run_builds_delta_residual_adv_wrapper():
-    vae, _ = build_cvae(_point_cfg("delta_residual_adv"))
-
-    with pytest.raises(ValueError, match="isn't built"):
-        vae.count_params()
-
-    X = np.zeros((2, 2), dtype=np.float32)
-    Dn = np.zeros((2, 1), dtype=np.float32)
-    Cn = np.zeros((2, 1), dtype=np.float32)
-
-    _prime_model_for_dry_run(
-        vae,
-        {"arch_variant": "delta_residual_adv"},
-        X,
-        Dn,
-        Cn,
-    )
-
-    assert vae.built
+def test_delta_residual_model_is_ready_for_dry_run_without_priming():
+    vae, _ = build_cvae(_point_cfg("delta_residual"))
     assert vae.count_params() > 0

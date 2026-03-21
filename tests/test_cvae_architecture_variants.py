@@ -149,19 +149,15 @@ def test_build_cvae_and_inference_support_delta_residual_variant():
     assert y_mc.shape == (3, 2)
 
 
-def test_delta_residual_adv_roundtrips_full_wrapper_save_and_load(tmp_path):
-    vae, _ = build_cvae(
-        _point_cfg(
-            "delta_residual_adv",
-            lambda_adv=0.05,
-        )
-    )
+def test_delta_residual_roundtrips_full_model_save_and_load(tmp_path):
+    vae, _ = build_cvae(_point_cfg("delta_residual"))
     x = np.zeros((3, 2), dtype=np.float32)
     d = np.zeros((3, 1), dtype=np.float32)
     c = np.zeros((3, 1), dtype=np.float32)
-    _ = vae([x, d, c], training=False)
+    y = np.zeros((3, 2), dtype=np.float32)
+    _ = vae([x, d, c, y], training=False)
 
-    out = tmp_path / "adv_model.keras"
+    out = tmp_path / "delta_model.keras"
     _save_keras_model_compat(vae, out)
 
     loaded = load_seq_model(str(out))
@@ -174,7 +170,6 @@ def test_delta_residual_adv_roundtrips_full_wrapper_save_and_load(tmp_path):
     assert loaded.get_layer("encoder") is not None
     assert loaded.get_layer("prior_net") is not None
     assert loaded.get_layer("decoder") is not None
-    assert loaded.get_layer("discriminator") is not None
     assert y_det.shape == (3, 2)
     assert y_mc.shape == (3, 2)
 

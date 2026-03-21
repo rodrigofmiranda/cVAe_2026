@@ -20,12 +20,12 @@ Use this folder when:
 
 - you want the main day-to-day repository
 - you want to switch architecture by `arch_variant`
-- you want to compare `seq_bigru_residual`, `delta_residual`, and `delta_residual_adv`
+- you want to compare `seq_bigru_residual` and `delta_residual`
 
 The other worktree is:
 
 - `/workspace/2026/feat_delta_residual_adv`
-- that folder keeps the branch-specific history for the adversarial line
+- that folder keeps the archived branch-specific history for the adversarial line
 
 ## Current Docs
 
@@ -34,7 +34,7 @@ Use these documents in this order:
 - [docs/ACTIVE_CONTEXT.md](docs/ACTIVE_CONTEXT.md) — shortest path for the unified branch context
 - [PROJECT_STATUS.md](PROJECT_STATUS.md) — current architecture and repo state
 - [TRAINING_PLAN.md](TRAINING_PLAN.md) — active scientific plan and gates
-- [docs/DELTA_RESIDUAL_ADV_STATUS.md](docs/DELTA_RESIDUAL_ADV_STATUS.md) — status of the experimental point-wise cVAE-GAN line
+- [docs/FUTURE_ADVERSARIAL_STRATEGY.md](docs/FUTURE_ADVERSARIAL_STRATEGY.md) — single backlog note for a future adversarial comeback
 - [docs/RUN_REANALYSIS_PLAYBOOK.md](docs/RUN_REANALYSIS_PLAYBOOK.md) — how to review new `exp_*` runs quickly
 - [docs/DIAGNOSTIC_CHECKLIST.md](docs/DIAGNOSTIC_CHECKLIST.md) — executable diagnostic workflow
 - [docs/PROTOCOL.md](docs/PROTOCOL.md) — protocol runner, artifacts, CLI
@@ -118,10 +118,6 @@ active architecture is chosen by the grid/config field:
 - `arch_variant="delta_residual"`
   - point-wise residual-target variant
   - trains directly on `Δ = Y - X`, then reconstructs `Ŷ = X + Δ̂`
-- `arch_variant="delta_residual_adv"`
-  - experimental point-wise conditional residual cVAE-GAN
-  - keeps the `delta_residual` backbone and adds a conditional discriminator
-  - available in this unified branch, but still scientifically pending fresh reruns after the March 20 fixes
 - `arch_variant="seq_bigru_residual"`
   - sequence-aware residual model
   - uses a short input window (`window_size=7`) and a BiGRU prior/encoder
@@ -131,8 +127,8 @@ active architecture is chosen by the grid/config field:
 
 In practice:
 
-- this branch is now the unified research branch for `seq_bigru_residual`,
-  `delta_residual`, and `delta_residual_adv`
+- this branch is the active research branch for `seq_bigru_residual`
+  and `delta_residual`
 - prefer switching `arch_variant`, `grid_tag`, or `grid_preset` instead of
   switching branches for day-to-day experiments
 - `delta_residual` is the strongest current point-wise research line
@@ -140,6 +136,10 @@ In practice:
   reference run that has passed all gates so far
 - mixed-family comparisons are now run inside the same `src.protocol.run`
   experiment rather than through separate training-only flows
+- the adversarial strategy was intentionally removed from this active code path;
+  if we revisit it later, use
+  [docs/FUTURE_ADVERSARIAL_STRATEGY.md](docs/FUTURE_ADVERSARIAL_STRATEGY.md)
+  as the only implementation note
 
 ## Repository layout
 
@@ -191,8 +191,6 @@ src/
     distribution.py           Distribution-fidelity metrics (moments, PSD, Gaussianity)
   models/
     cvae.py                   cVAE encoder/decoder/prior architecture
-    discriminator.py          Conditional discriminator for adversarial residual variants
-    adversarial.py            Adversarial cVAE wrapper + helper utilities
     cvae_components.py        Sub-network building blocks
     callbacks.py              Early stopping, ReduceLR, logging
     losses.py                 Reconstruction, KL, free-bits, β schedule
@@ -681,16 +679,16 @@ git lfs pull
 ```
 
 This is the recommended path for collaborators working on the current
-protocol-first flow. This same branch contains the sequential line, the
-non-adversarial point-wise residual line, and the experimental adversarial
-line. Select between them with `arch_variant` and the corresponding grid preset.
+protocol-first flow. This same branch contains the sequential line and the
+non-adversarial point-wise residual line. Select between them with
+`arch_variant` and the corresponding grid preset.
 
 Recommended branches:
 
 - `release/cvae-online` — recommended base for a functional online cVAE deployment
 - `feat/channel-residual-architecture` — residual-architecture branch
-- `feat/seq-bigru-residual-cvae` — unified research branch for `seq_bigru_residual`, `delta_residual`, and `delta_residual_adv`
-- `feat/delta-residual-adv` — historical integration branch kept for traceability during the unification work
+- `feat/seq-bigru-residual-cvae` — active research branch for `seq_bigru_residual` and `delta_residual`
+- `feat/delta-residual-adv` — archived adversarial branch kept only for traceability
 
 Clone directly into the recommended online branch:
 

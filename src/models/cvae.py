@@ -13,10 +13,6 @@ external inference interface.
 It also dispatches the legacy experimental
 ``arch_variant="legacy_2025_zero_y"`` point-wise model, which preserves the
 2025 architecture under the stricter 2026 pipeline.
-It also dispatches ``arch_variant="delta_residual_adv"``, a conditional
-residual cVAE-GAN that adds a hinge-loss adversarial term on top of the
-standard cVAE ELBO.
-
 Public API
 ----------
 build_encoder                 Encoder MLP  q(z | x, d, c, y)
@@ -61,7 +57,6 @@ def _normalize_arch_variant(arch_variant: str) -> str:
         "concat",
         "channel_residual",
         "delta_residual",
-        "delta_residual_adv",
         "seq_bigru_residual",
         "legacy_2025_zero_y",
     }
@@ -223,88 +218,6 @@ def build_decoder(
 
 
 # ======================================================================
-# Shared sub-model builder for delta variants
-# ======================================================================
-def _build_delta_submodels(cfg: Dict) -> Tuple:
-    """Build encoder, prior_net, decoder for delta-target variants.
-
-    The decoder always uses ``arch_variant="delta_residual"`` so that
-    the ``delta_output_params`` layer is present — required by both
-    ``delta_residual`` and ``delta_residual_adv``.
-
-    Parameters
-    ----------
-    cfg : dict  with ``layer_sizes, latent_dim, activation, dropout``.
-
-    Returns
-    -------
-    (encoder, prior_net, decoder) — three functional Keras Models.
-    """
-    enc = build_encoder(cfg)
-    pnet = build_prior_net(cfg)
-    dec = build_decoder(
-        layer_sizes=cfg["layer_sizes"],
-        latent_dim=int(cfg["latent_dim"]),
-        activation=cfg.get("activation", "leaky_relu"),
-        dropout=float(cfg.get("dropout", 0.0)),
-        arch_variant="delta_residual",
-    )
-    return enc, pnet, dec
-
-
-def _build_adv_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
-    """Build the conditional residual cVAE-GAN (delta_residual_adv).
-
-    Returns the ``AdvResidualCVAEModel`` wrapper and its KL-annealing
-    callback.  The wrapper holds ``encoder``, ``prior_net``, ``decoder``,
-    and ``discriminator`` as tracked sub-models so that
-    ``create_inference_model_from_full`` can extract them via
-    ``get_layer()``.
-    """
-    from src.models.adversarial import AdvResidualCVAEModel
-    from src.models.discriminator import build_discriminator
-
-    encoder, prior_net, decoder = _build_delta_submodels(cfg)
-
-    # Discriminator input: concat(x[2], d[1], c[1], delta[2]) = 6 features.
-    x_dim = 2
-    d_dim = 1
-    c_dim = 1
-    delta_dim = 2
-    disc_input_dim = x_dim + d_dim + c_dim + delta_dim  # 6
-    disc_layer_sizes = tuple(cfg.get("disc_layer_sizes", (128, 128)))
-    discriminator = build_discriminator(disc_input_dim, layer_sizes=disc_layer_sizes)
-
-    beta = float(cfg["beta"])
-    lr = float(cfg["lr"])
-    d_lr = float(cfg.get("d_lr", lr))
-    kl_anneal_epochs = int(cfg.get("kl_anneal_epochs", 50))
-
-    wrapper = AdvResidualCVAEModel(
-        encoder=encoder,
-        prior_net=prior_net,
-        decoder=decoder,
-        discriminator=discriminator,
-        beta_start=0.0,
-        lambda_adv=float(cfg.get("lambda_adv", 0.05)),
-        free_bits=float(cfg.get("free_bits", 0.0)),
-        lambda_mmd=float(cfg.get("lambda_mmd", 0.0)),
-    )
-    wrapper.compile(
-        g_optimizer=tf.keras.optimizers.Adam(lr, clipnorm=1.0),
-        d_optimizer=tf.keras.optimizers.Adam(d_lr, clipnorm=1.0),
-    )
-
-    kl_cb = KLAnnealingCallback(
-        wrapper,  # wrapper.beta is the tf.Variable used for annealing
-        beta_start=0.0,
-        beta_end=beta,
-        annealing_epochs=kl_anneal_epochs,
-    )
-    return wrapper, kl_cb
-
-
-# ======================================================================
 # Full cVAE assembly + compile
 # ======================================================================
 def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
@@ -339,9 +252,6 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
     if arch_variant == "legacy_2025_zero_y":
         from src.models.cvae_legacy_2025 import build_legacy_2025_cvae
         return build_legacy_2025_cvae(cfg)
-
-    if arch_variant == "delta_residual_adv":
-        return _build_adv_cvae(cfg)
 
     encoder = build_encoder(cfg)
     prior_net = build_prior_net(cfg)

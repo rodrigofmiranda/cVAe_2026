@@ -1,6 +1,6 @@
 # PROJECT_STATUS.md — Estado Atual do Repositório
 
-> Atualizado em 2026-03-20.
+> Atualizado em 2026-03-21.
 
 ## 1. Estado técnico
 
@@ -43,10 +43,6 @@ Além disso, o modo `train_once_eval_all` agora aceita:
 - `delta_residual`
   - residual-target point-wise
   - melhor linha point-wise atual
-- `delta_residual_adv`
-  - linha point-wise adversarial experimental
-  - mantém o backbone `delta_residual` e adiciona um discriminador condicional
-  - foi corrigida em `ee2681f`, mas precisa de reruns novos para status científico válido
 - `seq_bigru_residual`
   - residual temporal com janela e BiGRU
   - única linha com referência histórica que já passou todos os gates
@@ -119,8 +115,6 @@ regime físico.
 - falhas em `G3`–`G6`, quando persistem após os fixes, devem ser tratadas como
   possível limitação do modelo e não como bug operacional
 - a exploração séria agora é **protocol-first**
-- a linha `delta_residual_adv` existe no pipeline principal, mas o estado
-  científico atual dela ainda é experimental e depende de reruns pós-correção
 - o preset comparativo atual é `best_compare_large`, que compara:
   - candidatos `delta_residual`
   - candidatos `seq_bigru_residual` incluindo o bloco `lambda_mmd`
@@ -137,7 +131,7 @@ regime físico.
 - [docs/ACTIVE_CONTEXT.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/ACTIVE_CONTEXT.md): ponto de entrada curto para a branch ativa
 - [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_cvae/PROJECT_STATUS.md): estado atual do código
 - [TRAINING_PLAN.md](/workspace/2026/feat_seq_bigru_residual_cvae/TRAINING_PLAN.md): plano científico e gates
-- [docs/DELTA_RESIDUAL_ADV_STATUS.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/DELTA_RESIDUAL_ADV_STATUS.md): status da linha adversarial experimental
+- [docs/FUTURE_ADVERSARIAL_STRATEGY.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/FUTURE_ADVERSARIAL_STRATEGY.md): backlog único para uma volta futura da estratégia adversarial
 - [docs/RUN_REANALYSIS_PLAYBOOK.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/RUN_REANALYSIS_PLAYBOOK.md): como reavaliar rapidamente novos `exp_*`
 - [docs/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/PROTOCOL.md): protocolo, artefatos e CLI
 - [docs/MODELING_ASSUMPTIONS.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/MODELING_ASSUMPTIONS.md): premissas do modelo

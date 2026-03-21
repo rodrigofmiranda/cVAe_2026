@@ -43,8 +43,8 @@ def _save_keras_model_compat(model: Any, path: Path) -> None:
     supported, but transparently retry without that argument when the local
     Keras version disallows it.
 
-    For subclassed models (e.g. ``AdvResidualCVAEModel``) that cannot be
-    serialised as HDF5/``.keras``, we fall back to TF SavedModel format,
+    For subclassed models that cannot be serialised as HDF5/``.keras``, we
+    fall back to TF SavedModel format,
     saving to a directory at the same path. ``tf.keras.models.load_model``
     auto-detects whether a path is a file or directory and loads accordingly.
     """
@@ -1016,7 +1016,7 @@ def run_gridsearch(
             results[-1]["plot_bundle_dir"] = ""
             results[-1]["plot_bundle_count"] = 0
 
-            # Save the full trainable model, including adversarial wrappers.
+            # Save the full trainable model.
             model_path = model_dir / "model_full.keras"
             _save_keras_model_compat(vae, model_path)
             results[-1]["model_full_path"] = str(model_path)

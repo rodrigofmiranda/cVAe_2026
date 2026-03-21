@@ -9,9 +9,9 @@ Read only these files first:
 1. [CODEX.md](../CODEX.md)
 2. [PROJECT_STATUS.md](../PROJECT_STATUS.md)
 3. [docs/PROTOCOL.md](PROTOCOL.md)
-4. [docs/DELTA_RESIDUAL_ADV_STATUS.md](DELTA_RESIDUAL_ADV_STATUS.md)
-5. [docs/DELTA_RESIDUAL_STATUS.md](DELTA_RESIDUAL_STATUS.md)
-6. [docs/RUN_REANALYSIS_PLAYBOOK.md](RUN_REANALYSIS_PLAYBOOK.md)
+4. [docs/DELTA_RESIDUAL_STATUS.md](DELTA_RESIDUAL_STATUS.md)
+5. [docs/RUN_REANALYSIS_PLAYBOOK.md](RUN_REANALYSIS_PLAYBOOK.md)
+6. [docs/FUTURE_ADVERSARIAL_STRATEGY.md](FUTURE_ADVERSARIAL_STRATEGY.md)
 
 Everything else is secondary unless a specific task requires it.
 
@@ -23,16 +23,15 @@ Active branch:
 
 Current purpose:
 
-- keep a single research branch containing all current architectures
+- keep a single active research branch for the supported architectures
 - choose the experiment family by `arch_variant`, `grid_tag`, or `grid_preset`
-- keep `seq_bigru_residual`, non-adversarial residual, and adversarial residual comparisons
-  inside the same protocol-first workflow
+- keep `seq_bigru_residual` and `delta_residual` comparisons inside the
+  same protocol-first workflow
 
 Architectures available in this branch:
 
 - `seq_bigru_residual`
 - `delta_residual`
-- `delta_residual_adv`
 - legacy support variants already present in `src/models/cvae.py`
 
 ## Current Scientific References
@@ -55,20 +54,14 @@ Current strong point-wise anchor carried into comparisons:
 
 - `COPT_lat6_b0p001_fb0p0_lr0p0001_bs16384_anneal120_L64-128-256`
 
-## Adversarial Line Status
+## Future Adversarial Note
 
-`delta_residual_adv` is:
-
-- implemented
-- corrected technically by `ee2681f`
-- operationally aligned with the current protocol path
-- still scientifically pending fresh reruns
-
-Do not use these as final scientific references:
-
-- `outputs/exp_20260320_012223`
-- `outputs/exp_20260320_014614`
-- `outputs/exp_20260320_020652`
+- the adversarial line was removed from the active worktree
+- the historical implementation remains preserved in
+  `/workspace/2026/feat_delta_residual_adv`
+- if we need to bring that strategy back later, use
+  [docs/FUTURE_ADVERSARIAL_STRATEGY.md](FUTURE_ADVERSARIAL_STRATEGY.md)
+  as the single implementation note
 
 ## Canonical Artifacts
 
