@@ -1,6 +1,6 @@
 # PROJECT_STATUS.md — Estado Atual do Repositório
 
-> Atualizado em 2026-03-19.
+> Atualizado em 2026-03-20.
 
 ## 1. Estado técnico
 
@@ -27,6 +27,13 @@ O protocolo agora tem dois modos explícitos:
   - avalia esse mesmo modelo em todos os regimes, sem retreino por regime
   - este é o modo alinhado ao objetivo final do digital twin universal
 
+Além disso, o modo `train_once_eval_all` agora aceita:
+
+- `--reuse_model_run_dir`
+  - pula o treino global
+  - reutiliza `models/best_model_full.keras` de um run anterior
+  - permite reavaliar o mesmo campeão em outro protocolo sem retrain
+
 ### Famílias de arquitetura disponíveis
 
 - `concat`
@@ -36,6 +43,10 @@ O protocolo agora tem dois modos explícitos:
 - `delta_residual`
   - residual-target point-wise
   - melhor linha point-wise atual
+- `delta_residual_adv`
+  - linha point-wise adversarial experimental
+  - mantém o backbone `delta_residual` e adiciona um discriminador condicional
+  - foi corrigida em `ee2681f`, mas precisa de reruns novos para status científico válido
 - `seq_bigru_residual`
   - residual temporal com janela e BiGRU
   - única linha com referência histórica que já passou todos os gates
@@ -52,8 +63,10 @@ grid, dentro da mesma branch e do mesmo pipeline.
 - `tables/summary_by_regime.csv`: tabela canônica de validação por regime
 - `tables/stat_fidelity_by_regime.csv`: projeção derivada das métricas estatísticas
 - `tables/protocol_leaderboard.csv`: ranking canônico derivado do próprio protocolo
+- `train/tables/grid_training_diagnostics.csv`: diagnóstico operacional resumido de todos os grids
 - `train/plots/champion/analysis_dashboard.png`: dashboard completo do campeão
-- `plots/best_model/heatmap_vae_vs_real_metric_diffs.png`: heatmap compacto do campeão
+- `train/plots/training/dashboard_analysis_complete.png`: dashboard operacional de treino, evolução e convergência
+- `plots/best_model/heatmap_gate_metrics_by_regime.png`: heatmap científico canônico do campeão por regime
 
 ### Métricas consolidadas
 
@@ -79,7 +92,7 @@ O layout atual é:
 - `tables/`
   - sumários canônicos do protocolo
 - `plots/best_model/`
-  - heatmap final do campeão
+  - heatmap científico final do campeão
 
 As pastas antigas `global_model/` e `studies/` não são mais o layout-alvo.
 
@@ -106,17 +119,26 @@ regime físico.
 - falhas em `G3`–`G6`, quando persistem após os fixes, devem ser tratadas como
   possível limitação do modelo e não como bug operacional
 - a exploração séria agora é **protocol-first**
+- a linha `delta_residual_adv` existe no pipeline principal, mas o estado
+  científico atual dela ainda é experimental e depende de reruns pós-correção
 - o preset comparativo atual é `best_compare_large`, que compara:
   - candidatos `delta_residual`
   - candidatos `seq_bigru_residual` incluindo o bloco `lambda_mmd`
+- o protocolo reduzido multi-regime atual é `configs/all_regimes_sel4curr.json`
+- o protocolo agora consegue separar:
+  - dashboard científico do twin por regime
+  - dashboard operacional de convergência do treino por grid
 - a linha seq agora tem fallback não-cuDNN para janelas curtas, permitindo
   rodar também em GPUs mais novas como a RTX 5090
 
 ## 3. Documentos ativos
 
 - [README.md](/workspace/2026/README.md): visão geral e uso
+- [docs/ACTIVE_CONTEXT.md](/workspace/2026/docs/ACTIVE_CONTEXT.md): ponto de entrada curto para a branch ativa
 - [PROJECT_STATUS.md](/workspace/2026/PROJECT_STATUS.md): estado atual do código
 - [TRAINING_PLAN.md](/workspace/2026/TRAINING_PLAN.md): plano científico e gates
+- [docs/DELTA_RESIDUAL_ADV_STATUS.md](/workspace/2026/docs/DELTA_RESIDUAL_ADV_STATUS.md): status da linha adversarial experimental
+- [docs/RUN_REANALYSIS_PLAYBOOK.md](/workspace/2026/docs/RUN_REANALYSIS_PLAYBOOK.md): como reavaliar rapidamente novos `exp_*`
 - [docs/PROTOCOL.md](/workspace/2026/docs/PROTOCOL.md): protocolo, artefatos e CLI
 - [docs/MODELING_ASSUMPTIONS.md](/workspace/2026/docs/MODELING_ASSUMPTIONS.md): premissas do modelo
 
@@ -130,7 +152,7 @@ regime físico.
 cd /workspace/2026
 git status -sb
 git log --oneline -5
-python -m pytest tests -q
+python scripts/summarize_experiment.py
 ```
 
 Depois disso:

@@ -1135,3 +1135,247 @@ def generate_gridsearch_overview_plots(
         except Exception:
             continue
     return created
+
+
+def save_training_analysis_dashboard(
+    *,
+    df_diag: pd.DataFrame,
+    plots_dir: Path,
+    top_k: int = 10,
+) -> Path:
+    """Save the experiment-level operational dashboard for grid convergence."""
+    import matplotlib.pyplot as plt
+
+    plots_dir = Path(plots_dir)
+    plots_dir.mkdir(parents=True, exist_ok=True)
+    groups = ensure_artifact_subdirs(plots_dir, groups=("training",))
+    training_dir = groups["training"]
+    out_path = training_dir / "dashboard_analysis_complete.png"
+
+    df = df_diag.copy()
+    ok = df.loc[
+        (df.get("status", pd.Series(index=df.index, dtype=object)).fillna("ok") != "FAILED")
+        & np.isfinite(df.get("score_v2", pd.Series(index=df.index, dtype=float))),
+        :
+    ].copy()
+    if "arch_variant" not in ok.columns:
+        ok["arch_variant"] = "unknown"
+    ok["arch_variant"] = ok["arch_variant"].fillna("unknown").astype(str)
+
+    fig, axes = plt.subplots(4, 3, figsize=(22, 18))
+    fig.suptitle(
+        "Dashboard Operacional de Treinamento, Evolução e Convergência",
+        fontsize=18,
+        y=0.995,
+    )
+    ax = axes.ravel()
+
+    if ok.empty:
+        ax[0].axis("off")
+        ax[0].text(
+            0.02,
+            0.98,
+            "Nenhum grid válido disponível para diagnóstico.",
+            va="top",
+            ha="left",
+            fontsize=12,
+        )
+        for axis in ax[1:]:
+            axis.axis("off")
+        fig.savefig(out_path, dpi=170, bbox_inches="tight")
+        plt.close(fig)
+        write_artifact_manifest(
+            training_dir,
+            title="Training operational dashboard",
+            sections={"open_first": [out_path]},
+        )
+        return out_path
+
+    top = ok.nsmallest(min(int(top_k), len(ok)), "score_v2").copy()
+    arch_stats = (
+        ok.groupby("arch_variant", dropna=False)
+        .agg(
+            score_v2=("score_v2", "median"),
+            active_dim_ratio=("active_dim_ratio", "median"),
+            best_epoch_ratio=("best_epoch_ratio", "median"),
+            n=("score_v2", "size"),
+        )
+        .reset_index()
+        .sort_values("score_v2", ascending=True)
+    )
+
+    ax[0].barh(
+        [f"#{int(r.rank)} {r.tag}" for r in top.iloc[::-1].itertuples()],
+        top["score_v2"].iloc[::-1],
+        color="#2F5D80",
+    )
+    ax[0].set_title("Top-K modelos por score_v2")
+    ax[0].set_xlabel("score_v2 (menor = melhor)")
+
+    ax[1].scatter(
+        ok["active_dim_ratio"],
+        ok["score_v2"],
+        c=ok["best_epoch_ratio"],
+        cmap="viridis",
+        edgecolors="k",
+        alpha=0.85,
+        s=70,
+    )
+    ax[1].set_title("score_v2 vs active_dim_ratio")
+    ax[1].set_xlabel("active_dim_ratio")
+    ax[1].set_ylabel("score_v2")
+
+    ax[2].scatter(
+        ok["best_epoch_ratio"],
+        ok["score_v2"],
+        c=ok["lr_drop_count"],
+        cmap="plasma",
+        edgecolors="k",
+        alpha=0.85,
+        s=70,
+    )
+    ax[2].set_title("score_v2 vs best_epoch_ratio")
+    ax[2].set_xlabel("best_epoch_ratio")
+    ax[2].set_ylabel("score_v2")
+
+    ax[3].scatter(
+        ok["kl_mean_per_dim"],
+        ok["score_v2"],
+        c=ok["active_dim_ratio"],
+        cmap="cividis",
+        edgecolors="k",
+        alpha=0.85,
+        s=70,
+    )
+    ax[3].set_title("score_v2 vs kl_mean_per_dim")
+    ax[3].set_xlabel("kl_mean_per_dim")
+    ax[3].set_ylabel("score_v2")
+
+    ax[4].scatter(
+        ok["lr_drop_count"],
+        ok["score_v2"],
+        c=ok["late_val_std"],
+        cmap="magma",
+        edgecolors="k",
+        alpha=0.85,
+        s=70,
+    )
+    ax[4].set_title("score_v2 vs lr_drop_count")
+    ax[4].set_xlabel("lr_drop_count")
+    ax[4].set_ylabel("score_v2")
+
+    ax[5].bar(arch_stats["arch_variant"], arch_stats["score_v2"], color="#4C78A8")
+    ax[5].set_title("Comparação por arch_variant: score_v2")
+    ax[5].set_ylabel("mediana")
+    ax[5].tick_params(axis="x", rotation=20)
+
+    ax[6].bar(arch_stats["arch_variant"], arch_stats["active_dim_ratio"], color="#59A14F")
+    ax[6].set_title("Comparação por arch_variant: active_dim_ratio")
+    ax[6].set_ylabel("mediana")
+    ax[6].tick_params(axis="x", rotation=20)
+
+    ax[7].bar(arch_stats["arch_variant"], arch_stats["best_epoch_ratio"], color="#F28E2B")
+    ax[7].set_title("Comparação por arch_variant: best_epoch_ratio")
+    ax[7].set_ylabel("mediana")
+    ax[7].tick_params(axis="x", rotation=20)
+
+    flag_counts = pd.Series(
+        {
+            "collapse": int(ok["flag_posterior_collapse"].fillna(False).sum()),
+            "under": int(ok["flag_undertrained"].fillna(False).sum()),
+            "overfit": int(ok["flag_overfit"].fillna(False).sum()),
+            "unstable": int(ok["flag_unstable"].fillna(False).sum()),
+            "lr_floor": int(ok["flag_lr_floor"].fillna(False).sum()),
+        }
+    )
+    ax[8].bar(flag_counts.index, flag_counts.values, color="#B07AA1")
+    ax[8].set_title("Contagem de flags heurísticas")
+    ax[8].set_ylabel("n grids")
+    ax[8].tick_params(axis="x", rotation=20)
+
+    top_lines = []
+    for row in top.itertuples():
+        row_s = pd.Series(row._asdict())
+        beta = row_s.get("beta", np.nan)
+        free_bits = row_s.get("free_bits", np.nan)
+        lr = row_s.get("lr", np.nan)
+        beta_txt = f"{float(beta):.4g}" if pd.notna(beta) else "nan"
+        free_bits_txt = f"{float(free_bits):.3g}" if pd.notna(free_bits) else "nan"
+        lr_txt = f"{float(lr):.2g}" if pd.notna(lr) else "nan"
+        top_lines.append(
+            f"#{int(row.rank)} {row.tag}"
+            f"\n  {row.arch_variant} | lat={int(getattr(row, 'latent_dim', 0))}"
+            f" beta={beta_txt}"
+            f" fb={free_bits_txt}"
+            f" lr={lr_txt}"
+            f" L={_compact_layer_sizes(getattr(row, 'layer_sizes', ''))}"
+            f"\n  score={float(row.score_v2):.4f} best_epoch={int(getattr(row, 'best_epoch', 0))}"
+            f"/{int(getattr(row, 'epochs_ran', 0))} active={float(getattr(row, 'active_dim_ratio', np.nan)):.2f}"
+            f"\n  flags={_row_flags_short(row_s)}"
+            f"\n  rec={_row_recommendations_short(row_s)}"
+        )
+    ax[9].axis("off")
+    ax[9].set_title("Resumo textual do Top-K")
+    ax[9].text(
+        0.01,
+        0.99,
+        "\n\n".join(top_lines),
+        va="top",
+        ha="left",
+        fontsize=9,
+        family="monospace",
+        bbox=dict(boxstyle="round", facecolor="whitesmoke", alpha=0.9),
+    )
+
+    rec_cols = [
+        "recommend_lr",
+        "recommend_beta_free_bits",
+        "recommend_latent_dim",
+        "recommend_capacity",
+        "recommend_architecture",
+        "recommend_epochs_patience",
+    ]
+    rec_values = pd.concat([ok[col] for col in rec_cols if col in ok.columns], axis=0)
+    rec_values = rec_values[rec_values.astype(str) != "keep"]
+    rec_counts = rec_values.value_counts().head(8)
+    if rec_counts.empty:
+        ax[10].axis("off")
+        ax[10].text(
+            0.02,
+            0.98,
+            "Nenhuma recomendação ativa além de keep.",
+            va="top",
+            ha="left",
+        )
+    else:
+        ax[10].barh(rec_counts.index[::-1], rec_counts.values[::-1], color="#E15759")
+        ax[10].set_title("Recomendações mais frequentes")
+        ax[10].set_xlabel("n grids")
+
+    ax[11].scatter(
+        ok["late_val_slope"],
+        ok["late_val_std"],
+        c=ok["score_v2"],
+        cmap="viridis_r",
+        edgecolors="k",
+        alpha=0.85,
+        s=70,
+    )
+    ax[11].axvline(-1e-4, color="gray", linestyle="--", linewidth=1.0)
+    ax[11].set_title("Convergência tardia: slope vs std")
+    ax[11].set_xlabel("late_val_slope")
+    ax[11].set_ylabel("late_val_std")
+
+    for axis in ax[:9]:
+        axis.grid(True, alpha=0.20)
+    ax[10].grid(True, alpha=0.20)
+    ax[11].grid(True, alpha=0.20)
+
+    fig.savefig(out_path, dpi=170, bbox_inches="tight")
+    plt.close(fig)
+    write_artifact_manifest(
+        training_dir,
+        title="Training operational dashboard",
+        sections={"open_first": [out_path]},
+    )
+    return out_path

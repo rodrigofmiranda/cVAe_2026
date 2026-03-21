@@ -42,6 +42,11 @@ def _save_keras_model_compat(model: Any, path: Path) -> None:
     the native ``.keras`` format. We prefer excluding the optimizer state when
     supported, but transparently retry without that argument when the local
     Keras version disallows it.
+
+    For subclassed models (e.g. ``AdvResidualCVAEModel``) that cannot be
+    serialised as HDF5/``.keras``, we fall back to TF SavedModel format,
+    saving to a directory at the same path. ``tf.keras.models.load_model``
+    auto-detects whether a path is a file or directory and loads accordingly.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -55,7 +60,36 @@ def _save_keras_model_compat(model: Any, path: Path) -> None:
             "⚠️  Keras local não aceita include_optimizer no formato .keras; "
             f"repetindo save sem esse argumento: {path}"
         )
-        model.save(str(path))
+        try:
+            model.save(str(path))
+            return
+        except NotImplementedError:
+            pass  # fall through to SavedModel fallback below
+    except NotImplementedError:
+        pass  # fall through to SavedModel fallback below
+
+    # Subclassed model: save as a Keras SavedModel directory, then rename the
+    # directory to the canonical artifact path. Older TF/Keras builds route
+    # ``model.save(..., save_format="tf")`` through the HDF5 branch whenever
+    # the filepath ends with ``.keras``. Saving first to a suffix-free temp dir
+    # preserves the Keras metadata, and renaming keeps the expected path.
+    print(
+        f"⚠️  Modelo subclasse — salvando como SavedModel (TF format) em: {path}"
+    )
+    import shutil
+    import tensorflow as tf
+    import uuid
+
+    if path.exists():
+        if path.is_dir():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+    tmp_path = path.parent / f".{path.name}.{uuid.uuid4().hex}.savedmodel"
+    if tmp_path.exists():
+        shutil.rmtree(tmp_path)
+    tf.keras.models.save_model(model, str(tmp_path), save_format="tf")
+    tmp_path.rename(path)
 
 
 def checklist_table() -> "pd.DataFrame":
@@ -273,6 +307,17 @@ TRAINING_DIAGNOSTIC_COLUMNS: List[str] = [
 ]
 
 
+def _mc_point_metric_means(Xv_center: np.ndarray, Ys: np.ndarray) -> tuple[float, float]:
+    """Average EVM/SNR across individual MC draws instead of the ensemble mean."""
+    from src.evaluation.metrics import calculate_evm, calculate_snr
+
+    Ys = np.asarray(Ys)
+    if Ys.ndim != 3 or Ys.shape[0] == 0:
+        raise ValueError("Ys must have shape (K, N, 2) with K >= 1")
+
+    evm_vals = [calculate_evm(Xv_center, Ys[i])[0] for i in range(Ys.shape[0])]
+    snr_vals = [calculate_snr(Xv_center, Ys[i]) for i in range(Ys.shape[0])]
+    return float(np.mean(evm_vals)), float(np.mean(snr_vals))
 def _history_series(
     history_dict: Dict[str, Sequence[float]],
     *keys: str,
@@ -825,7 +870,6 @@ def run_gridsearch(
                         verbose=0,
                     ))
                 Ys = np.stack(Ys, axis=0)
-                # Point metrics (EVM/SNR) stay on MC mean.
                 Yp = Ys.mean(axis=0)
                 # Distribution metrics must use MC concatenation (marginal predictive sample).
                 Yp_dist = Ys.reshape((-1, Ys.shape[-1]))
@@ -834,9 +878,12 @@ def run_gridsearch(
                 var_mc = float(np.mean(np.var(Ys, axis=0)))
 
             evm_real, _ = calculate_evm(Xv_center, Yv)
-            evm_pred, _ = calculate_evm(Xv_center, Yp)
             snr_real = calculate_snr(Xv_center, Yv)
-            snr_pred = calculate_snr(Xv_center, Yp)
+            if rank_mode != "det" and K > 1:
+                evm_pred, snr_pred = _mc_point_metric_means(Xv_center, Ys)
+            else:
+                evm_pred, _ = calculate_evm(Xv_center, Yp)
+                snr_pred = calculate_snr(Xv_center, Yp)
 
             prior_net = vae.get_layer("prior_net")
             mu_p, logvar_p = prior_net.predict(
@@ -880,6 +927,11 @@ def run_gridsearch(
             pen_var_mismatch = 0.0
             if not np.isnan(var_mc):
                 pen_var_mismatch = float(abs(var_mc - var_real))
+
+            history_dict = {
+                k: [float(x) for x in v]
+                for k, v in hist.history.items()
+            }
 
             score_v2 = compute_score_v2(
                 evm_real=evm_real, evm_pred=evm_pred,
@@ -964,7 +1016,7 @@ def run_gridsearch(
             results[-1]["plot_bundle_dir"] = ""
             results[-1]["plot_bundle_count"] = 0
 
-            # Save individual model
+            # Save the full trainable model, including adversarial wrappers.
             model_path = model_dir / "model_full.keras"
             _save_keras_model_compat(vae, model_path)
             results[-1]["model_full_path"] = str(model_path)

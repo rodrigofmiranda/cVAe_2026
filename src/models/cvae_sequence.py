@@ -515,21 +515,23 @@ def create_seq_inference_model(
 # ======================================================================
 
 def load_seq_model(path: str) -> tf.keras.Model:
-    """Load a saved seq_bigru_residual model (.keras) with correct custom_objects.
+    """Load a saved cVAE model with correct custom_objects.
 
-    Works for the full training model as well as the decoder or prior_net
-    sub-models, all of which may contain custom seq_cvae layers.
+    Handles all arch_variants: point-wise (functional), seq_bigru_residual
+    (functional with custom seq layers), and delta_residual_adv (subclassed).
+    Auto-detects SavedModel format (directory) vs HDF5/keras format (file).
 
     Parameters
     ----------
     path : str or Path
-        Path to the saved .keras file.
+        Path to the saved .keras file or SavedModel directory.
 
     Returns
     -------
     keras.Model
         Loaded model with all custom layers resolved.
     """
+    from src.models.adversarial import AdvResidualCVAEModel
     return tf.keras.models.load_model(
         str(path),
         custom_objects={
@@ -540,6 +542,7 @@ def load_seq_model(path: str) -> tf.keras.Model:
             "ExtractCenterFrame": ExtractCenterFrame,
             "ClipValues": ClipValues,
             "SliceFeatures": SliceFeatures,
+            "AdvResidualCVAEModel": AdvResidualCVAEModel,
         },
         compile=False,
     )

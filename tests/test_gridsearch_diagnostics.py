@@ -8,6 +8,7 @@ from src.training.gridsearch import (
     _apply_training_recommendations,
     _build_training_diagnostics,
     _build_training_diagnostics_table,
+    _mc_point_metric_means,
 )
 
 
@@ -137,3 +138,19 @@ def test_build_training_diagnostics_table_exposes_canonical_columns():
     assert out.iloc[0]["tag"] == "model_a"
     assert out.iloc[0]["recommend_lr"] == "keep"
     assert bool(out.iloc[0]["flag_unstable"]) is False
+
+
+def test_mc_point_metric_means_penalizes_stochastic_draws_individually():
+    x = np.ones((2, 2), dtype=np.float32)
+    ys = np.stack(
+        [
+            np.array([[1.4, 1.0], [1.4, 1.0]], dtype=np.float32),
+            np.array([[0.6, 1.0], [0.6, 1.0]], dtype=np.float32),
+        ],
+        axis=0,
+    )
+
+    evm_mc, snr_mc = _mc_point_metric_means(x, ys)
+
+    assert np.isfinite(evm_mc)
+    assert np.isfinite(snr_mc)

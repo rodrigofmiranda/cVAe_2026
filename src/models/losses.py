@@ -13,6 +13,8 @@ kl_divergence            KL(q ‖ p) per sample
 kl_to_standard_normal    KL(q ‖ N(0, I)) per sample
 kl_with_freebits         Free-bits thresholded KL
 compute_total_loss        recon + β · min(kl, cap)
+hinge_discriminator_loss  Hinge GAN discriminator loss
+hinge_generator_loss      Hinge GAN generator adversarial loss
 CondPriorVAELoss         Keras layer (for training graph)
 CondPriorDeltaVAELoss    Explicit residual-target Keras layer
 StdNormalHeteroscedasticVAELoss
@@ -202,6 +204,44 @@ def mmd2_tf(
     term_yy = tf.reduce_sum(Kyy * mask) / (nf * (nf - 1.0))
     term_xy = tf.reduce_sum(Kxy) / (nf * nf)
     return term_xx + term_yy - 2.0 * term_xy
+
+
+# ======================================================================
+# Adversarial loss functions (hinge GAN — used by delta_residual_adv)
+# ======================================================================
+
+def hinge_discriminator_loss(
+    d_real_logits: tf.Tensor,
+    d_fake_logits: tf.Tensor,
+) -> tf.Tensor:
+    """Hinge GAN discriminator loss.
+
+    Parameters
+    ----------
+    d_real_logits : Tensor [B, 1] — discriminator output on real residuals
+    d_fake_logits : Tensor [B, 1] — discriminator output on generated residuals
+
+    Returns
+    -------
+    Scalar tensor — mean hinge loss over the batch.
+    """
+    real_loss = tf.reduce_mean(tf.nn.relu(1.0 - d_real_logits))
+    fake_loss = tf.reduce_mean(tf.nn.relu(1.0 + d_fake_logits))
+    return real_loss + fake_loss
+
+
+def hinge_generator_loss(d_fake_logits: tf.Tensor) -> tf.Tensor:
+    """Hinge GAN adversarial loss from the generator's perspective.
+
+    Parameters
+    ----------
+    d_fake_logits : Tensor [B, 1] — discriminator output on generated residuals
+
+    Returns
+    -------
+    Scalar tensor — generator hinge loss (lower is better for generator).
+    """
+    return -tf.reduce_mean(d_fake_logits)
 
 
 # ======================================================================
