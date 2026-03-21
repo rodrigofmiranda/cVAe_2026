@@ -18,15 +18,15 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from src.protocol.experiment_tracking import latest_complete_protocol_experiment
 
 
 def _latest_exp_dir() -> Path:
-    candidates = sorted(ROOT.glob("outputs/exp_*/manifest.json"))
-    if not candidates:
-        raise FileNotFoundError("No run found under outputs/exp_*/manifest.json")
-    return candidates[-1].parent
+    return latest_complete_protocol_experiment(ROOT / "outputs")
 
 
 def _resolve_exp_dir(raw: str | None) -> Path:

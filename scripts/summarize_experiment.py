@@ -5,13 +5,20 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Optional
 
 import pandas as pd
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-def _latest_experiment(outputs_dir: Path) -> Path:
+from src.protocol.experiment_tracking import latest_complete_protocol_experiment
+
+
+def _latest_experiment_any(outputs_dir: Path) -> Path:
     candidates = sorted(
         [p for p in outputs_dir.glob("exp_*") if p.is_dir()],
         key=lambda p: p.stat().st_mtime,
@@ -19,6 +26,13 @@ def _latest_experiment(outputs_dir: Path) -> Path:
     if not candidates:
         raise FileNotFoundError(f"No experiment found under {outputs_dir}")
     return candidates[-1]
+
+
+def _latest_experiment(outputs_dir: Path) -> Path:
+    try:
+        return latest_complete_protocol_experiment(outputs_dir)
+    except FileNotFoundError:
+        return _latest_experiment_any(outputs_dir)
 
 
 def _pick_exp(path_str: Optional[str]) -> Path:
