@@ -25,7 +25,7 @@ Current purpose:
 
 - keep a single research branch containing all current architectures
 - choose the experiment family by `arch_variant`, `grid_tag`, or `grid_preset`
-- keep seq, non-adversarial residual, and adversarial residual comparisons
+- keep `seq_bigru_residual`, non-adversarial residual, and adversarial residual comparisons
   inside the same protocol-first workflow
 
 Architectures available in this branch:
@@ -37,13 +37,13 @@ Architectures available in this branch:
 
 ## Current Scientific References
 
-Strongest current seq reference in this workspace:
+Strongest current `seq_bigru_residual` reference in this workspace:
 
 - `outputs/exp_20260320_171510`
 - winner:
   - `S2seq_W7_h64_lat4_b0p003_lmmd1p0_fb0p10_lr0p0003_L128-256-512`
 
-Historical all-gates-passed seq reference:
+Historical all-gates-passed `seq_bigru_residual` reference:
 
 - `outputs/exp_20260318_204149`
 

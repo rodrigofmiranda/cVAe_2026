@@ -135,7 +135,7 @@ Uso recomendado:
 - comparar contra `concat`
 - nao vender como solucao final do digital twin
 
-### 3. Linha de pesquisa seq-bigru
+### 3. Linha de pesquisa `feat/seq-bigru-residual-cvae`
 
 Base:
 
@@ -170,7 +170,7 @@ Criar uma branch nova a partir de `exp/refactor_architecture`, por exemplo:
 Objetivo:
 
 - ter uma linha clara para deploy/publicacao
-- congelar uma base funcional sem depender da seq-bigru
+- congelar uma base funcional sem depender da `feat/seq-bigru-residual-cvae`
 
 ### Etapa C - Definir o default online
 
