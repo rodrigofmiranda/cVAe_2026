@@ -12,13 +12,14 @@ Usage
     python -m src.protocol.run \\
         --dataset_root data/dataset_fullsquare_organized \\
         --output_base  outputs \\
-        [--protocol configs/protocol_default.json]
+        [--protocol configs/all_regimes_sel4curr.json]
 
-    # Quick smoke-test (1 regime, 1 grid, 2 epochs):
+    # Quick reduced smoke-test (12 regimes, 1 grid, 2 epochs):
     python -m src.protocol.run \\
         --dataset_root data/dataset_fullsquare_organized \\
         --output_base  outputs \\
-        --protocol configs/one_regime_1p0m_300mA.json \\
+        --protocol configs/all_regimes_sel4curr.json \\
+        --train_once_eval_all \\
         --max_epochs 2 --max_grids 1 --max_experiments 1
 
     # Dry-run (no training, just validate the protocol):
@@ -71,7 +72,7 @@ def parse_args():
     p.add_argument("--dataset_root", type=str, required=True)
     p.add_argument("--output_base", type=str, required=True)
     p.add_argument("--protocol", type=str, default=None,
-                   help="Path to protocol JSON (default: auto-discover when omitted)")
+                   help="Path to protocol JSON (default: bundled reduced 12-regime protocol)")
     p.add_argument("--protocol_config", type=str, default=None,
                    help="Path to protocol YAML config (takes precedence over --protocol)")
     # --- global overrides (applied to every regime; override protocol JSON) ---
@@ -1667,7 +1668,7 @@ def main():
     args.dataset_root = str(Path(args.dataset_root).resolve())
     args.output_base = str(Path(args.output_base).resolve())
 
-    # Load protocol (YAML > JSON > auto-discovery from dataset)
+    # Load protocol (YAML > JSON > bundled reduced default)
     _proto_config_path: Optional[str] = None
     if args.protocol_config is not None:
         _proto_config_path = str(Path(args.protocol_config).resolve())
@@ -1676,9 +1677,8 @@ def main():
     elif args.protocol is not None:
         protocol = _load_protocol(args.protocol)
     else:
-        # No config given → auto-discover regimes from dataset layout
-        protocol = _build_discovered_protocol(args.dataset_root)
-        print("📄 No --protocol / --protocol_config given — using auto-discovery")
+        protocol = _load_protocol(None)
+        print("📄 No --protocol / --protocol_config given — using bundled reduced default protocol")
     protocol = _limit_protocol_regimes(protocol, args.max_regimes)
     proto_globals = protocol.get("global_settings", {})
     regimes = protocol["regimes"]

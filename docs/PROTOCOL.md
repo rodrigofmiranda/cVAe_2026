@@ -16,16 +16,18 @@ This is the only supported public experiment entrypoint. The old
 cd /workspace/2026/feat_seq_bigru_residual_cvae
 export PYTHONPATH="$PWD"
 
-# Auto-discover all regimes from dataset (default — no config needed)
-python -m src.protocol.run \
-    --dataset_root data/dataset_fullsquare_organized \
-    --output_base  outputs
-
-# Smoke-test: 1 grid, 2 epochs, 1 experiment per regime
+# Default reduced 12-regime protocol (3 distances x 4 currents)
 python -m src.protocol.run \
     --dataset_root data/dataset_fullsquare_organized \
     --output_base  outputs \
-    --protocol configs/one_regime_1p0m_300mA.json \
+    --train_once_eval_all
+
+# Smoke-test on the reduced 12-regime protocol
+python -m src.protocol.run \
+    --dataset_root data/dataset_fullsquare_organized \
+    --output_base  outputs \
+    --protocol configs/all_regimes_sel4curr.json \
+    --train_once_eval_all \
     --max_epochs 2 --max_grids 1 --max_experiments 1
 
 # Dry-run (validate protocol, build model, no training)
@@ -34,10 +36,11 @@ python -m src.protocol.run \
     --output_base  outputs \
     --dry_run
 
-# Final universal-twin mode: train once globally, evaluate all regimes
+# Final universal-twin mode on the full 27-regime protocol
 python -m src.protocol.run \
     --dataset_root data/dataset_fullsquare_organized \
     --output_base  outputs \
+    --protocol configs/all_regimes_full_dataset.json \
     --train_once_eval_all \
     --max_epochs 120 --max_grids 2
 
@@ -69,7 +72,7 @@ python -m src.protocol.run \
 python -m src.protocol.run \
     --dataset_root data/dataset_fullsquare_organized \
     --output_base  outputs \
-    --protocol configs/one_regime_1p0m_300mA_sel4curr.json \
+    --protocol configs/all_regimes_sel4curr.json \
     --train_once_eval_all \
     --grid_preset best_compare_large \
     --max_epochs 80 \
@@ -91,23 +94,23 @@ python -m src.protocol.run \
     --protocol_config configs/protocol_default.yaml
 ```
 
-## Default behaviour — auto-discovery
+## Default behaviour — bundled reduced protocol
 
 When **neither** `--protocol` nor `--protocol_config` is provided, the
-runner scans `dataset_root` for the standard directory layout:
+runner loads the bundled reduced protocol:
 
 ```
-dataset_root/
-  dist_0.8m/
-    curr_200mA/<experiment>/...
-    curr_400mA/<experiment>/...
-  dist_1.0m/
-    curr_200mA/...
-  ...
+configs/protocol_default.json
 ```
 
-Every unique `(distance, current)` pair found becomes a regime.
-Regimes are sorted deterministically by distance then current.
+That default protocol is the active minimum scientific grid:
+
+- distances: `0.8 / 1.0 / 1.5 m`
+- currents: `100 / 300 / 500 / 700 mA`
+- total: `12` regimes
+
+Use `configs/all_regimes_full_dataset.json` only when you explicitly want the
+full 27-regime sweep.
 
 **Regime ID format:** `dist_{D}m__curr_{C}mA`
 
@@ -301,7 +304,7 @@ CLI flags take precedence.
 
 | Flag | Effect |
 |---|---|
-| `--protocol PATH` | Explicit JSON protocol (default: auto-discover) |
+| `--protocol PATH` | Explicit JSON protocol (default: bundled reduced 12-regime protocol) |
 | `--protocol_config PATH` | YAML protocol config (takes precedence over `--protocol`) |
 | `--reuse_model_run_dir PATH` | Reuse a previous shared-model `train/` directory and skip retraining |
 | `--max_epochs N` | Limit training epochs |

@@ -267,9 +267,9 @@ Checar:
 
 Regra critica: antes de propor mudanca estrutural, verificar se algum grid nao-campeao ja sinaliza melhora em kurtosis, PSD ou MMD.
 
-## 7. Sequencia minima de diagnostico no regime pivo
+## 7. Sequencia minima de diagnostico no protocolo reduzido
 
-Usar `1.0m / 300mA` como prova inicial de regime unico.
+Usar no minimo o protocolo reduzido `0.8/1.0/1.5 m x 100/300/500/700 mA`.
 
 1. Testes unitarios
 
@@ -277,23 +277,25 @@ Usar `1.0m / 300mA` como prova inicial de regime unico.
 python -m pytest tests -q
 ```
 
-2. Smoke de protocolo
+2. Smoke de protocolo reduzido
 
 ```bash
 python -m src.protocol.run \
   --dataset_root data/dataset_fullsquare_organized \
   --output_base outputs \
-  --protocol configs/one_regime_1p0m_300mA.json \
+  --protocol configs/all_regimes_sel4curr.json \
+  --train_once_eval_all \
   --max_epochs 1 --max_grids 1 --max_experiments 1 --max_samples_per_exp 2000
 ```
 
-3. Run cientifico de regime unico com testes estatisticos
+3. Run cientifico do protocolo reduzido com testes estatisticos
 
 ```bash
 python -m src.protocol.run \
   --dataset_root data/dataset_fullsquare_organized \
   --output_base outputs \
-  --protocol configs/one_regime_1p0m_300mA.json \
+  --protocol configs/all_regimes_sel4curr.json \
+  --train_once_eval_all \
   --max_grids 5 \
   --stat_tests --stat_mode full --stat_max_n 10000 --stat_n_perm 1000
 ```
@@ -381,8 +383,8 @@ Mudancas estruturais candidatas so entram depois disso:
 | Etapa | Objetivo | Status |
 |---|---|---|
 | A | Infraestrutura e smoke | completa |
-| B | Prova em regime unico + diagnostico completo | em andamento |
-| C | Escala incremental em multiplos regimes | aguardando B |
+| B | Protocolo reduzido de 12 regimes + diagnostico completo | em andamento |
+| C | Escala incremental para o full 27-regime | aguardando B |
 | D | Generalizacao / hold-out | aguardando C |
 | E | Selecao do twin vencedor | aguardando D |
 

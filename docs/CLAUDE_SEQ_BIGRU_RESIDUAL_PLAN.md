@@ -101,10 +101,12 @@ Read these files in this exact order before making changes:
 
 After that, inspect the two final validation experiments:
 
-13. [outputs/exp_20260313_153655/manifest.json](/workspace/2026/feat_delta_residual_adv/outputs/exp_20260313_153655/manifest.json)
-14. [outputs/exp_20260313_153655/tables/summary_by_regime.csv](/workspace/2026/feat_delta_residual_adv/outputs/exp_20260313_153655/tables/summary_by_regime.csv)
-15. [outputs/exp_20260317_202653/manifest.json](/workspace/2026/feat_delta_residual_adv/outputs/exp_20260317_202653/manifest.json)
-16. [outputs/exp_20260317_202653/tables/summary_by_regime.csv](/workspace/2026/feat_delta_residual_adv/outputs/exp_20260317_202653/tables/summary_by_regime.csv)
+13. historical run id `exp_20260313_153655` (`manifest.json`, `summary_by_regime.csv`)
+14. historical run id `exp_20260317_202653` (`manifest.json`, `summary_by_regime.csv`)
+
+Those artifacts came from a local worktree that was later removed to save disk
+space, so treat the run IDs as traceability anchors rather than guaranteed
+local paths.
 
 If running inside Claude Code interactively, confirm loaded memory with `/memory`
 before starting significant work.
@@ -663,14 +665,14 @@ python -m src.training.train \
   --keras_verbose 2
 ```
 
-### One-regime protocol smoke
+### Reduced 12-regime protocol smoke
 
 ```bash
 cd /workspace/2026/feat_seq_bigru_residual_cvae
 python -m src.protocol.run \
   --dataset_root data/dataset_fullsquare_organized \
   --output_base outputs \
-  --protocol configs/one_regime_1p0m_300mA.json \
+  --protocol configs/all_regimes_sel4curr.json \
   --train_once_eval_all \
   --grid_preset seq_residual_smoke \
   --max_grids 1 \
@@ -747,7 +749,8 @@ Minimum scientific sign of progress:
 
 ### Primeira vez que G1–G4 passam simultaneamente
 
-Experimento `exp_20260318_182809` — protocolo `one_regime_1p0m_300mA_sel4curr.json`,
+Experimento `exp_20260318_182809` — protocolo reduzido de 12 regimes
+(`100/300/500/700 mA x 0.8/1.0/1.5 m`),
 12 experimentos (4 correntes × 3 distâncias), `seq_residual_small` 4 grids,
 `batch_size=8192`, `max_samples_per_exp=200000`, `no_data_reduction`.
 

@@ -29,18 +29,24 @@ Implementation commit:
 
 ## Reference Protocol
 
-- protocol: `configs/one_regime_1p0m_300mA_sel4curr.json`
+- protocol: `configs/all_regimes_sel4curr.json`
 - currents: `100/300/500/700 mA`
 - distances: `0.8/1.0/1.5 m`
 - pivot regime: `1.0 m / 300 mA`
 - training mode: `train_once_eval_all`
 - train reduction: `200k`
 
+Historical note:
+
+- the old local adversarial worktree was deleted
+- the run IDs below are still valid traceability anchors, but some original
+  local output folders may no longer exist on disk
+
 ## Runs
 
 ### 1. Operational Smoke
 
-- run: `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_230955`
+- run id: `exp_20260318_230955`
 - preset: `delta_residual_smoke`
 
 Outcome:
@@ -59,7 +65,7 @@ Use only as operational proof that the variant works in the full pipeline.
 
 ### 2. First Useful Sweep
 
-- run: `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_231458`
+- run id: `exp_20260318_231458`
 - preset: `delta_residual_small`
 
 Winning config:
@@ -86,7 +92,7 @@ Interpretation:
 
 ### 3. Winner-Centric Refinement
 
-- run: `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_233023`
+- run id: `exp_20260318_233023`
 - preset: `delta_residual_refine`
 
 Winning config by grid score:
@@ -107,12 +113,12 @@ Pivot summary:
 
 Interpretation:
 
-- this refinement did **not** beat `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_231458`
+- this refinement did **not** beat `exp_20260318_231458`
 - lowering `beta` to `0.0005` looked acceptable on grid rank metrics, but degraded the final pivot regime badly
 
 ### 4. Local Winner Refinement
 
-- run: `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_235319`
+- run id: `exp_20260318_235319`
 - preset: `delta_residual_local`
 
 Winning config by grid score:
@@ -134,7 +140,7 @@ Pivot summary:
 Interpretation:
 
 - this run is the best current `delta_residual` scientific reference
-- it improved over `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_231458` on:
+- it improved over `exp_20260318_231458` on:
   - `ΔEVM`
   - `ΔSNR`
   - `PSD_L2`
@@ -148,7 +154,7 @@ Interpretation:
 
 Use this as the best current `delta_residual` reference:
 
-- `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_235319`
+- run id: `exp_20260318_235319`
 
 Current best config:
 
@@ -188,7 +194,7 @@ training-only lane. The current protocol-first comparison preset is:
 
 - preset: `best_compare_large`
 - mode: `src.protocol.run --train_once_eval_all`
-- protocol: `configs/one_regime_1p0m_300mA_sel4curr.json`
+- protocol: `configs/all_regimes_sel4curr.json`
 - compare:
   - best current `delta_residual` scientific references
   - imported point-wise `COPT_*` candidates

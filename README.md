@@ -22,10 +22,10 @@ Use this folder when:
 - you want to switch architecture by `arch_variant`
 - you want to compare `seq_bigru_residual` and `delta_residual`
 
-The other worktree is:
+Historical note:
 
-- `/workspace/2026/feat_delta_residual_adv`
-- that folder keeps the archived branch-specific history for the adversarial line
+- the old local folder for the adversarial line was removed to save disk space
+- the branch name `feat/delta-residual-adv` still exists only for traceability
 
 ## Current Docs
 
@@ -145,8 +145,8 @@ In practice:
 
 ```
 configs/
-  protocol_default.json       Default protocol definition (regimes × studies)
-  protocol_default.yaml       YAML variant
+  protocol_default.json       Default reduced protocol (12 regimes: 3 distances x 4 currents)
+  protocol_default.yaml       YAML variant of the same reduced protocol
 conftest.py                   Pytest root config (makes `import src.*` work)
 data/                         Dataset (Git LFS)
   dataset_fullsquare_organized/
@@ -158,7 +158,7 @@ docs/
   PROTOCOL.md                 Protocol runner reference
   SESSION_STATE.md            Session/run state schema
   archive/                    Historical plans kept out of the active path
-  smoke_b2_notes.txt          Single-regime full stat-fidelity smoke results
+  smoke_b2_notes.txt          Historical smoke notes
 PROJECT_STATUS.md             Current codebase / validation status
 TRAINING_PLAN.md              Active scientific plan and acceptance gates
 notebooks/                    Exploratory Jupyter notebooks
@@ -254,13 +254,15 @@ python -m src.protocol.run \
   --dry_run
 ```
 
-If that works, the next simple example is a tiny one-regime smoke test:
+If that works, the next simple example is the reduced 12-regime protocol
+(`0.8/1.0/1.5 m × 100/300/500/700 mA`), which is now the minimum active study:
 
 ```bash
 python -m src.protocol.run \
   --dataset_root data/dataset_fullsquare_organized \
   --output_base outputs \
-  --protocol configs/one_regime_1p0m_300mA.json \
+  --protocol configs/all_regimes_sel4curr.json \
+  --train_once_eval_all \
   --max_epochs 1 \
   --max_grids 1 \
   --max_experiments 1 \
@@ -325,17 +327,26 @@ fidelity tests for one or more $(d, c)$ regimes in a single reproducible
 run.
 
 ```bash
+# Default reduced 12-regime run (3 distances × 4 currents)
+python -m src.protocol.run \
+  --dataset_root data/dataset_fullsquare_organized \
+  --output_base outputs \
+  --train_once_eval_all \
+  --max_epochs 80
+
 # Full 27-regime run (3 distances × 9 currents)
 python -m src.protocol.run \
   --dataset_root data/dataset_fullsquare_organized \
   --output_base outputs \
+  --protocol configs/all_regimes_full_dataset.json \
   --max_epochs 200
 
-# Single-regime smoke test with stat fidelity
+# Reduced 12-regime smoke test with stat fidelity
 python -m src.protocol.run \
   --dataset_root data/dataset_fullsquare_organized \
   --output_base outputs \
-  --protocol configs/one_regime_1p0m_300mA.json \
+  --protocol configs/all_regimes_sel4curr.json \
+  --train_once_eval_all \
   --max_epochs 30 --max_grids 1 --max_experiments 1 \
   --stat_tests --stat_mode full --stat_max_n 5000
 
@@ -364,11 +375,12 @@ python -m src.protocol.run \
   --output_base outputs \
   --dry_run
 
-# 2) Single-regime protocol smoke
+# 2) Reduced 12-regime protocol smoke
 python -m src.protocol.run \
   --dataset_root data/dataset_fullsquare_organized \
   --output_base outputs \
-  --protocol configs/one_regime_1p0m_300mA.json \
+  --protocol configs/all_regimes_sel4curr.json \
+  --train_once_eval_all \
   --max_epochs 1 --max_grids 1 --max_experiments 1 --max_samples_per_exp 2000
 
 # 3) Import/build sanity for the cVAE stack
@@ -415,7 +427,7 @@ and sequential candidates under the same reduced scientific protocol.
 python -m src.protocol.run \
   --dataset_root data/dataset_fullsquare_organized \
   --output_base outputs \
-  --protocol configs/one_regime_1p0m_300mA_sel4curr.json \
+  --protocol configs/all_regimes_sel4curr.json \
   --train_once_eval_all \
   --grid_preset best_compare_large \
   --max_epochs 80 \
@@ -528,7 +540,7 @@ bash scripts/eval.sh
 |------|---------|---------|
 | `--dataset_root` | *(required)* | Path to organized dataset |
 | `--output_base` | *(required)* | Root for run artifacts |
-| `--protocol` | auto-discover when omitted | Protocol JSON defining regimes |
+| `--protocol` | bundled reduced 12-regime default | Protocol JSON defining regimes |
 | `--reuse_model_run_dir` | unset | Reuse a previous shared-model `train/` directory and skip retraining |
 | `--max_epochs` | per-protocol | Maximum training epochs |
 | `--max_grids` | all | Limit grid-search configs to N |

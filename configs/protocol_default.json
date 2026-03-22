@@ -1,45 +1,138 @@
 {
-    "_comment": "Default protocol for reproducible cVAE evaluation across VLC regimes.",
-    "protocol_version": "1.0",
-    "description": "Baseline + cVAE training & evaluation over selected regimes.",
-    "global_settings": {
-        "seed": 42,
-        "val_split": 0.2,
-        "max_epochs": 500,
-        "max_grids": null,
-        "grid_group": null,
-        "grid_tag": null,
-        "max_experiments": null,
-        "max_samples_per_exp": null,
-        "psd_nfft": 2048
-    },
-    "regimes": [
-        {
-            "regime_id": "dist_0p8m__curr_200mA",
-            "description": "0.8 m / 200 mA",
-            "distance_m": 0.8,
-            "current_mA": 200,
-            "experiment_paths": [
-                "dist_0.8m/curr_200mA"
-            ]
-        },
-        {
-            "regime_id": "dist_0p8m__curr_800mA",
-            "description": "0.8 m / 800 mA",
-            "distance_m": 0.8,
-            "current_mA": 800,
-            "experiment_paths": [
-                "dist_0.8m/curr_800mA"
-            ]
-        },
-        {
-            "regime_id": "dist_1p5m__curr_200mA",
-            "description": "1.5 m / 200 mA",
-            "distance_m": 1.5,
-            "current_mA": 200,
-            "experiment_paths": [
-                "dist_1.5m/curr_200mA"
-            ]
-        }
+  "protocol_version": "1.0",
+  "description": "Global train + evaluation over the reduced 12-regime grid: 3 distances x 4 currents (100, 300, 500, 700 mA). Intended for gate heatmaps before the full 27-regime sweep.",
+  "global_settings": {
+    "_selected_experiments": [
+      "/workspace/2026/feat_seq_bigru_residual_cvae/data/dataset_fullsquare_organized/dist_0.8m/curr_100mA",
+      "/workspace/2026/feat_seq_bigru_residual_cvae/data/dataset_fullsquare_organized/dist_0.8m/curr_300mA",
+      "/workspace/2026/feat_seq_bigru_residual_cvae/data/dataset_fullsquare_organized/dist_0.8m/curr_500mA",
+      "/workspace/2026/feat_seq_bigru_residual_cvae/data/dataset_fullsquare_organized/dist_0.8m/curr_700mA",
+      "/workspace/2026/feat_seq_bigru_residual_cvae/data/dataset_fullsquare_organized/dist_1.0m/curr_100mA",
+      "/workspace/2026/feat_seq_bigru_residual_cvae/data/dataset_fullsquare_organized/dist_1.0m/curr_300mA",
+      "/workspace/2026/feat_seq_bigru_residual_cvae/data/dataset_fullsquare_organized/dist_1.0m/curr_500mA",
+      "/workspace/2026/feat_seq_bigru_residual_cvae/data/dataset_fullsquare_organized/dist_1.0m/curr_700mA",
+      "/workspace/2026/feat_seq_bigru_residual_cvae/data/dataset_fullsquare_organized/dist_1.5m/curr_100mA",
+      "/workspace/2026/feat_seq_bigru_residual_cvae/data/dataset_fullsquare_organized/dist_1.5m/curr_300mA",
+      "/workspace/2026/feat_seq_bigru_residual_cvae/data/dataset_fullsquare_organized/dist_1.5m/curr_500mA",
+      "/workspace/2026/feat_seq_bigru_residual_cvae/data/dataset_fullsquare_organized/dist_1.5m/curr_700mA"
     ]
+  },
+  "regimes": [
+    {
+      "regime_id": "dist_0p8m__curr_100mA",
+      "description": "0.8 m / 100 mA",
+      "distance_m": 0.8,
+      "current_mA": 100,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_0p8m__curr_300mA",
+      "description": "0.8 m / 300 mA",
+      "distance_m": 0.8,
+      "current_mA": 300,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_0p8m__curr_500mA",
+      "description": "0.8 m / 500 mA",
+      "distance_m": 0.8,
+      "current_mA": 500,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_0p8m__curr_700mA",
+      "description": "0.8 m / 700 mA",
+      "distance_m": 0.8,
+      "current_mA": 700,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1m__curr_100mA",
+      "description": "1.0 m / 100 mA",
+      "distance_m": 1.0,
+      "current_mA": 100,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1m__curr_300mA",
+      "description": "1.0 m / 300 mA",
+      "distance_m": 1.0,
+      "current_mA": 300,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1m__curr_500mA",
+      "description": "1.0 m / 500 mA",
+      "distance_m": 1.0,
+      "current_mA": 500,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1m__curr_700mA",
+      "description": "1.0 m / 700 mA",
+      "distance_m": 1.0,
+      "current_mA": 700,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1p5m__curr_100mA",
+      "description": "1.5 m / 100 mA",
+      "distance_m": 1.5,
+      "current_mA": 100,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1p5m__curr_300mA",
+      "description": "1.5 m / 300 mA",
+      "distance_m": 1.5,
+      "current_mA": 300,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1p5m__curr_500mA",
+      "description": "1.5 m / 500 mA",
+      "distance_m": 1.5,
+      "current_mA": 500,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1p5m__curr_700mA",
+      "description": "1.5 m / 700 mA",
+      "distance_m": 1.5,
+      "current_mA": 700,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    }
+  ],
+  "_studies": [
+    {
+      "name": "within_regime",
+      "split_strategy": "per_experiment",
+      "regime_ids": [
+        "dist_0p8m__curr_100mA",
+        "dist_0p8m__curr_300mA",
+        "dist_0p8m__curr_500mA",
+        "dist_0p8m__curr_700mA",
+        "dist_1m__curr_100mA",
+        "dist_1m__curr_300mA",
+        "dist_1m__curr_500mA",
+        "dist_1m__curr_700mA",
+        "dist_1p5m__curr_100mA",
+        "dist_1p5m__curr_300mA",
+        "dist_1p5m__curr_500mA",
+        "dist_1p5m__curr_700mA"
+      ]
+    }
+  ]
 }

@@ -29,7 +29,7 @@ cd /workspace/2026/feat_seq_bigru_residual_cvae
 
 export DATASET_ROOT=data/dataset_fullsquare_organized
 export OUTPUT_BASE=outputs
-export PROTOCOL=configs/one_regime_1p0m_300mA.json
+export PROTOCOL=configs/all_regimes_sel4curr.json
 ```
 
 Para localizar o run mais recente:

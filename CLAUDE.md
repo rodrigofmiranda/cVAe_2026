@@ -43,7 +43,7 @@ Useful project skills:
 - Default quick verification commands:
   - `python -m pytest tests -q`
   - `python -m src.training.train --dataset_root data/dataset_fullsquare_organized --output_base outputs --run_id seq_bigru_residual_smoke --grid_preset seq_residual_smoke --max_grids 1 --max_experiments 1 --max_samples_per_exp 200000 --max_epochs 2 --keras_verbose 2`
-  - `python -m src.protocol.run --dataset_root data/dataset_fullsquare_organized --output_base outputs --protocol configs/one_regime_1p0m_300mA.json --train_once_eval_all --grid_preset seq_residual_smoke --max_grids 1 --max_epochs 2 --stat_tests --stat_mode quick`
+  - `python -m src.protocol.run --dataset_root data/dataset_fullsquare_organized --output_base outputs --protocol configs/all_regimes_sel4curr.json --train_once_eval_all --grid_preset seq_residual_smoke --max_grids 1 --max_epochs 2 --stat_tests --stat_mode quick`
 
 ## Session Hygiene
 
