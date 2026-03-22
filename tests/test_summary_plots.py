@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.evaluation.summary_plots import generate_all
+from src.evaluation.summary_plots import _pivot_for_heatmap, generate_all
 
 
 @pytest.fixture()
@@ -56,3 +56,22 @@ def test_generate_all_creates_best_model_heatmap(out_dir):
     assert len(paths) == 1
     assert paths[0].name == "heatmap_gate_metrics_by_regime.png"
     assert paths[0].exists() and paths[0].stat().st_size > 500
+
+
+def test_pivot_for_heatmap_preserves_canonical_regime_grid_for_single_regime():
+    df = pd.DataFrame([
+        {
+            "dist_target_m": 1.0,
+            "curr_target_mA": 300.0,
+            "cvae_delta_evm_%": 0.92,
+        },
+    ])
+
+    piv = _pivot_for_heatmap(df, "cvae_delta_evm_%")
+
+    assert piv is not None
+    assert piv.shape == (3, 4)
+    assert list(piv.index) == [0.8, 1.0, 1.5]
+    assert list(piv.columns) == [100.0, 300.0, 500.0, 700.0]
+    assert float(piv.loc[1.0, 300.0]) == pytest.approx(0.92)
+    assert np.isnan(piv.loc[0.8, 100.0])

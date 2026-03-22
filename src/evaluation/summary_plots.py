@@ -15,6 +15,10 @@ import numpy as np
 import pandas as pd
 
 
+_CANONICAL_DISTANCES_M = (0.8, 1.0, 1.5)
+_CANONICAL_CURRENTS_MA = (100.0, 300.0, 500.0, 700.0)
+
+
 def _savefig(path: Path, dpi: int = 200) -> Path:
     import matplotlib.pyplot as plt
 
@@ -41,7 +45,18 @@ def _pivot_for_heatmap(
     )
     piv = piv.sort_index(ascending=True)
     piv = piv[sorted(piv.columns)]
+    piv = piv.reindex(
+        index=_resolve_axis_order(piv.index, canonical=_CANONICAL_DISTANCES_M),
+        columns=_resolve_axis_order(piv.columns, canonical=_CANONICAL_CURRENTS_MA),
+    )
     return piv
+
+
+def _resolve_axis_order(values, *, canonical: Sequence[float]) -> List[float]:
+    observed = sorted(float(v) for v in values if pd.notna(v))
+    if observed and set(observed).issubset(set(canonical)):
+        return list(canonical)
+    return observed
 
 
 def _draw_heatmap(
