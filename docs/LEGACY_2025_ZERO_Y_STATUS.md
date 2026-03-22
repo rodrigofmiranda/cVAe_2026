@@ -1,5 +1,11 @@
 # Legacy 2025 Zero-Y Status
 
+Historical note:
+
+- this document is archived on purpose
+- it references historical local runs and a retired single-regime protocol file
+- use current branch docs for active execution guidance
+
 Current status of the experimental `arch_variant="legacy_2025_zero_y"` in the
 2026 pipeline.
 

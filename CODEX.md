@@ -22,7 +22,7 @@
   - legacy support variants
 - the adversarial line was intentionally removed from the active code path
 - if that strategy is revisited, use `docs/FUTURE_ADVERSARIAL_STRATEGY.md`
-  and the historical worktree `/workspace/2026/feat_delta_residual_adv`
+  and the historical branch name `feat/delta-residual-adv`
 - the branch now also includes the recent protocol infrastructure:
   - reduced 12-regime protocol: `configs/all_regimes_sel4curr.json`
   - model reuse: `--reuse_model_run_dir`
@@ -37,17 +37,17 @@
 ## Scientific State
 
 - strongest current temporal reference:
-  - run: `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260320_171510`
+  - run id: `exp_20260320_171510`
   - winner: `S2seq_W7_h64_lat4_b0p003_lmmd1p0_fb0p10_lr0p0003_L128-256-512`
   - summary:
     - passes all regimes at `1.5 m`
     - fails all regimes at `0.8 m`
     - best current multi-regime scientific reference in this workspace
 - historical all-gates-passed seq reference:
-  - run: `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_204149`
+  - run id: `exp_20260318_204149`
   - tag: `S2seq_W7_h64_lat4_b0p001_lmmd1p0_fb0p10_lr0p0003_L128-256-512`
 - best current point-wise non-adversarial scientific reference:
-  - run: `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_235319`
+  - run id: `exp_20260318_235319`
   - tag: `D3delta_lat5_b0p001_fb0p0_lr0p0003_bs16384_anneal80_L128-256-512`
 - strongest current point-wise anchor carried into protocol-first comparisons:
   - `COPT_lat6_b0p001_fb0p0_lr0p0001_bs16384_anneal120_L64-128-256`

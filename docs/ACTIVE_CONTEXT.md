@@ -27,6 +27,9 @@ Current purpose:
 - choose the experiment family by `arch_variant`, `grid_tag`, or `grid_preset`
 - keep `seq_bigru_residual` and `delta_residual` comparisons inside the
   same protocol-first workflow
+- use `configs/all_regimes_sel4curr.json` as the minimum active protocol
+  (`0.8/1.0/1.5 m x 100/300/500/700 mA`)
+- single-regime protocols were retired from the active path
 
 Architectures available in this branch:
 
@@ -57,8 +60,8 @@ Current strong point-wise anchor carried into comparisons:
 ## Future Adversarial Note
 
 - the adversarial line was removed from the active worktree
-- the historical implementation remains preserved in
-  `/workspace/2026/feat_delta_residual_adv`
+- the old local adversarial folder was deleted to save disk space
+- the branch name `feat/delta-residual-adv` remains available only as historical traceability
 - if we need to bring that strategy back later, use
   [docs/FUTURE_ADVERSARIAL_STRATEGY.md](FUTURE_ADVERSARIAL_STRATEGY.md)
   as the single implementation note

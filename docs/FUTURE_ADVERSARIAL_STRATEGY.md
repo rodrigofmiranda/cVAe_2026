@@ -11,9 +11,9 @@ This document is the only active note for a future return of the archived
   current phase
 - we want a cleaner main branch while keeping the idea documented
 
-The historical implementation and past outputs remain preserved in:
-
-- `/workspace/2026/feat_delta_residual_adv`
+The old local worktree for this idea was deleted to save disk space.
+If this strategy comes back, recover it from the branch name
+`feat/delta-residual-adv` or from git history.
 
 ## Target Idea
 

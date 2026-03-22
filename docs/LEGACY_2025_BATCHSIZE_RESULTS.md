@@ -1,5 +1,11 @@
 # Legacy 2025 Batch-Size Results
 
+Historical note:
+
+- this document is archived on purpose
+- some links point to local outputs from a deleted historical worktree
+- keep it only as scientific history, not as the active runbook
+
 Current status of the `legacy_2025_zero_y` batch-size sweep under the strict
 2026 pivot-regime protocol.
 

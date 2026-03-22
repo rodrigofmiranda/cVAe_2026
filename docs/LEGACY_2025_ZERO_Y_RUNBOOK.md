@@ -1,5 +1,11 @@
 # Legacy 2025 Zero-Y Runbook
 
+Historical note:
+
+- this document is archived on purpose
+- it references a retired single-regime protocol file
+- keep it only as historical guidance for the legacy model line
+
 This runbook captures the next execution steps for the experimental
 `arch_variant="legacy_2025_zero_y"` port in the 2026 pipeline.
 

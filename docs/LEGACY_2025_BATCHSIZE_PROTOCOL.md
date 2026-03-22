@@ -1,5 +1,11 @@
 # Legacy 2025 Batch-Size Protocol
 
+Historical note:
+
+- this document is archived on purpose
+- it references a retired single-regime protocol file and historical local runs
+- do not use it as the active execution guide for the current branch
+
 This protocol measures how far the `legacy_2025_zero_y` model can increase
 `batch_size` before training quality degrades materially under the same 2026
 evaluation setup.
