@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.evaluation.summary_plots import _pivot_for_heatmap, generate_all
+from src.evaluation.summary_plots import _gate_heatmap_style, _pivot_for_heatmap, generate_all
 
 
 @pytest.fixture()
@@ -75,3 +75,22 @@ def test_pivot_for_heatmap_preserves_canonical_regime_grid_for_single_regime():
     assert list(piv.columns) == [100.0, 300.0, 500.0, 700.0]
     assert float(piv.loc[1.0, 300.0]) == pytest.approx(0.92)
     assert np.isnan(piv.loc[0.8, 100.0])
+
+
+def test_gate_heatmap_style_uses_absolute_color_distance_for_signed_metrics():
+    piv = pd.DataFrame(
+        [[-2.0, 1.0]],
+        index=[1.0],
+        columns=[100.0, 300.0],
+    )
+    spec = {"mode": "signed", "threshold": 0.05}
+
+    color_piv, annot_piv, vmin, vmax, center = _gate_heatmap_style(spec, piv)
+
+    assert float(color_piv.loc[1.0, 100.0]) == pytest.approx(2.0)
+    assert float(color_piv.loc[1.0, 300.0]) == pytest.approx(1.0)
+    assert float(annot_piv.loc[1.0, 100.0]) == pytest.approx(-2.0)
+    assert float(annot_piv.loc[1.0, 300.0]) == pytest.approx(1.0)
+    assert vmin == pytest.approx(0.0)
+    assert vmax == pytest.approx(2.0)
+    assert center is None

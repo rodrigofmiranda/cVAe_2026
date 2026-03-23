@@ -41,6 +41,17 @@ Architectures available in this branch:
 
 Strongest current `seq_bigru_residual` reference in this workspace:
 
+- `outputs/exp_20260322_193738`
+- winner:
+  - `S4seq_W7_h64_lat4_b0p003_lmmd1p25_fb0p10_lr0p0003_L128-256-512`
+- result summary:
+  - `6/12` passes total
+  - `0/4` passes at `0.8 m`
+  - `2/4` passes at `1.0 m`
+  - `4/4` passes at `1.5 m`
+
+Previous strong multi-regime `seq_bigru_residual` reference:
+
 - `outputs/exp_20260320_171510`
 - winner:
   - `S2seq_W7_h64_lat4_b0p003_lmmd1p0_fb0p10_lr0p0003_L128-256-512`
@@ -51,7 +62,7 @@ Historical all-gates-passed `seq_bigru_residual` reference:
 
 Best current non-adversarial point-wise reference:
 
-- `outputs/exp_20260318_235319`
+- historical run id `exp_20260318_235319`
 
 Current strong point-wise anchor carried into comparisons:
 

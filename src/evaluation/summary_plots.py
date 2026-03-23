@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import List, Optional, Sequence
+from typing import List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
@@ -66,25 +66,31 @@ def _draw_heatmap(
     title: str,
     cmap: str,
     fmt: str,
+    annot_piv: Optional[pd.DataFrame] = None,
     cbar_label: str = "",
     vmin: float | None = None,
     vmax: float | None = None,
     center: float | None = None,
 ) -> None:
+    annot_data = annot_piv if annot_piv is not None else piv
+    mask = piv.isna()
     try:
         import seaborn as sns
 
         sns.heatmap(
             piv,
-            annot=True,
+            annot=annot_data,
             fmt=fmt,
+            mask=mask,
             cmap=cmap,
             vmin=vmin,
             vmax=vmax,
             center=center,
             linewidths=0.5,
+            linecolor="white",
             ax=ax,
             cbar_kws={"label": cbar_label},
+            annot_kws={"color": "black", "fontsize": 10},
         )
     except ImportError:
         im = ax.imshow(
@@ -96,16 +102,16 @@ def _draw_heatmap(
         ax.set_yticklabels([f"{i:.1f}" for i in piv.index])
         for i in range(len(piv.index)):
             for j in range(len(piv.columns)):
-                v = piv.iloc[i, j]
-                if pd.notna(v):
+                display_v = annot_data.iloc[i, j]
+                if pd.notna(display_v):
                     ax.text(
                         j,
                         i,
-                        f"{v:{fmt.lstrip('.')}}",
+                        f"{display_v:{fmt.lstrip('.')}}",
                         ha="center",
                         va="center",
-                        fontsize=8,
-                        color="white",
+                        fontsize=10,
+                        color="black",
                     )
         ax.figure.colorbar(im, ax=ax, label=cbar_label)
     ax.set_ylabel("distance (m)")
@@ -118,6 +124,37 @@ def _pick_column(df: pd.DataFrame, candidates: Sequence[str]) -> Optional[str]:
         if col in df.columns:
             return col
     return None
+
+
+def _gate_heatmap_style(
+    spec: dict,
+    piv: pd.DataFrame,
+) -> Tuple[pd.DataFrame, pd.DataFrame, float, float, Optional[float]]:
+    annot_piv = piv.copy()
+    color_piv = piv.copy()
+    values = piv.to_numpy(dtype=float)
+    values = values[np.isfinite(values)]
+    if values.size == 0:
+        return color_piv, annot_piv, 0.0, 1.0, None
+
+    mode = spec["mode"]
+    if mode == "signed":
+        color_piv = piv.abs()
+        vmin = 0.0
+        vmax = float(np.max(np.abs(values)))
+        center = None
+    elif mode == "higher_better":
+        vmin = 0.0
+        vmax = float(max(np.max(values), spec.get("threshold", 0.0)))
+        center = float(spec.get("threshold")) if "threshold" in spec else None
+    else:
+        vmin = 0.0
+        vmax = float(np.max(values))
+        center = None
+
+    if vmax <= vmin:
+        vmax = vmin + 1e-12
+    return color_piv, annot_piv, vmin, vmax, center
 
 
 _METRIC_SPECS = [
@@ -232,23 +269,23 @@ _GATE_METRIC_SPECS = [
         "cols": ("cvae_delta_evm_%", "delta_evm_%"),
         "title": "G1 — EVM error (pred - real) [pp]",
         "fmt": ".2f",
-        "cmap": "RdBu_r",
-        "cbar": "ΔEVM (pp)",
+        "cmap": "RdYlGn_r",
+        "cbar": "|ΔEVM| (pp)",
         "mode": "signed",
     },
     {
         "cols": ("cvae_delta_snr_db", "delta_snr_db"),
         "title": "G2 — SNR error (pred - real) [dB]",
         "fmt": ".2f",
-        "cmap": "RdBu",
-        "cbar": "ΔSNR (dB)",
+        "cmap": "RdYlGn_r",
+        "cbar": "|ΔSNR| (dB)",
         "mode": "signed",
     },
     {
         "cols": ("cvae_mean_rel_sigma",),
         "title": "G3 — mean error / sigma_real",
         "fmt": ".3f",
-        "cmap": "YlOrRd",
+        "cmap": "RdYlGn_r",
         "cbar": "mean_rel_sigma",
         "mode": "lower_better",
     },
@@ -256,7 +293,7 @@ _GATE_METRIC_SPECS = [
         "cols": ("cvae_cov_rel_var",),
         "title": "G3 — covariance error / var_real",
         "fmt": ".3f",
-        "cmap": "YlOrRd",
+        "cmap": "RdYlGn_r",
         "cbar": "cov_rel_var",
         "mode": "lower_better",
     },
@@ -264,7 +301,7 @@ _GATE_METRIC_SPECS = [
         "cols": ("cvae_psd_l2", "delta_psd_l2"),
         "title": "G4 — PSD mismatch",
         "fmt": ".3f",
-        "cmap": "YlOrRd",
+        "cmap": "RdYlGn_r",
         "cbar": "PSD L2",
         "mode": "lower_better",
     },
@@ -272,7 +309,7 @@ _GATE_METRIC_SPECS = [
         "cols": ("cvae_delta_skew_l2", "delta_skew_l2"),
         "title": "G5 — skew mismatch",
         "fmt": ".3f",
-        "cmap": "YlOrRd",
+        "cmap": "RdYlGn_r",
         "cbar": "skew L2",
         "mode": "lower_better",
     },
@@ -280,7 +317,7 @@ _GATE_METRIC_SPECS = [
         "cols": ("cvae_delta_kurt_l2", "delta_kurt_l2"),
         "title": "G5 — kurtosis mismatch",
         "fmt": ".3f",
-        "cmap": "YlOrRd",
+        "cmap": "RdYlGn_r",
         "cbar": "kurt L2",
         "mode": "lower_better",
     },
@@ -288,7 +325,7 @@ _GATE_METRIC_SPECS = [
         "cols": ("delta_jb_stat_rel",),
         "title": "G5 — JB relative mismatch",
         "fmt": ".3f",
-        "cmap": "YlOrRd",
+        "cmap": "RdYlGn_r",
         "cbar": "JB rel",
         "mode": "lower_better",
     },
@@ -420,32 +457,20 @@ def plot_gate_metric_heatmaps(
     axes = np.atleast_1d(axes).ravel()
 
     for ax, (spec, piv) in zip(axes, resolved):
-        vals = piv.to_numpy(dtype=float)
+        color_piv, annot_piv, vmin, vmax, center = _gate_heatmap_style(spec, piv)
+        vals = color_piv.to_numpy(dtype=float)
         vals = vals[np.isfinite(vals)]
         if vals.size == 0:
             ax.axis("off")
             continue
 
-        mode = spec["mode"]
-        if mode == "signed":
-            vmax = float(np.max(np.abs(vals)))
-            vmin = -vmax
-            center = 0.0
-        elif mode == "higher_better":
-            vmin = 0.0
-            vmax = float(max(np.max(vals), spec.get("threshold", 0.0)))
-            center = float(spec.get("threshold")) if "threshold" in spec else None
-        else:
-            vmin = 0.0
-            vmax = float(np.max(vals))
-            center = None
-
         _draw_heatmap(
             ax,
-            piv,
+            color_piv,
             title=spec["title"],
             cmap=spec["cmap"],
             fmt=spec["fmt"],
+            annot_piv=annot_piv,
             cbar_label=spec["cbar"],
             vmin=vmin,
             vmax=vmax,

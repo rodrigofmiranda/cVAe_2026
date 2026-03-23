@@ -1,6 +1,6 @@
 # PROJECT_STATUS.md — Estado Atual do Repositório
 
-> Atualizado em 2026-03-21.
+> Atualizado em 2026-03-23.
 
 ## 1. Estado técnico
 
@@ -124,6 +124,35 @@ regime físico.
   - dashboard operacional de convergência do treino por grid
 - a linha seq agora tem fallback não-cuDNN para janelas curtas, permitindo
   rodar também em GPUs mais novas como a RTX 5090
+- o heatmap canônico final agora usa leitura visual padronizada:
+  - verde = mais próximo do real
+  - vermelho = mais distante
+  - anotação preta e maior para facilitar leitura
+
+### Melhor referência multi-regime atual
+
+O melhor resultado multi-regime ativo nesta branch passou a ser:
+
+- `outputs/exp_20260322_193738`
+- campeão:
+  - `S4seq_W7_h64_lat4_b0p003_lmmd1p25_fb0p10_lr0p0003_L128-256-512`
+- protocolo:
+  - `configs/all_regimes_sel4curr.json`
+  - `train_once_eval_all`
+
+Resumo científico:
+
+- `6/12` regimes aprovados
+- `0/4` passes em `0.8 m`
+- `2/4` passes em `1.0 m`
+- `4/4` passes em `1.5 m`
+
+Leitura:
+
+- `lambda_mmd=1.25` melhorou fortemente o comportamento multi-regime
+- o gargalo principal deixou de ser PSD/SNR globais e passou a ser a frente curta `0.8 m`
+- o próximo grid deve manter `lambda_mmd=1.25` e investigar capacidade/contexto
+  localmente em torno do campeão, não reabrir um sweep amplo
 
 ## 3. Documentos ativos
 
