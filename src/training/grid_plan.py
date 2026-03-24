@@ -919,15 +919,22 @@ def _preset_seq_stability_mmd_focus() -> List[Dict[str, Any]]:
 def _preset_seq_overnight_12h() -> List[Dict[str, Any]]:
     """12-hour overnight sweep around the strongest seq family.
 
-    Current scientific reading:
-      - ``exp_20260322_193738`` remains the best protocol-level seq result:
-        ``W7_h64_beta0.003_lambda_mmd=1.25``.
+    Historical rationale:
+      - before ``exp_20260324_023558``, ``exp_20260322_193738`` was the best
+        protocol-level seq result with ``W7_h64_beta0.003_lambda_mmd=1.25``.
       - ``exp_20260323_210309`` showed that simply increasing hidden size to
         96 does not improve the final protocol scoreboard.
-      - The next hypothesis is therefore:
+      - this preset was built to:
           1. stabilise the winning W7/h64 family with lower initial LR
           2. probe stronger MMD pressure for the hard 0.8 m regimes
           3. keep only a small low-LR larger-context block as a hedge
+
+    Current status:
+      - the preset already produced the new protocol winner in
+        ``exp_20260324_023558``.
+      - use ``seq_finish_0p8m`` as the preferred next step when the goal is to
+        close the last two failing 0.8 m regimes instead of running another
+        broad overnight sweep.
 
     Structure:
       - Block A: 12 runs (core winner family)
@@ -1048,6 +1055,183 @@ def _preset_seq_overnight_12h() -> List[Dict[str, Any]]:
             )
 
     return grid
+
+
+def _preset_seq_replay_axis_diagnostics() -> List[Dict[str, Any]]:
+    """Replay the strongest seq candidates under the new axis-wise diagnostics.
+
+    Purpose:
+      - regenerate runs with the new per-axis residual metrics/dashboard
+      - compare the best protocol winner against the strongest nearby variants
+      - keep the replay small enough to read candidate-by-candidate
+
+    Selected candidates:
+      - former best protocol winner (`exp_20260322_193738`)
+      - best higher-capacity W7 variant (`exp_20260323_210309`)
+      - best longer-context W9/h96 variant from the same comparison run
+      - historical S2 reference that opened the MMD path
+
+    Total: 4 runs.
+    Requires --no_data_reduction.
+    """
+    return [
+        dict(
+            group="S7_seq_replay_axis",
+            tag="S4seq_W7_h64_lat4_b0p003_lmmd1p25_fb0p10_lr0p0003_L128-256-512",
+            cfg=_cfg(
+                arch_variant="seq_bigru_residual",
+                layer_sizes=[128, 256, 512],
+                latent_dim=4,
+                beta=0.003,
+                free_bits=0.10,
+                lr=3e-4,
+                batch_size=8192,
+                kl_anneal_epochs=80,
+                window_size=7,
+                window_stride=1,
+                window_pad_mode="edge",
+                seq_hidden_size=64,
+                seq_num_layers=1,
+                seq_bidirectional=True,
+                lambda_mmd=1.25,
+            ),
+        ),
+        dict(
+            group="S7_seq_replay_axis",
+            tag="S4seq_W7_h96_lat4_b0p003_lmmd1p25_fb0p10_lr0p0003_L128-256-512",
+            cfg=_cfg(
+                arch_variant="seq_bigru_residual",
+                layer_sizes=[128, 256, 512],
+                latent_dim=4,
+                beta=0.003,
+                free_bits=0.10,
+                lr=3e-4,
+                batch_size=8192,
+                kl_anneal_epochs=80,
+                window_size=7,
+                window_stride=1,
+                window_pad_mode="edge",
+                seq_hidden_size=96,
+                seq_num_layers=1,
+                seq_bidirectional=True,
+                lambda_mmd=1.25,
+            ),
+        ),
+        dict(
+            group="S7_seq_replay_axis",
+            tag="S4seq_W9_h96_lat4_b0p003_lmmd1p25_fb0p10_lr0p0003_L128-256-512",
+            cfg=_cfg(
+                arch_variant="seq_bigru_residual",
+                layer_sizes=[128, 256, 512],
+                latent_dim=4,
+                beta=0.003,
+                free_bits=0.10,
+                lr=3e-4,
+                batch_size=8192,
+                kl_anneal_epochs=80,
+                window_size=9,
+                window_stride=1,
+                window_pad_mode="edge",
+                seq_hidden_size=96,
+                seq_num_layers=1,
+                seq_bidirectional=True,
+                lambda_mmd=1.25,
+            ),
+        ),
+        dict(
+            group="S7_seq_replay_axis",
+            tag="S2seq_W7_h64_lat4_b0p001_lmmd1p0_fb0p10_lr0p0003_L128-256-512",
+            cfg=_cfg(
+                arch_variant="seq_bigru_residual",
+                layer_sizes=[128, 256, 512],
+                latent_dim=4,
+                beta=0.001,
+                free_bits=0.10,
+                lr=3e-4,
+                batch_size=8192,
+                kl_anneal_epochs=80,
+                window_size=7,
+                window_stride=1,
+                window_pad_mode="edge",
+                seq_hidden_size=64,
+                seq_num_layers=1,
+                seq_bidirectional=True,
+                lambda_mmd=1.0,
+            ),
+        ),
+    ]
+
+
+def _preset_seq_finish_0p8m() -> List[Dict[str, Any]]:
+    """Focused finishing grid around the new 10/12 protocol winner.
+
+    Evidence after ``exp_20260324_023558``:
+      - the new winner is now
+        ``S6seq_W7_h64_lat4_b0p003_lmmd1p75_fb0p10_lr0p0003_L128-256-512``
+      - all 1.0 m and 1.5 m regimes pass
+      - only ``0.8 m / 100 mA`` and ``0.8 m / 300 mA`` remain failing
+      - h96 / W9 variants are no longer competitive enough to justify budget
+
+    Hypothesis:
+      - keep the winning W7/h64 family fixed
+      - push MMD slightly beyond 1.75 to attack G6 at 0.8 m
+      - use lower-LR / slightly higher-beta variants as stability hedges for G3/G5
+
+    Total: 6 runs.
+    Requires --no_data_reduction.
+    """
+
+    def _seq_cfg(*, beta: float, lr: float, lambda_mmd: float) -> Dict[str, Any]:
+        return _cfg(
+            arch_variant="seq_bigru_residual",
+            layer_sizes=[128, 256, 512],
+            latent_dim=4,
+            beta=beta,
+            free_bits=0.10,
+            lr=lr,
+            batch_size=8192,
+            kl_anneal_epochs=80,
+            window_size=7,
+            window_stride=1,
+            window_pad_mode="edge",
+            seq_hidden_size=64,
+            seq_num_layers=1,
+            seq_bidirectional=True,
+            lambda_mmd=lambda_mmd,
+        )
+
+    return [
+        dict(
+            group="S8_seq_finish_0p8m",
+            tag="S8seq_W7_h64_lat4_b0p003_lmmd1p75_fb0p10_lr0p0003_L128-256-512",
+            cfg=_seq_cfg(beta=0.003, lr=3e-4, lambda_mmd=1.75),
+        ),
+        dict(
+            group="S8_seq_finish_0p8m",
+            tag="S8seq_W7_h64_lat4_b0p003_lmmd2p0_fb0p10_lr0p0003_L128-256-512",
+            cfg=_seq_cfg(beta=0.003, lr=3e-4, lambda_mmd=2.0),
+        ),
+        dict(
+            group="S8_seq_finish_0p8m",
+            tag="S8seq_W7_h64_lat4_b0p003_lmmd2p0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(beta=0.003, lr=2e-4, lambda_mmd=2.0),
+        ),
+        dict(
+            group="S8_seq_finish_0p8m",
+            tag="S8seq_W7_h64_lat4_b0p004_lmmd1p5_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(beta=0.004, lr=2e-4, lambda_mmd=1.5),
+        ),
+        dict(
+            group="S8_seq_finish_0p8m",
+            tag="S8seq_W7_h64_lat4_b0p004_lmmd1p75_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(beta=0.004, lr=2e-4, lambda_mmd=1.75),
+        ),
+        dict(
+            group="S8_seq_finish_0p8m",
+            tag="S8seq_W7_h64_lat4_b0p002_lmmd1p5_fb0p10_lr0p00015_L128-256-512",
+            cfg=_seq_cfg(beta=0.002, lr=1.5e-4, lambda_mmd=1.5),
+        ),
+    ]
 
 
 def _preset_best_compare_large() -> List[Dict[str, Any]]:
@@ -1246,6 +1430,10 @@ def select_grid(
             grid = _preset_seq_stability_mmd_focus()
         elif preset_name == "seq_overnight_12h":
             grid = _preset_seq_overnight_12h()
+        elif preset_name == "seq_replay_axis_diagnostics":
+            grid = _preset_seq_replay_axis_diagnostics()
+        elif preset_name == "seq_finish_0p8m":
+            grid = _preset_seq_finish_0p8m()
         elif preset_name == "best_compare_large":
             grid = _preset_best_compare_large()
         elif preset_name == "delta_residual_fast":

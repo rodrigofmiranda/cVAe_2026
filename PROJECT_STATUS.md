@@ -112,12 +112,38 @@ regime físico.
 
 - bugs de pipeline conhecidos foram corrigidos
 - métricas e gates já estão automatizados
+- o run `exp_20260324_023558` elevou a referência seq para `10/12` passes com
+  `S6seq_W7_h64_lat4_b0p003_lmmd1p75_fb0p10_lr0p0003_L128-256-512`
+- as novas métricas por eixo mostraram que o gargalo restante está concentrado
+  em `0.8 m / 100 mA` e `0.8 m / 300 mA`
 - falhas em `G3`–`G6`, quando persistem após os fixes, devem ser tratadas como
   possível limitação do modelo e não como bug operacional
 - a exploração séria agora é **protocol-first**
 - o preset comparativo atual é `best_compare_large`, que compara:
   - candidatos `delta_residual`
   - candidatos `seq_bigru_residual` incluindo o bloco `lambda_mmd`
+
+### Melhor referência seq atual
+
+- run:
+  - `outputs/exp_20260324_023558`
+- campeão:
+  - `S6seq_W7_h64_lat4_b0p003_lmmd1p75_fb0p10_lr0p0003_L128-256-512`
+- resultado:
+  - `10/12` passes
+  - `2/4` em `0.8 m`
+  - `4/4` em `1.0 m`
+  - `4/4` em `1.5 m`
+
+### Próximo grid mais assertivo
+
+- preset:
+  - `seq_finish_0p8m`
+- foco:
+  - manter `W7_h64` fixo
+  - centrar em `lambda_mmd=1.75`
+  - testar `lambda_mmd=2.0`
+  - usar apenas hedges de `beta/lr` já fortes no overnight
 - o protocolo reduzido multi-regime atual é `configs/all_regimes_sel4curr.json`
 - o protocolo agora consegue separar:
   - dashboard científico do twin por regime
@@ -129,9 +155,9 @@ regime físico.
   - vermelho = mais distante
   - anotação preta e maior para facilitar leitura
 
-### Melhor referência multi-regime atual
+### Referências recentes que explicam a direção atual
 
-O melhor resultado multi-regime ativo nesta branch passou a ser:
+Marco anterior que consolidou a família `W7_h64` antes do salto para `10/12`:
 
 - `outputs/exp_20260322_193738`
 - campeão:
@@ -149,9 +175,9 @@ Resumo científico:
 
 Leitura:
 
-- `lambda_mmd=1.25` melhorou fortemente o comportamento multi-regime
-- o gargalo principal deixou de ser PSD/SNR globais e passou a ser a frente curta `0.8 m`
-- esse run continua sendo a referência seq a ser batida
+- `lambda_mmd=1.25` abriu o caminho multi-regime
+- esse run mostrou que a família `W7_h64` era a base correta
+- ele deixou explícito que o gargalo científico estava concentrado na frente curta `0.8 m`
 
 ### Comparação recente que não virou nova referência
 
@@ -172,38 +198,43 @@ Resumo:
   - mas não melhorou a validação protocol-first
   - a melhor família continua sendo `W7_h64` com `lambda_mmd=1.25`
 
-### Próximo overnight recomendado
+### Replay curto mais recente com métricas por eixo
 
-O próximo grid recomendado agora é:
+O replay curto que regenerou os melhores candidatos sob as novas métricas
+axis-wise foi:
+
+- `outputs/exp_20260324_024442`
+- campeão:
+  - `S4seq_W7_h64_lat4_b0p003_lmmd1p25_fb0p10_lr0p0003_L128-256-512`
+
+Resumo:
+
+- terminou com `8/12` passes
+- passou todos os regimes `1.0 m` e `1.5 m`
+- manteve todas as falhas restantes concentradas em `0.8 m`
+- confirmou que:
+  - a família líder continua sendo `W7_h64`
+  - o problema restante não é de capacidade global
+  - as novas métricas ajudam a localizar o mismatch marginal por eixo nos dois regimes ainda críticos
+
+### Overnight amplo mais recente
+
+O overnight amplo que produziu a referência atual foi:
 
 - preset:
   - `seq_overnight_12h`
-- objetivo:
-  - estabilizar a família vencedora `W7_h64`
-  - testar `lr` mais baixo
-  - testar `lambda_mmd` mais forte
-  - manter apenas um bloco pequeno de contexto maior como hedge
-- tamanho:
-  - `28` candidatos
-- duração alvo:
-  - cerca de `10` a `12` horas em GPU classe A6000
+- run:
+  - `outputs/exp_20260324_023558`
+- resultado:
+  - `10/12` passes
+  - `lambda_mmd=1.75` como nova direção vencedora
+  - `W7_h64` confirmado como família líder
 
-Comando canônico:
+Leitura:
 
-```bash
-cd /workspace/2026/feat_seq_bigru_residual_cvae
-python -m src.protocol.run \
-  --dataset_root data/dataset_fullsquare_organized \
-  --output_base outputs \
-  --protocol configs/all_regimes_sel4curr.json \
-  --train_once_eval_all \
-  --grid_preset seq_overnight_12h \
-  --max_epochs 120 \
-  --patience 12 \
-  --reduce_lr_patience 6 \
-  --stat_tests --stat_mode full --stat_max_n 5000 \
-  --no_data_reduction
-```
+- o overnight amplo já respondeu à pergunta de busca larga
+- ele não precisa ser repetido como próximo passo imediato
+- a partir dele, o trabalho passou de exploração ampla para acabamento focado em `0.8 m`
 
 ## 3. Documentos ativos
 

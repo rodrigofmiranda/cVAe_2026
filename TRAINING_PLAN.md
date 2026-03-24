@@ -23,25 +23,43 @@
 - Ultima checagem local da suite:
   - `python -m pytest tests -q` -> `46 passed`
 - Run pivo de referencia:
-  - `exp_20260322_193738`
+  - `exp_20260324_023558`
   - campeao:
-    - `S4seq_W7_h64_lat4_b0p003_lmmd1p25_fb0p10_lr0p0003_L128-256-512`
+    - `S6seq_W7_h64_lat4_b0p003_lmmd1p75_fb0p10_lr0p0003_L128-256-512`
   - resultado:
-    - `6/12` passes
-    - `0/4` em `0.8 m`
-    - `2/4` em `1.0 m`
+    - `10/12` passes
+    - `2/4` em `0.8 m`
+    - `4/4` em `1.0 m`
     - `4/4` em `1.5 m`
   - leitura atual:
-    - `lambda_mmd=1.25` foi a melhor direcao recente
-    - o gargalo principal segue concentrado em `0.8 m`
-    - o aumento de capacidade para `h96` em `exp_20260323_210309` nao virou ganho cientifico no protocolo final
-- Proximo grid overnight recomendado:
+    - `lambda_mmd=1.75` virou a melhor direcao recente
+    - o gargalo principal segue concentrado em `0.8 m / 100 mA` e `0.8 m / 300 mA`
+    - o aumento de capacidade para `h96` continua sem justificativa cientifica
+- Overnight amplo que gerou a referencia atual:
   - `grid_preset=seq_overnight_12h`
+  - leitura:
+    - foi o sweep que elevou a referencia para `10/12`
+    - confirmou `W7_h64` como familia lider
+    - nao e mais o proximo passo imediato
+- Proximo replay curto para ler as metricas novas por eixo:
+  - `grid_preset=seq_replay_axis_diagnostics`
   - foco:
-    - estabilizar a familia `W7_h64`
-    - reduzir `lr`
-    - reforcar `lambda_mmd`
-    - manter um bloco pequeno `W9_h96` apenas como hedge
+    - rerodar so os melhores candidatos ja observados
+    - comparar `W7_h64` vs `W7_h96` vs `W9_h96`
+    - manter a referencia historica `S2seq_W7_h64_b0p001_lmmd1p0`
+    - usar os novos campos por eixo em `summary_by_regime.csv`
+  - leitura apos execucao:
+    - `exp_20260324_024442` terminou com `8/12`
+    - confirmou `W7_h64` como familia lider
+    - mostrou que o gargalo residual continua localizado em `0.8 m`
+- Proximo grid assertivo de acabamento:
+  - `grid_preset=seq_finish_0p8m`
+  - foco:
+    - manter `W7_h64` fixo
+    - usar `lmmd=1.75` como controle
+    - testar `lmmd=2.0`
+    - incluir so hedges de `beta/lr` ja fortes no overnight
+    - atacar apenas `0.8 m / 100 mA` e `0.8 m / 300 mA`
 
 ## 1. Objetivo
 

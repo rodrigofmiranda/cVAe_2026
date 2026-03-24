@@ -306,19 +306,86 @@ python -m src.protocol.run \
   --no_baseline
 ```
 
-### Current recommended overnight grid
+### Current recommended grids
 
-The strongest current protocol-level seq reference is still:
-
-- `exp_20260322_193738`
+The strongest current protocol-level seq reference is now:
+- `exp_20260324_023558`
 - winner:
-  - `S4seq_W7_h64_lat4_b0p003_lmmd1p25_fb0p10_lr0p0003_L128-256-512`
+  - `S6seq_W7_h64_lat4_b0p003_lmmd1p75_fb0p10_lr0p0003_L128-256-512`
+
+Current replay under the new axis-wise diagnostics confirmed the same family as
+the strongest seq line. The new reference picture is:
+
+- `10/12` regimes passed
+- all `1.0 m` regimes pass
+- all `1.5 m` regimes pass
+- only `0.8 m / 100 mA` and `0.8 m / 300 mA` still fail
 
 The most recent capacity/context comparison run (`exp_20260323_210309`) did
-not overtake it. For the next overnight run, the repo now includes a larger
-focused preset:
+not overtake it. The broader overnight preset remains available for wide
+searches, but it is no longer the preferred immediate next step:
 
 - `seq_overnight_12h`
+
+For replaying only the strongest seq candidates under the new axis-wise
+residual diagnostics, the repo now also includes:
+
+- `seq_replay_axis_diagnostics`
+
+Selected replay set:
+
+- `S4seq_W7_h64_lat4_b0p003_lmmd1p25_fb0p10_lr0p0003_L128-256-512`
+- `S4seq_W7_h96_lat4_b0p003_lmmd1p25_fb0p10_lr0p0003_L128-256-512`
+- `S4seq_W9_h96_lat4_b0p003_lmmd1p25_fb0p10_lr0p0003_L128-256-512`
+- `S2seq_W7_h64_lat4_b0p001_lmmd1p0_fb0p10_lr0p0003_L128-256-512`
+
+Canonical replay command:
+
+```bash
+python -m src.protocol.run \
+  --dataset_root data/dataset_fullsquare_organized \
+  --output_base outputs \
+  --protocol configs/all_regimes_sel4curr.json \
+  --train_once_eval_all \
+  --grid_preset seq_replay_axis_diagnostics \
+  --max_epochs 120 \
+  --patience 12 \
+  --reduce_lr_patience 6 \
+  --stat_tests --stat_mode full --stat_max_n 5000 \
+  --no_data_reduction
+```
+
+For the current next step, a short finishing sweep focused only on the
+remaining `0.8 m` failures is preferred:
+
+- `seq_finish_0p8m`
+
+Design:
+
+- keep `W7_h64` fixed
+- center on the new winner `lambda_mmd=1.75`
+- probe slightly stronger `lambda_mmd=2.0`
+- include only low-LR / higher-beta hedges that were already strong in the
+  overnight training diagnostics
+- total: `6` candidates
+
+Canonical finishing command:
+
+```bash
+python -m src.protocol.run \
+  --dataset_root data/dataset_fullsquare_organized \
+  --output_base outputs \
+  --protocol configs/all_regimes_sel4curr.json \
+  --train_once_eval_all \
+  --grid_preset seq_finish_0p8m \
+  --max_epochs 120 \
+  --patience 12 \
+  --reduce_lr_patience 6 \
+  --stat_tests --stat_mode full --stat_max_n 5000 \
+  --no_data_reduction
+```
+
+For wider searches, the larger overnight preset remains available:
 
 Design:
 
