@@ -80,6 +80,10 @@ Nesta branch, a prioridade imediata e:
     - manter a familia `W7_h64_lat4_b0.003`
     - isolar o efeito de `mmd_mode=sampled_residual`
     - usar a nova instrumentacao para decidir a proxima objective
+  - execucao recomendada:
+    - usar `--no_baseline`
+    - o baseline nao faz parte da decisao causal desta branch
+    - evitar gastar tempo de protocolo com um comparador que nao entra na decisao atual
 
 ### Criterio operacional do teste causal `seq_sampled_mmd_compare`
 

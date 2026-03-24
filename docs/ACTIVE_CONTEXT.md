@@ -227,6 +227,10 @@ the objective change before any new weighting or loss term:
   - keep the winning `W7_h64_lat4_b0.003` family
   - compare `mmd_mode=mean_residual` vs `mmd_mode=sampled_residual`
   - read the new residual-signature outputs, not only the final gates
+- recommended run mode:
+  - add `--no_baseline`
+  - the baseline is not part of the causal decision on this branch
+  - keep protocol time focused on the cVAE residual diagnostics
 
 Operational readout for this preset:
 

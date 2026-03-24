@@ -984,6 +984,7 @@ def _quick_cvae_predict(
     seed: int = 42,
     mode: str = "mc_concat",
     df_split=None,
+    max_points: Optional[int] = None,
 ):
     """
     Load best_model_full.keras from *run_dir*/models and generate cVAE predictions.
@@ -1024,6 +1025,7 @@ def _quick_cvae_predict(
         f"Shape mismatch: X_va={X_va.shape}, D_va={D_va.shape}, C_va={C_va.shape}"
     )
     mc_samples = max(1, int(mc_samples))
+    max_points = None if max_points is None else max(1, int(max_points))
     mode = str(mode).strip().lower()
     if mode not in {"mc_concat", "det"}:
         raise ValueError(f"Unsupported _quick_cvae_predict mode: {mode}")
@@ -1121,6 +1123,18 @@ def _quick_cvae_predict(
 
             X_center_arr = X_arr  # keep 2D for tiling
             X_arr = X_arr_w        # switch to windowed for inference
+
+        if max_points is not None and X_arr.shape[0] > max_points:
+            _rng = _np.random.default_rng(int(seed))
+            _idx = _rng.choice(X_arr.shape[0], size=max_points, replace=False)
+            _idx.sort()
+            print(f"   ✂️ quick_predict sample cap: {X_arr.shape[0]:,} → {max_points:,}")
+            X_arr = X_arr[_idx]
+            X_center_arr = _np.asarray(X_center_arr)[_idx]
+            D_arr = _np.asarray(D_arr)[_idx]
+            C_arr = _np.asarray(C_arr)[_idx]
+            _D_norm = _D_norm[_idx]
+            _C_norm = _C_norm[_idx]
 
         if mode == "det":
             inference_model = create_inference_model_from_full(vae, deterministic=True)
@@ -1518,12 +1532,14 @@ def run_regime(
         seed: int,
         mode: str,
         df_split=None,
+        max_points: Optional[int] = None,
     ):
         key = (
             str(mode).strip().lower(),
             int(mc_samples),
             int(seed),
             int(X_va.shape[0]),
+            None if max_points is None else int(max_points),
         )
         if key not in _quick_pred_cache:
             _quick_pred_cache[key] = _quick_cvae_predict(
@@ -1535,6 +1551,7 @@ def run_regime(
                 seed=seed,
                 mode=mode,
                 df_split=df_split,
+                max_points=max_points,
             )
         return _quick_pred_cache[key]
 
@@ -1593,6 +1610,7 @@ def run_regime(
                     seed=int(ov.get("seed", 42)),
                     mode="mc_concat",
                     df_split=_val_df_split,
+                    max_points=_max_ds,
                 )
                 if _pred_pack is not None:
                     from src.metrics.distribution import residual_fidelity_metrics
@@ -1641,6 +1659,10 @@ def run_regime(
 
             _X_va, _Y_va, _D_va, _C_va = _val_data
             _mc_bins = max(1, int(result.get("metrics", {}).get("mc_samples", 8)))
+            _max_sig = max(
+                4 * 512,
+                int(ov.get("train_regime_diagnostics_max_samples_per_regime", 4096)),
+            )
             _pred_pack_sig = _get_cached_quick_pred_pack(
                 X_va=_X_va,
                 D_va=_D_va,
@@ -1649,6 +1671,7 @@ def run_regime(
                 seed=int(ov.get("seed", 42)),
                 mode="mc_concat",
                 df_split=_val_df_split,
+                max_points=_max_sig,
             )
             if _pred_pack_sig is not None:
                 Y_pred_sig, X_tiled_sig, _D_tiled_sig, _C_tiled_sig = _pred_pack_sig
@@ -1705,6 +1728,7 @@ def run_regime(
                 seed=stat_seed,
                 mode="mc_concat",
                 df_split=_val_df_split,
+                max_points=stat_max_n,
             )
             if _pred_pack is None:
                 raise RuntimeError("cVAE quick_predict returned None")
