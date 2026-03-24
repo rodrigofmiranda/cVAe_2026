@@ -116,6 +116,14 @@ regime físico.
   `S6seq_W7_h64_lat4_b0p003_lmmd1p75_fb0p10_lr0p0003_L128-256-512`
 - as novas métricas por eixo mostraram que o gargalo restante está concentrado
   em `0.8 m / 100 mA` e `0.8 m / 300 mA`
+- a auditoria de ruído em [docs/NOISE_DISTRIBUTION_AUDIT.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/NOISE_DISTRIBUTION_AUDIT.md)
+  mostrou que o cVAE ainda fica subdisperso nas frentes curtas:
+  - histograma previsto estreito demais
+  - pico central forte demais
+  - caudas curtas demais
+- a causa mais provável no código atual é:
+  - o termo `MMD` regulariza `y_mean - x`, não uma amostra do residual previsto
+  - isso ajuda o centro da nuvem, mas não força a largura/cauda da distribuição gerada
 - falhas em `G3`–`G6`, quando persistem após os fixes, devem ser tratadas como
   possível limitação do modelo e não como bug operacional
 - a exploração séria agora é **protocol-first**

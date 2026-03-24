@@ -12,6 +12,7 @@ Read only these files first:
 4. [docs/DELTA_RESIDUAL_STATUS.md](DELTA_RESIDUAL_STATUS.md)
 5. [docs/RUN_REANALYSIS_PLAYBOOK.md](RUN_REANALYSIS_PLAYBOOK.md)
 6. [docs/FUTURE_ADVERSARIAL_STRATEGY.md](FUTURE_ADVERSARIAL_STRATEGY.md)
+7. [docs/NOISE_DISTRIBUTION_AUDIT.md](NOISE_DISTRIBUTION_AUDIT.md)
 
 Everything else is secondary unless a specific task requires it.
 
@@ -76,6 +77,14 @@ Recent replay run under the new axis-wise diagnostics:
   - conclusion:
     - the new per-axis metrics did not change the leading architecture family
     - they made the remaining `0.8 m` marginal-shape mismatch easier to localize
+
+Current audit note for the remaining noise-shape mismatch:
+
+- [docs/NOISE_DISTRIBUTION_AUDIT.md](NOISE_DISTRIBUTION_AUDIT.md)
+- key reading:
+  - the near-regime residual histograms are still under-dispersed
+  - the current `MMD` term matches residual means, not sampled residual clouds
+  - `seq_finish_0p8m` is the last reasonable no-code grid before loss changes
 
 Previous strong multi-regime `seq_bigru_residual` reference:
 
