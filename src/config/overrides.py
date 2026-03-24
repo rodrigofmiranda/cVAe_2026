@@ -70,6 +70,12 @@ class RunOverrides:
     psd_nfft: Optional[int] = None
     max_dist_samples: Optional[int] = None
     gauss_alpha: Optional[float] = None
+    train_regime_diagnostics_enabled: Optional[bool] = None
+    train_regime_diagnostics_every: Optional[int] = None
+    train_regime_diagnostics_mc_samples: Optional[int] = None
+    train_regime_diagnostics_max_samples_per_regime: Optional[int] = None
+    train_regime_diagnostics_amplitude_bins: Optional[int] = None
+    train_regime_diagnostics_focus_only_0p8m: Optional[bool] = None
 
     # --- Regime filtering ---
     dist_tol_m: Optional[float] = None

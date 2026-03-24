@@ -35,6 +35,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import sys
 import time
 import traceback
@@ -47,6 +48,8 @@ from src.config.gpu_guard import warn_if_no_gpu_and_confirm
 from src.config.runtime_env import ensure_writable_mpl_config_dir
 from src.evaluation.validation_summary import (
     build_protocol_leaderboard,
+    build_residual_signature_amplitude_table,
+    build_residual_signature_table,
     build_stat_acceptance_summary,
     build_stat_fidelity_table,
     build_validation_summary_table,
@@ -93,6 +96,18 @@ def parse_args():
     p.add_argument("--reduce_lr_patience", type=int, default=None,
                    help="ReduceLROnPlateau patience (default: use TRAINING_CONFIG)")
     p.add_argument("--psd_nfft", type=int, default=None)
+    p.add_argument("--train_regime_diagnostics_enabled", type=int, choices=[0, 1], default=None,
+                   help="Enable periodic per-regime train diagnostics callback (default: 1)")
+    p.add_argument("--train_regime_diagnostics_every", type=int, default=None,
+                   help="Epoch cadence for periodic per-regime train diagnostics (default: 10)")
+    p.add_argument("--train_regime_diagnostics_mc_samples", type=int, default=None,
+                   help="MC samples for periodic per-regime train diagnostics (default: 4)")
+    p.add_argument("--train_regime_diagnostics_max_samples_per_regime", type=int, default=None,
+                   help="Max validation samples per regime for periodic train diagnostics (default: 4096)")
+    p.add_argument("--train_regime_diagnostics_amplitude_bins", type=int, default=None,
+                   help="Amplitude bins for residual signature diagnostics (default: 4)")
+    p.add_argument("--train_regime_diagnostics_focus_only_0p8m", type=int, choices=[0, 1], default=None,
+                   help="Restrict periodic train diagnostics to 0.8m regimes only (default: 0)")
     p.add_argument("--keras_verbose", type=int, default=2, choices=[0, 1, 2],
                    help="Keras fit verbosity: 0=silent, 1=progress bar, 2=one line/epoch (default: 2)")
     p.add_argument("--max_dist_samples", type=int, default=None,
@@ -1229,6 +1244,8 @@ def run_regime(
         "cvae_time_s": 0.0,
         "baseline_dist": {},
         "cvae_dist": {},
+        "residual_signature": {},
+        "residual_signature_bins": [],
         "dist_metrics_source": None,      # "eval_reanalysis" | "quick" | "quick_fallback" | None
         "stat_fidelity": {},               # Etapa A2: stat tests per regime
         "selected_experiments": [],        # Commit 3Q: paths of selected exps
@@ -1487,6 +1504,8 @@ def run_regime(
     # Read eval metrics
     if not result["metrics"]:
         result["metrics"] = _read_eval_metrics(run_dir)
+    if result["metrics"]:
+        result["residual_signature"] = dict(result["metrics"])
 
     # ---- cVAE DISTRIBUTION-FIDELITY METRICS (single source of truth) ----
     # Priority order:
@@ -1582,6 +1601,50 @@ def run_regime(
             if _dm_source is not None:
                 result["dist_metrics_source"] = _dm_source
             print(f"⚠️  cVAE dist metrics failed for regime '{regime_id}': {e}")
+
+    if run_dist_metrics and result["train_status"] in {"completed", "shared_model"} and _val_data is not None:
+        try:
+            from src.evaluation.metrics import residual_signature_by_amplitude_bin
+
+            _X_va, _Y_va, _D_va, _C_va = _val_data
+            _mc_bins = max(1, int(result.get("metrics", {}).get("mc_samples", 8)))
+            _pred_pack_sig = _quick_cvae_predict(
+                model_run_dir,
+                _X_va,
+                _D_va,
+                _C_va,
+                mc_samples=_mc_bins,
+                seed=int(ov.get("seed", 42)),
+                mode="mc_concat",
+                df_split=_val_df_split,
+            )
+            if _pred_pack_sig is not None:
+                Y_pred_sig, X_tiled_sig, _D_tiled_sig, _C_tiled_sig = _pred_pack_sig
+                _stat_n_perm_bins = 200 if stat_n_perm is None else int(stat_n_perm)
+                result["residual_signature_bins"] = residual_signature_by_amplitude_bin(
+                    X_real=_X_va,
+                    Y_real=_Y_va,
+                    X_pred=X_tiled_sig,
+                    Y_pred=Y_pred_sig,
+                    regime_id=regime_id,
+                    regime_label=result.get("regime_label", ""),
+                    study=result.get("_study", ""),
+                    run_id=run_id,
+                    run_dir=str(run_dir),
+                    model_run_dir=str(model_run_dir),
+                    best_grid_tag=result.get("best_grid_tag", ""),
+                    dist_target_m=float(result.get("selection_criteria", {}).get("distance_m", float("nan"))),
+                    curr_target_mA=float(result.get("selection_criteria", {}).get("current_mA", float("nan"))),
+                    amplitude_bins=int(ov.get("train_regime_diagnostics_amplitude_bins", 4)),
+                    min_samples_per_bin=512,
+                    stat_mode=str(stat_mode),
+                    stat_n_perm=_stat_n_perm_bins,
+                    stat_seed=int(stat_seed),
+                )
+                del _pred_pack_sig, Y_pred_sig, X_tiled_sig, _D_tiled_sig, _C_tiled_sig
+            del _X_va, _Y_va, _D_va, _C_va
+        except Exception as e:
+            print(f"⚠️  Residual signature by amplitude bin failed for regime '{regime_id}': {e}")
 
     # ---- STATISTICAL FIDELITY TESTS (Etapa A2) ----
     # Runs MMD², Energy distance, and PSD L2 on residuals (Y - X) for cVAE.
@@ -1910,12 +1973,39 @@ def main():
                 stat_max_n=args.stat_max_n,
             )
             r["_study"] = sname
+            for _row in r.get("residual_signature_bins", []) or []:
+                _row["study"] = sname
             results.append(r)
 
     df_summary = build_summary_table(results)
 
     summary_csv = exp_paths.write_table("tables/summary_by_regime.csv", df_summary)
     print(f"\n📊 Summary table: {summary_csv}")
+
+    try:
+        df_signature = build_residual_signature_table(results, df_summary)
+        if not df_signature.empty:
+            sig_csv = exp_paths.write_table("tables/residual_signature_by_regime.csv", df_signature)
+            print(f"🧬 Residual signature table: {sig_csv}")
+        else:
+            df_signature = None
+    except Exception as e:
+        df_signature = None
+        print(f"⚠️  Residual signature table failed: {e}")
+
+    try:
+        df_signature_amp = build_residual_signature_amplitude_table(results)
+        if not df_signature_amp.empty:
+            sig_amp_csv = exp_paths.write_table(
+                "tables/residual_signature_by_amplitude_bin.csv",
+                df_signature_amp,
+            )
+            print(f"📶 Residual signature by amplitude bin: {sig_amp_csv}")
+        else:
+            df_signature_amp = None
+    except Exception as e:
+        df_signature_amp = None
+        print(f"⚠️  Residual signature by amplitude bin failed: {e}")
 
     try:
         df_leaderboard = build_protocol_leaderboard(df_summary)
@@ -1935,6 +2025,28 @@ def main():
             print(f"📈 Best-model heatmaps ({len(_summary_created)}): {_plot_dir}")
     except Exception as _se:
         print(f"⚠️  Best-model heatmaps failed: {_se}")
+
+    try:
+        if df_signature is not None and not df_signature.empty:
+            from src.evaluation.summary_plots import plot_residual_signature_overview
+
+            _plot_dir = exp_dir / "plots" / "best_model"
+            _plot_dir.mkdir(parents=True, exist_ok=True)
+            _sig_plot = plot_residual_signature_overview(df_signature, _plot_dir)
+            if _sig_plot is not None:
+                print(f"📈 Residual signature overview: {_sig_plot}")
+    except Exception as _se:
+        print(f"⚠️  Residual signature overview failed: {_se}")
+
+    try:
+        _diag_src = Path(shared_model_run_dir) / "logs" / "train" / "regime_diagnostics_history.csv" if shared_model_run_dir is not None else None
+        if _diag_src is not None and _diag_src.exists():
+            _diag_dst = exp_dir / "tables" / "train_regime_diagnostics_history.csv"
+            _diag_dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(_diag_src, _diag_dst)
+            print(f"📒 Copied train regime diagnostics history: {_diag_dst}")
+    except Exception as _se:
+        print(f"⚠️  Copy train regime diagnostics history failed: {_se}")
 
     # ---- Etapa A2: Stat fidelity projection (derived from canonical summary) ----
     if args.stat_tests:

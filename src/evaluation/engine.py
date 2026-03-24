@@ -450,6 +450,7 @@ def evaluate_run(
         X_dist = Xv_center
         Y_dist = Yv
         var_mc = float("nan")
+        Ys = None
     else:
         inf_sto = create_inference_model_from_full(vae, deterministic=False)
         Ys = []
@@ -503,6 +504,8 @@ def evaluate_run(
             Yp_dist,
             psd_nfft=psd_nfft,
             gauss_alpha=gauss_alpha,
+            Y_samples=Ys,
+            coverage_target=Yv,
         )
     else:
         distm = {

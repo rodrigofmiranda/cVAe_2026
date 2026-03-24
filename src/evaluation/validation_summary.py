@@ -203,6 +203,149 @@ PROTOCOL_LEADERBOARD_COLUMNS: List[str] = [
     "protocol_score_v1",
 ]
 
+RESIDUAL_SIGNATURE_COLUMNS: List[str] = [
+    "study",
+    "regime_id",
+    "regime_label",
+    "run_id",
+    "run_dir",
+    "model_run_dir",
+    "best_grid_tag",
+    "train_status",
+    "eval_status",
+    "validation_status",
+    "gate_g3",
+    "gate_g5",
+    "gate_g6",
+    "dist_target_m",
+    "curr_target_mA",
+    "std_real_delta_I",
+    "std_real_delta_Q",
+    "std_pred_delta_I",
+    "std_pred_delta_Q",
+    "var_ratio_I",
+    "var_ratio_Q",
+    "iqr_real_I",
+    "iqr_real_Q",
+    "iqr_pred_I",
+    "iqr_pred_Q",
+    "delta_iqr_I",
+    "delta_iqr_Q",
+    "q05_real_I",
+    "q05_real_Q",
+    "q25_real_I",
+    "q25_real_Q",
+    "q50_real_I",
+    "q50_real_Q",
+    "q75_real_I",
+    "q75_real_Q",
+    "q95_real_I",
+    "q95_real_Q",
+    "q05_pred_I",
+    "q05_pred_Q",
+    "q25_pred_I",
+    "q25_pred_Q",
+    "q50_pred_I",
+    "q50_pred_Q",
+    "q75_pred_I",
+    "q75_pred_Q",
+    "q95_pred_I",
+    "q95_pred_Q",
+    "delta_q05_I",
+    "delta_q05_Q",
+    "delta_q25_I",
+    "delta_q25_Q",
+    "delta_q50_I",
+    "delta_q50_Q",
+    "delta_q75_I",
+    "delta_q75_Q",
+    "delta_q95_I",
+    "delta_q95_Q",
+    "tail_p2sigma_real_I",
+    "tail_p2sigma_real_Q",
+    "tail_p2sigma_pred_I",
+    "tail_p2sigma_pred_Q",
+    "tail_p3sigma_real_I",
+    "tail_p3sigma_real_Q",
+    "tail_p3sigma_pred_I",
+    "tail_p3sigma_pred_Q",
+    "delta_tail_p2sigma_I",
+    "delta_tail_p2sigma_Q",
+    "delta_tail_p3sigma_I",
+    "delta_tail_p3sigma_Q",
+    "radial_wasserstein",
+    "radial_q05_real",
+    "radial_q50_real",
+    "radial_q95_real",
+    "radial_q05_pred",
+    "radial_q50_pred",
+    "radial_q95_pred",
+    "delta_radial_q05",
+    "delta_radial_q50",
+    "delta_radial_q95",
+    "corr_iq_real",
+    "corr_iq_pred",
+    "delta_corr_IQ",
+    "ellipse_axis_ratio_real",
+    "ellipse_axis_ratio_pred",
+    "delta_ellipse_axis_ratio",
+    "coverage_50",
+    "coverage_80",
+    "coverage_95",
+    "delta_coverage_50",
+    "delta_coverage_80",
+    "delta_coverage_95",
+    "coverage_50_I",
+    "coverage_50_Q",
+    "coverage_80_I",
+    "coverage_80_Q",
+    "coverage_95_I",
+    "coverage_95_Q",
+    "delta_coverage_50_I",
+    "delta_coverage_50_Q",
+    "delta_coverage_80_I",
+    "delta_coverage_80_Q",
+    "delta_coverage_95_I",
+    "delta_coverage_95_Q",
+    "delta_wasserstein_I",
+    "delta_wasserstein_Q",
+    "delta_jb_stat_rel_I",
+    "delta_jb_stat_rel_Q",
+    "stat_mmd_qval",
+    "stat_energy_qval",
+]
+
+RESIDUAL_SIGNATURE_AMPLITUDE_COLUMNS: List[str] = [
+    "study",
+    "regime_id",
+    "regime_label",
+    "run_id",
+    "run_dir",
+    "model_run_dir",
+    "best_grid_tag",
+    "dist_target_m",
+    "curr_target_mA",
+    "amplitude_bin_index",
+    "amplitude_bin_label",
+    "amplitude_lo",
+    "amplitude_hi",
+    "n_samples_real",
+    "n_samples_pred",
+    "stat_mode",
+    "std_real_delta_I",
+    "std_real_delta_Q",
+    "std_pred_delta_I",
+    "std_pred_delta_Q",
+    "delta_wasserstein_I",
+    "delta_wasserstein_Q",
+    "delta_jb_stat_rel_I",
+    "delta_jb_stat_rel_Q",
+    "stat_mmd_pval",
+    "stat_mmd_qval",
+    "stat_energy_pval",
+    "stat_energy_qval",
+]
+
 
 def _safe_float(value: Any) -> float:
     try:
@@ -710,6 +853,79 @@ def build_validation_summary_table(results: Iterable[Dict[str, Any]]) -> pd.Data
     _apply_fdr(df)
     _apply_derived_metrics(df)
     return _normalize_column_set(df)
+
+
+def build_residual_signature_table(
+    results: Iterable[Dict[str, Any]],
+    df_summary: Optional[pd.DataFrame] = None,
+) -> pd.DataFrame:
+    """Build the canonical per-regime residual-signature table."""
+    summary_lookup: Dict[tuple, Dict[str, Any]] = {}
+    if df_summary is not None and not df_summary.empty:
+        for _, row in df_summary.iterrows():
+            summary_lookup[(str(row.get("study", "")), str(row.get("regime_id", "")))] = row.to_dict()
+
+    rows: List[Dict[str, Any]] = []
+    for result in results:
+        study = str(result.get("_study", "within_regime"))
+        regime_id = str(result.get("regime_id", ""))
+        summary_row = summary_lookup.get((study, regime_id), {})
+        signature = (
+            result.get("residual_signature")
+            or result.get("metrics")
+            or result.get("cvae_dist")
+            or {}
+        )
+        row = {
+            "study": study,
+            "regime_id": regime_id,
+            "regime_label": result.get("regime_label", ""),
+            "run_id": result.get("run_id", ""),
+            "run_dir": result.get("run_dir", ""),
+            "model_run_dir": result.get("model_run_dir", result.get("run_dir", "")),
+            "best_grid_tag": result.get("best_grid_tag", ""),
+            "train_status": result.get("train_status", ""),
+            "eval_status": result.get("eval_status", ""),
+            "validation_status": summary_row.get("validation_status", np.nan),
+            "gate_g3": summary_row.get("gate_g3", np.nan),
+            "gate_g5": summary_row.get("gate_g5", np.nan),
+            "gate_g6": summary_row.get("gate_g6", np.nan),
+            "dist_target_m": _safe_float(result.get("selection_criteria", {}).get("distance_m")),
+            "curr_target_mA": _safe_float(result.get("selection_criteria", {}).get("current_mA")),
+            "stat_mmd_qval": _safe_float(summary_row.get("stat_mmd_qval")),
+            "stat_energy_qval": _safe_float(summary_row.get("stat_energy_qval")),
+        }
+        for col in RESIDUAL_SIGNATURE_COLUMNS:
+            if col in row:
+                continue
+            row[col] = signature.get(col, np.nan)
+        rows.append(row)
+
+    df = pd.DataFrame(rows)
+    if df.empty:
+        return pd.DataFrame(columns=RESIDUAL_SIGNATURE_COLUMNS)
+    for col in RESIDUAL_SIGNATURE_COLUMNS:
+        if col not in df.columns:
+            df[col] = np.nan
+    return df.loc[:, RESIDUAL_SIGNATURE_COLUMNS]
+
+
+def build_residual_signature_amplitude_table(
+    results: Iterable[Dict[str, Any]],
+) -> pd.DataFrame:
+    """Flatten amplitude-bin residual-signature rows from protocol results."""
+    rows: List[Dict[str, Any]] = []
+    for result in results:
+        bins = list(result.get("residual_signature_bins", []) or [])
+        for row in bins:
+            rows.append(dict(row))
+    df = pd.DataFrame(rows)
+    if df.empty:
+        return pd.DataFrame(columns=RESIDUAL_SIGNATURE_AMPLITUDE_COLUMNS)
+    for col in RESIDUAL_SIGNATURE_AMPLITUDE_COLUMNS:
+        if col not in df.columns:
+            df[col] = np.nan
+    return df.loc[:, RESIDUAL_SIGNATURE_AMPLITUDE_COLUMNS]
 
 
 def build_protocol_leaderboard(df_summary: pd.DataFrame) -> pd.DataFrame:

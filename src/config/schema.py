@@ -182,6 +182,12 @@ class AnalysisConfig:
     w_psd: float = ANALYSIS_DEFAULTS["w_psd"]
     w_skew: float = ANALYSIS_DEFAULTS["w_skew"]
     w_kurt: float = ANALYSIS_DEFAULTS["w_kurt"]
+    train_regime_diagnostics_enabled: bool = ANALYSIS_DEFAULTS["train_regime_diagnostics_enabled"]
+    train_regime_diagnostics_every: int = ANALYSIS_DEFAULTS["train_regime_diagnostics_every"]
+    train_regime_diagnostics_mc_samples: int = ANALYSIS_DEFAULTS["train_regime_diagnostics_mc_samples"]
+    train_regime_diagnostics_max_samples_per_regime: int = ANALYSIS_DEFAULTS["train_regime_diagnostics_max_samples_per_regime"]
+    train_regime_diagnostics_amplitude_bins: int = ANALYSIS_DEFAULTS["train_regime_diagnostics_amplitude_bins"]
+    train_regime_diagnostics_focus_only_0p8m: bool = ANALYSIS_DEFAULTS["train_regime_diagnostics_focus_only_0p8m"]
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "AnalysisConfig":
@@ -196,6 +202,40 @@ class AnalysisConfig:
             w_psd=float(_get(d, "w_psd", ANALYSIS_DEFAULTS["w_psd"], float)),
             w_skew=float(_get(d, "w_skew", ANALYSIS_DEFAULTS["w_skew"], float)),
             w_kurt=float(_get(d, "w_kurt", ANALYSIS_DEFAULTS["w_kurt"], float)),
+            train_regime_diagnostics_enabled=bool(_get(
+                d,
+                "train_regime_diagnostics_enabled",
+                ANALYSIS_DEFAULTS["train_regime_diagnostics_enabled"],
+            )),
+            train_regime_diagnostics_every=int(_get(
+                d,
+                "train_regime_diagnostics_every",
+                ANALYSIS_DEFAULTS["train_regime_diagnostics_every"],
+                int,
+            )),
+            train_regime_diagnostics_mc_samples=int(_get(
+                d,
+                "train_regime_diagnostics_mc_samples",
+                ANALYSIS_DEFAULTS["train_regime_diagnostics_mc_samples"],
+                int,
+            )),
+            train_regime_diagnostics_max_samples_per_regime=int(_get(
+                d,
+                "train_regime_diagnostics_max_samples_per_regime",
+                ANALYSIS_DEFAULTS["train_regime_diagnostics_max_samples_per_regime"],
+                int,
+            )),
+            train_regime_diagnostics_amplitude_bins=int(_get(
+                d,
+                "train_regime_diagnostics_amplitude_bins",
+                ANALYSIS_DEFAULTS["train_regime_diagnostics_amplitude_bins"],
+                int,
+            )),
+            train_regime_diagnostics_focus_only_0p8m=bool(_get(
+                d,
+                "train_regime_diagnostics_focus_only_0p8m",
+                ANALYSIS_DEFAULTS["train_regime_diagnostics_focus_only_0p8m"],
+            )),
         )
 
     def to_dict(self) -> Dict[str, Any]:

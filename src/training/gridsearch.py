@@ -692,6 +692,10 @@ def run_gridsearch(
     Y_val: np.ndarray,
     Dn_val: np.ndarray,
     Cn_val: np.ndarray,
+    D_train_raw: Optional[np.ndarray] = None,
+    C_train_raw: Optional[np.ndarray] = None,
+    D_val_raw: Optional[np.ndarray] = None,
+    C_val_raw: Optional[np.ndarray] = None,
     run_paths: "RunPaths",
     overrides: Optional[Dict[str, Any]] = None,
     df_plan: Optional["pd.DataFrame"] = None,
@@ -736,7 +740,7 @@ def run_gridsearch(
 
     import tensorflow as tf
     from src.models.cvae import build_cvae, create_inference_model_from_full
-    from src.models.callbacks import build_callbacks
+    from src.models.callbacks import RegimeDiagnosticsCallback, build_callbacks
     from src.evaluation.metrics import (
         calculate_evm, calculate_snr, residual_distribution_metrics,
     )
@@ -783,17 +787,68 @@ def run_gridsearch(
                 df_split=df_split,
                 window_size=_ws, stride=_wst, pad_mode=_wpm,
             )
+            if (
+                D_train_raw is not None and C_train_raw is not None
+                and D_val_raw is not None and C_val_raw is not None
+            ):
+                (_, _, D_tr_raw_fit, C_tr_raw_fit,
+                 _, _, D_va_raw_fit, C_va_raw_fit) = build_windows_from_split_arrays(
+                    X_train, Y_train, D_train_raw, C_train_raw,
+                    X_val,   Y_val,   D_val_raw,   C_val_raw,
+                    df_split=df_split,
+                    window_size=_ws, stride=_wst, pad_mode=_wpm,
+                )
+            else:
+                D_tr_raw_fit = D_train_raw
+                C_tr_raw_fit = C_train_raw
+                D_va_raw_fit = D_val_raw
+                C_va_raw_fit = C_val_raw
             print(
                 f"  ↳ seq windowing: window_size={_ws}, stride={_wst} | "
                 f"X_tr={X_tr_fit.shape}, X_va={X_va_fit.shape}"
             )
+            X_va_center_fit = X_val.copy()
         else:
             X_tr_fit, Y_tr_fit, D_tr_fit, C_tr_fit = X_train, Y_train, Dn_train, Cn_train
             X_va_fit, Y_va_fit, D_va_fit, C_va_fit = X_val,   Y_val,   Dn_val,   Cn_val
+            D_tr_raw_fit = None if D_train_raw is None else np.asarray(D_train_raw).reshape(-1, 1)
+            C_tr_raw_fit = None if C_train_raw is None else np.asarray(C_train_raw).reshape(-1, 1)
+            D_va_raw_fit = None if D_val_raw is None else np.asarray(D_val_raw).reshape(-1, 1)
+            C_va_raw_fit = None if C_val_raw is None else np.asarray(C_val_raw).reshape(-1, 1)
+            X_va_center_fit = X_va_fit
 
         try:
             vae, kl_cb = build_cvae(cfg)
-            callbacks = build_callbacks(training_config, cfg, kl_cb)
+            regime_diag_callback = None
+            if (
+                bool(analysis_quick.get("train_regime_diagnostics_enabled", True))
+                and D_va_raw_fit is not None
+                and C_va_raw_fit is not None
+            ):
+                regime_diag_callback = RegimeDiagnosticsCallback(
+                    logs_dir=run_paths.logs_dir,
+                    x_val_input=X_va_fit,
+                    x_val_center=X_va_center_fit,
+                    y_val=Y_va_fit,
+                    d_val_norm=D_va_fit,
+                    c_val_norm=C_va_fit,
+                    d_val_raw=D_va_raw_fit,
+                    c_val_raw=C_va_raw_fit,
+                    enabled=True,
+                    every_n_epochs=int(analysis_quick.get("train_regime_diagnostics_every", 10)),
+                    mc_samples=int(analysis_quick.get("train_regime_diagnostics_mc_samples", 4)),
+                    max_samples_per_regime=int(
+                        analysis_quick.get("train_regime_diagnostics_max_samples_per_regime", 4096)
+                    ),
+                    amplitude_bins=int(
+                        analysis_quick.get("train_regime_diagnostics_amplitude_bins", 4)
+                    ),
+                    focus_only_0p8m=bool(
+                        analysis_quick.get("train_regime_diagnostics_focus_only_0p8m", False)
+                    ),
+                    stat_seed=int(training_config.get("seed", 42)),
+                )
+            callbacks = build_callbacks(training_config, cfg, kl_cb, regime_diag_callback=regime_diag_callback)
 
             t0 = time.time()
             _keras_verbose = int(_ov.get("keras_verbose", 2))
@@ -861,6 +916,7 @@ def run_gridsearch(
                 X_dist = Xv_center
                 Y_dist = Yv
                 var_mc = float("nan")
+                Ys = None
             else:
                 inf_sto = create_inference_model_from_full(vae, deterministic=False)
                 Ys = []
@@ -907,7 +963,14 @@ def run_gridsearch(
             w_kurt = float(analysis_quick.get("w_kurt", 0.05))
 
             if dist_cfg_on:
-                distm = residual_distribution_metrics(X_dist, Y_dist, Yp_dist, psd_nfft=psd_nfft)
+                distm = residual_distribution_metrics(
+                    X_dist,
+                    Y_dist,
+                    Yp_dist,
+                    psd_nfft=psd_nfft,
+                    Y_samples=Ys,
+                    coverage_target=Yv,
+                )
                 mean_l2 = float(distm["delta_mean_l2"])
                 cov_fro = float(distm["delta_cov_fro"])
                 var_real = float(distm["var_real_delta"])

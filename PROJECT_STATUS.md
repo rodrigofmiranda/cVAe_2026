@@ -2,6 +2,14 @@
 
 > Atualizado em 2026-03-24.
 
+## Branch ativa
+
+- `feat/sample-aware-mmd`
+
+Esta branch e experimental. A referencia cientifica estavel continua sendo
+`outputs/exp_20260324_023558`; o objetivo aqui e instrumentar melhor o residuo
+e testar `sample-aware MMD` sem reabrir uma refatoracao maior.
+
 ## 1. Estado técnico
 
 O refactor de engenharia está concluído no caminho ativo.
@@ -63,6 +71,10 @@ grid, dentro da mesma branch e do mesmo pipeline.
 - `train/plots/champion/analysis_dashboard.png`: dashboard completo do campeão
 - `train/plots/training/dashboard_analysis_complete.png`: dashboard operacional de treino, evolução e convergência
 - `plots/best_model/heatmap_gate_metrics_by_regime.png`: heatmap científico canônico do campeão por regime
+- `tables/residual_signature_by_regime.csv`: assinatura estatística detalhada do residual por regime
+- `tables/residual_signature_by_amplitude_bin.csv`: assinatura do residual condicionada à amplitude de `|X|`
+- `tables/train_regime_diagnostics_history.csv`: histórico periódico por época para os regimes monitorados
+- `plots/best_model/residual_signature_overview.png`: visão compacta dos gaps de dispersão, cauda e Gaussianidade
 
 ### Métricas consolidadas
 
@@ -74,6 +86,13 @@ grid, dentro da mesma branch e do mesmo pipeline.
 - testes formais `MMD`, `Energy`, `PSD`
 - gates `G1`–`G6`
 - `validation_status`
+
+As novas tabelas irmãs não substituem `summary_by_regime.csv`; elas detalham o
+residual para diagnóstico fino:
+
+- `residual_signature_by_regime.csv`
+- `residual_signature_by_amplitude_bin.csv`
+- `train_regime_diagnostics_history.csv`
 
 ### Layout atual de saída
 
@@ -124,6 +143,14 @@ regime físico.
 - a causa mais provável no código atual é:
   - o termo `MMD` regulariza `y_mean - x`, não uma amostra do residual previsto
   - isso ajuda o centro da nuvem, mas não força a largura/cauda da distribuição gerada
+- a branch experimental agora adiciona instrumentação residual detalhada para
+  verificar isso sem alterar imediatamente os gates:
+  - dispersão e quantis por eixo
+  - massa de cauda por eixo
+  - distribuição radial
+  - cobertura probabilística
+  - bins por amplitude
+  - callback periódico por regime durante o treino
 - falhas em `G3`–`G6`, quando persistem após os fixes, devem ser tratadas como
   possível limitação do modelo e não como bug operacional
 - a exploração séria agora é **protocol-first**

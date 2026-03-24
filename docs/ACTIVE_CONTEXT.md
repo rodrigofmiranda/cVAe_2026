@@ -20,17 +20,19 @@ Everything else is secondary unless a specific task requires it.
 
 Active branch:
 
-- `feat/seq-bigru-residual-cvae`
+- `feat/sample-aware-mmd`
 
 Current purpose:
 
-- keep a single active research branch for the supported architectures
-- choose the experiment family by `arch_variant`, `grid_tag`, or `grid_preset`
-- keep `seq_bigru_residual` and `delta_residual` comparisons inside the
-  same protocol-first workflow
+- keep `outputs/exp_20260324_023558` as the stable seq reference while testing
+  a targeted objective/diagnostic intervention
+- instrument the residual distribution at three levels:
+  - regime
+  - axis (`I/Q`)
+  - amplitude bin
+- compare `mean_residual` vs `sampled_residual` MMD under the same protocol
 - use `configs/all_regimes_sel4curr.json` as the minimum active protocol
   (`0.8/1.0/1.5 m x 100/300/500/700 mA`)
-- single-regime protocols were retired from the active path
 
 Architectures available in this branch:
 
@@ -85,6 +87,22 @@ Current audit note for the remaining noise-shape mismatch:
   - the near-regime residual histograms are still under-dispersed
   - the current `MMD` term matches residual means, not sampled residual clouds
   - `seq_finish_0p8m` is the last reasonable no-code grid before loss changes
+
+Current instrumentation layer available in this branch:
+
+- `tables/residual_signature_by_regime.csv`
+- `tables/residual_signature_by_amplitude_bin.csv`
+- `tables/train_regime_diagnostics_history.csv`
+- `plots/best_model/residual_signature_overview.png`
+
+New runtime controls:
+
+- `train_regime_diagnostics_enabled`
+- `train_regime_diagnostics_every`
+- `train_regime_diagnostics_mc_samples`
+- `train_regime_diagnostics_max_samples_per_regime`
+- `train_regime_diagnostics_amplitude_bins`
+- `train_regime_diagnostics_focus_only_0p8m`
 
 Previous strong multi-regime `seq_bigru_residual` reference:
 
@@ -198,6 +216,17 @@ python -m src.protocol.run \
   --stat_tests --stat_mode full --stat_max_n 5000 \
   --no_data_reduction
 ```
+
+## Current Causal Grid On This Branch
+
+The experimental branch also carries a small causal comparison preset to test
+the objective change before any new weighting or loss term:
+
+- preset: `seq_sampled_mmd_compare`
+- intent:
+  - keep the winning `W7_h64_lat4_b0.003` family
+  - compare `mmd_mode=mean_residual` vs `mmd_mode=sampled_residual`
+  - read the new residual-signature outputs, not only the final gates
 
 ## Future Adversarial Note
 

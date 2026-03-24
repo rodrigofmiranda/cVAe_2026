@@ -3,8 +3,12 @@ import math
 import pandas as pd
 
 from src.evaluation.validation_summary import (
+    RESIDUAL_SIGNATURE_AMPLITUDE_COLUMNS,
+    RESIDUAL_SIGNATURE_COLUMNS,
     STAT_FIDELITY_COLUMNS,
     SUMMARY_BY_REGIME_COLUMNS,
+    build_residual_signature_amplitude_table,
+    build_residual_signature_table,
     build_stat_acceptance_summary,
     build_stat_fidelity_table,
     build_validation_summary_table,
@@ -238,3 +242,83 @@ def test_stat_projection_and_acceptance_derive_from_summary():
     assert acceptance["pass_mmd_qval"] == 1
     assert acceptance["pass_energy_qval"] == 1
     assert df.loc[df["regime_id"] == "dist_1p5m__curr_900mA", "validation_status"].iloc[0] == "fail"
+
+
+def test_residual_signature_tables_are_projected_without_polluting_summary():
+    result = _full_result()
+    result["metrics"].update(
+        {
+            "var_ratio_I": 0.82,
+            "var_ratio_Q": 1.10,
+            "iqr_real_I": 0.15,
+            "iqr_real_Q": 0.16,
+            "iqr_pred_I": 0.13,
+            "iqr_pred_Q": 0.17,
+            "delta_iqr_I": -0.02,
+            "delta_iqr_Q": 0.01,
+            "q05_real_I": -0.10,
+            "q05_pred_I": -0.08,
+            "q95_real_Q": 0.11,
+            "q95_pred_Q": 0.14,
+            "delta_q05_I": 0.02,
+            "tail_p3sigma_real_I": 0.02,
+            "tail_p3sigma_pred_I": 0.01,
+            "delta_tail_p3sigma_I": -0.01,
+            "radial_wasserstein": 0.012,
+            "corr_iq_real": 0.11,
+            "corr_iq_pred": 0.09,
+            "delta_corr_IQ": -0.02,
+            "ellipse_axis_ratio_real": 1.5,
+            "ellipse_axis_ratio_pred": 1.3,
+            "delta_ellipse_axis_ratio": -0.2,
+            "coverage_50": 0.52,
+            "coverage_80": 0.79,
+            "coverage_95": 0.93,
+            "delta_coverage_50": 0.02,
+            "delta_coverage_80": -0.01,
+            "delta_coverage_95": -0.02,
+        }
+    )
+    result["residual_signature_bins"] = [
+        {
+            "study": "within_regime",
+            "regime_id": result["regime_id"],
+            "regime_label": result["regime_label"],
+            "run_id": result["run_id"],
+            "run_dir": result["run_dir"],
+            "model_run_dir": result["model_run_dir"],
+            "best_grid_tag": result["best_grid_tag"],
+            "dist_target_m": 1.0,
+            "curr_target_mA": 300.0,
+            "amplitude_bin_index": 0,
+            "amplitude_bin_label": "q0-25",
+            "amplitude_lo": 0.0,
+            "amplitude_hi": 0.2,
+            "n_samples_real": 1024,
+            "n_samples_pred": 1024,
+            "stat_mode": "quick",
+            "std_real_delta_I": 0.1,
+            "std_real_delta_Q": 0.2,
+            "std_pred_delta_I": 0.09,
+            "std_pred_delta_Q": 0.18,
+            "delta_wasserstein_I": 0.01,
+            "delta_wasserstein_Q": 0.02,
+            "delta_jb_stat_rel_I": 0.10,
+            "delta_jb_stat_rel_Q": 0.11,
+            "stat_mmd_pval": 0.30,
+            "stat_mmd_qval": 0.30,
+            "stat_energy_pval": 0.40,
+            "stat_energy_qval": 0.40,
+        }
+    ]
+
+    df_summary = build_validation_summary_table([result])
+    df_sig = build_residual_signature_table([result], df_summary)
+    df_amp = build_residual_signature_amplitude_table([result])
+
+    assert list(df_summary.columns) == SUMMARY_BY_REGIME_COLUMNS
+    assert list(df_sig.columns) == RESIDUAL_SIGNATURE_COLUMNS
+    assert list(df_amp.columns) == RESIDUAL_SIGNATURE_AMPLITUDE_COLUMNS
+    assert math.isclose(df_sig.iloc[0]["var_ratio_I"], 0.82, rel_tol=1e-9)
+    assert math.isclose(df_sig.iloc[0]["coverage_95"], 0.93, rel_tol=1e-9)
+    assert df_amp.iloc[0]["amplitude_bin_label"] == "q0-25"

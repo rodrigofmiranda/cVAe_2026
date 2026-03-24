@@ -487,6 +487,137 @@ def plot_gate_metric_heatmaps(
     return _savefig(Path(out_dir) / fname)
 
 
+def plot_residual_signature_overview(
+    df_signature: pd.DataFrame,
+    out_dir: Path,
+    *,
+    fname: str = "residual_signature_overview.png",
+) -> Optional[Path]:
+    """Render a compact overview of the new residual signature by regime."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    if df_signature is None or df_signature.empty:
+        return None
+
+    def _rowwise_nanmax(series_list):
+        stacked = pd.DataFrame(
+            {
+                idx: pd.to_numeric(series, errors="coerce")
+                for idx, series in enumerate(series_list)
+            }
+        )
+        return stacked.max(axis=1, skipna=True).to_numpy()
+
+    df = df_signature.copy()
+    df["var_ratio_max_abs_gap"] = _rowwise_nanmax(
+        [
+            np.abs(pd.to_numeric(df.get("var_ratio_I"), errors="coerce") - 1.0),
+            np.abs(pd.to_numeric(df.get("var_ratio_Q"), errors="coerce") - 1.0),
+        ]
+    )
+    df["tail_p3sigma_abs_gap_max"] = _rowwise_nanmax(
+        [
+            np.abs(pd.to_numeric(df.get("delta_tail_p3sigma_I"), errors="coerce")),
+            np.abs(pd.to_numeric(df.get("delta_tail_p3sigma_Q"), errors="coerce")),
+        ]
+    )
+    df["wasserstein_max"] = _rowwise_nanmax(
+        [
+            np.abs(pd.to_numeric(df.get("delta_wasserstein_I"), errors="coerce")),
+            np.abs(pd.to_numeric(df.get("delta_wasserstein_Q"), errors="coerce")),
+        ]
+    )
+    df["jb_rel_max"] = _rowwise_nanmax(
+        [
+            np.abs(pd.to_numeric(df.get("delta_jb_stat_rel_I"), errors="coerce")),
+            np.abs(pd.to_numeric(df.get("delta_jb_stat_rel_Q"), errors="coerce")),
+        ]
+    )
+
+    specs = [
+        ("var_ratio_max_abs_gap", "Var ratio gap |pred/real - 1| (max I/Q)", "RdYlGn_r"),
+        ("tail_p3sigma_abs_gap_max", "Tail p(>3σ_real) gap (max I/Q)", "RdYlGn_r"),
+        ("wasserstein_max", "Wasserstein mismatch (max I/Q)", "RdYlGn_r"),
+        ("jb_rel_max", "JB relative mismatch (max I/Q)", "RdYlGn_r"),
+    ]
+    resolved = []
+    for col, title, cmap in specs:
+        piv = _pivot_for_heatmap(df, col)
+        if piv is None:
+            continue
+        annot = piv.copy().astype(object)
+        for dist in piv.index:
+            for curr in piv.columns:
+                sub = df[
+                    (pd.to_numeric(df["dist_target_m"], errors="coerce") == float(dist))
+                    & (pd.to_numeric(df["curr_target_mA"], errors="coerce") == float(curr))
+                ]
+                if sub.empty:
+                    annot.loc[dist, curr] = ""
+                    continue
+                row = sub.iloc[0]
+                if col == "var_ratio_max_abs_gap":
+                    annot.loc[dist, curr] = (
+                        f"I={float(row.get('var_ratio_I', np.nan)):.2f}\n"
+                        f"Q={float(row.get('var_ratio_Q', np.nan)):.2f}"
+                    )
+                elif col == "tail_p3sigma_abs_gap_max":
+                    annot.loc[dist, curr] = (
+                        f"I {float(row.get('tail_p3sigma_pred_I', np.nan)):.3f}/"
+                        f"{float(row.get('tail_p3sigma_real_I', np.nan)):.3f}\n"
+                        f"Q {float(row.get('tail_p3sigma_pred_Q', np.nan)):.3f}/"
+                        f"{float(row.get('tail_p3sigma_real_Q', np.nan)):.3f}"
+                    )
+                elif col == "wasserstein_max":
+                    annot.loc[dist, curr] = (
+                        f"I={float(row.get('delta_wasserstein_I', np.nan)):.4f}\n"
+                        f"Q={float(row.get('delta_wasserstein_Q', np.nan)):.4f}"
+                    )
+                else:
+                    annot.loc[dist, curr] = (
+                        f"I={float(row.get('delta_jb_stat_rel_I', np.nan)):.3f}\n"
+                        f"Q={float(row.get('delta_jb_stat_rel_Q', np.nan)):.3f}"
+                    )
+        resolved.append((title, cmap, piv, annot))
+
+    if not resolved:
+        return None
+
+    if all(
+        not np.isfinite(pd.to_numeric(piv.to_numpy().ravel(), errors="coerce")).any()
+        for _, _, piv, _ in resolved
+    ):
+        return None
+
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    axes = np.atleast_1d(axes).ravel()
+    for ax, (title, cmap, piv, annot) in zip(axes, resolved):
+        vals = piv.to_numpy(dtype=float)
+        vals = vals[np.isfinite(vals)]
+        vmax = float(np.max(vals)) if vals.size else 1.0
+        if vmax <= 0.0:
+            vmax = 1.0
+        _draw_heatmap(
+            ax,
+            piv,
+            title=title,
+            cmap=cmap,
+            fmt="",
+            annot_piv=annot,
+            cbar_label=title,
+            vmin=0.0,
+            vmax=vmax,
+            center=None,
+        )
+    for ax in axes[len(resolved):]:
+        ax.axis("off")
+    fig.suptitle("Residual signature overview by regime", fontsize=15)
+    return _savefig(Path(out_dir) / fname)
+
+
 def generate_all(df_summary: pd.DataFrame, out_dir: Path) -> List[Path]:
     """Generate the canonical gate-focused regime heatmap bundle."""
     out_dir = Path(out_dir)

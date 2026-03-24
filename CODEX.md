@@ -2,9 +2,9 @@
 
 ## Scope
 
-- Active branch: `feat/seq-bigru-residual-cvae`
-- Current focus: advance the digital twin with `seq_bigru_residual` and
-  `delta_residual` inside the protocol-first workflow
+- Active branch: `feat/sample-aware-mmd`
+- Current focus: keep the current seq reference stable while adding
+  diagnostic-first residual instrumentation and testing `sample-aware MMD`
 - Main notes:
   - `docs/ACTIVE_CONTEXT.md`
   - `PROJECT_STATUS.md`
@@ -13,6 +13,7 @@
   - `docs/PROTOCOL.md`
   - `docs/RUN_REANALYSIS_PLAYBOOK.md`
   - `TRAINING_PLAN.md`
+  - `docs/NOISE_DISTRIBUTION_AUDIT.md`
 
 ## Current Checkpoint
 
@@ -33,18 +34,23 @@
     - `scripts/run_tf25_gpu.sh`
     - `scripts/enter_tf25_gpu.sh`
     - `scripts/stop_tf25_gpu.sh`
+  - residual instrumentation outputs:
+    - `tables/residual_signature_by_regime.csv`
+    - `tables/residual_signature_by_amplitude_bin.csv`
+    - `tables/train_regime_diagnostics_history.csv`
+    - `plots/best_model/residual_signature_overview.png`
 
 ## Scientific State
 
 - strongest current temporal reference:
-  - run id: `exp_20260322_193738`
-  - winner: `S4seq_W7_h64_lat4_b0p003_lmmd1p25_fb0p10_lr0p0003_L128-256-512`
+  - run id: `exp_20260324_023558`
+  - winner: `S6seq_W7_h64_lat4_b0p003_lmmd1p75_fb0p10_lr0p0003_L128-256-512`
   - summary:
-    - `6/12` total passes
-    - `0/4` at `0.8 m`
-    - `2/4` at `1.0 m`
+    - `10/12` total passes
+    - `2/4` at `0.8 m`
+    - `4/4` at `1.0 m`
     - `4/4` at `1.5 m`
-    - best current multi-regime scientific reference in this workspace
+    - current scientific reference in this workspace
 - latest comparison run that did not overtake the reference:
   - run id: `exp_20260323_210309`
   - winner: `S4seq_W7_h96_lat4_b0p003_lmmd1p25_fb0p10_lr0p0003_L128-256-512`
@@ -58,11 +64,12 @@
   - tag: `D3delta_lat5_b0p001_fb0p0_lr0p0003_bs16384_anneal80_L128-256-512`
 - strongest current point-wise anchor carried into protocol-first comparisons:
   - `COPT_lat6_b0p001_fb0p0_lr0p0001_bs16384_anneal120_L64-128-256`
-- current recommended overnight preset:
-  - `seq_overnight_12h`
-  - target: roughly `10–12 h`
-  - command:
-    - `python -m src.protocol.run --dataset_root data/dataset_fullsquare_organized --output_base outputs --protocol configs/all_regimes_sel4curr.json --train_once_eval_all --grid_preset seq_overnight_12h --max_epochs 120 --patience 12 --reduce_lr_patience 6 --stat_tests --stat_mode full --stat_max_n 5000 --no_data_reduction`
+- current causal preset on this branch:
+  - `seq_sampled_mmd_compare`
+  - goal:
+    - compare `mmd_mode=mean_residual` vs `mmd_mode=sampled_residual`
+    - reuse the winning `W7_h64` family
+    - judge with the new residual instrumentation, not only with the final gates
 
 ## Non-Negotiable Invariants
 
@@ -120,6 +127,9 @@ Prefer verifying in this order:
    - `train/tables/grid_training_diagnostics.csv`
    - `train/plots/training/dashboard_analysis_complete.png`
    - `plots/best_model/heatmap_gate_metrics_by_regime.png`
+   - `tables/residual_signature_by_regime.csv`
+   - `tables/residual_signature_by_amplitude_bin.csv`
+   - `tables/train_regime_diagnostics_history.csv`
 
 ## Out Of Scope
 

@@ -2,13 +2,19 @@
 
 import shutil
 import tempfile
+import warnings
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from src.evaluation.summary_plots import _gate_heatmap_style, _pivot_for_heatmap, generate_all
+from src.evaluation.summary_plots import (
+    _gate_heatmap_style,
+    _pivot_for_heatmap,
+    generate_all,
+    plot_residual_signature_overview,
+)
 
 
 @pytest.fixture()
@@ -94,3 +100,29 @@ def test_gate_heatmap_style_uses_absolute_color_distance_for_signed_metrics():
     assert vmin == pytest.approx(0.0)
     assert vmax == pytest.approx(2.0)
     assert center is None
+
+
+def test_residual_signature_overview_skips_all_nan_inputs_without_warning(out_dir):
+    df = pd.DataFrame(
+        [
+            {
+                "dist_target_m": 0.8,
+                "curr_target_mA": 100.0,
+                "var_ratio_I": np.nan,
+                "var_ratio_Q": np.nan,
+                "delta_tail_p3sigma_I": np.nan,
+                "delta_tail_p3sigma_Q": np.nan,
+                "delta_wasserstein_I": np.nan,
+                "delta_wasserstein_Q": np.nan,
+                "delta_jb_stat_rel_I": np.nan,
+                "delta_jb_stat_rel_Q": np.nan,
+            }
+        ]
+    )
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("error", RuntimeWarning)
+        path = plot_residual_signature_overview(df, out_dir)
+
+    assert path is None
+    assert caught == []

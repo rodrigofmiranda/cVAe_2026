@@ -81,6 +81,16 @@ python -m src.protocol.run \
     --stat_tests --stat_mode quick \
     --no_data_reduction
 
+# Experimental branch: residual instrumentation + sampled-MMD comparison
+python -m src.protocol.run \
+    --dataset_root data/dataset_fullsquare_organized \
+    --output_base  outputs \
+    --protocol configs/all_regimes_sel4curr.json \
+    --train_once_eval_all \
+    --grid_preset seq_sampled_mmd_compare \
+    --stat_tests --stat_mode quick \
+    --no_data_reduction
+
 # Custom protocol file (explicit regime subset)
 python -m src.protocol.run \
     --dataset_root data/dataset_fullsquare_organized \
@@ -248,10 +258,14 @@ outputs/exp_YYYYMMDD_HHMMSS/
 ├── tables/
 │   ├── summary_by_regime.csv
 │   ├── protocol_leaderboard.csv
+│   ├── residual_signature_by_regime.csv
+│   ├── residual_signature_by_amplitude_bin.csv
+│   ├── train_regime_diagnostics_history.csv   (when the train callback runs)
 │   └── stat_fidelity_by_regime.csv
 └── plots/
     └── best_model/
-        └── heatmap_gate_metrics_by_regime.png
+        ├── heatmap_gate_metrics_by_regime.png
+        └── residual_signature_overview.png
 ```
 
 ### Output semantics by mode
@@ -263,7 +277,11 @@ outputs/exp_YYYYMMDD_HHMMSS/
   - `eval/` contains only the regime-specific evaluation artifacts produced with that shared model
   - `summary_by_regime.csv` records both `run_dir` (evaluation artifacts) and `model_run_dir` (shared model source)
   - `protocol_leaderboard.csv` is the canonical candidate ranking derived from the same gates/metrics used by the protocol
+  - `residual_signature_by_regime.csv` stores the detailed residual signature by regime
+  - `residual_signature_by_amplitude_bin.csv` stores the same residual diagnostics conditioned on `|X|`
+  - `train_regime_diagnostics_history.csv` mirrors the periodic train callback when enabled
   - `plots/best_model/heatmap_gate_metrics_by_regime.png` is the canonical scientific visual summary
+  - `plots/best_model/residual_signature_overview.png` is the compact residual-signature visual summary
   - `train/plots/champion/analysis_dashboard.png` is the full dashboard of the winning model
   - `train/plots/training/dashboard_analysis_complete.png` is the operational convergence dashboard for the full grid
   - `train/tables/grid_training_diagnostics.csv` is the compact per-grid diagnostics table
@@ -328,3 +346,9 @@ CLI flags take precedence.
 | `--train_once_eval_all` | Train one shared global model and evaluate it across all regimes |
 | `--stat_tests` | Run MMD/Energy/PSD stat tests per regime |
 | `--stat_mode quick|full` | `quick` uses lighter defaults (`stat_max_n=5000`), `full` keeps `50000` |
+| `--train_regime_diagnostics_enabled {0,1}` | Enable/disable periodic residual diagnostics during training |
+| `--train_regime_diagnostics_every N` | Run the regime diagnostics callback every `N` epochs |
+| `--train_regime_diagnostics_mc_samples N` | Monte Carlo samples used by the diagnostics callback |
+| `--train_regime_diagnostics_max_samples_per_regime N` | Cap samples per monitored regime in the callback |
+| `--train_regime_diagnostics_amplitude_bins N` | Number of amplitude bins for residual-signature slices |
+| `--train_regime_diagnostics_focus_only_0p8m {0,1}` | Restrict callback monitoring to `0.8 m` regimes only |

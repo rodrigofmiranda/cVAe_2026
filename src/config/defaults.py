@@ -68,6 +68,12 @@ K_PSD_NFFT = "psd_nfft"
 K_W_PSD = "w_psd"
 K_W_SKEW = "w_skew"
 K_W_KURT = "w_kurt"
+K_TRAIN_REGIME_DIAGNOSTICS_ENABLED = "train_regime_diagnostics_enabled"
+K_TRAIN_REGIME_DIAGNOSTICS_EVERY = "train_regime_diagnostics_every"
+K_TRAIN_REGIME_DIAGNOSTICS_MC_SAMPLES = "train_regime_diagnostics_mc_samples"
+K_TRAIN_REGIME_DIAGNOSTICS_MAX_SAMPLES = "train_regime_diagnostics_max_samples_per_regime"
+K_TRAIN_REGIME_DIAGNOSTICS_AMPLITUDE_BINS = "train_regime_diagnostics_amplitude_bins"
+K_TRAIN_REGIME_DIAGNOSTICS_FOCUS_ONLY_0P8M = "train_regime_diagnostics_focus_only_0p8m"
 
 # --- State-run / paths ---
 K_RUN_ID = "run_id"
@@ -139,6 +145,12 @@ ANALYSIS_DEFAULTS: dict = {
     K_W_PSD: 0.15,
     K_W_SKEW: 0.05,
     K_W_KURT: 0.05,
+    K_TRAIN_REGIME_DIAGNOSTICS_ENABLED: True,
+    K_TRAIN_REGIME_DIAGNOSTICS_EVERY: 10,
+    K_TRAIN_REGIME_DIAGNOSTICS_MC_SAMPLES: 4,
+    K_TRAIN_REGIME_DIAGNOSTICS_MAX_SAMPLES: 4096,
+    K_TRAIN_REGIME_DIAGNOSTICS_AMPLITUDE_BINS: 4,
+    K_TRAIN_REGIME_DIAGNOSTICS_FOCUS_ONLY_0P8M: False,
 }
 
 # Minimal fallback state_run for backward-compat with old runs

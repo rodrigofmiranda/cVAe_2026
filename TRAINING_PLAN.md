@@ -3,6 +3,17 @@
 > Versao ativa em 2026-03-24.
 > Este documento e a fonte de verdade para validacao cientifica, diagnostico e criterios de aceite.
 
+## Branch experimental atual
+
+- `feat/sample-aware-mmd`
+
+Nesta branch, a prioridade imediata e:
+
+- instrumentar melhor o residual sem mudar os gates
+- comparar `mean_residual` vs `sampled_residual` MMD
+- registrar sinais por regime, por eixo e por amplitude antes de decidir a
+  proxima loss
+
 ## 0. Estado atual
 
 - Pipeline canonico ativo:
@@ -16,6 +27,9 @@
   - `outputs/exp_*/tables/protocol_leaderboard.csv`
 - Artefatos secundarios:
   - `outputs/exp_*/tables/stat_fidelity_by_regime.csv`
+  - `outputs/exp_*/tables/residual_signature_by_regime.csv`
+  - `outputs/exp_*/tables/residual_signature_by_amplitude_bin.csv`
+  - `outputs/exp_*/tables/train_regime_diagnostics_history.csv`
   - JSONs e logs por regime
 - Diagnosticos de grid disponiveis:
   - `tables/gridsearch_results.csv`
@@ -60,6 +74,12 @@
     - testar `lmmd=2.0`
     - incluir so hedges de `beta/lr` ja fortes no overnight
     - atacar apenas `0.8 m / 100 mA` e `0.8 m / 300 mA`
+- Preset causal novo da branch experimental:
+  - `grid_preset=seq_sampled_mmd_compare`
+  - foco:
+    - manter a familia `W7_h64_lat4_b0.003`
+    - isolar o efeito de `mmd_mode=sampled_residual`
+    - usar a nova instrumentacao para decidir a proxima objective
 
 ## 1. Objetivo
 

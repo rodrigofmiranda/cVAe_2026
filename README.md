@@ -47,6 +47,25 @@ Historical refactor planning has been archived under:
 
 - [docs/archive/REFACTOR_PLAN_legacy.md](docs/archive/REFACTOR_PLAN_legacy.md)
 
+## Experimental Branch
+
+Current experimental branch in this worktree:
+
+- `feat/sample-aware-mmd`
+
+Purpose of this branch:
+
+- keep `outputs/exp_20260324_023558` as the stable seq reference
+- add diagnostic-first residual instrumentation before any new loss intervention
+- compare `mean_residual` vs `sampled_residual` MMD without changing the rest
+  of the protocol
+
+The worktree path remains:
+
+- `/workspace/2026/feat_seq_bigru_residual_cvae`
+
+The folder name is historical; the active Git branch may differ from the path.
+
 ## Objective
 
 Learn the conditional distribution of the physical VLC channel from
@@ -63,6 +82,27 @@ $$p(y \mid x, d, c)$$
 
 The goal is **distributional fidelity** — not only mean mapping — preserving
 the nonlinearities and noise characteristics of the real channel.
+
+## Residual Instrumentation
+
+This experimental branch adds a new diagnostic layer focused on the residual
+`Δ = Y - X`, without changing the acceptance gates yet.
+
+New outputs:
+
+- `tables/residual_signature_by_regime.csv`
+- `tables/residual_signature_by_amplitude_bin.csv`
+- `tables/train_regime_diagnostics_history.csv`
+- `plots/best_model/residual_signature_overview.png`
+
+New runtime controls:
+
+- `train_regime_diagnostics_enabled`
+- `train_regime_diagnostics_every`
+- `train_regime_diagnostics_mc_samples`
+- `train_regime_diagnostics_max_samples_per_regime`
+- `train_regime_diagnostics_amplitude_bins`
+- `train_regime_diagnostics_focus_only_0p8m`
 
 ## Modeling Philosophy
 

@@ -93,6 +93,24 @@ def build_training_runtime(
     analysis_cfg = AnalysisConfig.from_dict({})
     if ov.get("psd_nfft") is not None:
         analysis_cfg.psd_nfft = int(ov["psd_nfft"])
+    for key in (
+        "train_regime_diagnostics_enabled",
+        "train_regime_diagnostics_every",
+        "train_regime_diagnostics_mc_samples",
+        "train_regime_diagnostics_max_samples_per_regime",
+        "train_regime_diagnostics_amplitude_bins",
+        "train_regime_diagnostics_focus_only_0p8m",
+    ):
+        if ov.get(key) is not None:
+            value = ov[key]
+            if key in {
+                "train_regime_diagnostics_enabled",
+                "train_regime_diagnostics_focus_only_0p8m",
+            }:
+                value = bool(value)
+            else:
+                value = int(value)
+            setattr(analysis_cfg, key, value)
     eval_cfg = EvalProtocolConfig(
         n_eval_samples=int(analysis_cfg.n_eval_samples),
         batch_infer=int(analysis_cfg.batch_infer),
