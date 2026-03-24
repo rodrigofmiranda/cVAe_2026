@@ -159,6 +159,19 @@ def test_select_grid_seq_investigation_large_focuses_on_context_and_mmd():
     assert anchor["cfg"]["free_bits"] == 0.0
 
 
+def test_select_grid_seq_sampled_mmd_compare_builds_causal_three_run_set():
+    grid = select_grid({"grid_preset": "seq_sampled_mmd_compare"})
+
+    assert len(grid) == 3
+    assert {item["group"] for item in grid} == {"S9_seq_sampled_mmd"}
+    assert all(item["cfg"]["arch_variant"] == "seq_bigru_residual" for item in grid)
+    assert {item["cfg"]["window_size"] for item in grid} == {7}
+    assert {item["cfg"]["seq_hidden_size"] for item in grid} == {64}
+    assert {item["cfg"]["lambda_mmd"] for item in grid} == {1.75}
+    assert {item["cfg"]["mmd_mode"] for item in grid} == {"mean_residual", "sampled_residual"}
+    assert {item["cfg"]["lr"] for item in grid} == {3e-4, 2e-4}
+
+
 def test_select_grid_legacy2025_ref_matches_expected_reference_cfg():
     grid = select_grid({"grid_preset": "legacy2025_ref"})
 

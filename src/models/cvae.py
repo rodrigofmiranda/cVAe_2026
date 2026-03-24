@@ -284,11 +284,13 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
     # Loss layer (β starts at 0 for annealing)
     beta_initial = 0.0
     lambda_mmd = float(cfg.get("lambda_mmd", 0.0))
+    mmd_mode = str(cfg.get("mmd_mode", "mean_residual"))
     if arch_variant == "delta_residual":
         loss_layer = CondPriorDeltaVAELoss(
             beta=beta_initial,
             free_bits=free_bits,
             lambda_mmd=lambda_mmd,
+            mmd_mode=mmd_mode,
             name="condprior_delta_loss",
         )
         loss_inputs = [y_in, out_params, z_mean_q, z_log_var_q, z_mean_p, z_log_var_p, x_in]
@@ -296,6 +298,7 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
         loss_layer = CondPriorVAELoss(
             beta=beta_initial, free_bits=free_bits,
             lambda_mmd=lambda_mmd,
+            mmd_mode=mmd_mode,
             name="condprior_loss",
         )
         loss_inputs = [y_in, out_params, z_mean_q, z_log_var_q, z_mean_p, z_log_var_p]

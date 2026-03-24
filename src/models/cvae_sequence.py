@@ -425,9 +425,11 @@ def build_seq_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
 
     # KL + reconstruction loss (beta starts at 0 for annealing)
     lambda_mmd = float(cfg.get("lambda_mmd", 0.0))
+    mmd_mode = str(cfg.get("mmd_mode", "mean_residual"))
     loss_layer = CondPriorVAELoss(
         beta=0.0, free_bits=free_bits,
         lambda_mmd=lambda_mmd,
+        mmd_mode=mmd_mode,
         name="condprior_loss",
     )
     loss_inputs = [y_in, out_params, z_mean_q, z_log_var_q, z_mean_p, z_log_var_p]

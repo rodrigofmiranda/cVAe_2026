@@ -16,6 +16,7 @@ def _cfg(**kwargs: Any) -> Dict[str, Any]:
         dropout=0.0,
         free_bits=0.10,
         arch_variant="concat",
+        mmd_mode="mean_residual",
     )
     cfg.update(kwargs)
     return cfg
@@ -1234,6 +1235,58 @@ def _preset_seq_finish_0p8m() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_sampled_mmd_compare() -> List[Dict[str, Any]]:
+    """Minimal causal comparison for sampled-residual MMD.
+
+    Goal:
+      - keep the best known seq family fixed
+      - compare the historical ``mean_residual`` MMD objective against the new
+        ``sampled_residual`` objective
+      - include one low-LR hedge only after the objective changes
+
+    Total: 3 runs.
+    Requires --no_data_reduction.
+    """
+
+    def _seq_cfg(*, lr: float, mmd_mode: str) -> Dict[str, Any]:
+        return _cfg(
+            arch_variant="seq_bigru_residual",
+            layer_sizes=[128, 256, 512],
+            latent_dim=4,
+            beta=0.003,
+            free_bits=0.10,
+            lr=lr,
+            batch_size=8192,
+            kl_anneal_epochs=80,
+            window_size=7,
+            window_stride=1,
+            window_pad_mode="edge",
+            seq_hidden_size=64,
+            seq_num_layers=1,
+            seq_bidirectional=True,
+            lambda_mmd=1.75,
+            mmd_mode=mmd_mode,
+        )
+
+    return [
+        dict(
+            group="S9_seq_sampled_mmd",
+            tag="S9seq_W7_h64_lat4_b0p003_lmmd1p75_mmdmean_fb0p10_lr0p0003_L128-256-512",
+            cfg=_seq_cfg(lr=3e-4, mmd_mode="mean_residual"),
+        ),
+        dict(
+            group="S9_seq_sampled_mmd",
+            tag="S9seq_W7_h64_lat4_b0p003_lmmd1p75_mmdsample_fb0p10_lr0p0003_L128-256-512",
+            cfg=_seq_cfg(lr=3e-4, mmd_mode="sampled_residual"),
+        ),
+        dict(
+            group="S9_seq_sampled_mmd",
+            tag="S9seq_W7_h64_lat4_b0p003_lmmd1p75_mmdsample_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(lr=2e-4, mmd_mode="sampled_residual"),
+        ),
+    ]
+
+
 def _preset_best_compare_large() -> List[Dict[str, Any]]:
     """Comparative protocol-first grid using the strongest current candidates.
 
@@ -1434,6 +1487,8 @@ def select_grid(
             grid = _preset_seq_replay_axis_diagnostics()
         elif preset_name == "seq_finish_0p8m":
             grid = _preset_seq_finish_0p8m()
+        elif preset_name == "seq_sampled_mmd_compare":
+            grid = _preset_seq_sampled_mmd_compare()
         elif preset_name == "best_compare_large":
             grid = _preset_best_compare_large()
         elif preset_name == "delta_residual_fast":

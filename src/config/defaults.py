@@ -39,6 +39,7 @@ K_DROPOUT = "dropout"
 K_ACTIVATION = "activation"
 K_ARCH_VARIANT = "arch_variant"
 K_LAMBDA_MMD = "lambda_mmd"
+K_MMD_MODE = "mmd_mode"
 
 # --- Sequence model (seq_bigru_residual) ---
 K_WINDOW_SIZE = "window_size"
@@ -107,6 +108,7 @@ MODEL_DEFAULTS: dict = {
     K_ACTIVATION: "leaky_relu",
     K_ARCH_VARIANT: "concat",
     K_LAMBDA_MMD: 0.0,
+    K_MMD_MODE: "mean_residual",
     # Sequence model defaults (ignored by point-wise variants)
     K_WINDOW_SIZE: 33,
     K_WINDOW_STRIDE: 1,

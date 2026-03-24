@@ -204,6 +204,34 @@ def mmd2_tf(
     return term_xx + term_yy - 2.0 * term_xy
 
 
+def _resolve_mmd_mode(mode: str | None) -> str:
+    """Return the canonical MMD residual-matching mode."""
+    mode_norm = str(mode or "mean_residual").strip().lower()
+    aliases = {
+        "mean": "mean_residual",
+        "mean_residual": "mean_residual",
+        "sample": "sampled_residual",
+        "sampled": "sampled_residual",
+        "sampled_residual": "sampled_residual",
+    }
+    if mode_norm not in aliases:
+        raise ValueError(
+            "mmd_mode must be one of {'mean_residual', 'sampled_residual'}; "
+            f"got {mode!r}"
+        )
+    return aliases[mode_norm]
+
+
+def _sample_heteroscedastic(mean: tf.Tensor, log_var: tf.Tensor) -> tf.Tensor:
+    """Draw a differentiable sample from N(mean, diag(exp(log_var)))."""
+    log_var = tf.clip_by_value(
+        log_var, DECODER_LOGVAR_CLAMP_LO, DECODER_LOGVAR_CLAMP_HI
+    )
+    std = tf.exp(0.5 * log_var)
+    eps = tf.random.normal(tf.shape(mean), dtype=mean.dtype)
+    return mean + std * eps
+
+
 # ======================================================================
 # Keras layer (used inside training graph — wraps the above functions)
 # ======================================================================
@@ -226,6 +254,7 @@ class CondPriorVAELoss(layers.Layer):
         beta: float = 1.0,
         free_bits: float = 0.0,
         lambda_mmd: float = 0.0,
+        mmd_mode: str = "mean_residual",
         mmd_bandwidth: float | None = None,
         **kwargs,
     ):
@@ -233,6 +262,7 @@ class CondPriorVAELoss(layers.Layer):
         self.beta_init = float(beta)
         self.free_bits = float(free_bits)
         self.lambda_mmd = float(lambda_mmd)
+        self.mmd_mode = _resolve_mmd_mode(mmd_mode)
         self.mmd_bandwidth = mmd_bandwidth
         self.beta = tf.Variable(
             self.beta_init, trainable=False, dtype=tf.float32, name="beta",
@@ -264,7 +294,11 @@ class CondPriorVAELoss(layers.Layer):
 
         if self.lambda_mmd > 0.0 and x_center is not None:
             r_real = tf.stop_gradient(y_true - x_center)
-            r_gen  = y_mean - x_center
+            if self.mmd_mode == "sampled_residual":
+                y_sample = _sample_heteroscedastic(y_mean, y_log_var)
+                r_gen = y_sample - x_center
+            else:
+                r_gen = y_mean - x_center
             mmd2 = mmd2_tf(r_real, r_gen, n_sub=512, bandwidth=self.mmd_bandwidth)
             self.mmd_loss_tracker.update_state(mmd2)
             total = total + self.lambda_mmd * mmd2
@@ -287,6 +321,7 @@ class CondPriorVAELoss(layers.Layer):
             "beta": self.beta_init,
             "free_bits": self.free_bits,
             "lambda_mmd": self.lambda_mmd,
+            "mmd_mode": self.mmd_mode,
             "mmd_bandwidth": self.mmd_bandwidth,
         })
         return cfg
@@ -311,6 +346,7 @@ class CondPriorDeltaVAELoss(layers.Layer):
         beta: float = 1.0,
         free_bits: float = 0.0,
         lambda_mmd: float = 0.0,
+        mmd_mode: str = "mean_residual",
         mmd_bandwidth: float | None = None,
         **kwargs,
     ):
@@ -318,6 +354,7 @@ class CondPriorDeltaVAELoss(layers.Layer):
         self.beta_init = float(beta)
         self.free_bits = float(free_bits)
         self.lambda_mmd = float(lambda_mmd)
+        self.mmd_mode = _resolve_mmd_mode(mmd_mode)
         self.mmd_bandwidth = mmd_bandwidth
         self.beta = tf.Variable(
             self.beta_init, trainable=False, dtype=tf.float32, name="beta",
@@ -351,9 +388,13 @@ class CondPriorDeltaVAELoss(layers.Layer):
         total = compute_total_loss(recon, kl, self.beta)
 
         if self.lambda_mmd > 0.0:
+            if self.mmd_mode == "sampled_residual":
+                delta_gen = _sample_heteroscedastic(delta_mean, delta_log_var)
+            else:
+                delta_gen = delta_mean
             mmd2 = mmd2_tf(
                 tf.stop_gradient(delta_true),
-                delta_mean,
+                delta_gen,
                 n_sub=512,
                 bandwidth=self.mmd_bandwidth,
             )
@@ -378,6 +419,7 @@ class CondPriorDeltaVAELoss(layers.Layer):
             "beta": self.beta_init,
             "free_bits": self.free_bits,
             "lambda_mmd": self.lambda_mmd,
+            "mmd_mode": self.mmd_mode,
             "mmd_bandwidth": self.mmd_bandwidth,
         })
         return cfg
