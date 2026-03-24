@@ -852,6 +852,204 @@ def _preset_seq_investigation_large() -> List[Dict[str, Any]]:
     return grid
 
 
+def _preset_seq_stability_mmd_focus() -> List[Dict[str, Any]]:
+    """Focused recovery sweep around the strongest current seq champion.
+
+    Rationale from the last two multi-regime runs:
+      - ``W7_h64_beta0.003_lambda_mmd=1.25`` remains the best protocol-level
+        reference even after the larger context/capacity sweep.
+      - Increasing ``seq_hidden_size`` to 96 improved train-side ranking but
+        did not improve the final protocol scoreboard.
+      - The remaining blocker is still distribution fidelity at 0.8 m, while
+        train diagnostics keep flagging instability.
+
+    Hypothesis:
+      - keep the best architecture family fixed (W7 / h64 / latent4)
+      - test whether a lower initial learning rate stabilises the run
+      - probe slightly stronger MMD pressure only under the lower-LR variants
+
+    Total: 6 runs.
+
+    Requires --no_data_reduction.
+    """
+
+    def _seq_cfg(*, lr: float, lambda_mmd: float) -> Dict[str, Any]:
+        return _cfg(
+            arch_variant="seq_bigru_residual",
+            layer_sizes=[128, 256, 512],
+            latent_dim=4,
+            beta=0.003,
+            free_bits=0.10,
+            lr=lr,
+            batch_size=8192,
+            kl_anneal_epochs=80,
+            window_size=7,
+            window_stride=1,
+            window_pad_mode="edge",
+            seq_hidden_size=64,
+            seq_num_layers=1,
+            seq_bidirectional=True,
+            lambda_mmd=lambda_mmd,
+        )
+
+    grid: List[Dict[str, Any]] = []
+    candidates = [
+        (3e-4, 1.25),
+        (2e-4, 1.25),
+        (1.5e-4, 1.25),
+        (2e-4, 1.50),
+        (1.5e-4, 1.50),
+        (1.5e-4, 1.75),
+    ]
+    for lr, lambda_mmd in candidates:
+        lam_tag = str(lambda_mmd).replace(".", "p")
+        grid.append(
+            dict(
+                group="S5_seq_stability_mmd",
+                tag=(
+                    f"S5seq_W7_h64_lat4_b0p003_lmmd{lam_tag}_"
+                    f"fb0p10_lr{_tag_lr(lr)}_L128-256-512"
+                ),
+                cfg=_seq_cfg(lr=lr, lambda_mmd=lambda_mmd),
+            )
+        )
+    return grid
+
+
+def _preset_seq_overnight_12h() -> List[Dict[str, Any]]:
+    """12-hour overnight sweep around the strongest seq family.
+
+    Current scientific reading:
+      - ``exp_20260322_193738`` remains the best protocol-level seq result:
+        ``W7_h64_beta0.003_lambda_mmd=1.25``.
+      - ``exp_20260323_210309`` showed that simply increasing hidden size to
+        96 does not improve the final protocol scoreboard.
+      - The next hypothesis is therefore:
+          1. stabilise the winning W7/h64 family with lower initial LR
+          2. probe stronger MMD pressure for the hard 0.8 m regimes
+          3. keep only a small low-LR larger-context block as a hedge
+
+    Structure:
+      - Block A: 12 runs (core winner family)
+          beta           fixed at 0.003
+          window_size    fixed at 7
+          seq_hidden     fixed at 64
+          lr             in {3e-4, 2e-4, 1.5e-4}
+          lambda_mmd     in {1.0, 1.25, 1.5, 1.75}
+      - Block B: 12 runs (beta refinement around the winner)
+          beta           in {0.001, 0.002, 0.004}
+          window_size    fixed at 7
+          seq_hidden     fixed at 64
+          lr             in {2e-4, 1.5e-4}
+          lambda_mmd     in {1.25, 1.5}
+      - Block C: 4 runs (larger-context hedge, low-LR only)
+          beta           fixed at 0.003
+          window_size    fixed at 9
+          seq_hidden     fixed at 96
+          lr             in {2e-4, 1.5e-4}
+          lambda_mmd     in {1.25, 1.5}
+
+    Total: 28 runs.
+
+    On the recent A6000-class setup, this is intended to land roughly in the
+    10–12 hour range including final protocol evaluation.
+
+    Requires --no_data_reduction.
+    """
+
+    def _seq_cfg(
+        *,
+        beta: float,
+        window_size: int,
+        seq_hidden_size: int,
+        lr: float,
+        lambda_mmd: float,
+    ) -> Dict[str, Any]:
+        return _cfg(
+            arch_variant="seq_bigru_residual",
+            layer_sizes=[128, 256, 512],
+            latent_dim=4,
+            beta=beta,
+            free_bits=0.10,
+            lr=lr,
+            batch_size=8192,
+            kl_anneal_epochs=80,
+            window_size=window_size,
+            window_stride=1,
+            window_pad_mode="edge",
+            seq_hidden_size=seq_hidden_size,
+            seq_num_layers=1,
+            seq_bidirectional=True,
+            lambda_mmd=lambda_mmd,
+        )
+
+    grid: List[Dict[str, Any]] = []
+
+    for lr in [3e-4, 2e-4, 1.5e-4]:
+        for lambda_mmd in [1.0, 1.25, 1.5, 1.75]:
+            lam_tag = str(lambda_mmd).replace(".", "p")
+            grid.append(
+                dict(
+                    group="S6_seq_overnight",
+                    tag=(
+                        f"S6seq_W7_h64_lat4_b0p003_lmmd{lam_tag}_"
+                        f"fb0p10_lr{_tag_lr(lr)}_L128-256-512"
+                    ),
+                    cfg=_seq_cfg(
+                        beta=0.003,
+                        window_size=7,
+                        seq_hidden_size=64,
+                        lr=lr,
+                        lambda_mmd=lambda_mmd,
+                    ),
+                )
+            )
+
+    for beta in [0.001, 0.002, 0.004]:
+        beta_tag = _tag_beta(beta)
+        for lr in [2e-4, 1.5e-4]:
+            for lambda_mmd in [1.25, 1.5]:
+                lam_tag = str(lambda_mmd).replace(".", "p")
+                grid.append(
+                    dict(
+                        group="S6_seq_overnight",
+                        tag=(
+                            f"S6seq_W7_h64_lat4_b{beta_tag}_lmmd{lam_tag}_"
+                            f"fb0p10_lr{_tag_lr(lr)}_L128-256-512"
+                        ),
+                        cfg=_seq_cfg(
+                            beta=beta,
+                            window_size=7,
+                            seq_hidden_size=64,
+                            lr=lr,
+                            lambda_mmd=lambda_mmd,
+                        ),
+                    )
+                )
+
+    for lr in [2e-4, 1.5e-4]:
+        for lambda_mmd in [1.25, 1.5]:
+            lam_tag = str(lambda_mmd).replace(".", "p")
+            grid.append(
+                dict(
+                    group="S6_seq_overnight",
+                    tag=(
+                        f"S6seq_W9_h96_lat4_b0p003_lmmd{lam_tag}_"
+                        f"fb0p10_lr{_tag_lr(lr)}_L128-256-512"
+                    ),
+                    cfg=_seq_cfg(
+                        beta=0.003,
+                        window_size=9,
+                        seq_hidden_size=96,
+                        lr=lr,
+                        lambda_mmd=lambda_mmd,
+                    ),
+                )
+            )
+
+    return grid
+
+
 def _preset_best_compare_large() -> List[Dict[str, Any]]:
     """Comparative protocol-first grid using the strongest current candidates.
 
@@ -1044,6 +1242,10 @@ def select_grid(
             grid = _preset_seq_residual_nightly()
         elif preset_name == "seq_investigation_large":
             grid = _preset_seq_investigation_large()
+        elif preset_name == "seq_stability_mmd_focus":
+            grid = _preset_seq_stability_mmd_focus()
+        elif preset_name == "seq_overnight_12h":
+            grid = _preset_seq_overnight_12h()
         elif preset_name == "best_compare_large":
             grid = _preset_best_compare_large()
         elif preset_name == "delta_residual_fast":

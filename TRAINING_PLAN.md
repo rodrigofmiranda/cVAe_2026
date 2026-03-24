@@ -1,6 +1,6 @@
 # TRAINING_PLAN.md - Plano Cientifico Vivo do Digital Twin VLC
 
-> Versao ativa em 2026-03-13.
+> Versao ativa em 2026-03-24.
 > Este documento e a fonte de verdade para validacao cientifica, diagnostico e criterios de aceite.
 
 ## 0. Estado atual
@@ -23,10 +23,25 @@
 - Ultima checagem local da suite:
   - `python -m pytest tests -q` -> `46 passed`
 - Run pivo de referencia:
-  - `exp_20260312_171333`
-  - `G1` e `G2` passaram
-  - `G3` a `G6` falharam
-  - leitura atual: desempenho operacional aceitavel, fidelidade distribucional ainda insuficiente
+  - `exp_20260322_193738`
+  - campeao:
+    - `S4seq_W7_h64_lat4_b0p003_lmmd1p25_fb0p10_lr0p0003_L128-256-512`
+  - resultado:
+    - `6/12` passes
+    - `0/4` em `0.8 m`
+    - `2/4` em `1.0 m`
+    - `4/4` em `1.5 m`
+  - leitura atual:
+    - `lambda_mmd=1.25` foi a melhor direcao recente
+    - o gargalo principal segue concentrado em `0.8 m`
+    - o aumento de capacidade para `h96` em `exp_20260323_210309` nao virou ganho cientifico no protocolo final
+- Proximo grid overnight recomendado:
+  - `grid_preset=seq_overnight_12h`
+  - foco:
+    - estabilizar a familia `W7_h64`
+    - reduzir `lr`
+    - reforcar `lambda_mmd`
+    - manter um bloco pequeno `W9_h96` apenas como hedge
 
 ## 1. Objetivo
 

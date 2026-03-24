@@ -37,12 +37,19 @@
 ## Scientific State
 
 - strongest current temporal reference:
-  - run id: `exp_20260320_171510`
-  - winner: `S2seq_W7_h64_lat4_b0p003_lmmd1p0_fb0p10_lr0p0003_L128-256-512`
+  - run id: `exp_20260322_193738`
+  - winner: `S4seq_W7_h64_lat4_b0p003_lmmd1p25_fb0p10_lr0p0003_L128-256-512`
   - summary:
-    - passes all regimes at `1.5 m`
-    - fails all regimes at `0.8 m`
+    - `6/12` total passes
+    - `0/4` at `0.8 m`
+    - `2/4` at `1.0 m`
+    - `4/4` at `1.5 m`
     - best current multi-regime scientific reference in this workspace
+- latest comparison run that did not overtake the reference:
+  - run id: `exp_20260323_210309`
+  - winner: `S4seq_W7_h96_lat4_b0p003_lmmd1p25_fb0p10_lr0p0003_L128-256-512`
+  - reading:
+    - more seq capacity did not improve the final protocol result
 - historical all-gates-passed seq reference:
   - run id: `exp_20260318_204149`
   - tag: `S2seq_W7_h64_lat4_b0p001_lmmd1p0_fb0p10_lr0p0003_L128-256-512`
@@ -51,6 +58,11 @@
   - tag: `D3delta_lat5_b0p001_fb0p0_lr0p0003_bs16384_anneal80_L128-256-512`
 - strongest current point-wise anchor carried into protocol-first comparisons:
   - `COPT_lat6_b0p001_fb0p0_lr0p0001_bs16384_anneal120_L64-128-256`
+- current recommended overnight preset:
+  - `seq_overnight_12h`
+  - target: roughly `10–12 h`
+  - command:
+    - `python -m src.protocol.run --dataset_root data/dataset_fullsquare_organized --output_base outputs --protocol configs/all_regimes_sel4curr.json --train_once_eval_all --grid_preset seq_overnight_12h --max_epochs 120 --patience 12 --reduce_lr_patience 6 --stat_tests --stat_mode full --stat_max_n 5000 --no_data_reduction`
 
 ## Non-Negotiable Invariants
 

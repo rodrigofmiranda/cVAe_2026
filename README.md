@@ -306,6 +306,45 @@ python -m src.protocol.run \
   --no_baseline
 ```
 
+### Current recommended overnight grid
+
+The strongest current protocol-level seq reference is still:
+
+- `exp_20260322_193738`
+- winner:
+  - `S4seq_W7_h64_lat4_b0p003_lmmd1p25_fb0p10_lr0p0003_L128-256-512`
+
+The most recent capacity/context comparison run (`exp_20260323_210309`) did
+not overtake it. For the next overnight run, the repo now includes a larger
+focused preset:
+
+- `seq_overnight_12h`
+
+Design:
+
+- keep the winning `W7_h64` family as the main axis
+- sweep lower `lr` values for stability
+- sweep stronger `lambda_mmd` for the hard `0.8 m` regimes
+- keep only a small low-LR `W9_h96` hedge block
+- total: `28` candidates
+- target runtime: about `10` to `12` hours on the recent A6000-class setup
+
+Canonical command:
+
+```bash
+python -m src.protocol.run \
+  --dataset_root data/dataset_fullsquare_organized \
+  --output_base outputs \
+  --protocol configs/all_regimes_sel4curr.json \
+  --train_once_eval_all \
+  --grid_preset seq_overnight_12h \
+  --max_epochs 120 \
+  --patience 12 \
+  --reduce_lr_patience 6 \
+  --stat_tests --stat_mode full --stat_max_n 5000 \
+  --no_data_reduction
+```
+
 To reuse a previously trained shared model and skip retraining:
 
 ```bash

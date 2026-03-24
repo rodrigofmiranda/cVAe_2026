@@ -1,6 +1,6 @@
 # PROJECT_STATUS.md — Estado Atual do Repositório
 
-> Atualizado em 2026-03-23.
+> Atualizado em 2026-03-24.
 
 ## 1. Estado técnico
 
@@ -151,8 +151,59 @@ Leitura:
 
 - `lambda_mmd=1.25` melhorou fortemente o comportamento multi-regime
 - o gargalo principal deixou de ser PSD/SNR globais e passou a ser a frente curta `0.8 m`
-- o próximo grid deve manter `lambda_mmd=1.25` e investigar capacidade/contexto
-  localmente em torno do campeão, não reabrir um sweep amplo
+- esse run continua sendo a referência seq a ser batida
+
+### Comparação recente que não virou nova referência
+
+O run mais recente de comparação focada foi:
+
+- `outputs/exp_20260323_210309`
+- campeão:
+  - `S4seq_W7_h96_lat4_b0p003_lmmd1p25_fb0p10_lr0p0003_L128-256-512`
+
+Resumo:
+
+- treinou `4` candidatos focados em contexto/capacidade
+- terminou também com `6/12` passes
+- caiu de `gate_pass_ratio=0.805556` para `0.777778`
+- perdeu `G6` em `1.0 m / 300 mA`
+- a leitura final foi:
+  - aumentar `seq_hidden_size` para `96` melhorou o ranking de treino
+  - mas não melhorou a validação protocol-first
+  - a melhor família continua sendo `W7_h64` com `lambda_mmd=1.25`
+
+### Próximo overnight recomendado
+
+O próximo grid recomendado agora é:
+
+- preset:
+  - `seq_overnight_12h`
+- objetivo:
+  - estabilizar a família vencedora `W7_h64`
+  - testar `lr` mais baixo
+  - testar `lambda_mmd` mais forte
+  - manter apenas um bloco pequeno de contexto maior como hedge
+- tamanho:
+  - `28` candidatos
+- duração alvo:
+  - cerca de `10` a `12` horas em GPU classe A6000
+
+Comando canônico:
+
+```bash
+cd /workspace/2026/feat_seq_bigru_residual_cvae
+python -m src.protocol.run \
+  --dataset_root data/dataset_fullsquare_organized \
+  --output_base outputs \
+  --protocol configs/all_regimes_sel4curr.json \
+  --train_once_eval_all \
+  --grid_preset seq_overnight_12h \
+  --max_epochs 120 \
+  --patience 12 \
+  --reduce_lr_patience 6 \
+  --stat_tests --stat_mode full --stat_max_n 5000 \
+  --no_data_reduction
+```
 
 ## 3. Documentos ativos
 
