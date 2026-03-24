@@ -81,6 +81,46 @@ Nesta branch, a prioridade imediata e:
     - isolar o efeito de `mmd_mode=sampled_residual`
     - usar a nova instrumentacao para decidir a proxima objective
 
+### Criterio operacional do teste causal `seq_sampled_mmd_compare`
+
+Objetivo:
+
+- verificar se `mmd_mode=sampled_residual` melhora a fidelidade da distribuicao
+  residual perto de `0.8 m` sem degradar os regimes `1.0 m` e `1.5 m`
+
+Arquivos que devem ser lidos nesta ordem:
+
+1. `tables/protocol_leaderboard.csv`
+2. `tables/summary_by_regime.csv`
+3. `tables/residual_signature_by_regime.csv`
+4. `tables/residual_signature_by_amplitude_bin.csv`
+5. `plots/best_model/residual_signature_overview.png`
+6. `eval/dist_0p8m__curr_100mA/plots/champion/analysis_dashboard.png`
+7. `eval/dist_0p8m__curr_300mA/plots/champion/analysis_dashboard.png`
+
+Criterio de sucesso minimo:
+
+- `sampled_residual` nao piora `1.0 m` e `1.5 m`
+- `0.8m / 100mA` e `0.8m / 300mA` melhoram em pelo menos dois destes sinais:
+  - `stat_mmd_qval`
+  - `stat_energy_qval`
+  - `delta_wasserstein_I/Q`
+  - `delta_jb_stat_rel_I/Q`
+- os histogramas do residual deixam de ficar claramente estreitos demais
+
+Leitura de falha:
+
+- se `sampled_residual` nao melhorar `0.8 m`
+- ou se abrir degradacao clara em `1.0 m` / `1.5 m`
+- ou se os ganhos forem so train-side e nao aparecerem em `summary_by_regime.csv`
+
+Decisao seguinte:
+
+- se o teste for promissor:
+  - manter `sampled_residual` e abrir um micro-grid curto de refinamento
+- se o teste falhar:
+  - parar aqui na objective atual e partir para penalizacao marginal por eixo
+
 ## 1. Objetivo
 
 Demonstrar, por regime `(d, I)`, que o digital twin baseado em cVAE reproduz a distribuicao condicional do canal VLC:

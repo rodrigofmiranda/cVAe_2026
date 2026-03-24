@@ -228,6 +228,20 @@ the objective change before any new weighting or loss term:
   - compare `mmd_mode=mean_residual` vs `mmd_mode=sampled_residual`
   - read the new residual-signature outputs, not only the final gates
 
+Operational readout for this preset:
+
+- read first:
+  - `tables/protocol_leaderboard.csv`
+  - `tables/summary_by_regime.csv`
+  - `tables/residual_signature_by_regime.csv`
+  - `tables/residual_signature_by_amplitude_bin.csv`
+- success means:
+  - no degradation in `1.0 m` / `1.5 m`
+  - improvement in `0.8m/100mA` and `0.8m/300mA`
+  - visible reduction of the “too narrow residual histogram” pattern
+- if that does not happen:
+  - do not spend more grid budget on this objective without adding a new loss term
+
 ## Future Adversarial Note
 
 - the adversarial line was removed from the active worktree
