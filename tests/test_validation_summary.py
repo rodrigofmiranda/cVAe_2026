@@ -33,16 +33,30 @@ def _full_result() -> dict:
             "delta_snr_db": 0.6,
             "delta_mean_l2": 0.005,
             "delta_cov_fro": 0.008,
+            "delta_mean_I": 0.003,
+            "delta_mean_Q": -0.004,
+            "delta_std_I": -0.002,
+            "delta_std_Q": 0.001,
             "var_real_delta": 0.05,
             "var_pred_delta": 0.04,
             "delta_skew_l2": 0.10,
             "delta_kurt_l2": 0.30,
+            "delta_skew_I": 0.06,
+            "delta_skew_Q": -0.08,
+            "delta_kurt_I": 0.20,
+            "delta_kurt_Q": -0.10,
+            "delta_wasserstein_I": 0.015,
+            "delta_wasserstein_Q": 0.022,
             "delta_psd_l2": 0.15,
             "delta_acf_l2": 0.09,
             "jb_p_min": 1e-6,
+            "jb_log10p_I": -5.8,
+            "jb_log10p_Q": -6.0,
             "jb_log10p_min": -6.0,
             "reject_gaussian": True,
             "jb_real_p_min": 5e-7,
+            "jb_real_log10p_I": -5.9,
+            "jb_real_log10p_Q": -6.2,
             "jb_real_log10p_min": -6.2,
             "jb_real_reject_gaussian": True,
         },
@@ -66,13 +80,27 @@ def _full_result() -> dict:
         "cvae_dist": {
             "delta_mean_l2": 0.005,
             "delta_cov_fro": 0.008,
+            "delta_mean_I": 0.003,
+            "delta_mean_Q": -0.004,
+            "delta_std_I": -0.002,
+            "delta_std_Q": 0.001,
             "delta_skew_l2": 0.10,
             "delta_kurt_l2": 0.30,
+            "delta_skew_I": 0.06,
+            "delta_skew_Q": -0.08,
+            "delta_kurt_I": 0.20,
+            "delta_kurt_Q": -0.10,
+            "delta_wasserstein_I": 0.015,
+            "delta_wasserstein_Q": 0.022,
             "psd_l2": 0.15,
             "delta_acf_l2": 0.09,
             "jb_p_min": 1e-6,
+            "jb_log10p_I": -5.8,
+            "jb_log10p_Q": -6.0,
             "jb_log10p_min": -6.0,
             "reject_gaussian": True,
+            "jb_real_log10p_I": -5.9,
+            "jb_real_log10p_Q": -6.2,
             "jb_real_p_min": 5e-7,
             "jb_real_log10p_min": -6.2,
             "jb_real_reject_gaussian": True,
@@ -103,6 +131,20 @@ def test_validation_summary_schema_and_derived_fields():
     row = df.iloc[0]
 
     assert math.isclose(row["var_ratio_pred_real"], 0.8, rel_tol=1e-9)
+    assert math.isclose(row["delta_mean_I"], 0.003, rel_tol=1e-9)
+    assert math.isclose(row["delta_mean_Q"], -0.004, rel_tol=1e-9)
+    assert math.isclose(row["delta_std_I"], -0.002, rel_tol=1e-9)
+    assert math.isclose(row["delta_std_Q"], 0.001, rel_tol=1e-9)
+    assert math.isclose(row["delta_skew_I"], 0.06, rel_tol=1e-9)
+    assert math.isclose(row["delta_skew_Q"], -0.08, rel_tol=1e-9)
+    assert math.isclose(row["delta_kurt_I"], 0.20, rel_tol=1e-9)
+    assert math.isclose(row["delta_kurt_Q"], -0.10, rel_tol=1e-9)
+    assert math.isclose(row["delta_wasserstein_I"], 0.015, rel_tol=1e-9)
+    assert math.isclose(row["delta_wasserstein_Q"], 0.022, rel_tol=1e-9)
+    assert math.isclose(row["delta_jb_log10p_I"], 0.1, rel_tol=1e-9)
+    assert math.isclose(row["delta_jb_log10p_Q"], 0.2, rel_tol=1e-9)
+    assert math.isclose(row["delta_jb_stat_rel_I"], 0.1 / 5.9, rel_tol=1e-9)
+    assert math.isclose(row["delta_jb_stat_rel_Q"], 0.2 / 6.2, rel_tol=1e-9)
     assert math.isclose(row["delta_jb_log10p"], 0.2, rel_tol=1e-9)
     assert math.isclose(row["cvae_rel_evm_error"], 0.08, rel_tol=1e-9)
     assert math.isclose(row["cvae_rel_snr_error"], 0.06, rel_tol=1e-9)

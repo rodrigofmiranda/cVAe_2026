@@ -105,6 +105,28 @@ def _acf_curve_complex(xc: np.ndarray, max_lag: int = 128) -> np.ndarray:
     return out
 
 
+def _quantile_interp(x: np.ndarray, q: np.ndarray) -> np.ndarray:
+    x = np.asarray(x, dtype=np.float64).ravel()
+    q = np.asarray(q, dtype=np.float64)
+    try:
+        return np.quantile(x, q, method="linear")
+    except TypeError:
+        return np.quantile(x, q, interpolation="linear")
+
+
+def _wasserstein_1d(x: np.ndarray, y: np.ndarray, max_quantiles: int = 2048) -> float:
+    """Approximate 1D Wasserstein-1 distance by quantile matching."""
+    x = np.asarray(x, dtype=np.float64).ravel()
+    y = np.asarray(y, dtype=np.float64).ravel()
+    if len(x) == 0 or len(y) == 0:
+        return float("nan")
+    n_q = int(min(max(len(x), len(y), 256), max_quantiles))
+    q = np.linspace(0.0, 1.0, n_q, endpoint=True)
+    xq = _quantile_interp(x, q)
+    yq = _quantile_interp(y, q)
+    return float(np.mean(np.abs(xq - yq)))
+
+
 # ==========================================================================
 # Residual distribution comparison
 # ==========================================================================
@@ -135,6 +157,11 @@ def residual_distribution_metrics(
     mean_l2 = float(np.linalg.norm(np.mean(d_pred, axis=0) - np.mean(d_real, axis=0)))
     cov_fro = float(np.linalg.norm(np.cov(d_pred.T) - np.cov(d_real.T), ord="fro"))
 
+    mean_real = np.mean(d_real, axis=0)
+    mean_pred = np.mean(d_pred, axis=0)
+    std_real = np.std(d_real, axis=0)
+    std_pred = np.std(d_pred, axis=0)
+
     var_real = float(np.mean(np.var(d_real, axis=0)))
     var_pred = float(np.mean(np.var(d_pred, axis=0)))
 
@@ -161,10 +188,28 @@ def residual_distribution_metrics(
     out = {
         "delta_mean_l2": mean_l2,
         "delta_cov_fro": cov_fro,
+        "mean_real_delta_I": float(mean_real[0]),
+        "mean_real_delta_Q": float(mean_real[1]),
+        "mean_pred_delta_I": float(mean_pred[0]),
+        "mean_pred_delta_Q": float(mean_pred[1]),
+        "std_real_delta_I": float(std_real[0]),
+        "std_real_delta_Q": float(std_real[1]),
+        "std_pred_delta_I": float(std_pred[0]),
+        "std_pred_delta_Q": float(std_pred[1]),
+        "delta_mean_I": float(mean_pred[0] - mean_real[0]),
+        "delta_mean_Q": float(mean_pred[1] - mean_real[1]),
+        "delta_std_I": float(std_pred[0] - std_real[0]),
+        "delta_std_Q": float(std_pred[1] - std_real[1]),
         "var_real_delta": var_real,
         "var_pred_delta": var_pred,
         "delta_skew_l2": skew_l2,
         "delta_kurt_l2": kurt_l2,
+        "delta_skew_I": float(skew_p[0] - skew_r[0]),
+        "delta_skew_Q": float(skew_p[1] - skew_r[1]),
+        "delta_kurt_I": float(kurt_p[0] - kurt_r[0]),
+        "delta_kurt_Q": float(kurt_p[1] - kurt_r[1]),
+        "delta_wasserstein_I": _wasserstein_1d(d_real[:, 0], d_pred[:, 0]),
+        "delta_wasserstein_Q": _wasserstein_1d(d_real[:, 1], d_pred[:, 1]),
         "delta_psd_l2": psd_l2,
         "delta_acf_l2": acf_l2,
         "rho_hetero_real": _rho_hetero(X_arr, d_real),
@@ -220,4 +265,18 @@ def residual_distribution_metrics(
             "jb_real_log10p_min": float("nan"),
             "jb_real_reject_gaussian": False,
         })
+
+    for axis in ("I", "Q"):
+        pred = out.get(f"jb_log10p_{axis}", float("nan"))
+        real = out.get(f"jb_real_log10p_{axis}", float("nan"))
+        pred_f = float(pred) if pred is not None else float("nan")
+        real_f = float(real) if real is not None else float("nan")
+        if np.isfinite(pred_f) and np.isfinite(real_f):
+            delta = abs(pred_f - real_f)
+            rel = delta / abs(real_f) if abs(real_f) > 0 else float("nan")
+        else:
+            delta = float("nan")
+            rel = float("nan")
+        out[f"delta_jb_log10p_{axis}"] = float(delta)
+        out[f"delta_jb_stat_rel_{axis}"] = float(rel)
     return out

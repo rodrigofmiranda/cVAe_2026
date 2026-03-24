@@ -45,19 +45,37 @@ SUMMARY_BY_REGIME_COLUMNS: List[str] = [
     "delta_snr_db",
     "delta_mean_l2",
     "delta_cov_fro",
+    "delta_mean_I",
+    "delta_mean_Q",
+    "delta_std_I",
+    "delta_std_Q",
     "var_real_delta",
     "var_pred_delta",
     "var_ratio_pred_real",
     "delta_skew_l2",
     "delta_kurt_l2",
+    "delta_skew_I",
+    "delta_skew_Q",
+    "delta_kurt_I",
+    "delta_kurt_Q",
+    "delta_wasserstein_I",
+    "delta_wasserstein_Q",
     "delta_psd_l2",
     "delta_acf_l2",
+    "jb_log10p_I",
+    "jb_log10p_Q",
     "jb_p_min",
     "jb_log10p_min",
     "reject_gaussian",
+    "jb_real_log10p_I",
+    "jb_real_log10p_Q",
     "jb_real_p_min",
     "jb_real_log10p_min",
     "jb_real_reject_gaussian",
+    "delta_jb_log10p_I",
+    "delta_jb_log10p_Q",
+    "delta_jb_stat_rel_I",
+    "delta_jb_stat_rel_Q",
     "delta_jb_log10p",
     "delta_jb_stat_rel",
     "baseline_evm_pred_%",
@@ -292,13 +310,39 @@ def _build_row(result: Dict[str, Any]) -> Dict[str, Any]:
 
     delta_mean = _first_finite(metrics.get("delta_mean_l2"), cvae_dist.get("delta_mean_l2"))
     delta_cov = _first_finite(metrics.get("delta_cov_fro"), cvae_dist.get("delta_cov_fro"))
+    delta_mean_i = _first_finite(metrics.get("delta_mean_I"), cvae_dist.get("delta_mean_I"))
+    delta_mean_q = _first_finite(metrics.get("delta_mean_Q"), cvae_dist.get("delta_mean_Q"))
+    delta_std_i = _first_finite(metrics.get("delta_std_I"), cvae_dist.get("delta_std_I"))
+    delta_std_q = _first_finite(metrics.get("delta_std_Q"), cvae_dist.get("delta_std_Q"))
     delta_skew = _first_finite(metrics.get("delta_skew_l2"), cvae_dist.get("delta_skew_l2"))
     delta_kurt = _first_finite(metrics.get("delta_kurt_l2"), cvae_dist.get("delta_kurt_l2"))
+    delta_skew_i = _first_finite(metrics.get("delta_skew_I"), cvae_dist.get("delta_skew_I"))
+    delta_skew_q = _first_finite(metrics.get("delta_skew_Q"), cvae_dist.get("delta_skew_Q"))
+    delta_kurt_i = _first_finite(metrics.get("delta_kurt_I"), cvae_dist.get("delta_kurt_I"))
+    delta_kurt_q = _first_finite(metrics.get("delta_kurt_Q"), cvae_dist.get("delta_kurt_Q"))
+    delta_w1_i = _first_finite(
+        metrics.get("delta_wasserstein_I"),
+        cvae_dist.get("delta_wasserstein_I"),
+    )
+    delta_w1_q = _first_finite(
+        metrics.get("delta_wasserstein_Q"),
+        cvae_dist.get("delta_wasserstein_Q"),
+    )
     delta_psd = _first_finite(metrics.get("delta_psd_l2"), cvae_dist.get("psd_l2"))
     delta_acf = _first_finite(metrics.get("delta_acf_l2"), cvae_dist.get("delta_acf_l2"))
+    jb_log10p_i = _first_finite(metrics.get("jb_log10p_I"), cvae_dist.get("jb_log10p_I"))
+    jb_log10p_q = _first_finite(metrics.get("jb_log10p_Q"), cvae_dist.get("jb_log10p_Q"))
     jb_p_min = _first_finite(metrics.get("jb_p_min"), cvae_dist.get("jb_p_min"))
     jb_log10p_min = _first_finite(metrics.get("jb_log10p_min"), cvae_dist.get("jb_log10p_min"))
     reject_gaussian = _first_bool(metrics.get("reject_gaussian"), cvae_dist.get("reject_gaussian"))
+    jb_real_log10p_i = _first_finite(
+        metrics.get("jb_real_log10p_I"),
+        cvae_dist.get("jb_real_log10p_I"),
+    )
+    jb_real_log10p_q = _first_finite(
+        metrics.get("jb_real_log10p_Q"),
+        cvae_dist.get("jb_real_log10p_Q"),
+    )
     jb_real_p_min = _first_finite(metrics.get("jb_real_p_min"), cvae_dist.get("jb_real_p_min"))
     jb_real_log10p_min = _first_finite(
         metrics.get("jb_real_log10p_min"),
@@ -329,15 +373,29 @@ def _build_row(result: Dict[str, Any]) -> Dict[str, Any]:
         "delta_snr_db": _safe_float(metrics.get("delta_snr_db")),
         "delta_mean_l2": delta_mean,
         "delta_cov_fro": delta_cov,
+        "delta_mean_I": delta_mean_i,
+        "delta_mean_Q": delta_mean_q,
+        "delta_std_I": delta_std_i,
+        "delta_std_Q": delta_std_q,
         "var_real_delta": _first_finite(metrics.get("var_real_delta"), result.get("var_real_delta")),
         "var_pred_delta": _first_finite(metrics.get("var_pred_delta"), result.get("var_pred_delta")),
         "delta_skew_l2": delta_skew,
         "delta_kurt_l2": delta_kurt,
+        "delta_skew_I": delta_skew_i,
+        "delta_skew_Q": delta_skew_q,
+        "delta_kurt_I": delta_kurt_i,
+        "delta_kurt_Q": delta_kurt_q,
+        "delta_wasserstein_I": delta_w1_i,
+        "delta_wasserstein_Q": delta_w1_q,
         "delta_psd_l2": delta_psd,
         "delta_acf_l2": delta_acf,
+        "jb_log10p_I": jb_log10p_i,
+        "jb_log10p_Q": jb_log10p_q,
         "jb_p_min": jb_p_min,
         "jb_log10p_min": jb_log10p_min,
         "reject_gaussian": reject_gaussian,
+        "jb_real_log10p_I": jb_real_log10p_i,
+        "jb_real_log10p_Q": jb_real_log10p_q,
         "jb_real_p_min": jb_real_p_min,
         "jb_real_log10p_min": jb_real_log10p_min,
         "jb_real_reject_gaussian": jb_real_reject,
@@ -478,6 +536,23 @@ def _apply_derived_metrics(df: pd.DataFrame) -> None:
     df["delta_jb_stat_rel"] = np.where(
         log10p_real.abs() > 0,
         df["delta_jb_log10p"] / log10p_real.abs(),
+        np.nan,
+    )
+
+    log10p_pred_i = pd.to_numeric(df["jb_log10p_I"], errors="coerce")
+    log10p_pred_q = pd.to_numeric(df["jb_log10p_Q"], errors="coerce")
+    log10p_real_i = pd.to_numeric(df["jb_real_log10p_I"], errors="coerce")
+    log10p_real_q = pd.to_numeric(df["jb_real_log10p_Q"], errors="coerce")
+    df["delta_jb_log10p_I"] = np.abs(log10p_pred_i - log10p_real_i)
+    df["delta_jb_log10p_Q"] = np.abs(log10p_pred_q - log10p_real_q)
+    df["delta_jb_stat_rel_I"] = np.where(
+        log10p_real_i.abs() > 0,
+        df["delta_jb_log10p_I"] / log10p_real_i.abs(),
+        np.nan,
+    )
+    df["delta_jb_stat_rel_Q"] = np.where(
+        log10p_real_q.abs() > 0,
+        df["delta_jb_log10p_Q"] / log10p_real_q.abs(),
         np.nan,
     )
 

@@ -48,3 +48,42 @@ def test_var_pred_delta_mc1_vs_mc16_differs_nontrivial_regime():
         f"Expected >=10% impact from MC sampling choice; got {rel_diff:.4f} "
         f"(mc1={v1:.6f}, mc16={v16:.6f})"
     )
+
+
+def test_residual_distribution_metrics_exposes_axis_diagnostics():
+    x = np.zeros((6, 2), dtype=np.float64)
+    y_real = np.asarray(
+        [
+            [0.00, 0.00],
+            [0.10, 0.20],
+            [0.20, 0.40],
+            [0.30, 0.10],
+            [0.40, 0.30],
+            [0.50, 0.50],
+        ],
+        dtype=np.float64,
+    )
+    y_pred = y_real + np.asarray(
+        [
+            [0.02, -0.01],
+            [0.02, -0.01],
+            [0.02, -0.01],
+            [0.02, -0.01],
+            [0.02, -0.01],
+            [0.02, -0.01],
+        ],
+        dtype=np.float64,
+    )
+
+    metrics = residual_distribution_metrics(x, y_real, y_pred, psd_nfft=256)
+
+    assert np.isclose(metrics["delta_mean_I"], 0.02)
+    assert np.isclose(metrics["delta_mean_Q"], -0.01)
+    assert np.isclose(metrics["delta_std_I"], 0.0)
+    assert np.isclose(metrics["delta_std_Q"], 0.0)
+    assert np.isfinite(metrics["delta_wasserstein_I"])
+    assert np.isfinite(metrics["delta_wasserstein_Q"])
+    assert "delta_jb_log10p_I" in metrics
+    assert "delta_jb_log10p_Q" in metrics
+    assert "delta_jb_stat_rel_I" in metrics
+    assert "delta_jb_stat_rel_Q" in metrics

@@ -249,6 +249,36 @@ def residual_fidelity_metrics(
     result.update(psd_distance(rr, rp, nfft=psd_nfft))
     result.update(acf_distance(rr, rp, max_lag=acf_max_lag))
 
+    from src.evaluation.metrics import _skew_kurt, _wasserstein_1d
+
+    mean_real = np.mean(rr, axis=0)
+    mean_pred = np.mean(rp, axis=0)
+    std_real = np.std(rr, axis=0)
+    std_pred = np.std(rp, axis=0)
+    skew_real, kurt_real = _skew_kurt(rr)
+    skew_pred, kurt_pred = _skew_kurt(rp)
+
+    result.update({
+        "mean_real_delta_I": float(mean_real[0]),
+        "mean_real_delta_Q": float(mean_real[1]),
+        "mean_pred_delta_I": float(mean_pred[0]),
+        "mean_pred_delta_Q": float(mean_pred[1]),
+        "std_real_delta_I": float(std_real[0]),
+        "std_real_delta_Q": float(std_real[1]),
+        "std_pred_delta_I": float(std_pred[0]),
+        "std_pred_delta_Q": float(std_pred[1]),
+        "delta_mean_I": float(mean_pred[0] - mean_real[0]),
+        "delta_mean_Q": float(mean_pred[1] - mean_real[1]),
+        "delta_std_I": float(std_pred[0] - std_real[0]),
+        "delta_std_Q": float(std_pred[1] - std_real[1]),
+        "delta_skew_I": float(skew_pred[0] - skew_real[0]),
+        "delta_skew_Q": float(skew_pred[1] - skew_real[1]),
+        "delta_kurt_I": float(kurt_pred[0] - kurt_real[0]),
+        "delta_kurt_Q": float(kurt_pred[1] - kurt_real[1]),
+        "delta_wasserstein_I": _wasserstein_1d(rr[:, 0], rp[:, 0]),
+        "delta_wasserstein_Q": _wasserstein_1d(rr[:, 1], rp[:, 1]),
+    })
+
     try:
         from src.evaluation.stat_tests.jsd import jsd_2d
         result["stat_jsd"] = jsd_2d(rr, rp)
@@ -268,6 +298,17 @@ def residual_fidelity_metrics(
         "jb_real_reject_gaussian": g_real["reject_gaussian"],
     })
     result.update(gaussianity_tests(rp, alpha=gauss_alpha))
+    for axis in ("I", "Q"):
+        pred = float(result.get(f"jb_log10p_{axis}", float("nan")))
+        real = float(result.get(f"jb_real_log10p_{axis}", float("nan")))
+        if np.isfinite(pred) and np.isfinite(real):
+            delta = abs(pred - real)
+            rel = delta / abs(real) if abs(real) > 0 else float("nan")
+        else:
+            delta = float("nan")
+            rel = float("nan")
+        result[f"delta_jb_log10p_{axis}"] = float(delta)
+        result[f"delta_jb_stat_rel_{axis}"] = float(rel)
 
     if X is not None:
         def _rho(x_arr: np.ndarray, d_arr: np.ndarray) -> float:
