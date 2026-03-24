@@ -1507,6 +1507,37 @@ def run_regime(
     if result["metrics"]:
         result["residual_signature"] = dict(result["metrics"])
 
+    _quick_pred_cache = {}
+
+    def _get_cached_quick_pred_pack(
+        *,
+        X_va,
+        D_va,
+        C_va,
+        mc_samples: int,
+        seed: int,
+        mode: str,
+        df_split=None,
+    ):
+        key = (
+            str(mode).strip().lower(),
+            int(mc_samples),
+            int(seed),
+            int(X_va.shape[0]),
+        )
+        if key not in _quick_pred_cache:
+            _quick_pred_cache[key] = _quick_cvae_predict(
+                model_run_dir,
+                X_va,
+                D_va,
+                C_va,
+                mc_samples=mc_samples,
+                seed=seed,
+                mode=mode,
+                df_split=df_split,
+            )
+        return _quick_pred_cache[key]
+
     # ---- cVAE DISTRIBUTION-FIDELITY METRICS (single source of truth) ----
     # Priority order:
     # 1) Evaluation metrics JSON (same slice/MC/calc as the canonical eval engine).
@@ -1554,8 +1585,10 @@ def run_regime(
                 print(f"\n🔍 cVAE dist-metrics for regime '{regime_id}' "
                       f"({len(_X_va):,} val pts, source={_dm_source}, "
                       f"mc_samples={_mc_dm}, model={model_check})")
-                _pred_pack = _quick_cvae_predict(
-                    model_run_dir, _X_va, _D_va, _C_va,
+                _pred_pack = _get_cached_quick_pred_pack(
+                    X_va=_X_va,
+                    D_va=_D_va,
+                    C_va=_C_va,
                     mc_samples=_mc_dm,
                     seed=int(ov.get("seed", 42)),
                     mode="mc_concat",
@@ -1608,11 +1641,10 @@ def run_regime(
 
             _X_va, _Y_va, _D_va, _C_va = _val_data
             _mc_bins = max(1, int(result.get("metrics", {}).get("mc_samples", 8)))
-            _pred_pack_sig = _quick_cvae_predict(
-                model_run_dir,
-                _X_va,
-                _D_va,
-                _C_va,
+            _pred_pack_sig = _get_cached_quick_pred_pack(
+                X_va=_X_va,
+                D_va=_D_va,
+                C_va=_C_va,
                 mc_samples=_mc_bins,
                 seed=int(ov.get("seed", 42)),
                 mode="mc_concat",
@@ -1665,8 +1697,10 @@ def run_regime(
 
             # Reuse MC predictions from quick predict
             _mc_sf = max(1, int(result.get("metrics", {}).get("mc_samples", 8)))
-            _pred_pack = _quick_cvae_predict(
-                model_run_dir, _X_va, _D_va, _C_va,
+            _pred_pack = _get_cached_quick_pred_pack(
+                X_va=_X_va,
+                D_va=_D_va,
+                C_va=_C_va,
                 mc_samples=_mc_sf,
                 seed=stat_seed,
                 mode="mc_concat",
@@ -1727,6 +1761,7 @@ def run_regime(
             print(f"⚠️  Stat fidelity failed for regime '{regime_id}': {e}")
 
     # Commit 3P: aggressively free val data; prevent cross-regime leakage
+    _quick_pred_cache.clear()
     _val_data = None
     gc.collect()
 
