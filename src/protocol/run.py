@@ -1371,7 +1371,7 @@ def run_regime(
                 )
                 print(
                     f"   ⚡ max_samples_per_exp pós-split: train={len(X_tr):,} "
-                    f"(cap={_ms}/exp) | val={len(X_va):,} (val intocado)"
+                    f"(cap={_ms}/exp) | val={len(X_va):,} (val pre-cap)"
                 )
 
             if _max_val_spe is not None:

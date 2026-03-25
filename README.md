@@ -694,6 +694,7 @@ bash scripts/eval.sh
 | `--max_regimes` | all | Limit executed regimes after protocol resolution |
 | `--max_experiments` | all | Limit experiments per regime |
 | `--max_samples_per_exp` | all | Cap samples per experiment |
+| `--max_val_samples_per_exp` | all | Cap validation samples per experiment after split |
 | `--patience` | training default | Early stopping patience after KL warmup |
 | `--reduce_lr_patience` | training default | ReduceLROnPlateau patience |
 | `--skip_eval` | `false` | Train only, skip evaluation |
@@ -706,6 +707,14 @@ bash scripts/eval.sh
 | `--stat_mode` | `quick` | `quick` (200 perms) or `full` (2000 perms) |
 | `--stat_max_n` | `5000` in `quick`, `50000` in `full` | Max samples for stat tests |
 | `--keras_verbose` | `2` | Keras fit verbosity (0/1/2) |
+
+Quick mode note:
+
+- `stat_mode=quick` alone does not cap Keras validation.
+- For a real quick run, cap all three:
+  - `--max_samples_per_exp`
+  - `--max_val_samples_per_exp`
+  - `--max_dist_samples`
 
 ## Run artifacts
 

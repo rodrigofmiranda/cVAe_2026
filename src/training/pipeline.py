@@ -213,7 +213,7 @@ def run_training_pipeline(
         print(
             "⚡ train capped pós-split "
             f"(max_samples_per_exp={max_samples}) | "
-            f"train={len(X_train):,} | val={len(X_val):,} (val intocado)"
+            f"train={len(X_train):,} | val={len(X_val):,} (val pre-cap)"
         )
 
     if ov.get("max_val_samples_per_exp") is not None:

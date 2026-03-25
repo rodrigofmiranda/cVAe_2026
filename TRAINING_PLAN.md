@@ -109,8 +109,10 @@ Nesta branch, a prioridade imediata e:
   - modo de execucao recomendado:
     - manter os `12` regimes
     - usar quick por cap de amostras, nao por reduzir regimes
+    - quick real deve capar treino, validacao e testes estatisticos
     - comando recomendado:
       - `--max_samples_per_exp 100000`
+      - `--max_val_samples_per_exp 20000`
       - `--max_dist_samples 20000`
       - `--stat_mode quick`
       - `--stat_max_n 2000`
