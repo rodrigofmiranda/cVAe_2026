@@ -1507,174 +1507,174 @@ def run_regime(
     if result["metrics"]:
         result["residual_signature"] = dict(result["metrics"])
 
-    # ---- cVAE DISTRIBUTION-FIDELITY METRICS (single source of truth) ----
-    # Priority order:
-    # 1) Evaluation metrics JSON (same slice/MC/calc as the canonical eval engine).
-    # 2) Quick fallback from shared val split when eval is unavailable.
-    if run_dist_metrics and result["train_status"] in {"completed", "shared_model"}:
-        _dm_source = None  # will be set below
-        try:
-            _eval_dm = _extract_cvae_dist_from_eval_metrics(result.get("metrics", {}))
-            if _eval_ran and result["eval_status"] == "completed" and _eval_dm:
-                _dm_source = "eval_reanalysis"
-                result["cvae_dist"] = _eval_dm
-                result["dist_metrics_source"] = _dm_source
-                print(f"\n🔍 cVAE dist-metrics for regime '{regime_id}' "
-                      f"(source={_dm_source}, N_eval={result.get('metrics', {}).get('N_eval', 'n/a')})")
-                _dm_mean = _eval_dm.get("delta_mean_l2")
-                _dm_acf = _eval_dm.get("delta_acf_l2")
-                _dm_psd = _eval_dm.get("psd_l2")
-                print(f"   📐 cVAE dist ({_dm_source}): "
-                      f"Δmean_l2={(float(_dm_mean) if _dm_mean is not None else float('nan')):.4f}  "
-                      f"Δacf_l2={(float(_dm_acf) if _dm_acf is not None else float('nan')):.4f}  "
-                      f"psd_l2={(float(_dm_psd) if _dm_psd is not None else float('nan')):.4f}  "
-                      f"reject_gauss={_eval_dm.get('reject_gaussian')}")
-            else:
-                import numpy as _np_dm
-                _psd_nfft = int(ov.get("psd_nfft", 2048))
-                _max_ds = int(ov.get("max_dist_samples", 200_000))
-                _g_alpha = float(ov.get("gauss_alpha", 0.01))
-                _mc_dm = max(1, int(result.get("metrics", {}).get("mc_samples", 8)))
+    # ---- SHARED MC PREDICTION (single call, reused by dist/bins/stat) ----
+    # Performance fix: load model + windowing + MC inference ONCE per regime,
+    # then reuse the prediction arrays for all downstream consumers.
+    _shared_mc_pack = None  # (Y_pred_mc, X_tiled, D_tiled, C_tiled) or None
+    _shared_mc_source = None
+    _need_mc = (run_dist_metrics or run_stat_fidelity) and \
+               result["train_status"] in {"completed", "shared_model"}
 
-                if _val_data is None:
-                    raise RuntimeError("Shared validation data not available")
+    if _need_mc:
+        # Check if eval already produced usable dist metrics
+        _eval_dm = _extract_cvae_dist_from_eval_metrics(result.get("metrics", {}))
+        _have_eval_dm = _eval_ran and result["eval_status"] == "completed" and _eval_dm
 
+        if _have_eval_dm:
+            _shared_mc_source = "eval_reanalysis"
+            result["cvae_dist"] = _eval_dm
+            result["dist_metrics_source"] = _shared_mc_source
+            _dm_mean = _eval_dm.get("delta_mean_l2")
+            _dm_acf = _eval_dm.get("delta_acf_l2")
+            _dm_psd = _eval_dm.get("psd_l2")
+            print(f"\n🔍 cVAE dist-metrics for regime '{regime_id}' "
+                  f"(source={_shared_mc_source}, N_eval={result.get('metrics', {}).get('N_eval', 'n/a')})")
+            print(f"   📐 cVAE dist ({_shared_mc_source}): "
+                  f"Δmean_l2={(float(_dm_mean) if _dm_mean is not None else float('nan')):.4f}  "
+                  f"Δacf_l2={(float(_dm_acf) if _dm_acf is not None else float('nan')):.4f}  "
+                  f"psd_l2={(float(_dm_psd) if _dm_psd is not None else float('nan')):.4f}  "
+                  f"reject_gauss={_eval_dm.get('reject_gaussian')}")
+        elif _val_data is not None:
+            # Single MC inference call for all downstream consumers
+            try:
+                _mc_n = max(1, int(result.get("metrics", {}).get("mc_samples", 8)))
                 _X_va, _Y_va, _D_va, _C_va = _val_data
                 model_check = model_run_dir / "models" / "best_model_full.keras"
                 if not model_check.exists():
                     raise FileNotFoundError(f"Model not found at {model_check}")
 
                 if _eval_ran and result["eval_status"] != "completed":
-                    _dm_source = "quick_fallback"
+                    _shared_mc_source = "quick_fallback"
                     print(f"⚠️  Eval status={result['eval_status']} para '{regime_id}' "
                           f"— usando fallback quick.")
                 else:
-                    _dm_source = "quick"
+                    _shared_mc_source = "quick"
 
-                print(f"\n🔍 cVAE dist-metrics for regime '{regime_id}' "
-                      f"({len(_X_va):,} val pts, source={_dm_source}, "
-                      f"mc_samples={_mc_dm}, model={model_check})")
-                _pred_pack = _quick_cvae_predict(
+                print(f"\n🔍 Shared MC predict for regime '{regime_id}' "
+                      f"({len(_X_va):,} val pts, source={_shared_mc_source}, "
+                      f"mc_samples={_mc_n}, model={model_check})")
+                _shared_mc_pack = _quick_cvae_predict(
                     model_run_dir, _X_va, _D_va, _C_va,
-                    mc_samples=_mc_dm,
+                    mc_samples=_mc_n,
                     seed=int(ov.get("seed", 42)),
                     mode="mc_concat",
                     df_split=_val_df_split,
                 )
-                if _pred_pack is not None:
-                    from src.metrics.distribution import residual_fidelity_metrics
-
-                    Y_pred_cvae, X_tiled, _D_tiled, _C_tiled = _pred_pack
-                    res_real_all = _Y_va - _X_va
-                    res_pred_all = Y_pred_cvae - X_tiled
-
-                    _n_cmp = min(_max_ds, res_real_all.shape[0], res_pred_all.shape[0])
-                    _rng_dm = _np_dm.random.default_rng(int(ov.get("seed", 42)))
-                    idx_real = (_rng_dm.choice(res_real_all.shape[0], _n_cmp, replace=False)
-                                if _n_cmp < res_real_all.shape[0]
-                                else _np_dm.arange(res_real_all.shape[0]))
-                    idx_pred = (_rng_dm.choice(res_pred_all.shape[0], _n_cmp, replace=False)
-                                if _n_cmp < res_pred_all.shape[0]
-                                else _np_dm.arange(res_pred_all.shape[0]))
-                    res_real = res_real_all[idx_real]
-                    res_pred_cvae = res_pred_all[idx_pred]
-                    cvae_dm = residual_fidelity_metrics(
-                        res_real, res_pred_cvae,
-                        psd_nfft=_psd_nfft, max_samples=_n_cmp, gauss_alpha=_g_alpha,
-                        X=_X_va[idx_real],
-                        X_pred=X_tiled[idx_pred],
-                    )
-                    result["cvae_dist"] = cvae_dm
-                    result["dist_metrics_source"] = _dm_source
-                    print(f"   📐 cVAE dist ({_dm_source}): "
-                          f"Δmean_l2={cvae_dm['delta_mean_l2']:.4f}  "
-                          f"Δacf_l2={cvae_dm.get('delta_acf_l2', float('nan')):.4f}  "
-                          f"psd_l2={cvae_dm['psd_l2']:.4f}  "
-                          f"reject_gauss={cvae_dm['reject_gaussian']}")
-                    del _pred_pack, Y_pred_cvae, X_tiled, _D_tiled, _C_tiled
-                    del res_real_all, res_pred_all, res_real, res_pred_cvae, cvae_dm
-                else:
+                if _shared_mc_pack is None:
                     print(f"⚠️  cVAE quick_predict returned None for regime '{regime_id}'")
-                del _X_va, _Y_va, _D_va, _C_va
+            except Exception as e:
+                print(f"⚠️  Shared MC predict failed for regime '{regime_id}': {e}")
+                _shared_mc_pack = None
+
+    # ---- cVAE DISTRIBUTION-FIDELITY METRICS ----
+    if run_dist_metrics and result["train_status"] in {"completed", "shared_model"} \
+       and _shared_mc_pack is not None and _shared_mc_source != "eval_reanalysis":
+        try:
+            import numpy as _np_dm
+            from src.metrics.distribution import residual_fidelity_metrics
+
+            _psd_nfft = int(ov.get("psd_nfft", 2048))
+            _max_ds = int(ov.get("max_dist_samples", 200_000))
+            _g_alpha = float(ov.get("gauss_alpha", 0.01))
+            _X_va, _Y_va, _D_va, _C_va = _val_data
+
+            Y_pred_cvae, X_tiled, _D_tiled, _C_tiled = _shared_mc_pack
+            res_real_all = _Y_va - _X_va
+            res_pred_all = Y_pred_cvae - X_tiled
+
+            _n_cmp = min(_max_ds, res_real_all.shape[0], res_pred_all.shape[0])
+            _rng_dm = _np_dm.random.default_rng(int(ov.get("seed", 42)))
+            idx_real = (_rng_dm.choice(res_real_all.shape[0], _n_cmp, replace=False)
+                        if _n_cmp < res_real_all.shape[0]
+                        else _np_dm.arange(res_real_all.shape[0]))
+            idx_pred = (_rng_dm.choice(res_pred_all.shape[0], _n_cmp, replace=False)
+                        if _n_cmp < res_pred_all.shape[0]
+                        else _np_dm.arange(res_pred_all.shape[0]))
+            res_real = res_real_all[idx_real]
+            res_pred_cvae = res_pred_all[idx_pred]
+            cvae_dm = residual_fidelity_metrics(
+                res_real, res_pred_cvae,
+                psd_nfft=_psd_nfft, max_samples=_n_cmp, gauss_alpha=_g_alpha,
+                X=_X_va[idx_real],
+                X_pred=X_tiled[idx_pred],
+            )
+            result["cvae_dist"] = cvae_dm
+            result["dist_metrics_source"] = _shared_mc_source
+            print(f"   📐 cVAE dist ({_shared_mc_source}): "
+                  f"Δmean_l2={cvae_dm['delta_mean_l2']:.4f}  "
+                  f"Δacf_l2={cvae_dm.get('delta_acf_l2', float('nan')):.4f}  "
+                  f"psd_l2={cvae_dm['psd_l2']:.4f}  "
+                  f"reject_gauss={cvae_dm['reject_gaussian']}")
+            del res_real_all, res_pred_all, res_real, res_pred_cvae, cvae_dm
         except Exception as e:
             result["cvae_dist"] = {"error": str(e)}
-            if _dm_source is not None:
-                result["dist_metrics_source"] = _dm_source
+            if _shared_mc_source is not None:
+                result["dist_metrics_source"] = _shared_mc_source
             print(f"⚠️  cVAE dist metrics failed for regime '{regime_id}': {e}")
 
-    if run_dist_metrics and result["train_status"] in {"completed", "shared_model"} and _val_data is not None:
+    # ---- RESIDUAL SIGNATURE BY AMPLITUDE BIN ----
+    if run_dist_metrics and result["train_status"] in {"completed", "shared_model"} \
+       and _shared_mc_pack is not None and _val_data is not None:
         try:
             from src.evaluation.metrics import residual_signature_by_amplitude_bin
 
             _X_va, _Y_va, _D_va, _C_va = _val_data
-            _mc_bins = max(1, int(result.get("metrics", {}).get("mc_samples", 8)))
-            _pred_pack_sig = _quick_cvae_predict(
-                model_run_dir,
-                _X_va,
-                _D_va,
-                _C_va,
-                mc_samples=_mc_bins,
-                seed=int(ov.get("seed", 42)),
-                mode="mc_concat",
-                df_split=_val_df_split,
+            Y_pred_sig, X_tiled_sig, _D_tiled_sig, _C_tiled_sig = _shared_mc_pack
+
+            # Cap samples for amplitude-bin analysis to avoid excessive compute
+            _max_bin_samples = int(ov.get("max_bin_samples", 50_000))
+            if _X_va.shape[0] > _max_bin_samples:
+                import numpy as _np_bc
+                _rng_bc = _np_bc.random.default_rng(int(ov.get("seed", 42)))
+                _bc_idx = _rng_bc.choice(_X_va.shape[0], _max_bin_samples, replace=False)
+                _bc_idx_mc = _np_bc.concatenate([
+                    _bc_idx + i * _X_va.shape[0]
+                    for i in range(Y_pred_sig.shape[0] // _X_va.shape[0])
+                ])
+                _X_va_b = _X_va[_bc_idx]
+                _Y_va_b = _Y_va[_bc_idx]
+                Y_pred_sig_b = Y_pred_sig[_bc_idx_mc]
+                X_tiled_sig_b = X_tiled_sig[_bc_idx_mc]
+                print(f"   ⚡ amplitude bins capped: {_X_va.shape[0]:,} → {_max_bin_samples:,}")
+            else:
+                _X_va_b, _Y_va_b = _X_va, _Y_va
+                Y_pred_sig_b, X_tiled_sig_b = Y_pred_sig, X_tiled_sig
+
+            _stat_n_perm_bins = 200 if stat_n_perm is None else int(stat_n_perm)
+            result["residual_signature_bins"] = residual_signature_by_amplitude_bin(
+                X_real=_X_va_b,
+                Y_real=_Y_va_b,
+                X_pred=X_tiled_sig_b,
+                Y_pred=Y_pred_sig_b,
+                regime_id=regime_id,
+                regime_label=result.get("regime_label", ""),
+                study=result.get("_study", ""),
+                run_id=run_id,
+                run_dir=str(run_dir),
+                model_run_dir=str(model_run_dir),
+                best_grid_tag=result.get("best_grid_tag", ""),
+                dist_target_m=float(result.get("selection_criteria", {}).get("distance_m", float("nan"))),
+                curr_target_mA=float(result.get("selection_criteria", {}).get("current_mA", float("nan"))),
+                amplitude_bins=int(ov.get("train_regime_diagnostics_amplitude_bins", 4)),
+                min_samples_per_bin=512,
+                stat_mode=str(stat_mode),
+                stat_n_perm=_stat_n_perm_bins,
+                stat_seed=int(stat_seed),
             )
-            if _pred_pack_sig is not None:
-                Y_pred_sig, X_tiled_sig, _D_tiled_sig, _C_tiled_sig = _pred_pack_sig
-                _stat_n_perm_bins = 200 if stat_n_perm is None else int(stat_n_perm)
-                result["residual_signature_bins"] = residual_signature_by_amplitude_bin(
-                    X_real=_X_va,
-                    Y_real=_Y_va,
-                    X_pred=X_tiled_sig,
-                    Y_pred=Y_pred_sig,
-                    regime_id=regime_id,
-                    regime_label=result.get("regime_label", ""),
-                    study=result.get("_study", ""),
-                    run_id=run_id,
-                    run_dir=str(run_dir),
-                    model_run_dir=str(model_run_dir),
-                    best_grid_tag=result.get("best_grid_tag", ""),
-                    dist_target_m=float(result.get("selection_criteria", {}).get("distance_m", float("nan"))),
-                    curr_target_mA=float(result.get("selection_criteria", {}).get("current_mA", float("nan"))),
-                    amplitude_bins=int(ov.get("train_regime_diagnostics_amplitude_bins", 4)),
-                    min_samples_per_bin=512,
-                    stat_mode=str(stat_mode),
-                    stat_n_perm=_stat_n_perm_bins,
-                    stat_seed=int(stat_seed),
-                )
-                del _pred_pack_sig, Y_pred_sig, X_tiled_sig, _D_tiled_sig, _C_tiled_sig
-            del _X_va, _Y_va, _D_va, _C_va
         except Exception as e:
             print(f"⚠️  Residual signature by amplitude bin failed for regime '{regime_id}': {e}")
 
     # ---- STATISTICAL FIDELITY TESTS (Etapa A2) ----
     # Runs MMD², Energy distance, and PSD L2 on residuals (Y - X) for cVAE.
     # p-values are stored per regime; global FDR correction is applied in main().
-    if run_stat_fidelity and result["train_status"] in {"completed", "shared_model"}:
+    if run_stat_fidelity and result["train_status"] in {"completed", "shared_model"} \
+       and _shared_mc_pack is not None and _val_data is not None:
         try:
             import numpy as _np_sf
             from src.evaluation.stat_tests import mmd_rbf, energy_test, psd_distance
 
-            if _val_data is None:
-                raise RuntimeError("Shared validation data not available for stat tests")
-
             _X_va, _Y_va, _D_va, _C_va = _val_data
-
-            model_check = model_run_dir / "models" / "best_model_full.keras"
-            if not model_check.exists():
-                raise FileNotFoundError(f"Model not found at {model_check}")
-
-            # Reuse MC predictions from quick predict
-            _mc_sf = max(1, int(result.get("metrics", {}).get("mc_samples", 8)))
-            _pred_pack = _quick_cvae_predict(
-                model_run_dir, _X_va, _D_va, _C_va,
-                mc_samples=_mc_sf,
-                seed=stat_seed,
-                mode="mc_concat",
-                df_split=_val_df_split,
-            )
-            if _pred_pack is None:
-                raise RuntimeError("cVAE quick_predict returned None")
-            Y_pred_sf, X_tiled_sf, _D_tiled_sf, _C_tiled_sf = _pred_pack
+            Y_pred_sf, X_tiled_sf, _D_tiled_sf, _C_tiled_sf = _shared_mc_pack
 
             # Compute residual pools
             res_real_all = _Y_va - _X_va
@@ -1720,11 +1720,13 @@ def run_regime(
                   f"Energy={sf_energy['energy']:.6f} (p={sf_energy['pval']:.4f})  "
                   f"PSD_L2={sf_psd['psd_dist']:.4f} "
                   f"[{sf_psd['psd_ci_low']:.4f}, {sf_psd['psd_ci_high']:.4f}]")
-            del _pred_pack, Y_pred_sf, X_tiled_sf, _D_tiled_sf, _C_tiled_sf
             del res_real_all, res_pred_all, res_real, res_pred, sf_mmd, sf_energy, sf_psd
         except Exception as e:
             result["stat_fidelity"] = {"error": str(e)}
             print(f"⚠️  Stat fidelity failed for regime '{regime_id}': {e}")
+
+    # Free shared MC pack
+    del _shared_mc_pack
 
     # Commit 3P: aggressively free val data; prevent cross-regime leakage
     _val_data = None
