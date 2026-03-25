@@ -74,6 +74,12 @@ class TrainConfig:
     # loss / regularisation
     beta: float = MODEL_DEFAULTS["beta"]
     free_bits: float = MODEL_DEFAULTS["free_bits"]
+    lambda_mmd: float = MODEL_DEFAULTS["lambda_mmd"]
+    mmd_mode: str = MODEL_DEFAULTS["mmd_mode"]
+    lambda_axis: float = MODEL_DEFAULTS["lambda_axis"]
+    lambda_psd: float = MODEL_DEFAULTS["lambda_psd"]
+    decoder_distribution: str = MODEL_DEFAULTS["decoder_distribution"]
+    mdn_components: int = MODEL_DEFAULTS["mdn_components"]
     kl_anneal_epochs: int = MODEL_DEFAULTS["kl_anneal_epochs"]
 
     # optimiser / schedule
@@ -111,6 +117,14 @@ class TrainConfig:
             seq_bidirectional=bool(_get(d, "seq_bidirectional", MODEL_DEFAULTS["seq_bidirectional"])),
             beta=float(_get(d, "beta", MODEL_DEFAULTS["beta"], float)),
             free_bits=float(_get(d, "free_bits", MODEL_DEFAULTS["free_bits"], float)),
+            lambda_mmd=float(_get(d, "lambda_mmd", MODEL_DEFAULTS["lambda_mmd"], float)),
+            mmd_mode=str(_get(d, "mmd_mode", MODEL_DEFAULTS["mmd_mode"])),
+            lambda_axis=float(_get(d, "lambda_axis", MODEL_DEFAULTS["lambda_axis"], float)),
+            lambda_psd=float(_get(d, "lambda_psd", MODEL_DEFAULTS["lambda_psd"], float)),
+            decoder_distribution=str(_get(
+                d, "decoder_distribution", MODEL_DEFAULTS["decoder_distribution"]
+            )),
+            mdn_components=int(_get(d, "mdn_components", MODEL_DEFAULTS["mdn_components"], int)),
             kl_anneal_epochs=int(_get(d, "kl_anneal_epochs", MODEL_DEFAULTS["kl_anneal_epochs"], int)),
             lr=float(_get(d, "lr", MODEL_DEFAULTS["lr"], float)),
             batch_size=int(_get(d, "batch_size", MODEL_DEFAULTS["batch_size"], int)),

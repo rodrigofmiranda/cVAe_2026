@@ -40,6 +40,10 @@ K_ACTIVATION = "activation"
 K_ARCH_VARIANT = "arch_variant"
 K_LAMBDA_MMD = "lambda_mmd"
 K_MMD_MODE = "mmd_mode"
+K_LAMBDA_AXIS = "lambda_axis"
+K_LAMBDA_PSD = "lambda_psd"
+K_DECODER_DISTRIBUTION = "decoder_distribution"
+K_MDN_COMPONENTS = "mdn_components"
 
 # --- Sequence model (seq_bigru_residual) ---
 K_WINDOW_SIZE = "window_size"
@@ -115,6 +119,10 @@ MODEL_DEFAULTS: dict = {
     K_ARCH_VARIANT: "concat",
     K_LAMBDA_MMD: 0.0,
     K_MMD_MODE: "mean_residual",
+    K_LAMBDA_AXIS: 0.0,
+    K_LAMBDA_PSD: 0.0,
+    K_DECODER_DISTRIBUTION: "gaussian",
+    K_MDN_COMPONENTS: 1,
     # Sequence model defaults (ignored by point-wise variants)
     K_WINDOW_SIZE: 33,
     K_WINDOW_STRIDE: 1,

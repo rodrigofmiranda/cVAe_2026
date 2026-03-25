@@ -172,6 +172,42 @@ def test_select_grid_seq_sampled_mmd_compare_builds_causal_three_run_set():
     assert {item["cfg"]["lr"] for item in grid} == {3e-4, 2e-4}
 
 
+def test_select_grid_seq_hybrid_loss_smoke_disables_shuffle_for_psd_term():
+    grid = select_grid({"grid_preset": "seq_hybrid_loss_smoke"})
+
+    assert len(grid) == 1
+    cfg = grid[0]["cfg"]
+    assert cfg["arch_variant"] == "seq_bigru_residual"
+    assert cfg["lambda_axis"] == 0.10
+    assert cfg["lambda_psd"] == 0.02
+    assert cfg["decoder_distribution"] == "gaussian"
+    assert cfg["shuffle_train_batches"] is False
+
+
+def test_select_grid_seq_mdn_smoke_builds_single_mdn_candidate():
+    grid = select_grid({"grid_preset": "seq_mdn_smoke"})
+
+    assert len(grid) == 1
+    cfg = grid[0]["cfg"]
+    assert cfg["arch_variant"] == "seq_bigru_residual"
+    assert cfg["decoder_distribution"] == "mdn"
+    assert cfg["mdn_components"] == 3
+    assert cfg["lambda_axis"] == 0.10
+    assert cfg["lambda_psd"] == 0.02
+    assert cfg["shuffle_train_batches"] is False
+
+
+def test_select_grid_seq_mdn_proof_builds_two_component_sweep():
+    grid = select_grid({"grid_preset": "seq_mdn_proof"})
+
+    assert len(grid) == 2
+    assert {item["cfg"]["mdn_components"] for item in grid} == {3, 5}
+    assert all(item["cfg"]["decoder_distribution"] == "mdn" for item in grid)
+    assert all(item["cfg"]["lambda_axis"] == 0.10 for item in grid)
+    assert all(item["cfg"]["lambda_psd"] == 0.02 for item in grid)
+    assert all(item["cfg"]["shuffle_train_batches"] is False for item in grid)
+
+
 def test_select_grid_legacy2025_ref_matches_expected_reference_cfg():
     grid = select_grid({"grid_preset": "legacy2025_ref"})
 

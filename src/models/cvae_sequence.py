@@ -60,6 +60,8 @@ from src.models.losses import (
     CondPriorDeltaVAELoss,
     CondPriorVAELoss,
     StdNormalHeteroscedasticVAELoss,
+    _mdn_expected_mean,
+    _sample_mdn,
 )
 from src.models.sampling import Sampling
 
@@ -328,8 +330,9 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
         delta_mean = MLP(z, x_center, d, c)[:, :2]
         y_mean     = x_center + delta_mean
 
-    Output is identical in shape to the point-wise decoder:
-    ``(mean_I, mean_Q, logvar_I, logvar_Q)``.
+    Output is Gaussian or MDN depending on ``decoder_distribution``:
+    - Gaussian: ``(mean_I, mean_Q, logvar_I, logvar_Q)``
+    - MDN: flattened ``(logits[K], mean[K,2], logvar[K,2])``
 
     Parameters
     ----------
@@ -344,6 +347,10 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
     act       = cfg.get("activation", "leaky_relu")
     dropout   = float(cfg.get("dropout", 0.0))
     mlp_sizes = list(cfg["layer_sizes"])
+    decoder_distribution = str(
+        cfg.get("decoder_distribution", "gaussian")
+    ).strip().lower()
+    mdn_components = int(cfg.get("mdn_components", 1))
 
     z_in      = layers.Input(shape=(latent,), name="z_input")
     x_cent_in = layers.Input(shape=(2,),      name="x_center_input")
@@ -354,12 +361,24 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
 
     h = _mlp_head(h, mlp_sizes, act, dropout, name_prefix="dec")
 
-    # Residual: predict (delta_mean, delta_log_var), then add x_center to mean
-    raw_out    = layers.Dense(4, name="output_params_raw")(h)
-    delta_mean = SliceFeatures(0, 2, name="delta_mean")(raw_out)
-    delta_lv   = SliceFeatures(2, 4, name="delta_log_var")(raw_out)
-    y_mean     = layers.Add(name="y_mean_residual")([x_cent_in, delta_mean])
-    out        = layers.Concatenate(name="output_params")([y_mean, delta_lv])
+    if decoder_distribution == "mdn":
+        k = int(mdn_components)
+        raw_out = layers.Dense(5 * k, name="output_params_raw")(h)
+        logits = SliceFeatures(0, k, name="mixture_logits")(raw_out)
+        delta_mean_flat = SliceFeatures(k, k + 2 * k, name="delta_mean_flat")(raw_out)
+        delta_lv_flat = SliceFeatures(k + 2 * k, k + 4 * k, name="delta_log_var_flat")(raw_out)
+        delta_mean = layers.Reshape((k, 2), name="delta_mean_components")(delta_mean_flat)
+        x_center_rep = layers.RepeatVector(k, name="x_center_mixture_rep")(x_cent_in)
+        y_mean = layers.Add(name="y_mean_components")([x_center_rep, delta_mean])
+        y_mean_flat = layers.Reshape((2 * k,), name="y_mean_flat")(y_mean)
+        out = layers.Concatenate(name="output_params")([logits, y_mean_flat, delta_lv_flat])
+    else:
+        # Residual: predict (delta_mean, delta_log_var), then add x_center to mean
+        raw_out = layers.Dense(4, name="output_params_raw")(h)
+        delta_mean = SliceFeatures(0, 2, name="delta_mean")(raw_out)
+        delta_lv = SliceFeatures(2, 4, name="delta_log_var")(raw_out)
+        y_mean = layers.Add(name="y_mean_residual")([x_cent_in, delta_mean])
+        out = layers.Concatenate(name="output_params")([y_mean, delta_lv])
 
     return models.Model([z_in, x_cent_in, d_in, c_in], out, name="decoder")
 
@@ -425,15 +444,23 @@ def build_seq_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
 
     # KL + reconstruction loss (beta starts at 0 for annealing)
     lambda_mmd = float(cfg.get("lambda_mmd", 0.0))
+    lambda_axis = float(cfg.get("lambda_axis", 0.0))
+    lambda_psd = float(cfg.get("lambda_psd", 0.0))
     mmd_mode = str(cfg.get("mmd_mode", "mean_residual"))
+    decoder_distribution = str(cfg.get("decoder_distribution", "gaussian"))
+    mdn_components = int(cfg.get("mdn_components", 1))
     loss_layer = CondPriorVAELoss(
         beta=0.0, free_bits=free_bits,
         lambda_mmd=lambda_mmd,
+        lambda_axis=lambda_axis,
+        lambda_psd=lambda_psd,
         mmd_mode=mmd_mode,
+        decoder_distribution=decoder_distribution,
+        mdn_components=mdn_components,
         name="condprior_loss",
     )
     loss_inputs = [y_in, out_params, z_mean_q, z_log_var_q, z_mean_p, z_log_var_p]
-    if lambda_mmd > 0.0:
+    if any(v > 0.0 for v in (lambda_mmd, lambda_axis, lambda_psd)):
         loss_inputs.append(x_center)
     y_mean_out = loss_layer(loss_inputs)
 
@@ -496,17 +523,45 @@ def create_seq_inference_model(
 
     x_center = ExtractCenterFrame(half, name="x_center_extract")(x_win_in)
     out_params = dec([z, x_center, d_in, c_in])
+    out_dim = int(dec.output_shape[-1])
+    is_mdn = out_dim > 4 and out_dim % 5 == 0
 
-    y_mean        = SliceFeatures(0, 2, name="y_mean")(out_params)
-    y_log_var_raw = SliceFeatures(2, 4, name="y_logvar_slice")(out_params)
-    y_log_var     = ClipValues(
-        DECODER_LOGVAR_CLAMP_LO, DECODER_LOGVAR_CLAMP_HI, name="y_logvar",
-    )(y_log_var_raw)
+    if is_mdn:
+        k = out_dim // 5
+        logits = SliceFeatures(0, k, name="mixture_logits")(out_params)
+        y_mean_flat = SliceFeatures(k, k + 2 * k, name="y_mean_flat")(out_params)
+        y_log_var_flat = SliceFeatures(k + 2 * k, k + 4 * k, name="y_logvar_flat")(out_params)
+        y_mean_components = layers.Reshape((k, 2), name="y_mean_components")(y_mean_flat)
+        y_log_var_components_raw = layers.Reshape(
+            (k, 2), name="y_logvar_components_raw"
+        )(y_log_var_flat)
+        y_log_var_components = ClipValues(
+            DECODER_LOGVAR_CLAMP_LO,
+            DECODER_LOGVAR_CLAMP_HI,
+            name="y_logvar_components",
+        )(y_log_var_components_raw)
 
-    if deterministic:
-        y = y_mean  # MAP — direct tensor, no identity layer needed
+        if deterministic:
+            y = layers.Lambda(
+                lambda xs: _mdn_expected_mean(xs[0], xs[1]),
+                name="y_det",
+            )([logits, y_mean_components])
+        else:
+            y = layers.Lambda(
+                lambda xs: _sample_mdn(xs[0], xs[1], xs[2]),
+                name="y_sample",
+            )([logits, y_mean_components, y_log_var_components])
     else:
-        y = Sampling(name="y_sample")([y_mean, y_log_var])
+        y_mean = SliceFeatures(0, 2, name="y_mean")(out_params)
+        y_log_var_raw = SliceFeatures(2, 4, name="y_logvar_slice")(out_params)
+        y_log_var = ClipValues(
+            DECODER_LOGVAR_CLAMP_LO, DECODER_LOGVAR_CLAMP_HI, name="y_logvar",
+        )(y_log_var_raw)
+
+        if deterministic:
+            y = y_mean  # MAP — direct tensor, no identity layer needed
+        else:
+            y = Sampling(name="y_sample")([y_mean, y_log_var])
 
     name = "inference_seq_condprior_det" if deterministic else "inference_seq_condprior"
     return models.Model([x_win_in, d_in, c_in], y, name=name)

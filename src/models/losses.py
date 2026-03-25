@@ -232,6 +232,145 @@ def _sample_heteroscedastic(mean: tf.Tensor, log_var: tf.Tensor) -> tf.Tensor:
     return mean + std * eps
 
 
+def _resolve_decoder_distribution(mode: str | None) -> str:
+    """Return the canonical decoder distribution family."""
+    mode_norm = str(mode or "gaussian").strip().lower()
+    aliases = {
+        "gaussian": "gaussian",
+        "heteroscedastic": "gaussian",
+        "mdn": "mdn",
+        "mixture": "mdn",
+        "mixture_density": "mdn",
+    }
+    if mode_norm not in aliases:
+        raise ValueError(
+            "decoder_distribution must be one of {'gaussian', 'mdn'}; "
+            f"got {mode!r}"
+        )
+    return aliases[mode_norm]
+
+
+def _unpack_gaussian_params(out_params: tf.Tensor) -> tuple[tf.Tensor, tf.Tensor]:
+    """Split Gaussian decoder params into mean/log-variance tensors."""
+    return out_params[:, :2], out_params[:, 2:]
+
+
+def _unpack_mdn_params(
+    out_params: tf.Tensor,
+    mdn_components: int,
+) -> tuple[tf.Tensor, tf.Tensor, tf.Tensor]:
+    """Split MDN output into logits, component means, and component log-vars."""
+    k = int(mdn_components)
+    if k <= 0:
+        raise ValueError(f"mdn_components must be > 0; got {mdn_components!r}")
+    logits = out_params[:, :k]
+    mean_flat = out_params[:, k : k + 2 * k]
+    log_var_flat = out_params[:, k + 2 * k : k + 4 * k]
+    comp_mean = tf.reshape(mean_flat, (-1, k, 2))
+    comp_log_var = tf.reshape(log_var_flat, (-1, k, 2))
+    return logits, comp_mean, comp_log_var
+
+
+def mdn_reconstruction_loss(
+    y_true: tf.Tensor,
+    logits: tf.Tensor,
+    comp_mean: tf.Tensor,
+    comp_log_var: tf.Tensor,
+) -> tf.Tensor:
+    """Mixture-density negative log-likelihood averaged over the batch."""
+    comp_log_var = tf.clip_by_value(
+        comp_log_var, DECODER_LOGVAR_CLAMP_LO, DECODER_LOGVAR_CLAMP_HI
+    )
+    y_true = tf.expand_dims(y_true, axis=1)  # (N,1,2)
+    inv_var = tf.exp(-comp_log_var)
+    quad = tf.reduce_sum(tf.square(y_true - comp_mean) * inv_var, axis=-1)
+    log_det = tf.reduce_sum(comp_log_var, axis=-1)
+    log_norm = -0.5 * (
+        log_det + quad + tf.cast(2.0 * np.log(2.0 * np.pi), tf.float32)
+    )
+    log_pi = tf.nn.log_softmax(logits, axis=-1)
+    log_prob = tf.reduce_logsumexp(log_pi + log_norm, axis=-1)
+    return -tf.reduce_mean(log_prob)
+
+
+def _mdn_expected_mean(logits: tf.Tensor, comp_mean: tf.Tensor) -> tf.Tensor:
+    """Return E[y] under a diagonal-Gaussian mixture."""
+    probs = tf.nn.softmax(logits, axis=-1)
+    return tf.reduce_sum(tf.expand_dims(probs, axis=-1) * comp_mean, axis=1)
+
+
+def _sample_mdn(
+    logits: tf.Tensor,
+    comp_mean: tf.Tensor,
+    comp_log_var: tf.Tensor,
+) -> tf.Tensor:
+    """Draw one sample from a diagonal-Gaussian mixture."""
+    batch = tf.shape(logits)[0]
+    idx = tf.random.categorical(logits, 1)
+    idx = tf.cast(tf.squeeze(idx, axis=1), tf.int32)
+    gather_idx = tf.stack([tf.range(batch, dtype=tf.int32), idx], axis=1)
+    mean_sel = tf.gather_nd(comp_mean, gather_idx)
+    log_var_sel = tf.gather_nd(comp_log_var, gather_idx)
+    return _sample_heteroscedastic(mean_sel, log_var_sel)
+
+
+def _batch_axis_stats(x: tf.Tensor) -> tuple[tf.Tensor, tf.Tensor, tf.Tensor]:
+    """Return std/skew/kurtosis along the batch axis for each output channel."""
+    x = tf.cast(x, tf.float32)
+    x_center = x - tf.reduce_mean(x, axis=0, keepdims=True)
+    var = tf.reduce_mean(tf.square(x_center), axis=0)
+    std = tf.sqrt(var + 1e-6)
+    z = x_center / std
+    skew = tf.reduce_mean(tf.pow(z, 3.0), axis=0)
+    kurt = tf.reduce_mean(tf.pow(z, 4.0), axis=0) - 3.0
+    return std, skew, kurt
+
+
+def axis_moment_loss_tf(r_real: tf.Tensor, r_gen: tf.Tensor) -> tf.Tensor:
+    """Axis-wise distribution proxy using std, skew, and kurtosis."""
+    std_real, skew_real, kurt_real = _batch_axis_stats(tf.stop_gradient(r_real))
+    std_gen, skew_gen, kurt_gen = _batch_axis_stats(r_gen)
+
+    std_term = tf.reduce_mean(
+        tf.square(tf.math.log((std_gen + 1e-6) / (std_real + 1e-6)))
+    )
+    skew_term = tf.reduce_mean(tf.square(skew_gen - skew_real))
+    kurt_term = tf.reduce_mean(tf.square(kurt_gen - kurt_real))
+    return std_term + 0.25 * skew_term + 0.10 * kurt_term
+
+
+def _log_psd_1d(x: tf.Tensor) -> tf.Tensor:
+    """Return log-PSD for a 1-D signal represented along the batch axis."""
+    x = tf.cast(x, tf.float32)
+    n = tf.shape(x)[0]
+    x = x - tf.reduce_mean(x)
+    window = tf.signal.hann_window(n, periodic=True, dtype=tf.float32)
+    spec = tf.signal.rfft(x * window)
+    power = tf.square(tf.abs(spec))
+    return tf.math.log(power + 1e-6)
+
+
+def spectral_psd_loss_tf(
+    r_real: tf.Tensor,
+    r_gen: tf.Tensor,
+    min_batch: int = 64,
+) -> tf.Tensor:
+    """Batch-order PSD proxy; valid only when batch order preserves time."""
+    n = tf.shape(r_real)[0]
+
+    def _compute() -> tf.Tensor:
+        real_i = _log_psd_1d(r_real[:, 0])
+        real_q = _log_psd_1d(r_real[:, 1])
+        gen_i = _log_psd_1d(r_gen[:, 0])
+        gen_q = _log_psd_1d(r_gen[:, 1])
+        return 0.5 * (
+            tf.reduce_mean(tf.square(gen_i - tf.stop_gradient(real_i)))
+            + tf.reduce_mean(tf.square(gen_q - tf.stop_gradient(real_q)))
+        )
+
+    return tf.cond(n >= int(min_batch), _compute, lambda: tf.constant(0.0, tf.float32))
+
+
 # ======================================================================
 # Keras layer (used inside training graph — wraps the above functions)
 # ======================================================================
@@ -254,7 +393,11 @@ class CondPriorVAELoss(layers.Layer):
         beta: float = 1.0,
         free_bits: float = 0.0,
         lambda_mmd: float = 0.0,
+        lambda_axis: float = 0.0,
+        lambda_psd: float = 0.0,
         mmd_mode: str = "mean_residual",
+        decoder_distribution: str = "gaussian",
+        mdn_components: int = 1,
         mmd_bandwidth: float | None = None,
         **kwargs,
     ):
@@ -262,7 +405,11 @@ class CondPriorVAELoss(layers.Layer):
         self.beta_init = float(beta)
         self.free_bits = float(free_bits)
         self.lambda_mmd = float(lambda_mmd)
+        self.lambda_axis = float(lambda_axis)
+        self.lambda_psd = float(lambda_psd)
         self.mmd_mode = _resolve_mmd_mode(mmd_mode)
+        self.decoder_distribution = _resolve_decoder_distribution(decoder_distribution)
+        self.mdn_components = int(mdn_components)
         self.mmd_bandwidth = mmd_bandwidth
         self.beta = tf.Variable(
             self.beta_init, trainable=False, dtype=tf.float32, name="beta",
@@ -271,6 +418,10 @@ class CondPriorVAELoss(layers.Layer):
         self.kl_loss_tracker = tf.keras.metrics.Mean(name="kl_loss")
         if self.lambda_mmd > 0.0:
             self.mmd_loss_tracker = tf.keras.metrics.Mean(name="mmd_loss")
+        if self.lambda_axis > 0.0:
+            self.axis_loss_tracker = tf.keras.metrics.Mean(name="axis_loss")
+        if self.lambda_psd > 0.0:
+            self.psd_loss_tracker = tf.keras.metrics.Mean(name="psd_loss")
 
     def call(self, inputs):
         if len(inputs) == 7:
@@ -279,10 +430,29 @@ class CondPriorVAELoss(layers.Layer):
             y_true, out_params, z_mean_q, z_log_var_q, z_mean_p, z_log_var_p = inputs
             x_center = None
 
-        y_mean = out_params[:, :2]
-        y_log_var = out_params[:, 2:]
+        if self.decoder_distribution == "mdn":
+            logits, comp_mean, comp_log_var = _unpack_mdn_params(
+                out_params, self.mdn_components
+            )
+            y_mean = _mdn_expected_mean(logits, comp_mean)
+            recon = mdn_reconstruction_loss(y_true, logits, comp_mean, comp_log_var)
+            y_sample_cache = None
 
-        recon = reconstruction_loss(y_true, y_mean, y_log_var)
+            def _ensure_sample():
+                nonlocal y_sample_cache
+                if y_sample_cache is None:
+                    y_sample_cache = _sample_mdn(logits, comp_mean, comp_log_var)
+                return y_sample_cache
+        else:
+            y_mean, y_log_var = _unpack_gaussian_params(out_params)
+            recon = reconstruction_loss(y_true, y_mean, y_log_var)
+            y_sample_cache = None
+
+            def _ensure_sample():
+                nonlocal y_sample_cache
+                if y_sample_cache is None:
+                    y_sample_cache = _sample_heteroscedastic(y_mean, y_log_var)
+                return y_sample_cache
 
         kl_per_sample = kl_divergence(
             z_mean_q, z_log_var_q, z_mean_p, z_log_var_p,
@@ -295,13 +465,26 @@ class CondPriorVAELoss(layers.Layer):
         if self.lambda_mmd > 0.0 and x_center is not None:
             r_real = tf.stop_gradient(y_true - x_center)
             if self.mmd_mode == "sampled_residual":
-                y_sample = _sample_heteroscedastic(y_mean, y_log_var)
-                r_gen = y_sample - x_center
+                r_gen = _ensure_sample() - x_center
             else:
                 r_gen = y_mean - x_center
             mmd2 = mmd2_tf(r_real, r_gen, n_sub=512, bandwidth=self.mmd_bandwidth)
             self.mmd_loss_tracker.update_state(mmd2)
             total = total + self.lambda_mmd * mmd2
+
+        if (self.lambda_axis > 0.0 or self.lambda_psd > 0.0) and x_center is not None:
+            r_real = tf.stop_gradient(y_true - x_center)
+            r_gen_sample = _ensure_sample() - x_center
+
+            if self.lambda_axis > 0.0:
+                axis_loss = axis_moment_loss_tf(r_real, r_gen_sample)
+                self.axis_loss_tracker.update_state(axis_loss)
+                total = total + self.lambda_axis * axis_loss
+
+            if self.lambda_psd > 0.0:
+                psd_loss = spectral_psd_loss_tf(r_real, r_gen_sample)
+                self.psd_loss_tracker.update_state(psd_loss)
+                total = total + self.lambda_psd * psd_loss
 
         self.add_loss(total)
         self.recon_loss_tracker.update_state(recon)
@@ -313,6 +496,10 @@ class CondPriorVAELoss(layers.Layer):
         m = [self.recon_loss_tracker, self.kl_loss_tracker]
         if self.lambda_mmd > 0.0:
             m.append(self.mmd_loss_tracker)
+        if self.lambda_axis > 0.0:
+            m.append(self.axis_loss_tracker)
+        if self.lambda_psd > 0.0:
+            m.append(self.psd_loss_tracker)
         return m
 
     def get_config(self):
@@ -321,7 +508,11 @@ class CondPriorVAELoss(layers.Layer):
             "beta": self.beta_init,
             "free_bits": self.free_bits,
             "lambda_mmd": self.lambda_mmd,
+            "lambda_axis": self.lambda_axis,
+            "lambda_psd": self.lambda_psd,
             "mmd_mode": self.mmd_mode,
+            "decoder_distribution": self.decoder_distribution,
+            "mdn_components": self.mdn_components,
             "mmd_bandwidth": self.mmd_bandwidth,
         })
         return cfg
@@ -346,7 +537,10 @@ class CondPriorDeltaVAELoss(layers.Layer):
         beta: float = 1.0,
         free_bits: float = 0.0,
         lambda_mmd: float = 0.0,
+        lambda_axis: float = 0.0,
+        lambda_psd: float = 0.0,
         mmd_mode: str = "mean_residual",
+        decoder_distribution: str = "gaussian",
         mmd_bandwidth: float | None = None,
         **kwargs,
     ):
@@ -354,7 +548,15 @@ class CondPriorDeltaVAELoss(layers.Layer):
         self.beta_init = float(beta)
         self.free_bits = float(free_bits)
         self.lambda_mmd = float(lambda_mmd)
+        self.lambda_axis = float(lambda_axis)
+        self.lambda_psd = float(lambda_psd)
         self.mmd_mode = _resolve_mmd_mode(mmd_mode)
+        self.decoder_distribution = _resolve_decoder_distribution(decoder_distribution)
+        if self.decoder_distribution != "gaussian":
+            raise ValueError(
+                "CondPriorDeltaVAELoss currently supports only "
+                "decoder_distribution='gaussian'."
+            )
         self.mmd_bandwidth = mmd_bandwidth
         self.beta = tf.Variable(
             self.beta_init, trainable=False, dtype=tf.float32, name="beta",
@@ -363,6 +565,10 @@ class CondPriorDeltaVAELoss(layers.Layer):
         self.kl_loss_tracker = tf.keras.metrics.Mean(name="kl_loss")
         if self.lambda_mmd > 0.0:
             self.mmd_loss_tracker = tf.keras.metrics.Mean(name="mmd_loss")
+        if self.lambda_axis > 0.0:
+            self.axis_loss_tracker = tf.keras.metrics.Mean(name="axis_loss")
+        if self.lambda_psd > 0.0:
+            self.psd_loss_tracker = tf.keras.metrics.Mean(name="psd_loss")
 
     def call(self, inputs):
         if len(inputs) < 7:
@@ -387,9 +593,17 @@ class CondPriorDeltaVAELoss(layers.Layer):
 
         total = compute_total_loss(recon, kl, self.beta)
 
+        delta_sample_cache = None
+
+        def _ensure_sample():
+            nonlocal delta_sample_cache
+            if delta_sample_cache is None:
+                delta_sample_cache = _sample_heteroscedastic(delta_mean, delta_log_var)
+            return delta_sample_cache
+
         if self.lambda_mmd > 0.0:
             if self.mmd_mode == "sampled_residual":
-                delta_gen = _sample_heteroscedastic(delta_mean, delta_log_var)
+                delta_gen = _ensure_sample()
             else:
                 delta_gen = delta_mean
             mmd2 = mmd2_tf(
@@ -401,6 +615,20 @@ class CondPriorDeltaVAELoss(layers.Layer):
             self.mmd_loss_tracker.update_state(mmd2)
             total = total + self.lambda_mmd * mmd2
 
+        if self.lambda_axis > 0.0:
+            axis_loss = axis_moment_loss_tf(
+                tf.stop_gradient(delta_true), _ensure_sample()
+            )
+            self.axis_loss_tracker.update_state(axis_loss)
+            total = total + self.lambda_axis * axis_loss
+
+        if self.lambda_psd > 0.0:
+            psd_loss = spectral_psd_loss_tf(
+                tf.stop_gradient(delta_true), _ensure_sample()
+            )
+            self.psd_loss_tracker.update_state(psd_loss)
+            total = total + self.lambda_psd * psd_loss
+
         self.add_loss(total)
         self.recon_loss_tracker.update_state(recon)
         self.kl_loss_tracker.update_state(tf.reduce_mean(kl_per_sample))
@@ -411,6 +639,10 @@ class CondPriorDeltaVAELoss(layers.Layer):
         m = [self.recon_loss_tracker, self.kl_loss_tracker]
         if self.lambda_mmd > 0.0:
             m.append(self.mmd_loss_tracker)
+        if self.lambda_axis > 0.0:
+            m.append(self.axis_loss_tracker)
+        if self.lambda_psd > 0.0:
+            m.append(self.psd_loss_tracker)
         return m
 
     def get_config(self):
@@ -419,7 +651,10 @@ class CondPriorDeltaVAELoss(layers.Layer):
             "beta": self.beta_init,
             "free_bits": self.free_bits,
             "lambda_mmd": self.lambda_mmd,
+            "lambda_axis": self.lambda_axis,
+            "lambda_psd": self.lambda_psd,
             "mmd_mode": self.mmd_mode,
+            "decoder_distribution": self.decoder_distribution,
             "mmd_bandwidth": self.mmd_bandwidth,
         })
         return cfg

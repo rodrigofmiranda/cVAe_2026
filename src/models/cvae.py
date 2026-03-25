@@ -152,10 +152,13 @@ def build_decoder(
     activation: str = "leaky_relu",
     dropout: float = 0.0,
     arch_variant: str = "concat",
+    decoder_distribution: str = "gaussian",
+    mdn_components: int = 1,
 ) -> tf.keras.Model:
     """Build the heteroscedastic decoder p(y | z, x, d, c).
 
-    Output always has 4 units: ``(mean_I, mean_Q, logvar_I, logvar_Q)``.
+    Output has 4 units for Gaussian decoders:
+    ``(mean_I, mean_Q, logvar_I, logvar_Q)``.
 
     ``arch_variant="concat"``
         Legacy behaviour: predict ``y`` parameters directly from
@@ -172,6 +175,12 @@ def build_decoder(
         resolve the final signal as ``Y = X + Δ``.
     """
     arch_variant = _normalize_arch_variant(arch_variant)
+    decoder_distribution = str(decoder_distribution or "gaussian").strip().lower()
+    if decoder_distribution != "gaussian":
+        raise ValueError(
+            "Point-wise MDN decoder is not implemented yet; "
+            "use decoder_distribution='gaussian' or the seq_bigru_residual variant."
+        )
     if arch_variant == "legacy_2025_zero_y":
         from src.models.cvae_legacy_2025 import build_legacy_2025_decoder
         return build_legacy_2025_decoder(
@@ -259,6 +268,8 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
         layer_sizes=layer_sizes, latent_dim=latent_dim,
         activation=activation, dropout=dropout,
         arch_variant=arch_variant,
+        decoder_distribution=str(cfg.get("decoder_distribution", "gaussian")),
+        mdn_components=int(cfg.get("mdn_components", 1)),
     )
 
     # --- Graph wiring ---
@@ -284,13 +295,26 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
     # Loss layer (β starts at 0 for annealing)
     beta_initial = 0.0
     lambda_mmd = float(cfg.get("lambda_mmd", 0.0))
+    lambda_axis = float(cfg.get("lambda_axis", 0.0))
+    lambda_psd = float(cfg.get("lambda_psd", 0.0))
     mmd_mode = str(cfg.get("mmd_mode", "mean_residual"))
+    decoder_distribution = str(cfg.get("decoder_distribution", "gaussian"))
+    mdn_components = int(cfg.get("mdn_components", 1))
+    aux_needs_x = any(v > 0.0 for v in (lambda_mmd, lambda_axis, lambda_psd))
+    if decoder_distribution.strip().lower() != "gaussian" and arch_variant != "seq_bigru_residual":
+        raise ValueError(
+            "decoder_distribution='mdn' is currently supported only for "
+            "arch_variant='seq_bigru_residual'."
+        )
     if arch_variant == "delta_residual":
         loss_layer = CondPriorDeltaVAELoss(
             beta=beta_initial,
             free_bits=free_bits,
             lambda_mmd=lambda_mmd,
+            lambda_axis=lambda_axis,
+            lambda_psd=lambda_psd,
             mmd_mode=mmd_mode,
+            decoder_distribution=decoder_distribution,
             name="condprior_delta_loss",
         )
         loss_inputs = [y_in, out_params, z_mean_q, z_log_var_q, z_mean_p, z_log_var_p, x_in]
@@ -298,11 +322,15 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
         loss_layer = CondPriorVAELoss(
             beta=beta_initial, free_bits=free_bits,
             lambda_mmd=lambda_mmd,
+            lambda_axis=lambda_axis,
+            lambda_psd=lambda_psd,
             mmd_mode=mmd_mode,
+            decoder_distribution=decoder_distribution,
+            mdn_components=mdn_components,
             name="condprior_loss",
         )
         loss_inputs = [y_in, out_params, z_mean_q, z_log_var_q, z_mean_p, z_log_var_p]
-        if lambda_mmd > 0.0:
+        if aux_needs_x:
             loss_inputs.append(x_in)
     y_mean = loss_layer(loss_inputs)
 

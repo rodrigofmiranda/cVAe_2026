@@ -818,6 +818,14 @@ def run_gridsearch(
             X_va_center_fit = X_va_fit
 
         try:
+            _shuffle_train_batches = bool(
+                cfg.get("shuffle_train_batches", training_config["shuffle_train_batches"])
+            )
+            if float(cfg.get("lambda_psd", 0.0)) > 0.0 and _shuffle_train_batches:
+                raise ValueError(
+                    "lambda_psd requires shuffle_train_batches=False so the batch "
+                    "still preserves temporal order for the PSD term."
+                )
             vae, kl_cb = build_cvae(cfg)
             regime_diag_callback = None
             if (
@@ -865,7 +873,7 @@ def run_gridsearch(
                 batch_size=int(_bs_eff),
                 callbacks=callbacks,
                 verbose=_keras_verbose,
-                shuffle=bool(training_config["shuffle_train_batches"]),
+                shuffle=_shuffle_train_batches,
             )
             train_time_s = float(time.time() - t0)
 

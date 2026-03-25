@@ -1287,6 +1287,116 @@ def _preset_seq_sampled_mmd_compare() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_hybrid_loss_smoke() -> List[Dict[str, Any]]:
+    """Single-candidate smoke for the Gaussian hybrid objective."""
+
+    return [
+        dict(
+            group="S10_seq_hybrid_smoke",
+            tag="S10seq_W7_h64_lat4_b0p003_lmmd1p75_axis0p1_psd0p02_noshuf_fb0p10_lr0p0003_L128-256-512",
+            cfg=_cfg(
+                arch_variant="seq_bigru_residual",
+                layer_sizes=[128, 256, 512],
+                latent_dim=4,
+                beta=0.003,
+                free_bits=0.10,
+                lr=3e-4,
+                batch_size=4096,
+                kl_anneal_epochs=80,
+                window_size=7,
+                window_stride=1,
+                window_pad_mode="edge",
+                seq_hidden_size=64,
+                seq_num_layers=1,
+                seq_bidirectional=True,
+                lambda_mmd=1.75,
+                mmd_mode="mean_residual",
+                lambda_axis=0.10,
+                lambda_psd=0.02,
+                decoder_distribution="gaussian",
+                mdn_components=1,
+                shuffle_train_batches=False,
+            ),
+        ),
+    ]
+
+
+def _preset_seq_mdn_smoke() -> List[Dict[str, Any]]:
+    """Single-candidate smoke for the seq MDN decoder with hybrid diagnostics."""
+
+    return [
+        dict(
+            group="S11_seq_mdn_smoke",
+            tag="S11seq_W7_h64_lat4_mdn3_b0p003_axis0p1_psd0p02_noshuf_fb0p10_lr0p0003_L128-256-512",
+            cfg=_cfg(
+                arch_variant="seq_bigru_residual",
+                layer_sizes=[128, 256, 512],
+                latent_dim=4,
+                beta=0.003,
+                free_bits=0.10,
+                lr=3e-4,
+                batch_size=4096,
+                kl_anneal_epochs=80,
+                window_size=7,
+                window_stride=1,
+                window_pad_mode="edge",
+                seq_hidden_size=64,
+                seq_num_layers=1,
+                seq_bidirectional=True,
+                lambda_mmd=0.0,
+                mmd_mode="mean_residual",
+                lambda_axis=0.10,
+                lambda_psd=0.02,
+                decoder_distribution="mdn",
+                mdn_components=3,
+                shuffle_train_batches=False,
+            ),
+        ),
+    ]
+
+
+def _preset_seq_mdn_proof() -> List[Dict[str, Any]]:
+    """Focused proof run for the seq MDN line on the full protocol."""
+
+    def _seq_cfg(*, mdn_components: int) -> Dict[str, Any]:
+        return _cfg(
+            arch_variant="seq_bigru_residual",
+            layer_sizes=[128, 256, 512],
+            latent_dim=4,
+            beta=0.003,
+            free_bits=0.10,
+            lr=3e-4,
+            batch_size=4096,
+            kl_anneal_epochs=80,
+            window_size=7,
+            window_stride=1,
+            window_pad_mode="edge",
+            seq_hidden_size=64,
+            seq_num_layers=1,
+            seq_bidirectional=True,
+            lambda_mmd=0.0,
+            mmd_mode="mean_residual",
+            lambda_axis=0.10,
+            lambda_psd=0.02,
+            decoder_distribution="mdn",
+            mdn_components=mdn_components,
+            shuffle_train_batches=False,
+        )
+
+    return [
+        dict(
+            group="S12_seq_mdn_proof",
+            tag="S12seq_W7_h64_lat4_mdn3_b0p003_axis0p1_psd0p02_noshuf_fb0p10_lr0p0003_L128-256-512",
+            cfg=_seq_cfg(mdn_components=3),
+        ),
+        dict(
+            group="S12_seq_mdn_proof",
+            tag="S12seq_W7_h64_lat4_mdn5_b0p003_axis0p1_psd0p02_noshuf_fb0p10_lr0p0003_L128-256-512",
+            cfg=_seq_cfg(mdn_components=5),
+        ),
+    ]
+
+
 def _preset_best_compare_large() -> List[Dict[str, Any]]:
     """Comparative protocol-first grid using the strongest current candidates.
 
@@ -1489,6 +1599,12 @@ def select_grid(
             grid = _preset_seq_finish_0p8m()
         elif preset_name == "seq_sampled_mmd_compare":
             grid = _preset_seq_sampled_mmd_compare()
+        elif preset_name == "seq_hybrid_loss_smoke":
+            grid = _preset_seq_hybrid_loss_smoke()
+        elif preset_name == "seq_mdn_smoke":
+            grid = _preset_seq_mdn_smoke()
+        elif preset_name == "seq_mdn_proof":
+            grid = _preset_seq_mdn_proof()
         elif preset_name == "best_compare_large":
             grid = _preset_best_compare_large()
         elif preset_name == "delta_residual_fast":
