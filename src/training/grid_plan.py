@@ -1447,6 +1447,93 @@ def _preset_seq_mdn_conservative_proof() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_mdn_exploratory_quick() -> List[Dict[str, Any]]:
+    """Exploratory quick grid around the stable conservative MDN line.
+
+    This preset intentionally keeps the full 12-regime protocol but is meant to
+    be run with sample caps in the CLI. The search is centered on the current
+    best stable MDN configuration:
+
+      - ``mdn3``
+      - ``beta=0.003``
+      - ``lr=2e-4``
+      - ``lambda_axis=0.01``
+      - ``lambda_mmd=0.25``
+
+    Knobs explored:
+      - stronger MMD anchor for G6 (`0.50`)
+      - slightly stronger axis shaping (`0.02`)
+      - lower beta (`0.002`) to free more latent capacity
+      - lower LR (`1.5e-4`) for stability
+      - slightly richer mixture (`mdn4`) without jumping to mdn5
+    """
+
+    def _seq_cfg(
+        *,
+        mdn_components: int = 3,
+        beta: float = 0.003,
+        lr: float = 2e-4,
+        lambda_axis: float = 0.01,
+        lambda_mmd: float = 0.25,
+    ) -> Dict[str, Any]:
+        return _cfg(
+            arch_variant="seq_bigru_residual",
+            layer_sizes=[128, 256, 512],
+            latent_dim=4,
+            beta=beta,
+            free_bits=0.10,
+            lr=lr,
+            batch_size=4096,
+            kl_anneal_epochs=80,
+            window_size=7,
+            window_stride=1,
+            window_pad_mode="edge",
+            seq_hidden_size=64,
+            seq_num_layers=1,
+            seq_bidirectional=True,
+            lambda_mmd=lambda_mmd,
+            mmd_mode="mean_residual",
+            lambda_axis=lambda_axis,
+            lambda_psd=0.0,
+            decoder_distribution="mdn",
+            mdn_components=mdn_components,
+            shuffle_train_batches=True,
+        )
+
+    return [
+        dict(
+            group="S14_seq_mdn_explore",
+            tag="S14seq_W7_h64_lat4_mdn3_b0p003_lmmd0p25_axis0p01_psd0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(),
+        ),
+        dict(
+            group="S14_seq_mdn_explore",
+            tag="S14seq_W7_h64_lat4_mdn3_b0p003_lmmd0p5_axis0p01_psd0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(lambda_mmd=0.50),
+        ),
+        dict(
+            group="S14_seq_mdn_explore",
+            tag="S14seq_W7_h64_lat4_mdn3_b0p003_lmmd0p25_axis0p02_psd0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(lambda_axis=0.02),
+        ),
+        dict(
+            group="S14_seq_mdn_explore",
+            tag="S14seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_psd0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(beta=0.002),
+        ),
+        dict(
+            group="S14_seq_mdn_explore",
+            tag="S14seq_W7_h64_lat4_mdn3_b0p003_lmmd0p25_axis0p01_psd0_fb0p10_lr0p00015_L128-256-512",
+            cfg=_seq_cfg(lr=1.5e-4),
+        ),
+        dict(
+            group="S14_seq_mdn_explore",
+            tag="S14seq_W7_h64_lat4_mdn4_b0p003_lmmd0p25_axis0p01_psd0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(mdn_components=4),
+        ),
+    ]
+
+
 def _preset_best_compare_large() -> List[Dict[str, Any]]:
     """Comparative protocol-first grid using the strongest current candidates.
 
@@ -1657,6 +1744,8 @@ def select_grid(
             grid = _preset_seq_mdn_proof()
         elif preset_name == "seq_mdn_conservative_proof":
             grid = _preset_seq_mdn_conservative_proof()
+        elif preset_name == "seq_mdn_exploratory_quick":
+            grid = _preset_seq_mdn_exploratory_quick()
         elif preset_name == "best_compare_large":
             grid = _preset_best_compare_large()
         elif preset_name == "delta_residual_fast":
