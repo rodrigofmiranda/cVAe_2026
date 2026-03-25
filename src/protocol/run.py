@@ -1534,7 +1534,11 @@ def run_regime(
                   f"Δacf_l2={(float(_dm_acf) if _dm_acf is not None else float('nan')):.4f}  "
                   f"psd_l2={(float(_dm_psd) if _dm_psd is not None else float('nan')):.4f}  "
                   f"reject_gauss={_eval_dm.get('reject_gaussian')}")
-        elif _val_data is not None:
+
+        # Generate MC pack for stat fidelity / amplitude bins even when
+        # dist metrics came from eval_reanalysis.
+        _need_mc_pack = (not _have_eval_dm) or run_stat_fidelity
+        if _need_mc_pack and _val_data is not None:
             # Single MC inference call for all downstream consumers
             try:
                 _mc_n = max(1, int(result.get("metrics", {}).get("mc_samples", 8)))
@@ -1543,15 +1547,20 @@ def run_regime(
                 if not model_check.exists():
                     raise FileNotFoundError(f"Model not found at {model_check}")
 
-                if _eval_ran and result["eval_status"] != "completed":
+                if _have_eval_dm:
+                    # dist metrics already from eval; MC pack is for stat/bins only
+                    _mc_label = "mc_for_stat"
+                elif _eval_ran and result["eval_status"] != "completed":
                     _shared_mc_source = "quick_fallback"
+                    _mc_label = "quick_fallback"
                     print(f"⚠️  Eval status={result['eval_status']} para '{regime_id}' "
                           f"— usando fallback quick.")
                 else:
                     _shared_mc_source = "quick"
+                    _mc_label = "quick"
 
                 print(f"\n🔍 Shared MC predict for regime '{regime_id}' "
-                      f"({len(_X_va):,} val pts, source={_shared_mc_source}, "
+                      f"({len(_X_va):,} val pts, source={_mc_label}, "
                       f"mc_samples={_mc_n}, model={model_check})")
                 _shared_mc_pack = _quick_cvae_predict(
                     model_run_dir, _X_va, _D_va, _C_va,
