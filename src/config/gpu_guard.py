@@ -21,10 +21,20 @@ def check_tensorflow_gpu() -> List[object]:
 
 
 def warn_if_no_gpu_and_confirm(context: str = "runtime") -> List[object]:
-    """Warn and ask the user whether to continue when TensorFlow sees no GPU."""
+    """Warn and ask the user whether to continue when TensorFlow sees no GPU.
+
+    Set environment variable ``FORCE_CPU=1`` to skip the interactive prompt
+    and proceed on CPU automatically (useful for non-interactive evaluation).
+    """
+    import os
+
     gpus = check_tensorflow_gpu()
     if gpus:
         print(f"✓ GPU check before {context}: TensorFlow sees {len(gpus)} GPU(s).")
+        return gpus
+
+    if os.environ.get("FORCE_CPU", "").strip() in ("1", "true", "yes"):
+        print(f"⚠️  No GPU detected for {context} — continuing on CPU (FORCE_CPU=1).")
         return gpus
 
     print("\n" + "!" * 80)
