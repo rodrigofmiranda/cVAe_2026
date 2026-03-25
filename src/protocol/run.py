@@ -2271,53 +2271,66 @@ def main():
     print(f"✅ Protocol complete — {len(studies_meta)} study(ies), {len(results)} regime(s)")
     print(f"   Duration: {ts_end - ts_start}")
     print(f"   Output:   {exp_dir}")
-    for r in results:
-        slab = f"[{r.get('_study', '?')}] "
-        status = f"train={r['train_status']}, eval={r['eval_status']}"
-        delta = ""
-        m = r.get("metrics", {})
-        bl = r.get("baseline", {})
-        bd = r.get("baseline_dist", {})
-        cd = r.get("cvae_dist", {})
-        if m.get("delta_evm_%") is not None:
-            delta = f" | ΔEVM={m['delta_evm_%']:+.3f}pp ΔSNR={m.get('delta_snr_db', 0):+.3f}dB"
-        if bl.get("evm_pred_%") is not None:
-            delta += f" | baseline EVM={bl['evm_pred_%']:.3f}%"
-        if bd.get("delta_mean_l2") is not None:
-            delta += f" | bl_Δmean={bd['delta_mean_l2']:.4f}"
-        if bd.get("delta_acf_l2") is not None:
-            delta += f" | bl_Δacf={bd['delta_acf_l2']:.4f}"
-        if cd.get("delta_mean_l2") is not None:
-            delta += f" | cv_Δmean={cd['delta_mean_l2']:.4f}"
-        if cd.get("delta_acf_l2") is not None:
-            delta += f" | cv_Δacf={cd['delta_acf_l2']:.4f}"
-        sf = r.get("stat_fidelity", {})
-        if sf.get("mmd2") is not None:
-            delta += f" | MMD²={sf['mmd2']:.6f}(p={sf['mmd_pval']:.3f})"
-        print(f"   • {slab}{r['regime_id']}: {status}{delta}")
 
-    # ---- Etapa A4: acceptance summary ----
-    if _stat_acceptance is not None:
-        sa = _stat_acceptance
+    # Champion candidate
+    if df_leaderboard is not None and not df_leaderboard.empty:
+        _champ = df_leaderboard.iloc[0]
+        _champ_id = _champ.get("candidate_id", _champ.get("best_grid_tag", "?"))
+        _champ_pass = int(_champ.get("n_pass", 0))
+        _champ_partial = int(_champ.get("n_partial", 0))
+        _champ_fail = int(_champ.get("n_fail", 0))
+        _champ_total = _champ_pass + _champ_partial + _champ_fail
+        print(f"\n🏆 Champion: {_champ_id}")
+        print(f"   {_champ_pass}/{_champ_total} pass, "
+              f"{_champ_partial} partial, {_champ_fail} fail")
+
+    # Per-regime gate results from df_summary
+    _gate_cols = ["gate_g1", "gate_g2", "gate_g3", "gate_g4", "gate_g5", "gate_g6"]
+    _has_gates = (df_summary is not None and not df_summary.empty
+                  and any(c in df_summary.columns for c in _gate_cols))
+    if _has_gates:
         print(f"\n{'─'*70}")
-        print(f"🧪 STAT FIDELITY ACCEPTANCE  (q_α={sa['q_alpha']}, "
-              f"PSD ratio ≤ {sa['psd_ratio_limit']}×baseline)")
-        print(f"   Regimes tested:  {sa['n_regimes_tested']}")
-        print(f"   q_MMD  > α:      {sa['pass_mmd_qval']}/{sa['n_regimes_tested']} "
-              f"({sa['pct_pass_mmd']:.1f}%)")
-        print(f"   q_Energy > α:    {sa['pass_energy_qval']}/{sa['n_regimes_tested']} "
-              f"({sa['pct_pass_energy']:.1f}%)")
-        print(f"   Both > α:        {sa['pass_both_qval']}/{sa['n_regimes_tested']} "
-              f"({sa['pct_pass_both']:.1f}%)")
-        if sa["psd_ratio_checked"]:
-            print(f"   PSD ≤ {sa['psd_ratio_limit']}×bl:   "
-                  f"{sa['pass_psd_ratio']}/{sa['n_regimes_psd_checked']} "
-                  f"({sa['pct_pass_psd_ratio']:.1f}%)")
-        else:
-            print(f"   PSD ratio:       not checked (baseline PSD unavailable)")
-        _verdict = "PASS ✅" if sa["pct_pass_both"] == 100.0 else "PARTIAL ⚠️"
-        print(f"   Verdict:         {_verdict}")
-        print(f"{'─'*70}")
+        print(f"   {'regime':<30s}  G1  G2  G3  G4  G5  G6  status")
+        print(f"   {'─'*30}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*8}")
+        _total_pass = 0
+        _total_fail = 0
+        _total_partial = 0
+        for _, row in df_summary.iterrows():
+            _rid = str(row.get("regime_id", "?"))
+            _vs = str(row.get("validation_status", "?"))
+            _gates = []
+            for gc in _gate_cols:
+                v = row.get(gc)
+                if v is True:
+                    _gates.append(" ✓ ")
+                elif v is False:
+                    _gates.append(" ✗ ")
+                else:
+                    _gates.append(" - ")
+            if _vs == "pass":
+                _total_pass += 1
+            elif _vs == "fail":
+                _total_fail += 1
+            else:
+                _total_partial += 1
+            print(f"   {_rid:<30s}  {'  '.join(_gates)}  {_vs}")
+        print(f"   {'─'*30}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*8}")
+        print(f"   TOTAL: {_total_pass} pass, {_total_partial} partial, {_total_fail} fail")
+    else:
+        # Fallback: per-regime one-liner from results dicts
+        for r in results:
+            slab = f"[{r.get('_study', '?')}] "
+            status = f"train={r['train_status']}, eval={r['eval_status']}"
+            delta = ""
+            _m = r.get("metrics", {})
+            cd = r.get("cvae_dist", {})
+            if _m.get("delta_evm_%") is not None:
+                delta = f" | ΔEVM={_m['delta_evm_%']:+.3f}pp"
+            if cd.get("delta_mean_l2") is not None:
+                delta += f" | cv_Δmean={cd['delta_mean_l2']:.4f}"
+            print(f"   • {slab}{r['regime_id']}: {status}{delta}")
+
+    print(f"{'='*70}")
 
     try:
         from src.evaluation.engine import clear_evaluation_model_cache
