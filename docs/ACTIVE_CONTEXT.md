@@ -268,9 +268,15 @@ Current exploratory MDN quick sweep:
   - use sample caps instead of reducing the number of regimes
 - recommended quick caps:
   - `--max_samples_per_exp 100000`
+  - `--max_val_samples_per_exp 20000`
   - `--max_dist_samples 20000`
   - `--stat_mode quick`
   - `--stat_max_n 2000`
+- note:
+  - `quick` should now mean all three are capped:
+    - training samples
+    - validation samples
+    - stat-test sample pools
 
 ## Future Adversarial Note
 

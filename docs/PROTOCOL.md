@@ -332,6 +332,7 @@ CLI flags take precedence.
 | `--grid_tag REGEX` | Filter grids by tag |
 | `--max_experiments N` | Limit experiments loaded per regime |
 | `--max_samples_per_exp N` | Truncate samples per experiment |
+| `--max_val_samples_per_exp N` | Truncate validation samples per experiment after split |
 | `--val_split F` | Override validation split |
 | `--seed N` | Override random seed |
 | `--psd_nfft N` | Override PSD FFT size |
@@ -352,3 +353,11 @@ CLI flags take precedence.
 | `--train_regime_diagnostics_max_samples_per_regime N` | Cap samples per monitored regime in the callback |
 | `--train_regime_diagnostics_amplitude_bins N` | Number of amplitude bins for residual-signature slices |
 | `--train_regime_diagnostics_focus_only_0p8m {0,1}` | Restrict callback monitoring to `0.8 m` regimes only |
+
+Notes:
+
+- `stat_mode=quick` only reduces the statistical test workload.
+- For a true end-to-end quick run, also cap:
+  - `--max_samples_per_exp`
+  - `--max_val_samples_per_exp`
+  - `--max_dist_samples`
