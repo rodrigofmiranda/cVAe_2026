@@ -259,6 +259,19 @@ Current conservative MDN retry after the failed proof run:
   - `seq_mdn_proof` with `mdn3/mdn5 + axis=0.1 + psd=0.02` caused severe
     variance inflation and failed all regimes
 
+Current exploratory MDN quick sweep:
+
+- preset: `seq_mdn_exploratory_quick`
+- intent:
+  - keep the full 12-regime protocol
+  - explore only around the stable `mdn3` conservative line
+  - use sample caps instead of reducing the number of regimes
+- recommended quick caps:
+  - `--max_samples_per_exp 100000`
+  - `--max_dist_samples 20000`
+  - `--stat_mode quick`
+  - `--stat_max_n 2000`
+
 ## Future Adversarial Note
 
 - the adversarial line was removed from the active worktree

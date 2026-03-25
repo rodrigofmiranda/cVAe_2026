@@ -95,6 +95,25 @@ Nesta branch, a prioridade imediata e:
   - motivacao:
     - `seq_mdn_proof` inflou fortemente a variancia do decoder e falhou `12/12`
     - o retry deve ser estruturalmente mais conservador antes de abrir novos knobs
+- Preset exploratorio novo para MDN:
+  - `grid_preset=seq_mdn_exploratory_quick`
+  - foco:
+    - manter a linha estavel `mdn3 + lr=2e-4 + axis=0.01 + lmmd=0.25`
+    - explorar apenas knobs com evidência diagnostica:
+      - `lambda_mmd=0.50`
+      - `lambda_axis=0.02`
+      - `beta=0.002`
+      - `lr=1.5e-4`
+      - `mdn4`
+    - continuar sem `PSD loss`
+  - modo de execucao recomendado:
+    - manter os `12` regimes
+    - usar quick por cap de amostras, nao por reduzir regimes
+    - comando recomendado:
+      - `--max_samples_per_exp 100000`
+      - `--max_dist_samples 20000`
+      - `--stat_mode quick`
+      - `--stat_max_n 2000`
 
 ### Criterio operacional do teste causal `seq_sampled_mmd_compare`
 
