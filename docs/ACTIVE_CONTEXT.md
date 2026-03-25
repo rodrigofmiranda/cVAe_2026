@@ -278,6 +278,29 @@ Current exploratory MDN quick sweep:
     - validation samples
     - stat-test sample pools
 
+Current focused MDN G5 sweep:
+
+- preset: `seq_mdn_g5_exploratory_quick`
+- anchor:
+  - current best quick MDN from `exp_20260325_230938`
+  - `mdn3 + beta=0.002 + free_bits=0.10 + lr=2e-4 + axis=0.01 + lmmd=0.25`
+- intent:
+  - keep the full 12-regime protocol
+  - preserve the now-stable `G6`
+  - attack only the remaining `G5` failures in `0.8m/100`, `0.8m/300`, `0.8m/500`
+- knobs explored:
+  - `beta=0.0015`
+  - `free_bits=0.05`
+  - `lambda_axis=0.005`
+  - `lambda_mmd=0.35`
+  - `mdn2`
+- recommended quick caps:
+  - `--max_samples_per_exp 100000`
+  - `--max_val_samples_per_exp 20000`
+  - `--max_dist_samples 20000`
+  - `--stat_mode quick`
+  - `--stat_max_n 2000`
+
 ## Future Adversarial Note
 
 - the adversarial line was removed from the active worktree

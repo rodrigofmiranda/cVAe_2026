@@ -116,6 +116,31 @@ Nesta branch, a prioridade imediata e:
       - `--max_dist_samples 20000`
       - `--stat_mode quick`
       - `--stat_max_n 2000`
+- Preset exploratorio novo focado em `G5`:
+  - `grid_preset=seq_mdn_g5_exploratory_quick`
+  - ancora:
+    - melhor MDN quick atual:
+      - `mdn3`
+      - `beta=0.002`
+      - `free_bits=0.10`
+      - `lr=2e-4`
+      - `lambda_axis=0.01`
+      - `lambda_mmd=0.25`
+  - foco:
+    - manter `12` regimes e quick real por cap de amostras
+    - atacar apenas as falhas remanescentes de `G5` em `0.8 m`
+    - explorar:
+      - `beta=0.0015`
+      - `free_bits=0.05`
+      - `lambda_axis=0.005`
+      - `lambda_mmd=0.35`
+      - `mdn2`
+  - comando recomendado:
+    - `--max_samples_per_exp 100000`
+    - `--max_val_samples_per_exp 20000`
+    - `--max_dist_samples 20000`
+    - `--stat_mode quick`
+    - `--stat_max_n 2000`
 
 ### Criterio operacional do teste causal `seq_sampled_mmd_compare`
 
