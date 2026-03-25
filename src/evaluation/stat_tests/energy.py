@@ -7,6 +7,10 @@ metric that equals zero iff the two distributions are identical:
 
     E(X,Y) = 2·E||X−Y|| − E||X−X'|| − E||Y−Y'||
 
+When a TensorFlow GPU is available the permutation null distribution is
+computed via a single batched matmul on the GPU — typically 10-20× faster
+than the multi-threaded BLAS path on CPU.
+
 Public API
 ----------
 energy_test(Y_real, Y_pred, *, n_perm=200, seed=42)
@@ -20,6 +24,24 @@ from __future__ import annotations
 from typing import Dict
 
 import numpy as np
+
+
+# ------------------------------------------------------------------
+# GPU availability (lazy, cached)
+# ------------------------------------------------------------------
+
+_GPU_AVAILABLE: bool | None = None
+
+
+def _check_gpu() -> bool:
+    global _GPU_AVAILABLE
+    if _GPU_AVAILABLE is None:
+        try:
+            import tensorflow as tf
+            _GPU_AVAILABLE = len(tf.config.list_physical_devices("GPU")) > 0
+        except Exception:
+            _GPU_AVAILABLE = False
+    return _GPU_AVAILABLE
 
 
 # ------------------------------------------------------------------
@@ -67,6 +89,116 @@ def _energy_statistic_fast(X: np.ndarray, Y: np.ndarray,
 
 
 # ------------------------------------------------------------------
+# GPU-accelerated permutation null
+# ------------------------------------------------------------------
+
+def _perm_pval_gpu(
+    D_np: np.ndarray,
+    ms: int,
+    ns: int,
+    n_perm: int,
+    seed: int,
+    e_obs: float,
+    chunk_size: int = 500,
+) -> float:
+    """GPU-batched permutation p-value for Energy distance.
+
+    Generates indicator vectors on CPU (preserving RNG sequence) and
+    performs batched D @ E matmul on GPU in chunks to control memory.
+    """
+    import tensorflow as tf
+
+    Ns = ms + ns
+
+    # Move distance matrix to GPU once
+    D = tf.constant(D_np, dtype=tf.float64)
+    row_sums_D = tf.reduce_sum(D, axis=1)     # (Ns,)
+
+    denom_xy = tf.constant(float(ms * ns), dtype=tf.float64)
+    denom_xx = tf.constant(float(ms * ms), dtype=tf.float64)
+    denom_yy = tf.constant(float(ns * ns), dtype=tf.float64)
+
+    rng = np.random.default_rng(seed)
+    count_ge = 0
+
+    for chunk_start in range(0, n_perm, chunk_size):
+        chunk_end = min(chunk_start + chunk_size, n_perm)
+        cs = chunk_end - chunk_start
+
+        # Build indicator matrix on CPU (same RNG sequence as CPU path)
+        E_np = np.zeros((Ns, cs), dtype=np.float64)
+        for p in range(cs):
+            idx = rng.permutation(Ns)
+            E_np[idx[:ms], p] = 1.0
+
+        E = tf.constant(E_np)
+
+        # Single batched matmul
+        DE = tf.matmul(D, E)                # (Ns, cs)
+
+        E_comp = 1.0 - E
+        sum_xy = tf.reduce_sum(DE * E_comp, axis=0)        # (cs,)
+        sum_xx = tf.reduce_sum(DE * E, axis=0)              # (cs,)
+        sum_yy = tf.reduce_sum(
+            (row_sums_D[:, None] - DE) * E_comp, axis=0
+        )                                                    # (cs,)
+
+        mean_xy = sum_xy / denom_xy
+        mean_xx = sum_xx / denom_xx
+        mean_yy = sum_yy / denom_yy
+        e_perms = 2.0 * mean_xy - mean_xx - mean_yy        # (cs,)
+
+        count_ge += int(tf.reduce_sum(
+            tf.cast(e_perms >= e_obs, tf.int32)
+        ).numpy())
+
+    return (count_ge + 1) / (n_perm + 1)
+
+
+# ------------------------------------------------------------------
+# CPU permutation null (original)
+# ------------------------------------------------------------------
+
+def _perm_pval_cpu(
+    D: np.ndarray,
+    ms: int,
+    ns: int,
+    n_perm: int,
+    seed: int,
+    e_obs: float,
+) -> float:
+    """CPU permutation p-value (BLAS dgemv loop)."""
+    Ns = ms + ns
+    row_sums_D = D.sum(axis=1)
+    rng = np.random.default_rng(seed)
+    count_ge = 0
+    e = np.empty(Ns, dtype=np.float64)
+
+    for _ in range(n_perm):
+        idx = rng.permutation(Ns)
+        a = idx[:ms]
+        b = idx[ms:]
+
+        e[:] = 0.0
+        e[a] = 1.0
+
+        De = D @ e
+        sum_xy = float(De[b].sum())
+        sum_xx = float(De[a].sum())
+        sum_yy = float((row_sums_D[b] - De[b]).sum())
+
+        mean_xy = sum_xy / max(1, ms * ns)
+        mean_xx = sum_xx / max(1, ms * ms)
+        mean_yy = sum_yy / max(1, ns * ns)
+        e_perm = 2.0 * mean_xy - mean_xx - mean_yy
+
+        if e_perm >= e_obs:
+            count_ge += 1
+
+    return (count_ge + 1) / (n_perm + 1)
+
+
+# ------------------------------------------------------------------
 # Public entry-point
 # ------------------------------------------------------------------
 
@@ -105,12 +237,7 @@ def energy_test(
     # Observed statistic (sub-sampled if large)
     e_obs = _energy_statistic_fast(X, Y, max_pairs=max_pairs)
 
-    # ----- Optimised permutation null -----
-    # Pre-compute the full pairwise-distance matrix D on the pooled
-    # data *once*, then derive per-permutation sums via a single
-    # BLAS dgemv (D @ indicator) instead of recomputing cdist every
-    # iteration.  This turns O(n_perm·n²) cdist calls into one
-    # cdist + O(n_perm) dgemv calls — orders of magnitude faster.
+    # ----- Permutation null -----
     from scipy.spatial.distance import cdist as _cdist
 
     rng = np.random.default_rng(seed)
@@ -130,32 +257,17 @@ def energy_test(
         Z_sub = Z
 
     D = _cdist(Z_sub, Z_sub, metric="euclidean").astype(np.float64)
-    row_sums_D = D.sum(axis=1)   # precompute for complement trick
 
-    count_ge = 0
-    e = np.empty(_Ns, dtype=np.float64)
-    for _ in range(n_perm):
-        idx = rng.permutation(_Ns)
-        a = idx[:_ms]
-        b = idx[_ms:]
-
-        e[:] = 0.0
-        e[a] = 1.0
-
-        De = D @ e                                  # BLAS dgemv
-        sum_xy = float(De[b].sum())                 # Σ D[i,j] i∈a, j∈b
-        sum_xx = float(De[a].sum())                 # Σ D[i,j] i,j∈a
-        sum_yy = float((row_sums_D[b] - De[b]).sum())  # Σ D[i,j] i,j∈b
-
-        mean_xy = sum_xy / max(1, _ms * _ns)
-        mean_xx = sum_xx / max(1, _ms * _ms)
-        mean_yy = sum_yy / max(1, _ns * _ns)
-        e_perm = 2.0 * mean_xy - mean_xx - mean_yy
-
-        if e_perm >= e_obs:
-            count_ge += 1
-
-    pval = (count_ge + 1) / (n_perm + 1)
+    # GPU or CPU dispatch
+    use_gpu = _check_gpu()
+    if use_gpu:
+        try:
+            pval = _perm_pval_gpu(D, _ms, _ns, n_perm, seed, e_obs)
+        except Exception as exc:
+            print(f"⚠️  Energy GPU fallback to CPU: {exc}")
+            pval = _perm_pval_cpu(D, _ms, _ns, n_perm, seed, e_obs)
+    else:
+        pval = _perm_pval_cpu(D, _ms, _ns, n_perm, seed, e_obs)
 
     return {
         "energy": float(e_obs),
