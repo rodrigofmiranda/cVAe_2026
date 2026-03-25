@@ -1397,6 +1397,56 @@ def _preset_seq_mdn_proof() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_mdn_conservative_proof() -> List[Dict[str, Any]]:
+    """Conservative MDN retry after the variance-inflation failure.
+
+    Design choices:
+      - keep only ``mdn3`` to reduce mixture instability
+      - drop PSD loss entirely
+      - reduce axis loss by 10x
+      - lower LR to 2e-4
+      - keep one lightly anchored candidate with small MMD
+    """
+
+    def _seq_cfg(*, lambda_mmd: float) -> Dict[str, Any]:
+        return _cfg(
+            arch_variant="seq_bigru_residual",
+            layer_sizes=[128, 256, 512],
+            latent_dim=4,
+            beta=0.003,
+            free_bits=0.10,
+            lr=2e-4,
+            batch_size=4096,
+            kl_anneal_epochs=80,
+            window_size=7,
+            window_stride=1,
+            window_pad_mode="edge",
+            seq_hidden_size=64,
+            seq_num_layers=1,
+            seq_bidirectional=True,
+            lambda_mmd=lambda_mmd,
+            mmd_mode="mean_residual",
+            lambda_axis=0.01,
+            lambda_psd=0.0,
+            decoder_distribution="mdn",
+            mdn_components=3,
+            shuffle_train_batches=True,
+        )
+
+    return [
+        dict(
+            group="S13_seq_mdn_conservative",
+            tag="S13seq_W7_h64_lat4_mdn3_b0p003_axis0p01_psd0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(lambda_mmd=0.0),
+        ),
+        dict(
+            group="S13_seq_mdn_conservative",
+            tag="S13seq_W7_h64_lat4_mdn3_b0p003_lmmd0p25_axis0p01_psd0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(lambda_mmd=0.25),
+        ),
+    ]
+
+
 def _preset_best_compare_large() -> List[Dict[str, Any]]:
     """Comparative protocol-first grid using the strongest current candidates.
 
@@ -1605,6 +1655,8 @@ def select_grid(
             grid = _preset_seq_mdn_smoke()
         elif preset_name == "seq_mdn_proof":
             grid = _preset_seq_mdn_proof()
+        elif preset_name == "seq_mdn_conservative_proof":
+            grid = _preset_seq_mdn_conservative_proof()
         elif preset_name == "best_compare_large":
             grid = _preset_best_compare_large()
         elif preset_name == "delta_residual_fast":

@@ -246,6 +246,19 @@ Operational readout for this preset:
 - if that does not happen:
   - do not spend more grid budget on this objective without adding a new loss term
 
+Current conservative MDN retry after the failed proof run:
+
+- preset: `seq_mdn_conservative_proof`
+- intent:
+  - keep only `mdn3`
+  - remove `PSD loss`
+  - reduce `lambda_axis` to `0.01`
+  - lower `lr` to `2e-4`
+  - compare `lambda_mmd=0.0` vs `lambda_mmd=0.25`
+- rationale:
+  - `seq_mdn_proof` with `mdn3/mdn5 + axis=0.1 + psd=0.02` caused severe
+    variance inflation and failed all regimes
+
 ## Future Adversarial Note
 
 - the adversarial line was removed from the active worktree

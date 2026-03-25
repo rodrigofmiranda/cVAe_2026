@@ -84,6 +84,17 @@ Nesta branch, a prioridade imediata e:
     - usar `--no_baseline`
     - o baseline nao faz parte da decisao causal desta branch
     - evitar gastar tempo de protocolo com um comparador que nao entra na decisao atual
+- Preset conservador novo para o retry de MDN:
+  - `grid_preset=seq_mdn_conservative_proof`
+  - foco:
+    - manter apenas `mdn3`
+    - remover `PSD loss`
+    - reduzir `lambda_axis` para `0.01`
+    - baixar `lr` para `2e-4`
+    - testar um candidato sem `MMD` e um com `lambda_mmd=0.25`
+  - motivacao:
+    - `seq_mdn_proof` inflou fortemente a variancia do decoder e falhou `12/12`
+    - o retry deve ser estruturalmente mais conservador antes de abrir novos knobs
 
 ### Criterio operacional do teste causal `seq_sampled_mmd_compare`
 
