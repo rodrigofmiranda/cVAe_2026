@@ -3,11 +3,13 @@ from pathlib import Path
 import pandas as pd
 
 from src.protocol.run import (
+    _clear_quick_pred_runtime_cache,
     _extract_best_grid_tag,
     _extract_training_operational_artifacts,
     _effective_baseline_config,
     _effective_cvae_config,
     _effective_dist_metrics_config,
+    _get_quick_pred_runtime_entry,
     _effective_stat_max_n,
     _limit_protocol_regimes,
     _protocol_execution_mode,
@@ -118,6 +120,49 @@ def test_extract_best_grid_tag_prefers_csv_when_available(tmp_path: Path):
     state = {"artifacts": {"grid_results_csv": str(csv_path)}}
 
     assert _extract_best_grid_tag(state) == "BEST_A"
+
+
+def test_quick_predict_runtime_entry_caches_model_and_inference(monkeypatch, tmp_path: Path):
+    import src.models.cvae as cvae_mod
+    import src.models.cvae_sequence as seq_mod
+
+    class _DummyInput:
+        shape = (None, 7, 2)
+
+    class _DummyPrior:
+        inputs = [_DummyInput()]
+
+    class _DummyVae:
+        def get_layer(self, name):
+            assert name == "prior_net"
+            return _DummyPrior()
+
+    calls = {"load": 0, "infer": 0}
+
+    def _fake_load(_path):
+        calls["load"] += 1
+        return _DummyVae()
+
+    def _fake_infer(_vae, deterministic):
+        calls["infer"] += 1
+        return f"infer-{deterministic}"
+
+    monkeypatch.setattr(seq_mod, "load_seq_model", _fake_load)
+    monkeypatch.setattr(cvae_mod, "create_inference_model_from_full", _fake_infer)
+
+    model_path = tmp_path / "best_model_full.keras"
+    model_path.write_text("placeholder", encoding="utf-8")
+
+    _clear_quick_pred_runtime_cache()
+    e1 = _get_quick_pred_runtime_entry(model_path)
+    e2 = _get_quick_pred_runtime_entry(model_path)
+    _clear_quick_pred_runtime_cache()
+
+    assert e1 is e2
+    assert e1["is_seq"] is True
+    assert e1["inference_det"] == "infer-True"
+    assert e1["inference_sto"] == "infer-False"
+    assert calls == {"load": 1, "infer": 2}
 
 
 def test_resolve_reuse_model_run_dir_accepts_valid_training_run(tmp_path: Path):

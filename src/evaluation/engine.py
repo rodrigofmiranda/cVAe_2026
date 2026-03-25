@@ -32,6 +32,35 @@ from src.training.grid_plots import save_champion_analysis_dashboard
 from src.training.logging import RunPaths
 
 
+_EVAL_MODEL_CACHE: Dict[str, Dict[str, Any]] = {}
+
+
+def _get_eval_cached_entry(best_model_path: Path) -> Dict[str, Any]:
+    """Load and cache the full eval model plus its inference sub-graphs."""
+    key = str(Path(best_model_path).resolve())
+    entry = _EVAL_MODEL_CACHE.get(key)
+    if entry is not None:
+        return entry
+
+    vae = load_seq_model(str(best_model_path))
+    entry = {
+        "vae": vae,
+        "inference_det": create_inference_model_from_full(vae, deterministic=True),
+        "inference_sto": create_inference_model_from_full(vae, deterministic=False),
+    }
+    _EVAL_MODEL_CACHE[key] = entry
+    return entry
+
+
+def clear_evaluation_model_cache():
+    """Release cached evaluation models after the protocol finishes."""
+    _EVAL_MODEL_CACHE.clear()
+    try:
+        tf.keras.backend.clear_session()
+    except Exception:
+        pass
+
+
 def _autofind(path: Path, patterns):
     for pattern in patterns:
         matches = list(path.glob(pattern))
@@ -204,7 +233,8 @@ def evaluate_run(
         raise FileNotFoundError(f"best_model_full.keras não encontrado: {best_model_path}")
 
     print(f"📦 Carregando modelo: {best_model_path}")
-    vae = load_seq_model(str(best_model_path))
+    _runtime = _get_eval_cached_entry(best_model_path)
+    vae = _runtime["vae"]
 
     layer_names = {layer.name for layer in vae.layers}
     print(
@@ -261,7 +291,11 @@ def evaluate_run(
     mc_samples = int(evalp.get("mc_samples", 1))
     rank_mode = str(evalp.get("rank_mode", ("det" if det_inf else "mc"))).lower()
 
-    inference_model = create_inference_model_from_full(vae, deterministic=det_inf)
+    inference_model = (
+        _runtime["inference_det"]
+        if det_inf or rank_mode == "det" or mc_samples <= 1
+        else _runtime["inference_sto"]
+    )
     print(
         "✅ inference_model pronto:",
         inference_model.name,
@@ -452,7 +486,7 @@ def evaluate_run(
         var_mc = float("nan")
         Ys = None
     else:
-        inf_sto = create_inference_model_from_full(vae, deterministic=False)
+        inf_sto = _runtime["inference_sto"]
         Ys = []
         for _ in range(int(mc_samples)):
             Ys.append(inf_sto.predict([Xv_in, Dv, Cv], batch_size=batch_infer, verbose=0))
@@ -629,10 +663,6 @@ def evaluate_run(
     print(f"📌 Logs em: {run_paths.logs_dir}")
 
     gc.collect()
-    try:
-        tf.keras.backend.clear_session()
-    except Exception:
-        pass
 
     return {
         "status": "completed",
