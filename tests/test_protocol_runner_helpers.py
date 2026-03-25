@@ -76,7 +76,13 @@ def test_effective_baseline_config_uses_runtime_overrides():
 
 def test_effective_cvae_config_only_exposes_relevant_override_keys():
     cfg = _effective_cvae_config(
-        {"max_epochs": 5, "max_grids": 2, "seed": 123, "gauss_alpha": 0.1},
+        {
+            "max_epochs": 5,
+            "max_grids": 2,
+            "seed": 123,
+            "gauss_alpha": 0.1,
+            "max_val_samples_per_exp": 456,
+        },
         enabled=True,
     )
 
@@ -86,6 +92,7 @@ def test_effective_cvae_config_only_exposes_relevant_override_keys():
         "max_epochs": 5,
         "max_grids": 2,
         "seed": 123,
+        "max_val_samples_per_exp": 456,
     }
 
 

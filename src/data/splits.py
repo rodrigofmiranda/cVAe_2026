@@ -148,3 +148,87 @@ def cap_train_samples_per_experiment(
         C_train[keep_idx],
         df_cap,
     )
+
+
+def _cap_split_samples_per_experiment(
+    X_split,
+    Y_split,
+    D_split,
+    C_split,
+    df_split: pd.DataFrame,
+    max_samples_per_experiment: int,
+    *,
+    split_col: str,
+    before_label: str,
+    after_label: str,
+):
+    """Generic deterministic cap for concatenated per-experiment split arrays."""
+    cap = int(max_samples_per_experiment)
+    if cap <= 0:
+        raise ValueError("max_samples_per_experiment must be > 0")
+    if df_split is None or split_col not in df_split.columns:
+        raise ValueError(f"df_split must contain '{split_col}' column")
+
+    n_per_exp = df_split[split_col].astype(int).tolist()
+    expected = int(np.sum(n_per_exp))
+    if expected != int(len(X_split)):
+        raise ValueError(
+            f"{before_label} length mismatch with df_split: "
+            f"len(X)={len(X_split)} vs sum({split_col})={expected}"
+        )
+
+    keep_idx_parts = []
+    cap_rows = []
+    cursor = 0
+
+    for i, n_local in enumerate(n_per_exp):
+        n_keep = min(n_local, cap)
+        if n_keep > 0:
+            # Deterministic head keep to preserve temporal order inside the split.
+            local_idx = np.arange(0, n_keep, dtype=np.int64)
+            keep_idx_parts.append(cursor + local_idx)
+        else:
+            local_idx = np.empty((0,), dtype=np.int64)
+
+        cap_rows.append({
+            "exp_dir": df_split.iloc[i].get("exp_dir", ""),
+            before_label: int(n_local),
+            after_label: int(len(local_idx)),
+        })
+        cursor += n_local
+
+    keep_idx = (
+        np.concatenate(keep_idx_parts, axis=0)
+        if keep_idx_parts
+        else np.empty((0,), dtype=np.int64)
+    )
+    df_cap = pd.DataFrame(cap_rows)
+    return (
+        X_split[keep_idx],
+        Y_split[keep_idx],
+        D_split[keep_idx],
+        C_split[keep_idx],
+        df_cap,
+    )
+
+
+def cap_val_samples_per_experiment(
+    X_val,
+    Y_val,
+    D_val,
+    C_val,
+    df_split: pd.DataFrame,
+    max_samples_per_experiment: int,
+):
+    """Cap validation samples per experiment after temporal split."""
+    return _cap_split_samples_per_experiment(
+        X_val,
+        Y_val,
+        D_val,
+        C_val,
+        df_split,
+        max_samples_per_experiment,
+        split_col="n_val",
+        before_label="n_val_before",
+        after_label="n_val_after",
+    )

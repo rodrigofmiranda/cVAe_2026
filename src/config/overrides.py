@@ -33,7 +33,7 @@ class RunOverrides:
         val_split, seed, patience, reduce_lr_patience
 
     Data knobs:
-        max_experiments, max_samples_per_exp
+        max_experiments, max_samples_per_exp, max_val_samples_per_exp
 
     UI knobs:
         keras_verbose
@@ -62,6 +62,7 @@ class RunOverrides:
     # --- Data ---
     max_experiments: Optional[int] = None
     max_samples_per_exp: Optional[int] = None
+    max_val_samples_per_exp: Optional[int] = None
 
     # --- UI ---
     keras_verbose: Optional[int] = None

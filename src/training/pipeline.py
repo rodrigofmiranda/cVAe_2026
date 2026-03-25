@@ -19,7 +19,10 @@ from src.data.loading import (
     reduce_aligned_arrays,
 )
 from src.data.normalization import normalize_conditions
-from src.data.splits import cap_train_samples_per_experiment
+from src.data.splits import (
+    cap_train_samples_per_experiment,
+    cap_val_samples_per_experiment,
+)
 from src.models.cvae import build_cvae
 from src.protocol.split_strategies import apply_split
 from src.training.grid_plan import select_grid
@@ -211,6 +214,22 @@ def run_training_pipeline(
             "⚡ train capped pós-split "
             f"(max_samples_per_exp={max_samples}) | "
             f"train={len(X_train):,} | val={len(X_val):,} (val intocado)"
+        )
+
+    if ov.get("max_val_samples_per_exp") is not None:
+        max_val_samples = int(ov["max_val_samples_per_exp"])
+        X_val, Y_val, D_val, C_val, _df_val_cap = cap_val_samples_per_experiment(
+            X_val,
+            Y_val,
+            D_val,
+            C_val,
+            df_split,
+            max_val_samples,
+        )
+        print(
+            "⚡ val capped pós-split "
+            f"(max_val_samples_per_exp={max_val_samples}) | "
+            f"train={len(X_train):,} | val={len(X_val):,}"
         )
 
     # Guard: seq_bigru_residual is incompatible with balanced_blocks (early check via overrides).

@@ -16,7 +16,10 @@ from src.config.runtime import build_evaluation_runtime
 from src.config.runtime_env import ensure_writable_mpl_config_dir
 from src.data.loading import load_experiments_as_list
 from src.data.normalization import apply_condition_norm, load_normalization_from_state
-from src.data.splits import cap_train_samples_per_experiment
+from src.data.splits import (
+    cap_train_samples_per_experiment,
+    cap_val_samples_per_experiment,
+)
 from src.evaluation.metrics import calculate_evm, calculate_snr, residual_distribution_metrics
 from src.evaluation.report import (
     build_global_metrics,
@@ -388,6 +391,21 @@ def evaluate_run(
         )
         print(
             f"⚡ max_samples_per_exp pós-split (train cap={max_samples}/exp) | "
+            f"train={len(X_train):,} | val={len(X_val):,}"
+        )
+
+    if split_mode == "per_experiment" and ov.get("max_val_samples_per_exp") is not None:
+        max_val_samples = int(ov["max_val_samples_per_exp"])
+        X_val, Y_val, D_val, C_val, _ = cap_val_samples_per_experiment(
+            X_val,
+            Y_val,
+            D_val,
+            C_val,
+            df_split,
+            max_val_samples,
+        )
+        print(
+            f"⚡ max_val_samples_per_exp pós-split (val cap={max_val_samples}/exp) | "
             f"train={len(X_train):,} | val={len(X_val):,}"
         )
 

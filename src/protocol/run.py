@@ -89,6 +89,8 @@ def parse_args():
                    help="Named grid subset, e.g. exploratory_small or residual_small (default: all)")
     p.add_argument("--max_experiments", type=int, default=None)
     p.add_argument("--max_samples_per_exp", type=int, default=None)
+    p.add_argument("--max_val_samples_per_exp", type=int, default=None,
+                   help="Cap validation samples per experiment after split (default: all)")
     p.add_argument("--val_split", type=float, default=None)
     p.add_argument("--seed", type=int, default=None)
     p.add_argument("--patience", type=int, default=None,
@@ -405,6 +407,7 @@ def _effective_cvae_config(
         "reduce_lr_patience",
         "max_experiments",
         "max_samples_per_exp",
+        "max_val_samples_per_exp",
         "keras_verbose",
         "no_data_reduction",
     ):
@@ -1339,11 +1342,15 @@ def run_regime(
     if _need_data:
         try:
             from src.protocol.split_strategies import apply_split
-            from src.data.splits import cap_train_samples_per_experiment
+            from src.data.splits import (
+                cap_train_samples_per_experiment,
+                cap_val_samples_per_experiment,
+            )
 
             _val_split = float(ov.get("val_split", 0.2))
             _seed = int(ov.get("seed", 42))
             _max_spe = ov.get("max_samples_per_exp")
+            _max_val_spe = ov.get("max_val_samples_per_exp")
 
             # Use already-filtered experiments from above
             exps = list(_filt_exps)
@@ -1365,6 +1372,21 @@ def run_regime(
                 print(
                     f"   ⚡ max_samples_per_exp pós-split: train={len(X_tr):,} "
                     f"(cap={_ms}/exp) | val={len(X_va):,} (val intocado)"
+                )
+
+            if _max_val_spe is not None:
+                _mvs = int(_max_val_spe)
+                X_va, Y_va, D_va, C_va, _df_val_cap = cap_val_samples_per_experiment(
+                    X_va,
+                    Y_va,
+                    D_va,
+                    C_va,
+                    _df_split,
+                    _mvs,
+                )
+                print(
+                    f"   ⚡ max_val_samples_per_exp pós-split: val={len(X_va):,} "
+                    f"(cap={_mvs}/exp) | train={len(X_tr):,}"
                 )
 
             # --- Commit 3P: shape guard ---
