@@ -241,10 +241,14 @@ def _resolve_decoder_distribution(mode: str | None) -> str:
         "mdn": "mdn",
         "mixture": "mdn",
         "mixture_density": "mdn",
+        "flow": "flow",
+        "normalizing_flow": "flow",
+        "conditional_flow": "flow",
+        "sinh_arcsinh_flow": "flow",
     }
     if mode_norm not in aliases:
         raise ValueError(
-            "decoder_distribution must be one of {'gaussian', 'mdn'}; "
+            "decoder_distribution must be one of {'gaussian', 'mdn', 'flow'}; "
             f"got {mode!r}"
         )
     return aliases[mode_norm]
@@ -312,6 +316,117 @@ def _sample_mdn(
     mean_sel = tf.gather_nd(comp_mean, gather_idx)
     log_var_sel = tf.gather_nd(comp_log_var, gather_idx)
     return _sample_heteroscedastic(mean_sel, log_var_sel)
+
+
+FLOW_LOG_SCALE_CLAMP_LO = -8.0
+FLOW_LOG_SCALE_CLAMP_HI = 3.0
+FLOW_SKEW_CLAMP = 3.0
+FLOW_LOG_TAIL_CLAMP_LO = np.log(0.5)
+FLOW_LOG_TAIL_CLAMP_HI = np.log(2.0)
+
+
+def _unpack_flow_params(
+    out_params: tf.Tensor,
+) -> tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
+    """Split conditional flow output into location, scale, skew, and tail."""
+    y_loc = out_params[:, :2]
+    log_scale = out_params[:, 2:4]
+    skew = out_params[:, 4:6]
+    log_tail = out_params[:, 6:8]
+    return y_loc, log_scale, skew, log_tail
+
+
+def _clamp_flow_params(
+    log_scale: tf.Tensor,
+    skew: tf.Tensor,
+    log_tail: tf.Tensor,
+) -> tuple[tf.Tensor, tf.Tensor, tf.Tensor]:
+    """Clamp flow parameters to a numerically stable band."""
+    log_scale = tf.clip_by_value(
+        log_scale, FLOW_LOG_SCALE_CLAMP_LO, FLOW_LOG_SCALE_CLAMP_HI
+    )
+    skew = tf.clip_by_value(skew, -FLOW_SKEW_CLAMP, FLOW_SKEW_CLAMP)
+    log_tail = tf.clip_by_value(
+        log_tail, FLOW_LOG_TAIL_CLAMP_LO, FLOW_LOG_TAIL_CLAMP_HI
+    )
+    return log_scale, skew, log_tail
+
+
+def _flow_forward_sinh_arcsinh(
+    eps: tf.Tensor,
+    y_loc: tf.Tensor,
+    log_scale: tf.Tensor,
+    skew: tf.Tensor,
+    log_tail: tf.Tensor,
+) -> tf.Tensor:
+    """Transform standard-normal samples into observations via a 1-D flow per axis."""
+    log_scale, skew, log_tail = _clamp_flow_params(log_scale, skew, log_tail)
+    scale = tf.exp(log_scale)
+    tail = tf.exp(log_tail)
+    warped = tf.sinh((tf.math.asinh(eps) + skew) / tail)
+    return y_loc + scale * warped
+
+
+def _flow_inverse_sinh_arcsinh(
+    y: tf.Tensor,
+    y_loc: tf.Tensor,
+    log_scale: tf.Tensor,
+    skew: tf.Tensor,
+    log_tail: tf.Tensor,
+) -> tuple[tf.Tensor, tf.Tensor]:
+    """Map observations back to the standard-normal base and return log|dz/dy|."""
+    log_scale, skew, log_tail = _clamp_flow_params(log_scale, skew, log_tail)
+    scale = tf.exp(log_scale)
+    tail = tf.exp(log_tail)
+    x = (y - y_loc) / (scale + 1e-6)
+    base = tf.sinh(tail * tf.math.asinh(x) - skew)
+    log_abs_det = (
+        log_tail
+        + tf.math.log(tf.cosh(tail * tf.math.asinh(x) - skew) + 1e-6)
+        - 0.5 * tf.math.log1p(tf.square(x))
+        - log_scale
+    )
+    return base, tf.reduce_sum(log_abs_det, axis=-1)
+
+
+def flow_reconstruction_loss(
+    y_true: tf.Tensor,
+    y_loc: tf.Tensor,
+    log_scale: tf.Tensor,
+    skew: tf.Tensor,
+    log_tail: tf.Tensor,
+) -> tf.Tensor:
+    """Exact NLL for the conditional sinh-arcsinh flow decoder."""
+    base, log_abs_det = _flow_inverse_sinh_arcsinh(
+        y_true, y_loc, log_scale, skew, log_tail
+    )
+    log_base = -0.5 * (
+        tf.square(base) + tf.cast(np.log(2.0 * np.pi), tf.float32)
+    )
+    log_prob = tf.reduce_sum(log_base, axis=-1) + log_abs_det
+    return -tf.reduce_mean(log_prob)
+
+
+def _flow_deterministic_point(
+    y_loc: tf.Tensor,
+    log_scale: tf.Tensor,
+    skew: tf.Tensor,
+    log_tail: tf.Tensor,
+) -> tf.Tensor:
+    """Median-like deterministic representative obtained from base sample eps=0."""
+    zeros = tf.zeros_like(y_loc)
+    return _flow_forward_sinh_arcsinh(zeros, y_loc, log_scale, skew, log_tail)
+
+
+def _sample_flow(
+    y_loc: tf.Tensor,
+    log_scale: tf.Tensor,
+    skew: tf.Tensor,
+    log_tail: tf.Tensor,
+) -> tf.Tensor:
+    """Draw one stochastic sample from the conditional flow decoder."""
+    eps = tf.random.normal(tf.shape(y_loc), dtype=y_loc.dtype)
+    return _flow_forward_sinh_arcsinh(eps, y_loc, log_scale, skew, log_tail)
 
 
 def _batch_axis_stats(x: tf.Tensor) -> tuple[tf.Tensor, tf.Tensor, tf.Tensor]:
@@ -442,6 +557,17 @@ class CondPriorVAELoss(layers.Layer):
                 nonlocal y_sample_cache
                 if y_sample_cache is None:
                     y_sample_cache = _sample_mdn(logits, comp_mean, comp_log_var)
+                return y_sample_cache
+        elif self.decoder_distribution == "flow":
+            y_loc, log_scale, skew, log_tail = _unpack_flow_params(out_params)
+            y_mean = _flow_deterministic_point(y_loc, log_scale, skew, log_tail)
+            recon = flow_reconstruction_loss(y_true, y_loc, log_scale, skew, log_tail)
+            y_sample_cache = None
+
+            def _ensure_sample():
+                nonlocal y_sample_cache
+                if y_sample_cache is None:
+                    y_sample_cache = _sample_flow(y_loc, log_scale, skew, log_tail)
                 return y_sample_cache
         else:
             y_mean, y_log_var = _unpack_gaussian_params(out_params)

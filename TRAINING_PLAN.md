@@ -177,6 +177,18 @@ Nesta branch, a prioridade imediata e:
     - primeiro smoke e prova unica
     - so depois grid curto
     - so depois protocolo full
+  - status atual:
+    - Phase 1 implementada
+    - primeira familia escolhida:
+      - flow condicional `sinh-arcsinh` por eixo
+    - preset novo:
+      - `seq_flow_smoke`
+    - primeiro smoke estrutural:
+      - `exp_20260326_033237`
+    - leitura:
+      - build / save / reload / inference / protocolo fecharam
+      - o modelo ainda esta cientificamente fraco
+      - o proximo passo nao e sweep grande; e uma prova curta real da linha flow
 
 ### Criterio operacional do teste causal `seq_sampled_mmd_compare`
 

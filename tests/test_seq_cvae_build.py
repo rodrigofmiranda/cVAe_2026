@@ -143,6 +143,10 @@ class TestSubModelBuild:
         # (mean_I, mean_Q, logvar_I, logvar_Q)
         assert dec.outputs[0].shape[1:] == (4,)
 
+    def test_flow_decoder_output_shape(self):
+        dec = build_seq_decoder(_min_cfg(decoder_distribution="flow"))
+        assert dec.outputs[0].shape[1:] == (8,)
+
 
 # ===========================================================================
 # 1 — Full model build
@@ -251,6 +255,18 @@ class TestForwardPass:
         c      = rng.uniform(0, 1, size=(N, 1)).astype(np.float32)
         out = dec([z, x_cent, d, c], training=False)
         assert out.shape == (N, 4)
+
+    def test_flow_decoder_forward_shapes(self):
+        cfg = _min_cfg(decoder_distribution="flow")
+        dec = build_seq_decoder(cfg)
+        N = 16
+        rng = np.random.default_rng(2)
+        z = rng.normal(size=(N, cfg["latent_dim"])).astype(np.float32)
+        x_cent = rng.normal(size=(N, 2)).astype(np.float32)
+        d = rng.uniform(0, 1, size=(N, 1)).astype(np.float32)
+        c = rng.uniform(0, 1, size=(N, 1)).astype(np.float32)
+        out = dec([z, x_cent, d, c], training=False)
+        assert out.shape == (N, 8)
 
     def test_full_model_forward_shape(self):
         cfg = _min_cfg()

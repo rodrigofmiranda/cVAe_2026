@@ -1355,6 +1355,39 @@ def _preset_seq_mdn_smoke() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_flow_smoke() -> List[Dict[str, Any]]:
+    """Single-candidate smoke for the first conditional flow decoder."""
+
+    return [
+        dict(
+            group="F0_seq_flow_smoke",
+            tag="F0seq_W7_h64_lat4_flow_b0p002_lmmd0p25_axis0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_cfg(
+                arch_variant="seq_bigru_residual",
+                layer_sizes=[128, 256, 512],
+                latent_dim=4,
+                beta=0.002,
+                free_bits=0.10,
+                lr=2e-4,
+                batch_size=4096,
+                kl_anneal_epochs=80,
+                window_size=7,
+                window_stride=1,
+                window_pad_mode="edge",
+                seq_hidden_size=64,
+                seq_num_layers=1,
+                seq_bidirectional=True,
+                lambda_mmd=0.25,
+                mmd_mode="mean_residual",
+                lambda_axis=0.0,
+                lambda_psd=0.0,
+                decoder_distribution="flow",
+                shuffle_train_batches=True,
+            ),
+        ),
+    ]
+
+
 def _preset_seq_mdn_proof() -> List[Dict[str, Any]]:
     """Focused proof run for the seq MDN line on the full protocol."""
 
@@ -1943,6 +1976,8 @@ def select_grid(
             grid = _preset_seq_hybrid_loss_smoke()
         elif preset_name == "seq_mdn_smoke":
             grid = _preset_seq_mdn_smoke()
+        elif preset_name == "seq_flow_smoke":
+            grid = _preset_seq_flow_smoke()
         elif preset_name == "seq_mdn_proof":
             grid = _preset_seq_mdn_proof()
         elif preset_name == "seq_mdn_conservative_proof":

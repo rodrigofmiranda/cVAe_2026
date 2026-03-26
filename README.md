@@ -62,6 +62,16 @@ Purpose of this branch:
 - test whether a more expressive conditional likelihood closes the remaining
   near-range distribution-shape gap
 
+Current implementation status:
+
+- Phase 1 plumbing is already in place
+- first flow family implemented:
+  - conditional `sinh-arcsinh` flow per residual axis
+- first smoke preset available:
+  - `seq_flow_smoke`
+- first structural smoke run completed:
+  - `outputs/exp_20260326_033237`
+
 The worktree path remains:
 
 - `/workspace/2026/feat_seq_bigru_residual_cvae`

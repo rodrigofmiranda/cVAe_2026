@@ -303,7 +303,7 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
     aux_needs_x = any(v > 0.0 for v in (lambda_mmd, lambda_axis, lambda_psd))
     if decoder_distribution.strip().lower() != "gaussian" and arch_variant != "seq_bigru_residual":
         raise ValueError(
-            "decoder_distribution='mdn' is currently supported only for "
+            "decoder_distribution in {'mdn', 'flow'} is currently supported only for "
             "arch_variant='seq_bigru_residual'."
         )
     if arch_variant == "delta_residual":

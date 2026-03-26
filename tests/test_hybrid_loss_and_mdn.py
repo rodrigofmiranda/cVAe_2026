@@ -107,3 +107,50 @@ def test_seq_mdn_model_builds_saves_loads_and_predicts(tmp_path):
 
     assert y_det.shape == (2, 2)
     assert y_sto.shape == (2, 2)
+
+
+def test_seq_flow_model_builds_saves_loads_and_predicts(tmp_path):
+    cfg = {
+        "arch_variant": "seq_bigru_residual",
+        "layer_sizes": [16, 16],
+        "latent_dim": 2,
+        "beta": 0.002,
+        "free_bits": 0.10,
+        "lr": 2e-4,
+        "dropout": 0.0,
+        "kl_anneal_epochs": 4,
+        "activation": "leaky_relu",
+        "window_size": 7,
+        "window_stride": 1,
+        "window_pad_mode": "edge",
+        "seq_hidden_size": 4,
+        "seq_num_layers": 1,
+        "seq_bidirectional": True,
+        "decoder_distribution": "flow",
+        "lambda_mmd": 0.25,
+        "lambda_axis": 0.0,
+        "lambda_psd": 0.0,
+    }
+    model, _ = build_cvae(cfg)
+
+    x = np.zeros((2, 7, 2), dtype=np.float32)
+    d = np.zeros((2, 1), dtype=np.float32)
+    c = np.zeros((2, 1), dtype=np.float32)
+    y = np.zeros((2, 2), dtype=np.float32)
+
+    y_out = model.predict([x, d, c, y], verbose=0)
+    assert y_out.shape == (2, 2)
+    assert model.get_layer("decoder").output_shape[-1] == 8
+
+    save_path = tmp_path / "seq_flow.keras"
+    model.save(save_path)
+    loaded = load_seq_model(save_path)
+
+    inf_det = create_seq_inference_model(loaded, deterministic=True)
+    inf_sto = create_seq_inference_model(loaded, deterministic=False)
+
+    y_det = inf_det.predict([x, d, c], verbose=0)
+    y_sto = inf_sto.predict([x, d, c], verbose=0)
+
+    assert y_det.shape == (2, 2)
+    assert y_sto.shape == (2, 2)

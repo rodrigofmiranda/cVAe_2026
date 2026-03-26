@@ -34,6 +34,16 @@ Current purpose:
 - use `configs/all_regimes_sel4curr.json` as the minimum active protocol
   (`0.8/1.0/1.5 m x 100/300/500/700 mA`)
 
+Current flow status:
+
+- Phase 1 plumbing is implemented
+- first decoder family:
+  - conditional `sinh-arcsinh` flow per axis
+- first smoke preset:
+  - `seq_flow_smoke`
+- structural smoke run already completed:
+  - `outputs/exp_20260326_033237`
+
 Current branch-level plan:
 
 - [docs/FLOW_DECODER_PLAN.md](FLOW_DECODER_PLAN.md)

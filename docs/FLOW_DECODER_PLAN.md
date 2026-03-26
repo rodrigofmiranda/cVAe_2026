@@ -75,10 +75,12 @@ Target structure:
 
 Recommended starting point:
 
-- 2-D conditional coupling flow
-- `4` to `8` transforms
-- affine or rational-quadratic spline couplings
-- triangular / masked design simple enough to serialize cleanly
+- implement a smaller exact proof first:
+  - conditional `sinh-arcsinh` flow per output axis
+  - exact likelihood
+  - exact stochastic sampling
+  - deterministic median-like representative via base sample `eps=0`
+- if this proof is promising, then move to a richer 2-D coupling / spline stack
 
 ## Training Objective
 
@@ -118,6 +120,17 @@ Deliverables:
 - config keys for flow decoder selection
 - smoke preset for `seq_flow_smoke`
 - unit tests for shape, sampling, and reload
+
+Current status:
+
+- implemented
+- smoke preset added:
+  - `seq_flow_smoke`
+- structural smoke completed:
+  - `outputs/exp_20260326_033237`
+- result:
+  - the flow branch is wired end-to-end
+  - it is not yet scientifically competitive
 
 ### Phase 2 — Single-Candidate Quick Proof
 
@@ -190,4 +203,7 @@ Do not prioritize these before the flow decoder proof exists:
 
 ## Immediate Next Step
 
-Implement the conditional flow decoder head and a smoke preset.
+Run a short proof beyond the structural smoke, then decide whether to:
+
+- tune the current `sinh-arcsinh` flow line
+- or move directly to a richer conditional coupling / spline decoder

@@ -60,6 +60,10 @@ from src.models.losses import (
     CondPriorDeltaVAELoss,
     CondPriorVAELoss,
     StdNormalHeteroscedasticVAELoss,
+    _flow_deterministic_point,
+    _resolve_decoder_distribution,
+    _sample_flow,
+    _unpack_flow_params,
     _mdn_expected_mean,
     _sample_mdn,
 )
@@ -323,16 +327,18 @@ def build_seq_encoder(cfg: Dict) -> tf.keras.Model:
 
 
 def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
-    """Build the heteroscedastic residual decoder p(y | z, x_center, d, c).
+    """Build the residual decoder p(y | z, x_center, d, c).
 
     Uses a residual formulation identical to the ``channel_residual`` variant::
 
         delta_mean = MLP(z, x_center, d, c)[:, :2]
         y_mean     = x_center + delta_mean
 
-    Output is Gaussian or MDN depending on ``decoder_distribution``:
+    Output is Gaussian, MDN, or conditional flow depending on
+    ``decoder_distribution``:
     - Gaussian: ``(mean_I, mean_Q, logvar_I, logvar_Q)``
     - MDN: flattened ``(logits[K], mean[K,2], logvar[K,2])``
+    - Flow: ``(loc_I, loc_Q, log_scale_I, log_scale_Q, skew_I, skew_Q, log_tail_I, log_tail_Q)``
 
     Parameters
     ----------
@@ -372,6 +378,16 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
         y_mean = layers.Add(name="y_mean_components")([x_center_rep, delta_mean])
         y_mean_flat = layers.Reshape((2 * k,), name="y_mean_flat")(y_mean)
         out = layers.Concatenate(name="output_params")([logits, y_mean_flat, delta_lv_flat])
+    elif decoder_distribution == "flow":
+        raw_out = layers.Dense(8, name="output_params_raw")(h)
+        delta_loc = SliceFeatures(0, 2, name="delta_loc")(raw_out)
+        log_scale = SliceFeatures(2, 4, name="flow_log_scale")(raw_out)
+        skew = SliceFeatures(4, 6, name="flow_skew")(raw_out)
+        log_tail = SliceFeatures(6, 8, name="flow_log_tail")(raw_out)
+        y_loc = layers.Add(name="y_loc_residual")([x_cent_in, delta_loc])
+        out = layers.Concatenate(name="output_params")(
+            [y_loc, log_scale, skew, log_tail]
+        )
     else:
         # Residual: predict (delta_mean, delta_log_var), then add x_center to mean
         raw_out = layers.Dense(4, name="output_params_raw")(h)
@@ -523,10 +539,18 @@ def create_seq_inference_model(
 
     x_center = ExtractCenterFrame(half, name="x_center_extract")(x_win_in)
     out_params = dec([z, x_center, d_in, c_in])
-    out_dim = int(dec.output_shape[-1])
-    is_mdn = out_dim > 4 and out_dim % 5 == 0
+    try:
+        loss_layer = full_model.get_layer("condprior_loss")
+        decoder_distribution = _resolve_decoder_distribution(
+            getattr(loss_layer, "decoder_distribution", None)
+            or loss_layer.get_config().get("decoder_distribution", "gaussian")
+        )
+    except Exception:
+        out_dim = int(dec.output_shape[-1])
+        decoder_distribution = "mdn" if out_dim > 4 and out_dim % 5 == 0 else "gaussian"
 
-    if is_mdn:
+    if decoder_distribution == "mdn":
+        out_dim = int(dec.output_shape[-1])
         k = out_dim // 5
         logits = SliceFeatures(0, k, name="mixture_logits")(out_params)
         y_mean_flat = SliceFeatures(k, k + 2 * k, name="y_mean_flat")(out_params)
@@ -551,6 +575,18 @@ def create_seq_inference_model(
                 lambda xs: _sample_mdn(xs[0], xs[1], xs[2]),
                 name="y_sample",
             )([logits, y_mean_components, y_log_var_components])
+    elif decoder_distribution == "flow":
+        y_loc, log_scale, skew, log_tail = _unpack_flow_params(out_params)
+        if deterministic:
+            y = layers.Lambda(
+                lambda xs: _flow_deterministic_point(xs[0], xs[1], xs[2], xs[3]),
+                name="y_det",
+            )([y_loc, log_scale, skew, log_tail])
+        else:
+            y = layers.Lambda(
+                lambda xs: _sample_flow(xs[0], xs[1], xs[2], xs[3]),
+                name="y_sample",
+            )([y_loc, log_scale, skew, log_tail])
     else:
         y_mean = SliceFeatures(0, 2, name="y_mean")(out_params)
         y_log_var_raw = SliceFeatures(2, 4, name="y_logvar_slice")(out_params)
