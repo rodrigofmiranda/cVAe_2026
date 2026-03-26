@@ -53,8 +53,13 @@ Current flow status:
 - latest flow proof reading:
   - `outputs/exp_20260326_034522`
   - structurally successful, scientifically poor
-  - next preset:
-    - `seq_flow_phase3_quick`
+- next preset:
+  - `seq_flow_phase3_quick`
+- latest stabilization reading:
+  - `outputs/exp_20260326_035723`
+  - still `0/12`
+- frozen full-compare preset:
+  - `seq_flow_phase4_fullcompare`
 
 Current branch-level plan:
 

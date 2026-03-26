@@ -237,7 +237,7 @@ Scientific intent:
 
 ### Phase 4 — Full Protocol Compare
 
-Only after a quick run is competitive.
+Normally only after a quick run is competitive.
 
 Compare against:
 
@@ -245,6 +245,17 @@ Compare against:
   - `outputs/exp_20260324_023558`
 - best MDN quick:
   - `outputs/exp_20260325_230938`
+
+Current status:
+
+- the formal gate for Phase 4 is **not** met yet
+- `exp_20260326_035723` still ended at `0/12`
+- however, a canonical full-compare preset now exists so the branch has a
+  single frozen reference candidate:
+  - `seq_flow_phase4_fullcompare`
+
+Use this only when we explicitly want a full baseline read of the current flow
+family, not because the quick line has already proven itself.
 
 ## Acceptance Criteria
 

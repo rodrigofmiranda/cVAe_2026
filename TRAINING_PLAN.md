@@ -234,6 +234,20 @@ Nesta branch, a prioridade imediata e:
     - reduzir liberdade de escala/cauda via ganhos menores
     - testar `lambda_mmd=0.10` como ancora leve
     - incluir um hedge curto com `beta=0.003`
+  - leitura da Phase 3:
+    - `exp_20260326_035723`
+    - melhor candidato:
+      - `F2seq_W7_h64_lat4_sasflow_gdef_lmmd0p10_b0p002_fb0p10_lr0p0002_bs8192`
+    - resultado:
+      - `0/12`
+    - conclusao:
+      - a linha atual do flow ainda nao justifica full compare cientifico
+      - mas o melhor candidato foi congelado para referencia da branch
+  - preset da Phase 4:
+    - `grid_preset=seq_flow_phase4_fullcompare`
+  - uso correto:
+    - somente para leitura full da melhor linha atual do flow
+    - nao deve ser interpretado como validacao da familia
 
 ### Criterio operacional do teste causal `seq_sampled_mmd_compare`
 

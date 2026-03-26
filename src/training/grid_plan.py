@@ -1563,6 +1563,49 @@ def _preset_seq_flow_phase3_quick() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_flow_phase4_fullcompare() -> List[Dict[str, Any]]:
+    """Single-candidate full protocol compare for the current best flow line.
+
+    This preset simply freezes the least-bad Phase 3 candidate into a clean
+    single-candidate full run. It exists so the branch has a canonical Phase 4
+    entry point, even though the current flow family has not yet met the
+    scientific gate that would normally justify a full compare.
+    """
+
+    return [
+        dict(
+            group="F3_seq_flow_phase4",
+            tag="F3seq_W7_h64_lat4_sasflow_gdef_lmmd0p10_b0p002_fb0p10_lr0p0002_bs8192",
+            cfg=_cfg(
+                arch_variant="seq_bigru_residual",
+                layer_sizes=[128, 256, 512],
+                latent_dim=4,
+                beta=0.002,
+                free_bits=0.10,
+                lr=2e-4,
+                batch_size=8192,
+                kl_anneal_epochs=40,
+                window_size=7,
+                window_stride=1,
+                window_pad_mode="edge",
+                seq_hidden_size=64,
+                seq_num_layers=1,
+                seq_bidirectional=True,
+                lambda_mmd=0.10,
+                mmd_mode="mean_residual",
+                lambda_axis=0.0,
+                lambda_psd=0.0,
+                decoder_distribution="flow",
+                flow_identity_init=True,
+                flow_log_scale_gain=0.35,
+                flow_skew_gain=0.75,
+                flow_log_tail_gain=0.20,
+                shuffle_train_batches=True,
+            ),
+        ),
+    ]
+
+
 def _preset_seq_mdn_proof() -> List[Dict[str, Any]]:
     """Focused proof run for the seq MDN line on the full protocol."""
 
@@ -2159,6 +2202,8 @@ def select_grid(
             grid = _preset_seq_flow_micro_proof()
         elif preset_name == "seq_flow_phase3_quick":
             grid = _preset_seq_flow_phase3_quick()
+        elif preset_name == "seq_flow_phase4_fullcompare":
+            grid = _preset_seq_flow_phase4_fullcompare()
         elif preset_name == "seq_mdn_proof":
             grid = _preset_seq_mdn_proof()
         elif preset_name == "seq_mdn_conservative_proof":

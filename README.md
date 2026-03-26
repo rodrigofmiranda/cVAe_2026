@@ -77,6 +77,8 @@ Current implementation status:
   - `seq_flow_micro_proof`
 - next stabilization preset:
   - `seq_flow_phase3_quick`
+- frozen full-compare preset:
+  - `seq_flow_phase4_fullcompare`
 
 The worktree path remains:
 

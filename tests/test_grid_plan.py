@@ -257,6 +257,20 @@ def test_select_grid_seq_flow_phase3_quick_builds_short_stabilization_sweep():
     assert {item["cfg"]["flow_log_tail_gain"] for item in grid} == {0.20, 0.10}
 
 
+def test_select_grid_seq_flow_phase4_fullcompare_builds_single_full_candidate():
+    grid = select_grid({"grid_preset": "seq_flow_phase4_fullcompare"})
+
+    assert len(grid) == 1
+    cfg = grid[0]["cfg"]
+    assert cfg["decoder_distribution"] == "flow"
+    assert cfg["lambda_mmd"] == 0.10
+    assert cfg["beta"] == 0.002
+    assert cfg["flow_identity_init"] is True
+    assert cfg["flow_log_scale_gain"] == 0.35
+    assert cfg["flow_skew_gain"] == 0.75
+    assert cfg["flow_log_tail_gain"] == 0.20
+
+
 def test_select_grid_seq_mdn_proof_builds_two_component_sweep():
     grid = select_grid({"grid_preset": "seq_mdn_proof"})
 
