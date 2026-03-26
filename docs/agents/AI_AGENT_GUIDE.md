@@ -61,6 +61,17 @@ Add a sixth file only if the task needs it.
   - `decoder`
 - serious experimentation should go through `src.protocol.run`
 
+Critical seq note:
+
+- for `seq_bigru_residual`, if a branch uses `max_samples_per_exp` and/or
+  `max_val_samples_per_exp`, verify that `df_split` is rewritten to post-cap
+  counts before windowing
+- otherwise quick sequential runs can silently leak context across experiment
+  boundaries while keeping the center sample apparently correct
+- reference fix:
+  - commit `a1660e2`
+  - both training pipeline and protocol quick evaluation were touched
+
 ## Canonical Entry Point
 
 ```bash

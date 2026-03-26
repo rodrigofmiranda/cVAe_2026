@@ -64,6 +64,26 @@ The current implementation branch now includes an `MDN v2` path:
 - finite `decoder_sensitivity` for seq Gaussian / seq MDN
 - `latent_summary` kept as audit-only telemetry, not a search criterion
 
+## Operational Attention Point
+
+For `seq_bigru_residual`, any branch that uses per-experiment caps must be
+checked for the post-cap `df_split` fix.
+
+- affected configuration:
+  - `max_samples_per_exp`
+  - `max_val_samples_per_exp`
+  - train-side sequence windowing
+  - protocol-side sequence quick evaluation
+- failure mode:
+  - window center stays correct
+  - left/right context can cross experiment boundaries
+- safe configurations:
+  - full runs without per-experiment caps
+  - point-wise models without sequence windowing
+
+When resuming or cherry-picking to another branch, verify that the equivalent of
+commit `a1660e2` is present before trusting a quick sequential run.
+
 Do not reopen:
 
 - `sample-aware MMD`

@@ -34,6 +34,17 @@ Use quick caps when screening a hypothesis:
 - `--stat_mode quick`
 - `--stat_max_n`
 
+Attention for `seq_bigru_residual`:
+
+- if `--max_samples_per_exp` and/or `--max_val_samples_per_exp` are active,
+  confirm the branch contains the post-cap `df_split` fix from commit
+  `a1660e2`
+- otherwise quick sequential runs can preserve the center sample while still
+  leaking temporal context across experiment boundaries inside each window
+- this check matters for both:
+  - training-side windowing
+  - protocol quick evaluation / `_quick_cvae_predict`
+
 ## Full Run Pattern
 
 Use the full protocol only after a quick run is already scientifically
@@ -64,3 +75,7 @@ Always answer:
 Do not accept a line based only on train-side ranking or lower loss.
 
 Protocol result comes first.
+
+Also do not accept a quick sequential result from another branch until you have
+verified the branch contains the post-cap `df_split` fix if per-experiment caps
+were used.

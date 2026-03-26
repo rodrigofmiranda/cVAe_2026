@@ -56,6 +56,29 @@ Leitura atual:
   - `decoder_sensitivity` seq/MDN corrigido e finito
   - `latent_summary` mantido apenas como telemetria de auditoria
 
+## Ponto De Atencao Operacional
+
+Existe um bug ja encontrado e corrigido nesta branch que precisa ser
+reverificado sempre que a linha `seq_bigru_residual` for usada em outra branch
+ou worktree:
+
+- se houver `max_samples_per_exp` e/ou `max_val_samples_per_exp`, o `df_split`
+  precisa ser atualizado para contagens pos-cap antes do windowing
+- sem esse ajuste, o center sample continua correto, mas o contexto temporal da
+  janela pode vazar entre experimentos
+- o risco vale para:
+  - treino sequencial
+  - `_quick_cvae_predict` / avaliacao sequencial no protocolo
+  - qualquer split sequencial em que arrays tenham sido capados por experimento
+- o risco nao vale para:
+  - runs full sem caps
+  - modelos point-wise sem windowing
+
+Commits de referencia desta correcao:
+
+- `a1660e2` `fix(seq): sync df_split after per-exp caps`
+- `c6d1a0a` `docs: drop stale smoke b2 notes`
+
 ## Familias De Modelo Disponiveis
 
 - `concat`
