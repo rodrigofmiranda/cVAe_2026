@@ -141,6 +141,28 @@ Nesta branch, a prioridade imediata e:
     - `--max_dist_samples 20000`
     - `--stat_mode quick`
     - `--stat_max_n 2000`
+- Preset exploratorio maior focado em `G5`:
+  - `grid_preset=seq_mdn_g5_broader_quick`
+  - ancora:
+    - manter o controle `S14` vencedor (`beta=0.002`, `lmmd=0.25`, `axis=0.01`)
+  - foco:
+    - explorar uma faixa intermediaria de `beta`:
+      - `0.0020`
+      - `0.0018`
+      - `0.0015`
+    - aumentar a ancora distribucional com:
+      - `lambda_mmd=0.35`
+      - `lambda_mmd=0.50`
+    - so relaxar `lambda_axis` para `0.005` na linha mais agressiva de `beta=0.0015`
+  - motivacao:
+    - `beta=0.0015` sozinho ajudou train-side, mas regrediu `G6`
+    - o proximo passo deve ser testar se `MMD` mais forte recupera `G6` sem abrir mao do ganho em `G5`
+  - comando recomendado:
+    - `--max_samples_per_exp 100000`
+    - `--max_val_samples_per_exp 20000`
+    - `--max_dist_samples 20000`
+    - `--stat_mode quick`
+    - `--stat_max_n 2000`
 
 ### Criterio operacional do teste causal `seq_sampled_mmd_compare`
 

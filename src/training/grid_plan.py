@@ -1627,6 +1627,116 @@ def _preset_seq_mdn_g5_exploratory_quick() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_mdn_g5_broader_quick() -> List[Dict[str, Any]]:
+    """Broader MDN quick sweep after the first targeted G5 retry.
+
+    What the last two runs established:
+      - ``exp_20260325_230938`` is still the best MDN quick anchor
+      - lowering ``beta`` to ``0.0015`` improved train-side fit and some G5
+        behavior, but weakened G6 on near-range regimes
+      - increasing axis pressure or changing mixture count was not the right
+        next move
+
+    This broader sweep therefore focuses on the interaction:
+      - ``beta`` in {0.0020, 0.0018, 0.0015}
+      - ``lambda_mmd`` in {0.25, 0.35, 0.50}
+      - ``lambda_axis`` in {0.01, 0.005} only for the lower-beta line
+
+    The goal is explicit:
+      - preserve the S14/S15 stability on 1.0 m and 1.5 m
+      - recover the all-regime G6 pass rate of ``exp_20260325_230938``
+      - keep pushing the remaining G5 failures at ``0.8 m``
+    """
+
+    def _seq_cfg(
+        *,
+        beta: float,
+        lambda_mmd: float,
+        lambda_axis: float = 0.01,
+    ) -> Dict[str, Any]:
+        return _cfg(
+            arch_variant="seq_bigru_residual",
+            layer_sizes=[128, 256, 512],
+            latent_dim=4,
+            beta=beta,
+            free_bits=0.10,
+            lr=2e-4,
+            batch_size=4096,
+            kl_anneal_epochs=80,
+            window_size=7,
+            window_stride=1,
+            window_pad_mode="edge",
+            seq_hidden_size=64,
+            seq_num_layers=1,
+            seq_bidirectional=True,
+            lambda_mmd=lambda_mmd,
+            mmd_mode="mean_residual",
+            lambda_axis=lambda_axis,
+            lambda_psd=0.0,
+            decoder_distribution="mdn",
+            mdn_components=3,
+            shuffle_train_batches=True,
+        )
+
+    return [
+        dict(
+            group="S16_seq_mdn_g5_broad",
+            tag="S16seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_psd0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(beta=0.0020, lambda_mmd=0.25, lambda_axis=0.01),
+        ),
+        dict(
+            group="S16_seq_mdn_g5_broad",
+            tag="S16seq_W7_h64_lat4_mdn3_b0p0018_lmmd0p25_axis0p01_psd0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(beta=0.0018, lambda_mmd=0.25, lambda_axis=0.01),
+        ),
+        dict(
+            group="S16_seq_mdn_g5_broad",
+            tag="S16seq_W7_h64_lat4_mdn3_b0p0015_lmmd0p25_axis0p01_psd0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(beta=0.0015, lambda_mmd=0.25, lambda_axis=0.01),
+        ),
+        dict(
+            group="S16_seq_mdn_g5_broad",
+            tag="S16seq_W7_h64_lat4_mdn3_b0p002_lmmd0p35_axis0p01_psd0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(beta=0.0020, lambda_mmd=0.35, lambda_axis=0.01),
+        ),
+        dict(
+            group="S16_seq_mdn_g5_broad",
+            tag="S16seq_W7_h64_lat4_mdn3_b0p002_lmmd0p5_axis0p01_psd0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(beta=0.0020, lambda_mmd=0.50, lambda_axis=0.01),
+        ),
+        dict(
+            group="S16_seq_mdn_g5_broad",
+            tag="S16seq_W7_h64_lat4_mdn3_b0p0018_lmmd0p35_axis0p01_psd0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(beta=0.0018, lambda_mmd=0.35, lambda_axis=0.01),
+        ),
+        dict(
+            group="S16_seq_mdn_g5_broad",
+            tag="S16seq_W7_h64_lat4_mdn3_b0p0018_lmmd0p5_axis0p01_psd0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(beta=0.0018, lambda_mmd=0.50, lambda_axis=0.01),
+        ),
+        dict(
+            group="S16_seq_mdn_g5_broad",
+            tag="S16seq_W7_h64_lat4_mdn3_b0p0015_lmmd0p35_axis0p01_psd0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(beta=0.0015, lambda_mmd=0.35, lambda_axis=0.01),
+        ),
+        dict(
+            group="S16_seq_mdn_g5_broad",
+            tag="S16seq_W7_h64_lat4_mdn3_b0p0015_lmmd0p5_axis0p01_psd0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(beta=0.0015, lambda_mmd=0.50, lambda_axis=0.01),
+        ),
+        dict(
+            group="S16_seq_mdn_g5_broad",
+            tag="S16seq_W7_h64_lat4_mdn3_b0p0015_lmmd0p35_axis0p005_psd0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(beta=0.0015, lambda_mmd=0.35, lambda_axis=0.005),
+        ),
+        dict(
+            group="S16_seq_mdn_g5_broad",
+            tag="S16seq_W7_h64_lat4_mdn3_b0p0015_lmmd0p5_axis0p005_psd0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(beta=0.0015, lambda_mmd=0.50, lambda_axis=0.005),
+        ),
+    ]
+
+
 def _preset_best_compare_large() -> List[Dict[str, Any]]:
     """Comparative protocol-first grid using the strongest current candidates.
 
@@ -1841,6 +1951,8 @@ def select_grid(
             grid = _preset_seq_mdn_exploratory_quick()
         elif preset_name == "seq_mdn_g5_exploratory_quick":
             grid = _preset_seq_mdn_g5_exploratory_quick()
+        elif preset_name == "seq_mdn_g5_broader_quick":
+            grid = _preset_seq_mdn_g5_broader_quick()
         elif preset_name == "best_compare_large":
             grid = _preset_best_compare_large()
         elif preset_name == "delta_residual_fast":

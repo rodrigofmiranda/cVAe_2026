@@ -301,6 +301,31 @@ Current focused MDN G5 sweep:
   - `--stat_mode quick`
   - `--stat_max_n 2000`
 
+Current broader MDN G5 sweep:
+
+- preset: `seq_mdn_g5_broader_quick`
+- anchor:
+  - keep the `S14` winner as explicit control
+- intent:
+  - broaden only around the `beta × lambda_mmd` interaction
+  - test whether stronger `MMD` can recover the `G6` regressions seen when
+    moving from `beta=0.002` to `beta=0.0015`
+- explored region:
+  - `beta in {0.0020, 0.0018, 0.0015}`
+  - `lambda_mmd in {0.25, 0.35, 0.50}`
+  - `lambda_axis=0.01` by default
+  - `lambda_axis=0.005` only for the lowest-beta line
+- intentionally not reopened:
+  - `mdn2/mdn4`
+  - `free_bits`
+  - `PSD loss`
+- recommended quick caps:
+  - `--max_samples_per_exp 100000`
+  - `--max_val_samples_per_exp 20000`
+  - `--max_dist_samples 20000`
+  - `--stat_mode quick`
+  - `--stat_max_n 2000`
+
 ## Future Adversarial Note
 
 - the adversarial line was removed from the active worktree
