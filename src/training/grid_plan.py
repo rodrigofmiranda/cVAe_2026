@@ -1824,6 +1824,113 @@ def _preset_seq_mdn_regime_weight_quick() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_mdn_g5_shape_quick() -> List[Dict[str, Any]]:
+    """Quick MDN sweep focused on the remaining G5 failures at 0.8m.
+
+    Anchor:
+
+      - best MDN run ``exp_20260325_230938``
+      - ``mdn3``
+      - ``beta=0.002``
+      - ``lambda_mmd=0.25``
+      - ``lambda_axis=0.01``
+      - ``lr=2e-4``
+
+    Diagnosis from that run:
+
+      - G6 already passes for all 12 regimes
+      - the remaining failures are only G5 on:
+        ``0.8m/100mA``, ``0.8m/300mA``, ``0.8m/500mA``
+      - variance is already close enough; the mismatch is more about
+        skew/kurtosis and marginal tail shape
+
+    So this preset changes only the internal shape of ``axis_loss``:
+
+      - reduce the std term weight
+      - increase skew / kurt pressure
+      - keep MMD fixed so we do not reopen the G6 problem
+    """
+
+    def _seq_cfg(
+        *,
+        lambda_axis: float = 0.01,
+        axis_std_weight: float = 1.0,
+        axis_skew_weight: float = 0.25,
+        axis_kurt_weight: float = 0.10,
+    ) -> Dict[str, Any]:
+        return _cfg(
+            arch_variant="seq_bigru_residual",
+            layer_sizes=[128, 256, 512],
+            latent_dim=4,
+            beta=0.002,
+            free_bits=0.10,
+            lr=2e-4,
+            batch_size=4096,
+            kl_anneal_epochs=80,
+            window_size=7,
+            window_stride=1,
+            window_pad_mode="edge",
+            seq_hidden_size=64,
+            seq_num_layers=1,
+            seq_bidirectional=True,
+            lambda_mmd=0.25,
+            mmd_mode="mean_residual",
+            lambda_axis=lambda_axis,
+            lambda_psd=0.0,
+            axis_std_weight=axis_std_weight,
+            axis_skew_weight=axis_skew_weight,
+            axis_kurt_weight=axis_kurt_weight,
+            decoder_distribution="mdn",
+            mdn_components=3,
+            shuffle_train_batches=True,
+        )
+
+    return [
+        dict(
+            group="S18_seq_mdn_g5_shape",
+            tag="S18seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_std1_sk0p25_ku0p10_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(),
+        ),
+        dict(
+            group="S18_seq_mdn_g5_shape",
+            tag="S18seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_std0p5_sk0p5_ku0p20_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(
+                axis_std_weight=0.50,
+                axis_skew_weight=0.50,
+                axis_kurt_weight=0.20,
+            ),
+        ),
+        dict(
+            group="S18_seq_mdn_g5_shape",
+            tag="S18seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_std0p25_sk0p75_ku0p35_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(
+                axis_std_weight=0.25,
+                axis_skew_weight=0.75,
+                axis_kurt_weight=0.35,
+            ),
+        ),
+        dict(
+            group="S18_seq_mdn_g5_shape",
+            tag="S18seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p015_std0p25_sk0p75_ku0p35_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(
+                lambda_axis=0.015,
+                axis_std_weight=0.25,
+                axis_skew_weight=0.75,
+                axis_kurt_weight=0.35,
+            ),
+        ),
+        dict(
+            group="S18_seq_mdn_g5_shape",
+            tag="S18seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_std0p25_sk0p5_ku0p50_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(
+                axis_std_weight=0.25,
+                axis_skew_weight=0.50,
+                axis_kurt_weight=0.50,
+            ),
+        ),
+    ]
+
+
 def _preset_best_compare_large() -> List[Dict[str, Any]]:
     """Comparative protocol-first grid using the strongest current candidates.
 
@@ -2042,6 +2149,8 @@ def select_grid(
             grid = _preset_seq_mdn_g5_broader_quick()
         elif preset_name == "seq_mdn_regime_weight_quick":
             grid = _preset_seq_mdn_regime_weight_quick()
+        elif preset_name == "seq_mdn_g5_shape_quick":
+            grid = _preset_seq_mdn_g5_shape_quick()
         elif preset_name == "best_compare_large":
             grid = _preset_best_compare_large()
         elif preset_name == "delta_residual_fast":

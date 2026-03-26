@@ -297,6 +297,9 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
     lambda_mmd = float(cfg.get("lambda_mmd", 0.0))
     lambda_axis = float(cfg.get("lambda_axis", 0.0))
     lambda_psd = float(cfg.get("lambda_psd", 0.0))
+    axis_std_weight = float(cfg.get("axis_std_weight", 1.0))
+    axis_skew_weight = float(cfg.get("axis_skew_weight", 0.25))
+    axis_kurt_weight = float(cfg.get("axis_kurt_weight", 0.10))
     mmd_mode = str(cfg.get("mmd_mode", "mean_residual"))
     decoder_distribution = str(cfg.get("decoder_distribution", "gaussian"))
     mdn_components = int(cfg.get("mdn_components", 1))
@@ -324,6 +327,9 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
             lambda_mmd=lambda_mmd,
             lambda_axis=lambda_axis,
             lambda_psd=lambda_psd,
+            axis_std_weight=axis_std_weight,
+            axis_skew_weight=axis_skew_weight,
+            axis_kurt_weight=axis_kurt_weight,
             mmd_mode=mmd_mode,
             decoder_distribution=decoder_distribution,
             mdn_components=mdn_components,

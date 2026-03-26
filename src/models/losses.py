@@ -326,7 +326,14 @@ def _batch_axis_stats(x: tf.Tensor) -> tuple[tf.Tensor, tf.Tensor, tf.Tensor]:
     return std, skew, kurt
 
 
-def axis_moment_loss_tf(r_real: tf.Tensor, r_gen: tf.Tensor) -> tf.Tensor:
+def axis_moment_loss_tf(
+    r_real: tf.Tensor,
+    r_gen: tf.Tensor,
+    *,
+    std_weight: float = 1.0,
+    skew_weight: float = 0.25,
+    kurt_weight: float = 0.10,
+) -> tf.Tensor:
     """Axis-wise distribution proxy using std, skew, and kurtosis."""
     std_real, skew_real, kurt_real = _batch_axis_stats(tf.stop_gradient(r_real))
     std_gen, skew_gen, kurt_gen = _batch_axis_stats(r_gen)
@@ -336,7 +343,11 @@ def axis_moment_loss_tf(r_real: tf.Tensor, r_gen: tf.Tensor) -> tf.Tensor:
     )
     skew_term = tf.reduce_mean(tf.square(skew_gen - skew_real))
     kurt_term = tf.reduce_mean(tf.square(kurt_gen - kurt_real))
-    return std_term + 0.25 * skew_term + 0.10 * kurt_term
+    return (
+        tf.cast(std_weight, tf.float32) * std_term
+        + tf.cast(skew_weight, tf.float32) * skew_term
+        + tf.cast(kurt_weight, tf.float32) * kurt_term
+    )
 
 
 def _log_psd_1d(x: tf.Tensor) -> tf.Tensor:
@@ -395,6 +406,9 @@ class CondPriorVAELoss(layers.Layer):
         lambda_mmd: float = 0.0,
         lambda_axis: float = 0.0,
         lambda_psd: float = 0.0,
+        axis_std_weight: float = 1.0,
+        axis_skew_weight: float = 0.25,
+        axis_kurt_weight: float = 0.10,
         mmd_mode: str = "mean_residual",
         decoder_distribution: str = "gaussian",
         mdn_components: int = 1,
@@ -407,6 +421,9 @@ class CondPriorVAELoss(layers.Layer):
         self.lambda_mmd = float(lambda_mmd)
         self.lambda_axis = float(lambda_axis)
         self.lambda_psd = float(lambda_psd)
+        self.axis_std_weight = float(axis_std_weight)
+        self.axis_skew_weight = float(axis_skew_weight)
+        self.axis_kurt_weight = float(axis_kurt_weight)
         self.mmd_mode = _resolve_mmd_mode(mmd_mode)
         self.decoder_distribution = _resolve_decoder_distribution(decoder_distribution)
         self.mdn_components = int(mdn_components)
@@ -477,7 +494,13 @@ class CondPriorVAELoss(layers.Layer):
             r_gen_sample = _ensure_sample() - x_center
 
             if self.lambda_axis > 0.0:
-                axis_loss = axis_moment_loss_tf(r_real, r_gen_sample)
+                axis_loss = axis_moment_loss_tf(
+                    r_real,
+                    r_gen_sample,
+                    std_weight=self.axis_std_weight,
+                    skew_weight=self.axis_skew_weight,
+                    kurt_weight=self.axis_kurt_weight,
+                )
                 self.axis_loss_tracker.update_state(axis_loss)
                 total = total + self.lambda_axis * axis_loss
 
@@ -510,6 +533,9 @@ class CondPriorVAELoss(layers.Layer):
             "lambda_mmd": self.lambda_mmd,
             "lambda_axis": self.lambda_axis,
             "lambda_psd": self.lambda_psd,
+            "axis_std_weight": self.axis_std_weight,
+            "axis_skew_weight": self.axis_skew_weight,
+            "axis_kurt_weight": self.axis_kurt_weight,
             "mmd_mode": self.mmd_mode,
             "decoder_distribution": self.decoder_distribution,
             "mdn_components": self.mdn_components,

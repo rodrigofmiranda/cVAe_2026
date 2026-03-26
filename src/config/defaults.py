@@ -42,6 +42,9 @@ K_LAMBDA_MMD = "lambda_mmd"
 K_MMD_MODE = "mmd_mode"
 K_LAMBDA_AXIS = "lambda_axis"
 K_LAMBDA_PSD = "lambda_psd"
+K_AXIS_STD_WEIGHT = "axis_std_weight"
+K_AXIS_SKEW_WEIGHT = "axis_skew_weight"
+K_AXIS_KURT_WEIGHT = "axis_kurt_weight"
 K_DECODER_DISTRIBUTION = "decoder_distribution"
 K_MDN_COMPONENTS = "mdn_components"
 
@@ -121,6 +124,9 @@ MODEL_DEFAULTS: dict = {
     K_MMD_MODE: "mean_residual",
     K_LAMBDA_AXIS: 0.0,
     K_LAMBDA_PSD: 0.0,
+    K_AXIS_STD_WEIGHT: 1.0,
+    K_AXIS_SKEW_WEIGHT: 0.25,
+    K_AXIS_KURT_WEIGHT: 0.10,
     K_DECODER_DISTRIBUTION: "gaussian",
     K_MDN_COMPONENTS: 1,
     # Sequence model defaults (ignored by point-wise variants)

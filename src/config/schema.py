@@ -78,6 +78,9 @@ class TrainConfig:
     mmd_mode: str = MODEL_DEFAULTS["mmd_mode"]
     lambda_axis: float = MODEL_DEFAULTS["lambda_axis"]
     lambda_psd: float = MODEL_DEFAULTS["lambda_psd"]
+    axis_std_weight: float = MODEL_DEFAULTS["axis_std_weight"]
+    axis_skew_weight: float = MODEL_DEFAULTS["axis_skew_weight"]
+    axis_kurt_weight: float = MODEL_DEFAULTS["axis_kurt_weight"]
     decoder_distribution: str = MODEL_DEFAULTS["decoder_distribution"]
     mdn_components: int = MODEL_DEFAULTS["mdn_components"]
     kl_anneal_epochs: int = MODEL_DEFAULTS["kl_anneal_epochs"]
@@ -121,6 +124,9 @@ class TrainConfig:
             mmd_mode=str(_get(d, "mmd_mode", MODEL_DEFAULTS["mmd_mode"])),
             lambda_axis=float(_get(d, "lambda_axis", MODEL_DEFAULTS["lambda_axis"], float)),
             lambda_psd=float(_get(d, "lambda_psd", MODEL_DEFAULTS["lambda_psd"], float)),
+            axis_std_weight=float(_get(d, "axis_std_weight", MODEL_DEFAULTS["axis_std_weight"], float)),
+            axis_skew_weight=float(_get(d, "axis_skew_weight", MODEL_DEFAULTS["axis_skew_weight"], float)),
+            axis_kurt_weight=float(_get(d, "axis_kurt_weight", MODEL_DEFAULTS["axis_kurt_weight"], float)),
             decoder_distribution=str(_get(
                 d, "decoder_distribution", MODEL_DEFAULTS["decoder_distribution"]
             )),
