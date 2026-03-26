@@ -173,11 +173,32 @@ def decoder_sensitivity(
 
     Returns ``{"decoder_output_variance_mean": …, "decoder_output_rms_std": …}``.
     """
+    from src.models.losses import _mdn_expected_mean
+
     mu_p, lv_p = prior_net.predict([Xb, Db, Cb], batch_size=batch_size, verbose=0)
     lv_p = np.clip(lv_p, -10, 10)
     std_p = np.exp(0.5 * lv_p)
-
-    cond = np.concatenate([Xb, Db, Cb], axis=1)
+    n_decoder_inputs = len(decoder_net.inputs)
+    is_seq = n_decoder_inputs == 4
+    if is_seq:
+        if np.asarray(Xb).ndim != 3:
+            return {
+                "decoder_output_variance_mean": float("nan"),
+                "decoder_output_rms_std": float("nan"),
+                "status": "unsupported_seq_input",
+            }
+        x_center = np.asarray(Xb)[:, np.asarray(Xb).shape[1] // 2, :]
+        decoder_inputs = lambda z: [z, x_center, Db, Cb]
+    elif n_decoder_inputs == 2:
+        cond = np.concatenate([Xb, Db, Cb], axis=1)
+        decoder_inputs = lambda z: [z, cond]
+        x_center = np.asarray(Xb)
+    else:
+        return {
+            "decoder_output_variance_mean": float("nan"),
+            "decoder_output_rms_std": float("nan"),
+            "status": "unsupported_decoder_interface",
+        }
 
     outs = []
     is_delta_residual = (
@@ -186,8 +207,21 @@ def decoder_sensitivity(
     for _ in range(int(n_mc_z)):
         eps = np.random.randn(*mu_p.shape).astype(np.float32)
         z = mu_p + std_p * eps
-        out_params = decoder_net.predict([z, cond], batch_size=batch_size, verbose=0)
-        y_mean = out_params[:, :2] + Xb if is_delta_residual else out_params[:, :2]
+        out_params = decoder_net.predict(decoder_inputs(z), batch_size=batch_size, verbose=0)
+        out_dim = int(out_params.shape[-1])
+        if out_dim == 4:
+            y_mean = out_params[:, :2] + x_center if is_delta_residual else out_params[:, :2]
+        elif out_dim > 4 and out_dim % 5 == 0:
+            k = out_dim // 5
+            logits = out_params[:, :k]
+            comp_mean = out_params[:, k : k + 2 * k].reshape((-1, k, 2))
+            y_mean = _mdn_expected_mean(logits, comp_mean).numpy()
+        else:
+            return {
+                "decoder_output_variance_mean": float("nan"),
+                "decoder_output_rms_std": float("nan"),
+                "status": "unsupported_output_params",
+            }
         outs.append(y_mean)
 
     outs = np.stack(outs, axis=0)  # [K,N,2]
@@ -195,6 +229,7 @@ def decoder_sensitivity(
     return {
         "decoder_output_variance_mean": float(np.mean(v)),
         "decoder_output_rms_std": float(np.mean(np.sqrt(np.sum(v, axis=1)))),
+        "status": "ok",
     }
 
 

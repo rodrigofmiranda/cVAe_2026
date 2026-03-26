@@ -94,20 +94,42 @@ def build_training_runtime(
     if ov.get("psd_nfft") is not None:
         analysis_cfg.psd_nfft = int(ov["psd_nfft"])
     for key in (
+        "n_eval_samples",
+        "batch_infer",
+        "rank_mode",
+        "mc_samples",
+        "dist_metrics",
+        "w_psd",
+        "w_skew",
+        "w_kurt",
         "train_regime_diagnostics_enabled",
         "train_regime_diagnostics_every",
         "train_regime_diagnostics_mc_samples",
         "train_regime_diagnostics_max_samples_per_regime",
         "train_regime_diagnostics_amplitude_bins",
         "train_regime_diagnostics_focus_only_0p8m",
+        "mini_reanalysis_enabled",
+        "mini_reanalysis_scope",
+        "mini_reanalysis_max_samples_per_regime",
+        "grid_ranking_mode",
     ):
         if ov.get(key) is not None:
             value = ov[key]
             if key in {
+                "dist_metrics",
                 "train_regime_diagnostics_enabled",
                 "train_regime_diagnostics_focus_only_0p8m",
+                "mini_reanalysis_enabled",
             }:
                 value = bool(value)
+            elif key in {
+                "rank_mode",
+                "mini_reanalysis_scope",
+                "grid_ranking_mode",
+            }:
+                value = str(value)
+            elif key in {"w_psd", "w_skew", "w_kurt"}:
+                value = float(value)
             else:
                 value = int(value)
             setattr(analysis_cfg, key, value)

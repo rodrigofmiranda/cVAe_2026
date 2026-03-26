@@ -624,26 +624,16 @@ def evaluate_run(
     run_paths.write_json("logs/latent_summary.json", lat_summary)
 
     nb = min(20000, n_eval)
-    if _is_seq:
-        # decoder_sensitivity uses a concatenated [X, D, C] cond input which is
-        # incompatible with the seq decoder interface ([z, x_center, d, c] separately).
-        # Skipped for seq_bigru_residual; a seq-specific sensitivity will be added later.
-        sens = {
-            "decoder_output_variance_mean": float("nan"),
-            "decoder_output_rms_std": float("nan"),
-        }
-        print("ℹ️  decoder_sensitivity skipped for seq_bigru_residual variant.")
-    else:
-        sens = decoder_sensitivity(
-            prior,
-            decoder,
-            Xv[:nb],
-            Dv[:nb],
-            Cv[:nb],
-            n_mc_z=16,
-            batch_size=batch_infer,
-            arch_variant=arch_variant,
-        )
+    sens = decoder_sensitivity(
+        prior,
+        decoder,
+        Xv_in[:nb],
+        Dv[:nb],
+        Cv[:nb],
+        n_mc_z=16,
+        batch_size=batch_infer,
+        arch_variant=arch_variant,
+    )
     run_paths.write_json("logs/decoder_sensitivity.json", sens)
 
     summary_text = build_summary_text(

@@ -87,11 +87,47 @@ def _build_grid_plan(grid: List[Dict[str, Any]]) -> pd.DataFrame:
                 "group": item["group"],
                 "tag": item["tag"],
                 "cfg_json": json.dumps(item["cfg"], ensure_ascii=False),
+                "analysis_quick_overrides_json": json.dumps(
+                    item.get("analysis_quick_overrides", {}),
+                    ensure_ascii=False,
+                ),
                 **item["cfg"],
             }
             for i, item in enumerate(grid)
         ]
     )
+
+
+def _resolve_grid_analysis_quick(
+    base_analysis_quick: Dict[str, Any],
+    grid: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Merge preset-level analysis overrides if the grid declares them.
+
+    The implementation is intentionally conservative: all grid items must agree
+    on the same ``analysis_quick_overrides`` payload, otherwise the preset is
+    considered ambiguous and the run aborts early.
+    """
+    merged = dict(base_analysis_quick)
+    overrides = [
+        dict(item.get("analysis_quick_overrides", {}))
+        for item in grid
+        if item.get("analysis_quick_overrides")
+    ]
+    if not overrides:
+        return merged
+
+    canonical = overrides[0]
+    for other in overrides[1:]:
+        if other != canonical:
+            raise ValueError(
+                "Grid preset mixes different analysis_quick_overrides across candidates; "
+                "this is not supported."
+            )
+
+    merged.update(canonical)
+    print(f"⚡ analysis_quick overrides from preset: {canonical}")
+    return merged
 
 
 def _log_regime_tolerance(overrides: Dict[str, Any], d_unique, c_unique) -> None:
@@ -298,6 +334,7 @@ def run_training_pipeline(
                 "Use no_data_reduction=True or set data_reduction mode='center_crop'."
             )
 
+    analysis_quick = _resolve_grid_analysis_quick(runtime.analysis_quick, grid)
     df_plan = _build_grid_plan(grid)
 
     if ov.get("dry_run", False):
@@ -326,7 +363,7 @@ def run_training_pipeline(
     df_results = run_gridsearch(
         grid=grid,
         training_config=runtime.training_config,
-        analysis_quick=runtime.analysis_quick,
+        analysis_quick=analysis_quick,
         X_train=X_train,
         Y_train=Y_train,
         Dn_train=Dn_train,
@@ -401,7 +438,7 @@ def run_training_pipeline(
         output_base=str(runtime.output_base.resolve()),
         training_config=runtime.training_config,
         data_reduction_config=runtime.data_reduction_config,
-        analysis_quick=runtime.analysis_quick,
+        analysis_quick=analysis_quick,
         normalization={k: float(v) for k, v in norm_params.items()},
         data_split=data_split,
         eval_protocol=runtime.eval_protocol,

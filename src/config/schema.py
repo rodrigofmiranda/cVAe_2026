@@ -78,9 +78,13 @@ class TrainConfig:
     mmd_mode: str = MODEL_DEFAULTS["mmd_mode"]
     lambda_axis: float = MODEL_DEFAULTS["lambda_axis"]
     lambda_psd: float = MODEL_DEFAULTS["lambda_psd"]
+    lambda_coverage: float = MODEL_DEFAULTS["lambda_coverage"]
     axis_std_weight: float = MODEL_DEFAULTS["axis_std_weight"]
     axis_skew_weight: float = MODEL_DEFAULTS["axis_skew_weight"]
     axis_kurt_weight: float = MODEL_DEFAULTS["axis_kurt_weight"]
+    coverage_levels: List[float] = field(default_factory=lambda: list(MODEL_DEFAULTS["coverage_levels"]))
+    tail_levels: List[float] = field(default_factory=lambda: list(MODEL_DEFAULTS["tail_levels"]))
+    coverage_temperature: float = MODEL_DEFAULTS["coverage_temperature"]
     decoder_distribution: str = MODEL_DEFAULTS["decoder_distribution"]
     mdn_components: int = MODEL_DEFAULTS["mdn_components"]
     kl_anneal_epochs: int = MODEL_DEFAULTS["kl_anneal_epochs"]
@@ -124,9 +128,15 @@ class TrainConfig:
             mmd_mode=str(_get(d, "mmd_mode", MODEL_DEFAULTS["mmd_mode"])),
             lambda_axis=float(_get(d, "lambda_axis", MODEL_DEFAULTS["lambda_axis"], float)),
             lambda_psd=float(_get(d, "lambda_psd", MODEL_DEFAULTS["lambda_psd"], float)),
+            lambda_coverage=float(_get(d, "lambda_coverage", MODEL_DEFAULTS["lambda_coverage"], float)),
             axis_std_weight=float(_get(d, "axis_std_weight", MODEL_DEFAULTS["axis_std_weight"], float)),
             axis_skew_weight=float(_get(d, "axis_skew_weight", MODEL_DEFAULTS["axis_skew_weight"], float)),
             axis_kurt_weight=float(_get(d, "axis_kurt_weight", MODEL_DEFAULTS["axis_kurt_weight"], float)),
+            coverage_levels=[float(x) for x in d.get("coverage_levels", MODEL_DEFAULTS["coverage_levels"])],
+            tail_levels=[float(x) for x in d.get("tail_levels", MODEL_DEFAULTS["tail_levels"])],
+            coverage_temperature=float(_get(
+                d, "coverage_temperature", MODEL_DEFAULTS["coverage_temperature"], float
+            )),
             decoder_distribution=str(_get(
                 d, "decoder_distribution", MODEL_DEFAULTS["decoder_distribution"]
             )),
@@ -208,6 +218,10 @@ class AnalysisConfig:
     train_regime_diagnostics_max_samples_per_regime: int = ANALYSIS_DEFAULTS["train_regime_diagnostics_max_samples_per_regime"]
     train_regime_diagnostics_amplitude_bins: int = ANALYSIS_DEFAULTS["train_regime_diagnostics_amplitude_bins"]
     train_regime_diagnostics_focus_only_0p8m: bool = ANALYSIS_DEFAULTS["train_regime_diagnostics_focus_only_0p8m"]
+    mini_reanalysis_enabled: bool = ANALYSIS_DEFAULTS["mini_reanalysis_enabled"]
+    mini_reanalysis_scope: str = ANALYSIS_DEFAULTS["mini_reanalysis_scope"]
+    mini_reanalysis_max_samples_per_regime: int = ANALYSIS_DEFAULTS["mini_reanalysis_max_samples_per_regime"]
+    grid_ranking_mode: str = ANALYSIS_DEFAULTS["grid_ranking_mode"]
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "AnalysisConfig":
@@ -255,6 +269,27 @@ class AnalysisConfig:
                 d,
                 "train_regime_diagnostics_focus_only_0p8m",
                 ANALYSIS_DEFAULTS["train_regime_diagnostics_focus_only_0p8m"],
+            )),
+            mini_reanalysis_enabled=bool(_get(
+                d,
+                "mini_reanalysis_enabled",
+                ANALYSIS_DEFAULTS["mini_reanalysis_enabled"],
+            )),
+            mini_reanalysis_scope=str(_get(
+                d,
+                "mini_reanalysis_scope",
+                ANALYSIS_DEFAULTS["mini_reanalysis_scope"],
+            )),
+            mini_reanalysis_max_samples_per_regime=int(_get(
+                d,
+                "mini_reanalysis_max_samples_per_regime",
+                ANALYSIS_DEFAULTS["mini_reanalysis_max_samples_per_regime"],
+                int,
+            )),
+            grid_ranking_mode=str(_get(
+                d,
+                "grid_ranking_mode",
+                ANALYSIS_DEFAULTS["grid_ranking_mode"],
             )),
         )
 

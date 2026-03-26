@@ -234,6 +234,26 @@ def test_select_grid_seq_mdn_regime_weight_quick_builds_three_run_compare():
     )
 
 
+def test_select_grid_seq_mdn_v2_quick_enables_mini_protocol_ranking_and_coverage():
+    grid = select_grid({"grid_preset": "seq_mdn_v2_quick"})
+
+    assert len(grid) == 4
+    assert {item["group"] for item in grid} == {"S20_seq_mdn_v2"}
+    assert all(item["cfg"]["arch_variant"] == "seq_bigru_residual" for item in grid)
+    assert all(item["cfg"]["decoder_distribution"] == "mdn" for item in grid)
+    assert all(item["cfg"]["mdn_components"] == 3 for item in grid)
+    assert all(item["cfg"]["beta"] == 0.002 for item in grid)
+    assert all(item["cfg"]["lambda_mmd"] == 0.25 for item in grid)
+    assert all(item["cfg"]["lambda_axis"] == 0.01 for item in grid)
+    assert {item["cfg"]["lambda_coverage"] for item in grid} == {0.0, 0.02, 0.05}
+
+    analysis_overrides = [item["analysis_quick_overrides"] for item in grid]
+    assert all(ov == analysis_overrides[0] for ov in analysis_overrides)
+    assert analysis_overrides[0]["mini_reanalysis_enabled"] is True
+    assert analysis_overrides[0]["mini_reanalysis_scope"] == "all12"
+    assert analysis_overrides[0]["grid_ranking_mode"] == "mini_protocol_v1"
+
+
 def test_select_grid_legacy2025_ref_matches_expected_reference_cfg():
     grid = select_grid({"grid_preset": "legacy2025_ref"})
 

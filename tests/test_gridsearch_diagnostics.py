@@ -5,10 +5,12 @@ import pandas as pd
 
 from src.training.gridsearch import (
     TRAINING_DIAGNOSTIC_COLUMNS,
+    _candidate_ranking_key,
     _apply_training_recommendations,
     _build_training_diagnostics,
     _build_training_diagnostics_table,
     _mc_point_metric_means,
+    _sort_results_by_ranking,
 )
 
 
@@ -154,3 +156,63 @@ def test_mc_point_metric_means_penalizes_stochastic_draws_individually():
 
     assert np.isfinite(evm_mc)
     assert np.isfinite(snr_mc)
+
+
+def test_candidate_ranking_key_mini_protocol_prioritizes_protocol_failures():
+    better_protocol = {
+        "status": "ok",
+        "mini_n_fail": 1,
+        "mini_n_g6_fail": 0,
+        "mini_mean_abs_delta_coverage_95": 0.08,
+        "mini_mean_delta_jb": 1.2,
+        "mini_mean_delta_psd_l2": 0.2,
+        "score_v2": 50.0,
+        "score_abs_delta": 10.0,
+    }
+    better_score_only = {
+        "status": "ok",
+        "mini_n_fail": 2,
+        "mini_n_g6_fail": 0,
+        "mini_mean_abs_delta_coverage_95": 0.01,
+        "mini_mean_delta_jb": 0.5,
+        "mini_mean_delta_psd_l2": 0.1,
+        "score_v2": 0.5,
+        "score_abs_delta": 0.1,
+    }
+
+    assert _candidate_ranking_key(
+        better_protocol, "mini_protocol_v1"
+    ) < _candidate_ranking_key(better_score_only, "mini_protocol_v1")
+
+
+def test_sort_results_by_ranking_uses_score_v2_only_as_final_tiebreak():
+    df = pd.DataFrame(
+        [
+            {
+                "tag": "worse_score",
+                "status": "ok",
+                "mini_n_fail": 1,
+                "mini_n_g6_fail": 0,
+                "mini_mean_abs_delta_coverage_95": 0.05,
+                "mini_mean_delta_jb": 0.8,
+                "mini_mean_delta_psd_l2": 0.1,
+                "score_v2": 2.0,
+                "score_abs_delta": 1.0,
+            },
+            {
+                "tag": "better_score",
+                "status": "ok",
+                "mini_n_fail": 1,
+                "mini_n_g6_fail": 0,
+                "mini_mean_abs_delta_coverage_95": 0.05,
+                "mini_mean_delta_jb": 0.8,
+                "mini_mean_delta_psd_l2": 0.1,
+                "score_v2": 1.0,
+                "score_abs_delta": 1.0,
+            },
+        ]
+    )
+
+    out = _sort_results_by_ranking(df, "mini_protocol_v1")
+
+    assert list(out["tag"]) == ["better_score", "worse_score"]

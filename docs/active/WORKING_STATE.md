@@ -57,6 +57,13 @@ remaining gap:
 - quantile / tail-aware regularization
 - other direct `G5`-oriented corrections
 
+The current implementation branch now includes an `MDN v2` path:
+
+- `lambda_coverage` for direct marginal coverage / tail calibration
+- `mini_protocol_v1` ranking for grid champion selection
+- finite `decoder_sensitivity` for seq Gaussian / seq MDN
+- `latent_summary` kept as audit-only telemetry, not a search criterion
+
 Do not reopen:
 
 - `sample-aware MMD`

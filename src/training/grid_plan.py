@@ -2025,6 +2025,99 @@ def _preset_seq_mdn_structure_quick() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_mdn_v2_quick() -> List[Dict[str, Any]]:
+    """Quick-first MDN v2 sweep with coverage/tail loss and mini reanalysis.
+
+    Anchor:
+
+      - best MDN so far: ``exp_20260325_230938``
+      - ``mdn3``
+      - ``beta=0.002``
+      - ``lambda_mmd=0.25``
+      - ``lambda_axis=0.01``
+      - ``lr=2e-4``
+
+    New ingredients:
+
+      - ``lambda_coverage`` for marginal calibration pressure
+      - ``mini_protocol_v1`` as the grid ranking criterion
+      - mini protocol reanalysis over all 12 regimes, once per candidate
+
+    Keep the sweep intentionally small and local:
+
+      - anchor without coverage loss, but already under the new ranking
+      - two coverage strengths
+      - one sharper temperature hedge
+    """
+
+    analysis_quick_overrides = {
+        "mini_reanalysis_enabled": True,
+        "mini_reanalysis_scope": "all12",
+        "mini_reanalysis_max_samples_per_regime": 4096,
+        "grid_ranking_mode": "mini_protocol_v1",
+    }
+
+    def _seq_cfg(
+        *,
+        lambda_coverage: float,
+        coverage_temperature: float = 0.05,
+    ) -> Dict[str, Any]:
+        return _cfg(
+            arch_variant="seq_bigru_residual",
+            layer_sizes=[128, 256, 512],
+            latent_dim=4,
+            beta=0.002,
+            free_bits=0.10,
+            lr=2e-4,
+            batch_size=4096,
+            kl_anneal_epochs=80,
+            window_size=7,
+            window_stride=1,
+            window_pad_mode="edge",
+            seq_hidden_size=64,
+            seq_num_layers=1,
+            seq_bidirectional=True,
+            lambda_mmd=0.25,
+            mmd_mode="mean_residual",
+            lambda_axis=0.01,
+            lambda_psd=0.0,
+            lambda_coverage=lambda_coverage,
+            coverage_levels=[0.50, 0.80, 0.95],
+            tail_levels=[0.05, 0.95],
+            coverage_temperature=coverage_temperature,
+            decoder_distribution="mdn",
+            mdn_components=3,
+            shuffle_train_batches=True,
+        )
+
+    return [
+        dict(
+            group="S20_seq_mdn_v2",
+            tag="S20seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_cov0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(lambda_coverage=0.0),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S20_seq_mdn_v2",
+            tag="S20seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_cov0p02_t0p05_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(lambda_coverage=0.02, coverage_temperature=0.05),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S20_seq_mdn_v2",
+            tag="S20seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_cov0p05_t0p05_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(lambda_coverage=0.05, coverage_temperature=0.05),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S20_seq_mdn_v2",
+            tag="S20seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_cov0p05_t0p03_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(lambda_coverage=0.05, coverage_temperature=0.03),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+    ]
+
+
 def _preset_best_compare_large() -> List[Dict[str, Any]]:
     """Comparative protocol-first grid using the strongest current candidates.
 
@@ -2247,6 +2340,8 @@ def select_grid(
             grid = _preset_seq_mdn_g5_shape_quick()
         elif preset_name == "seq_mdn_structure_quick":
             grid = _preset_seq_mdn_structure_quick()
+        elif preset_name == "seq_mdn_v2_quick":
+            grid = _preset_seq_mdn_v2_quick()
         elif preset_name == "best_compare_large":
             grid = _preset_best_compare_large()
         elif preset_name == "delta_residual_fast":

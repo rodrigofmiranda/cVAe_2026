@@ -42,9 +42,13 @@ K_LAMBDA_MMD = "lambda_mmd"
 K_MMD_MODE = "mmd_mode"
 K_LAMBDA_AXIS = "lambda_axis"
 K_LAMBDA_PSD = "lambda_psd"
+K_LAMBDA_COVERAGE = "lambda_coverage"
 K_AXIS_STD_WEIGHT = "axis_std_weight"
 K_AXIS_SKEW_WEIGHT = "axis_skew_weight"
 K_AXIS_KURT_WEIGHT = "axis_kurt_weight"
+K_COVERAGE_LEVELS = "coverage_levels"
+K_TAIL_LEVELS = "tail_levels"
+K_COVERAGE_TEMPERATURE = "coverage_temperature"
 K_DECODER_DISTRIBUTION = "decoder_distribution"
 K_MDN_COMPONENTS = "mdn_components"
 
@@ -81,6 +85,10 @@ K_TRAIN_REGIME_DIAGNOSTICS_MC_SAMPLES = "train_regime_diagnostics_mc_samples"
 K_TRAIN_REGIME_DIAGNOSTICS_MAX_SAMPLES = "train_regime_diagnostics_max_samples_per_regime"
 K_TRAIN_REGIME_DIAGNOSTICS_AMPLITUDE_BINS = "train_regime_diagnostics_amplitude_bins"
 K_TRAIN_REGIME_DIAGNOSTICS_FOCUS_ONLY_0P8M = "train_regime_diagnostics_focus_only_0p8m"
+K_MINI_REANALYSIS_ENABLED = "mini_reanalysis_enabled"
+K_MINI_REANALYSIS_SCOPE = "mini_reanalysis_scope"
+K_MINI_REANALYSIS_MAX_SAMPLES = "mini_reanalysis_max_samples_per_regime"
+K_GRID_RANKING_MODE = "grid_ranking_mode"
 
 # --- State-run / paths ---
 K_RUN_ID = "run_id"
@@ -124,9 +132,13 @@ MODEL_DEFAULTS: dict = {
     K_MMD_MODE: "mean_residual",
     K_LAMBDA_AXIS: 0.0,
     K_LAMBDA_PSD: 0.0,
+    K_LAMBDA_COVERAGE: 0.0,
     K_AXIS_STD_WEIGHT: 1.0,
     K_AXIS_SKEW_WEIGHT: 0.25,
     K_AXIS_KURT_WEIGHT: 0.10,
+    K_COVERAGE_LEVELS: [0.50, 0.80, 0.95],
+    K_TAIL_LEVELS: [0.05, 0.95],
+    K_COVERAGE_TEMPERATURE: 0.05,
     K_DECODER_DISTRIBUTION: "gaussian",
     K_MDN_COMPONENTS: 1,
     # Sequence model defaults (ignored by point-wise variants)
@@ -165,6 +177,10 @@ ANALYSIS_DEFAULTS: dict = {
     K_TRAIN_REGIME_DIAGNOSTICS_MAX_SAMPLES: 4096,
     K_TRAIN_REGIME_DIAGNOSTICS_AMPLITUDE_BINS: 4,
     K_TRAIN_REGIME_DIAGNOSTICS_FOCUS_ONLY_0P8M: False,
+    K_MINI_REANALYSIS_ENABLED: False,
+    K_MINI_REANALYSIS_SCOPE: "all12",
+    K_MINI_REANALYSIS_MAX_SAMPLES: 4096,
+    K_GRID_RANKING_MODE: "score_v2",
 }
 
 # Minimal fallback state_run for backward-compat with old runs

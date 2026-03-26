@@ -50,6 +50,11 @@ Leitura atual:
 - `sample-aware MMD`, o flow `sinh-arcsinh` atual e o weighting puro por regime
   devem ser tratados como linhas negativas nesta iteracao
 - o gargalo restante segue concentrado em `0.8 m`, principalmente em `G5`
+- a linha ativa agora e `MDN v2`:
+  - `coverage/tail loss` opcional via `lambda_coverage`
+  - ranking do grid por `mini_protocol_v1`
+  - `decoder_sensitivity` seq/MDN corrigido e finito
+  - `latent_summary` mantido apenas como telemetria de auditoria
 
 ## Familias De Modelo Disponiveis
 
@@ -79,6 +84,8 @@ Artefatos operacionais principais:
 - `manifest.json`
 - `train/state_run.json`
 - `train/tables/grid_training_diagnostics.csv`
+- `train/models/grid_*/logs/train/mini_protocol_summary.json`
+- `train/models/grid_*/tables/mini_protocol_by_regime.csv`
 - `train/plots/champion/analysis_dashboard.png`
 - `plots/best_model/heatmap_gate_metrics_by_regime.png`
 

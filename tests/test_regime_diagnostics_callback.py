@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.models.callbacks import RegimeDiagnosticsCallback
+from src.models.callbacks import MiniProtocolReanalysisCallback, RegimeDiagnosticsCallback
 
 
 class _FakeInferenceModel:
@@ -85,3 +85,70 @@ def test_regime_diagnostics_callback_respects_epoch_cadence_and_writes_files(mon
     assert "gate_g6" in df.columns
     assert latest["epoch"] == 2
     assert len(latest["rows"]) == 2
+
+
+def test_mini_protocol_reanalysis_callback_writes_summary_and_table(monkeypatch, tmp_path):
+    import src.models.callbacks as callbacks_mod
+
+    rows = [
+        {
+            "regime_id": "dist_0p8m__curr_100mA",
+            "validation_status_partial": "fail",
+            "gate_g5": False,
+            "gate_g6": False,
+            "effective_abs_delta_coverage_95": 0.12,
+            "effective_delta_jb_stat_rel": 8.0,
+            "delta_psd_l2": 0.2,
+            "delta_skew_l2": 0.3,
+            "delta_kurt_l2": 0.4,
+        },
+        {
+            "regime_id": "dist_1m__curr_300mA",
+            "validation_status_partial": "pass",
+            "gate_g5": True,
+            "gate_g6": True,
+            "effective_abs_delta_coverage_95": 0.02,
+            "effective_delta_jb_stat_rel": 1.0,
+            "delta_psd_l2": 0.1,
+            "delta_skew_l2": 0.1,
+            "delta_kurt_l2": 0.2,
+        },
+    ]
+
+    monkeypatch.setattr(callbacks_mod, "_collect_regime_diagnostic_rows", lambda **kwargs: rows)
+
+    n = 4
+    x = np.zeros((n, 2), dtype=np.float32)
+    y = np.zeros((n, 2), dtype=np.float32)
+    d = np.zeros((n, 1), dtype=np.float32)
+    c = np.zeros((n, 1), dtype=np.float32)
+
+    cb = MiniProtocolReanalysisCallback(
+        artifact_dir=tmp_path / "artifact",
+        x_val_input=x,
+        x_val_center=x,
+        y_val=y,
+        d_val_norm=d,
+        c_val_norm=c,
+        d_val_raw=d,
+        c_val_raw=c,
+        enabled=True,
+        scope="all12",
+    )
+    cb.set_model(object())
+    cb.set_params({"epochs": 5})
+    cb.on_train_end(logs={"val_loss": 0.2})
+
+    assert cb.summary_path.exists()
+    assert cb.table_path.exists()
+
+    summary = json.loads(cb.summary_path.read_text(encoding="utf-8"))
+    df = pd.read_csv(cb.table_path)
+
+    assert summary["ranking_mode"] == "mini_protocol_v1"
+    assert summary["mini_n_regimes"] == 2
+    assert summary["mini_n_fail"] == 1
+    assert summary["mini_n_g5_fail"] == 1
+    assert summary["mini_n_g6_fail"] == 1
+    assert summary["scope"] == "all12"
+    assert list(df["regime_id"]) == ["dist_0p8m__curr_100mA", "dist_1m__curr_300mA"]

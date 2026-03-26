@@ -390,6 +390,51 @@ def compute_score_v2(
     )
 
 
+def _ranking_scalar(value: Any, default: float = float("inf")) -> float:
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        return float(default)
+    return out if np.isfinite(out) else float(default)
+
+
+def _candidate_ranking_key(row: Dict[str, Any], ranking_mode: str) -> Tuple[float, ...]:
+    status_penalty = 0.0 if str(row.get("status", "ok")) == "ok" else 1.0
+    mode = str(ranking_mode or "score_v2").strip().lower()
+    if mode == "mini_protocol_v1":
+        return (
+            status_penalty,
+            _ranking_scalar(row.get("mini_n_fail")),
+            _ranking_scalar(row.get("mini_n_g6_fail")),
+            _ranking_scalar(row.get("mini_mean_abs_delta_coverage_95")),
+            _ranking_scalar(row.get("mini_mean_delta_jb")),
+            _ranking_scalar(row.get("mini_mean_delta_psd_l2")),
+            _ranking_scalar(row.get("score_v2")),
+            _ranking_scalar(row.get("score_abs_delta")),
+        )
+    return (
+        status_penalty,
+        _ranking_scalar(row.get("score_v2")),
+        _ranking_scalar(row.get("score_abs_delta")),
+    )
+
+
+def _sort_results_by_ranking(
+    df_results: pd.DataFrame,
+    ranking_mode: str,
+) -> pd.DataFrame:
+    df = df_results.copy()
+    keys = df.apply(
+        lambda row: _candidate_ranking_key(row.to_dict(), ranking_mode),
+        axis=1,
+    )
+    width = max((len(key) for key in keys.tolist()), default=0)
+    for i in range(width):
+        df[f"_rank_{i}"] = keys.apply(lambda key, idx=i: key[idx])
+    df = df.sort_values([f"_rank_{i}" for i in range(width)], ascending=[True] * width)
+    return df.drop(columns=[f"_rank_{i}" for i in range(width)])
+
+
 TRAINING_DIAGNOSTIC_COLUMNS: List[str] = [
     "rank",
     "grid_id",
@@ -884,7 +929,11 @@ def run_gridsearch(
 
     import tensorflow as tf
     from src.models.cvae import build_cvae, create_inference_model_from_full
-    from src.models.callbacks import RegimeDiagnosticsCallback, build_callbacks
+    from src.models.callbacks import (
+        MiniProtocolReanalysisCallback,
+        RegimeDiagnosticsCallback,
+        build_callbacks,
+    )
     from src.evaluation.metrics import (
         calculate_evm, calculate_snr, residual_distribution_metrics,
     )
@@ -897,12 +946,14 @@ def run_gridsearch(
     MODELS_DIR = run_paths.models_dir
 
     results: List[Dict[str, Any]] = []
-    best_score: Optional[float] = None
+    best_score: Optional[Tuple[float, ...]] = None
 
     for gi, item in enumerate(grid, start=1):
         cfg = item["cfg"]
         group = item["group"]
         tag = item["tag"]
+        candidate_analysis_quick = dict(analysis_quick)
+        candidate_analysis_quick.update(dict(item.get("analysis_quick_overrides", {})))
 
         print("\n" + "=" * 92)
         print(f"🚀 GRID {gi}/{len(grid)} | group={group} | tag={tag}")
@@ -911,6 +962,7 @@ def run_gridsearch(
 
         tf.keras.backend.clear_session()
         gc.collect()
+        model_dir = _grid_artifact_dir(MODELS_DIR, gi, tag)
 
         # --- Phase 5: per-item windowing for seq_bigru_residual ---
         _arch = str(cfg.get("arch_variant", "concat")).strip().lower()
@@ -1001,7 +1053,7 @@ def run_gridsearch(
             vae, kl_cb = build_cvae(cfg)
             regime_diag_callback = None
             if (
-                bool(analysis_quick.get("train_regime_diagnostics_enabled", True))
+                bool(candidate_analysis_quick.get("train_regime_diagnostics_enabled", True))
                 and D_va_raw_fit is not None
                 and C_va_raw_fit is not None
             ):
@@ -1015,20 +1067,49 @@ def run_gridsearch(
                     d_val_raw=D_va_raw_fit,
                     c_val_raw=C_va_raw_fit,
                     enabled=True,
-                    every_n_epochs=int(analysis_quick.get("train_regime_diagnostics_every", 10)),
-                    mc_samples=int(analysis_quick.get("train_regime_diagnostics_mc_samples", 4)),
+                    every_n_epochs=int(candidate_analysis_quick.get("train_regime_diagnostics_every", 10)),
+                    mc_samples=int(candidate_analysis_quick.get("train_regime_diagnostics_mc_samples", 4)),
                     max_samples_per_regime=int(
-                        analysis_quick.get("train_regime_diagnostics_max_samples_per_regime", 4096)
+                        candidate_analysis_quick.get("train_regime_diagnostics_max_samples_per_regime", 4096)
                     ),
                     amplitude_bins=int(
-                        analysis_quick.get("train_regime_diagnostics_amplitude_bins", 4)
+                        candidate_analysis_quick.get("train_regime_diagnostics_amplitude_bins", 4)
                     ),
                     focus_only_0p8m=bool(
-                        analysis_quick.get("train_regime_diagnostics_focus_only_0p8m", False)
+                        candidate_analysis_quick.get("train_regime_diagnostics_focus_only_0p8m", False)
                     ),
                     stat_seed=int(training_config.get("seed", 42)),
                 )
-            callbacks = build_callbacks(training_config, cfg, kl_cb, regime_diag_callback=regime_diag_callback)
+            mini_reanalysis_callback = None
+            if (
+                bool(candidate_analysis_quick.get("mini_reanalysis_enabled", False))
+                and D_va_raw_fit is not None
+                and C_va_raw_fit is not None
+            ):
+                mini_reanalysis_callback = MiniProtocolReanalysisCallback(
+                    artifact_dir=model_dir,
+                    x_val_input=X_va_fit,
+                    x_val_center=X_va_center_fit,
+                    y_val=Y_va_fit,
+                    d_val_norm=D_va_fit,
+                    c_val_norm=C_va_fit,
+                    d_val_raw=D_va_raw_fit,
+                    c_val_raw=C_va_raw_fit,
+                    enabled=True,
+                    scope=str(candidate_analysis_quick.get("mini_reanalysis_scope", "all12")),
+                    mc_samples=int(candidate_analysis_quick.get("mc_samples", 8)),
+                    max_samples_per_regime=int(
+                        candidate_analysis_quick.get("mini_reanalysis_max_samples_per_regime", 4096)
+                    ),
+                    stat_seed=int(training_config.get("seed", 42)),
+                )
+            callbacks = build_callbacks(
+                training_config,
+                cfg,
+                kl_cb,
+                regime_diag_callback=regime_diag_callback,
+                mini_reanalysis_callback=mini_reanalysis_callback,
+            )
 
             t0 = time.time()
             _keras_verbose = int(_ov.get("keras_verbose", 2))
@@ -1060,7 +1141,7 @@ def run_gridsearch(
                 best_val = float("nan")
 
             # Eval estratificado por experimento de validação.
-            _n_total = int(analysis_quick["n_eval_samples"])
+            _n_total = int(candidate_analysis_quick["n_eval_samples"])
             _n_total = max(1, min(_n_total, len(X_va_fit)))
             _rng_eval = np.random.default_rng(int(training_config.get("seed", 42)))
             _idx = _stratified_val_indices_by_experiment(
@@ -1080,13 +1161,13 @@ def run_gridsearch(
             else:
                 Xv_center = Xv
 
-            rank_mode = str(analysis_quick.get("rank_mode", "mc")).lower()
-            K = int(analysis_quick.get("mc_samples", 8))
+            rank_mode = str(candidate_analysis_quick.get("rank_mode", "mc")).lower()
+            K = int(candidate_analysis_quick.get("mc_samples", 8))
 
             inf_det = create_inference_model_from_full(vae, deterministic=True)
             Yp_det = inf_det.predict(
                 [Xv, Dv, Cv],
-                batch_size=int(analysis_quick["batch_infer"]),
+                batch_size=int(candidate_analysis_quick["batch_infer"]),
                 verbose=0,
             )
 
@@ -1103,7 +1184,7 @@ def run_gridsearch(
                 for _ in range(K):
                     Ys.append(inf_sto.predict(
                         [Xv, Dv, Cv],
-                        batch_size=int(analysis_quick["batch_infer"]),
+                        batch_size=int(candidate_analysis_quick["batch_infer"]),
                         verbose=0,
                     ))
                 Ys = np.stack(Ys, axis=0)
@@ -1125,7 +1206,7 @@ def run_gridsearch(
             prior_net = vae.get_layer("prior_net")
             mu_p, logvar_p = prior_net.predict(
                 [Xv, Dv, Cv],
-                batch_size=int(analysis_quick["batch_infer"]),
+                batch_size=int(candidate_analysis_quick["batch_infer"]),
                 verbose=0,
             )
 
@@ -1136,11 +1217,11 @@ def run_gridsearch(
             kl_mean_total = float(np.mean(np.sum(kl_dim, axis=1)))
             kl_mean_per_dim = float(np.mean(np.mean(kl_dim, axis=0)))
 
-            dist_cfg_on = bool(analysis_quick.get("dist_metrics", True))
-            psd_nfft = int(analysis_quick.get("psd_nfft", 2048))
-            w_psd = float(analysis_quick.get("w_psd", 0.15))
-            w_skew = float(analysis_quick.get("w_skew", 0.05))
-            w_kurt = float(analysis_quick.get("w_kurt", 0.05))
+            dist_cfg_on = bool(candidate_analysis_quick.get("dist_metrics", True))
+            psd_nfft = int(candidate_analysis_quick.get("psd_nfft", 2048))
+            w_psd = float(candidate_analysis_quick.get("w_psd", 0.15))
+            w_skew = float(candidate_analysis_quick.get("w_skew", 0.05))
+            w_kurt = float(candidate_analysis_quick.get("w_kurt", 0.05))
 
             if dist_cfg_on:
                 distm = residual_distribution_metrics(
@@ -1223,9 +1304,27 @@ def run_gridsearch(
                 "delta_kurt_l2": float(kurt_l2),
                 "var_mc_gen": (float(var_mc) if not np.isnan(var_mc) else float("nan")),
                 "pen_var_mismatch": float(pen_var_mismatch),
-                "rank_mode": str(analysis_quick.get("rank_mode", "mc")).lower(),
-                "mc_samples": int(analysis_quick.get("mc_samples", 8)),
+                "rank_mode": str(candidate_analysis_quick.get("rank_mode", "mc")).lower(),
+                "mc_samples": int(candidate_analysis_quick.get("mc_samples", 8)),
             }
+            ranking_mode = str(candidate_analysis_quick.get("grid_ranking_mode", "score_v2")).strip().lower()
+            row["ranking_mode"] = ranking_mode
+            if mini_reanalysis_callback is not None and getattr(mini_reanalysis_callback, "summary", None):
+                row.update(dict(mini_reanalysis_callback.summary))
+            else:
+                row.update({
+                    "mini_n_regimes": float("nan"),
+                    "mini_n_pass": float("nan"),
+                    "mini_n_partial": float("nan"),
+                    "mini_n_fail": float("nan"),
+                    "mini_n_g5_fail": float("nan"),
+                    "mini_n_g6_fail": float("nan"),
+                    "mini_mean_abs_delta_coverage_95": float("nan"),
+                    "mini_mean_delta_jb": float("nan"),
+                    "mini_mean_delta_psd_l2": float("nan"),
+                    "mini_mean_delta_skew_l2": float("nan"),
+                    "mini_mean_delta_kurt_l2": float("nan"),
+                })
             row.update(
                 _build_training_diagnostics(
                     history_dict=history_dict,
@@ -1237,9 +1336,6 @@ def run_gridsearch(
                 )
             )
             results.append(row)
-
-            # Per-grid artifact directory: model only.
-            model_dir = _grid_artifact_dir(MODELS_DIR, gi, tag)
 
             kl_dim_mean = np.mean(
                 0.5 * (np.exp(logvar_p) + mu_p ** 2 - 1.0 - logvar_p), axis=0
@@ -1265,9 +1361,11 @@ def run_gridsearch(
             _save_keras_model_compat(vae, model_path)
             results[-1]["model_full_path"] = str(model_path)
 
-            is_best = (best_score is None) or (score_v2 < best_score)
+            current_key = _candidate_ranking_key(row, ranking_mode)
+            best_key = None if best_score is None else best_score
+            is_best = best_key is None or current_key < best_key
             if is_best:
-                best_score = float(score_v2)
+                best_score = current_key
                 print("🏆 Novo melhor modelo do grid — salvando como 'best_model_full.keras'...")
 
                 best_path = MODELS_DIR / "best_model_full.keras"
@@ -1316,7 +1414,7 @@ def run_gridsearch(
                         std_mu_p=std_mu_p,
                         kl_dim_mean=kl_dim_mean,
                         summary_lines=summary_lines + [
-                            f"ranking criterion: provisional best score_v2={score_v2:.4f}",
+                            f"ranking criterion: {ranking_mode}",
                         ],
                         model_label=f"Champion ({tag})",
                         title=f"Champion Analysis Dashboard | {tag}",
@@ -1334,12 +1432,14 @@ def run_gridsearch(
 
         except Exception as e:
             print(f"[ERRO] Falha no grid_id={gi} tag={tag}: {repr(e)}")
+            ranking_mode = str(candidate_analysis_quick.get("grid_ranking_mode", "score_v2")).strip().lower()
             results.append({
                 "grid_id": gi,
                 "group": group,
                 "tag": tag,
                 **cfg,
                 "status": "FAILED",
+                "ranking_mode": ranking_mode,
                 "train_time_s": float("nan"),
                 "best_epoch": 0,
                 "best_val_loss": float("nan"),
@@ -1363,6 +1463,17 @@ def run_gridsearch(
                 "var_real_delta": float("nan"),
                 "var_pred_delta": float("nan"),
                 "pen_var_mismatch": float("nan"),
+                "mini_n_regimes": float("nan"),
+                "mini_n_pass": float("nan"),
+                "mini_n_partial": float("nan"),
+                "mini_n_fail": float("nan"),
+                "mini_n_g5_fail": float("nan"),
+                "mini_n_g6_fail": float("nan"),
+                "mini_mean_abs_delta_coverage_95": float("nan"),
+                "mini_mean_delta_jb": float("nan"),
+                "mini_mean_delta_psd_l2": float("nan"),
+                "mini_mean_delta_skew_l2": float("nan"),
+                "mini_mean_delta_kurt_l2": float("nan"),
                 "model_full_path": "",
                 "report_png_path": "",
                 "report_xlsx_path": "",
@@ -1371,14 +1482,24 @@ def run_gridsearch(
 
     # --- Build sorted results table ---
     df_results = pd.DataFrame(results)
-    df_results = df_results.sort_values(
-        ["score_v2", "score_abs_delta"], ascending=[True, True]
+    ranking_modes = (
+        df_results.get("ranking_mode", pd.Series(dtype=object))
+        .dropna()
+        .astype(str)
+        .str.strip()
+        .str.lower()
+        .unique()
+        .tolist()
     )
+    ranking_mode = ranking_modes[0] if len(ranking_modes) == 1 else str(
+        analysis_quick.get("grid_ranking_mode", "score_v2")
+    ).strip().lower()
+    df_results = _sort_results_by_ranking(df_results, ranking_mode)
     df_results.insert(0, "rank", np.arange(1, len(df_results) + 1))
     df_results = _apply_training_recommendations(df_results)
     df_diag = _build_training_diagnostics_table(df_results)
 
-    df_rank_readme = pd.DataFrame([
+    rank_rows = [
         {
             "Item": "Objetivo do ranking",
             "Descrição": (
@@ -1386,15 +1507,31 @@ def run_gridsearch(
                 "do canal medido e evita colapso do latente."
             ),
         },
-        {
-            "Item": "Score principal (score_v2)",
-            "Descrição": (
-                "score_v2 = |ΔEVM| + |ΔSNR| + 0.4·Δμ + 0.2·ΔΣ + "
-                "2·pen(dims_inativas) + 1·pen(KL_dim_baixo) + "
-                "termos PSD/skew/kurt/varMC. Menor é melhor."
-            ),
-        },
-    ])
+    ]
+    if ranking_mode == "mini_protocol_v1":
+        rank_rows.append(
+            {
+                "Item": "Ranking principal",
+                "Descrição": (
+                    "mini_protocol_v1 = ordem lexicográfica por mini_n_fail, "
+                    "mini_n_g6_fail, mini_mean_abs_delta_coverage_95, "
+                    "mini_mean_delta_jb, mini_mean_delta_psd_l2 e score_v2 "
+                    "apenas como desempate final."
+                ),
+            }
+        )
+    else:
+        rank_rows.append(
+            {
+                "Item": "Score principal (score_v2)",
+                "Descrição": (
+                    "score_v2 = |ΔEVM| + |ΔSNR| + 0.4·Δμ + 0.2·ΔΣ + "
+                    "2·pen(dims_inativas) + 1·pen(KL_dim_baixo) + "
+                    "termos PSD/skew/kurt/varMC. Menor é melhor."
+                ),
+            }
+        )
+    df_rank_readme = pd.DataFrame(rank_rows)
 
     res_path = run_paths.run_dir / "tables" / "gridsearch_results.xlsx"
     res_path.parent.mkdir(parents=True, exist_ok=True)

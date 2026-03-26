@@ -297,13 +297,17 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
     lambda_mmd = float(cfg.get("lambda_mmd", 0.0))
     lambda_axis = float(cfg.get("lambda_axis", 0.0))
     lambda_psd = float(cfg.get("lambda_psd", 0.0))
+    lambda_coverage = float(cfg.get("lambda_coverage", 0.0))
     axis_std_weight = float(cfg.get("axis_std_weight", 1.0))
     axis_skew_weight = float(cfg.get("axis_skew_weight", 0.25))
     axis_kurt_weight = float(cfg.get("axis_kurt_weight", 0.10))
+    coverage_levels = tuple(float(x) for x in cfg.get("coverage_levels", [0.50, 0.80, 0.95]))
+    tail_levels = tuple(float(x) for x in cfg.get("tail_levels", [0.05, 0.95]))
+    coverage_temperature = float(cfg.get("coverage_temperature", 0.05))
     mmd_mode = str(cfg.get("mmd_mode", "mean_residual"))
     decoder_distribution = str(cfg.get("decoder_distribution", "gaussian"))
     mdn_components = int(cfg.get("mdn_components", 1))
-    aux_needs_x = any(v > 0.0 for v in (lambda_mmd, lambda_axis, lambda_psd))
+    aux_needs_x = any(v > 0.0 for v in (lambda_mmd, lambda_axis, lambda_psd, lambda_coverage))
     if decoder_distribution.strip().lower() != "gaussian" and arch_variant != "seq_bigru_residual":
         raise ValueError(
             "decoder_distribution='mdn' is currently supported only for "
@@ -316,6 +320,10 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
             lambda_mmd=lambda_mmd,
             lambda_axis=lambda_axis,
             lambda_psd=lambda_psd,
+            lambda_coverage=lambda_coverage,
+            coverage_levels=coverage_levels,
+            tail_levels=tail_levels,
+            coverage_temperature=coverage_temperature,
             mmd_mode=mmd_mode,
             decoder_distribution=decoder_distribution,
             name="condprior_delta_loss",
@@ -327,9 +335,13 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
             lambda_mmd=lambda_mmd,
             lambda_axis=lambda_axis,
             lambda_psd=lambda_psd,
+            lambda_coverage=lambda_coverage,
             axis_std_weight=axis_std_weight,
             axis_skew_weight=axis_skew_weight,
             axis_kurt_weight=axis_kurt_weight,
+            coverage_levels=coverage_levels,
+            tail_levels=tail_levels,
+            coverage_temperature=coverage_temperature,
             mmd_mode=mmd_mode,
             decoder_distribution=decoder_distribution,
             mdn_components=mdn_components,

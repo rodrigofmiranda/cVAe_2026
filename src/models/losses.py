@@ -350,6 +350,58 @@ def axis_moment_loss_tf(
     )
 
 
+def _quantile_axis0(x: tf.Tensor, q: float) -> tf.Tensor:
+    """Approximate per-axis quantile along the batch dimension."""
+    x = tf.cast(x, tf.float32)
+    x_sorted = tf.sort(x, axis=0)
+    n = tf.shape(x_sorted)[0]
+    idx = tf.cast(
+        tf.round(tf.cast(n - 1, tf.float32) * tf.cast(q, tf.float32)),
+        tf.int32,
+    )
+    return tf.gather(x_sorted, idx, axis=0)
+
+
+def axis_coverage_tail_loss_tf(
+    r_real: tf.Tensor,
+    r_gen: tf.Tensor,
+    *,
+    coverage_levels: tuple[float, ...] = (0.50, 0.80, 0.95),
+    tail_levels: tuple[float, ...] = (0.05, 0.95),
+    temperature: float = 0.05,
+) -> tf.Tensor:
+    """Axis-wise calibration loss using central coverage and tail mass."""
+    r_real = tf.cast(tf.stop_gradient(r_real), tf.float32)
+    r_gen = tf.cast(r_gen, tf.float32)
+    temp = tf.maximum(tf.cast(temperature, tf.float32), tf.constant(1e-4, tf.float32))
+
+    losses = []
+
+    abs_real = tf.abs(r_real)
+    abs_gen = tf.abs(r_gen)
+    for level in coverage_levels:
+        thr = _quantile_axis0(abs_real, float(level))
+        pred_cov = tf.reduce_mean(tf.sigmoid((thr - abs_gen) / temp), axis=0)
+        target = tf.fill(tf.shape(pred_cov), tf.cast(level, tf.float32))
+        losses.append(tf.reduce_mean(tf.square(pred_cov - target)))
+
+    for level in tail_levels:
+        q = float(level)
+        if q <= 0.5:
+            thr = _quantile_axis0(r_real, q)
+            pred_tail = tf.reduce_mean(tf.sigmoid((thr - r_gen) / temp), axis=0)
+            target = tf.fill(tf.shape(pred_tail), tf.cast(q, tf.float32))
+        else:
+            thr = _quantile_axis0(r_real, q)
+            pred_tail = tf.reduce_mean(tf.sigmoid((r_gen - thr) / temp), axis=0)
+            target = tf.fill(tf.shape(pred_tail), tf.cast(1.0 - q, tf.float32))
+        losses.append(tf.reduce_mean(tf.square(pred_tail - target)))
+
+    if not losses:
+        return tf.constant(0.0, dtype=tf.float32)
+    return tf.add_n(losses) / tf.cast(len(losses), tf.float32)
+
+
 def _log_psd_1d(x: tf.Tensor) -> tf.Tensor:
     """Return log-PSD for a 1-D signal represented along the batch axis."""
     x = tf.cast(x, tf.float32)
@@ -406,9 +458,13 @@ class CondPriorVAELoss(layers.Layer):
         lambda_mmd: float = 0.0,
         lambda_axis: float = 0.0,
         lambda_psd: float = 0.0,
+        lambda_coverage: float = 0.0,
         axis_std_weight: float = 1.0,
         axis_skew_weight: float = 0.25,
         axis_kurt_weight: float = 0.10,
+        coverage_levels: tuple[float, ...] = (0.50, 0.80, 0.95),
+        tail_levels: tuple[float, ...] = (0.05, 0.95),
+        coverage_temperature: float = 0.05,
         mmd_mode: str = "mean_residual",
         decoder_distribution: str = "gaussian",
         mdn_components: int = 1,
@@ -421,9 +477,13 @@ class CondPriorVAELoss(layers.Layer):
         self.lambda_mmd = float(lambda_mmd)
         self.lambda_axis = float(lambda_axis)
         self.lambda_psd = float(lambda_psd)
+        self.lambda_coverage = float(lambda_coverage)
         self.axis_std_weight = float(axis_std_weight)
         self.axis_skew_weight = float(axis_skew_weight)
         self.axis_kurt_weight = float(axis_kurt_weight)
+        self.coverage_levels = tuple(float(x) for x in coverage_levels)
+        self.tail_levels = tuple(float(x) for x in tail_levels)
+        self.coverage_temperature = float(coverage_temperature)
         self.mmd_mode = _resolve_mmd_mode(mmd_mode)
         self.decoder_distribution = _resolve_decoder_distribution(decoder_distribution)
         self.mdn_components = int(mdn_components)
@@ -439,6 +499,8 @@ class CondPriorVAELoss(layers.Layer):
             self.axis_loss_tracker = tf.keras.metrics.Mean(name="axis_loss")
         if self.lambda_psd > 0.0:
             self.psd_loss_tracker = tf.keras.metrics.Mean(name="psd_loss")
+        if self.lambda_coverage > 0.0:
+            self.coverage_loss_tracker = tf.keras.metrics.Mean(name="coverage_loss")
 
     def call(self, inputs):
         if len(inputs) == 7:
@@ -489,7 +551,11 @@ class CondPriorVAELoss(layers.Layer):
             self.mmd_loss_tracker.update_state(mmd2)
             total = total + self.lambda_mmd * mmd2
 
-        if (self.lambda_axis > 0.0 or self.lambda_psd > 0.0) and x_center is not None:
+        if (
+            self.lambda_axis > 0.0
+            or self.lambda_psd > 0.0
+            or self.lambda_coverage > 0.0
+        ) and x_center is not None:
             r_real = tf.stop_gradient(y_true - x_center)
             r_gen_sample = _ensure_sample() - x_center
 
@@ -509,6 +575,17 @@ class CondPriorVAELoss(layers.Layer):
                 self.psd_loss_tracker.update_state(psd_loss)
                 total = total + self.lambda_psd * psd_loss
 
+            if self.lambda_coverage > 0.0:
+                coverage_loss = axis_coverage_tail_loss_tf(
+                    r_real,
+                    r_gen_sample,
+                    coverage_levels=self.coverage_levels,
+                    tail_levels=self.tail_levels,
+                    temperature=self.coverage_temperature,
+                )
+                self.coverage_loss_tracker.update_state(coverage_loss)
+                total = total + self.lambda_coverage * coverage_loss
+
         self.add_loss(total)
         self.recon_loss_tracker.update_state(recon)
         self.kl_loss_tracker.update_state(tf.reduce_mean(kl_per_sample))
@@ -523,6 +600,8 @@ class CondPriorVAELoss(layers.Layer):
             m.append(self.axis_loss_tracker)
         if self.lambda_psd > 0.0:
             m.append(self.psd_loss_tracker)
+        if self.lambda_coverage > 0.0:
+            m.append(self.coverage_loss_tracker)
         return m
 
     def get_config(self):
@@ -533,9 +612,13 @@ class CondPriorVAELoss(layers.Layer):
             "lambda_mmd": self.lambda_mmd,
             "lambda_axis": self.lambda_axis,
             "lambda_psd": self.lambda_psd,
+            "lambda_coverage": self.lambda_coverage,
             "axis_std_weight": self.axis_std_weight,
             "axis_skew_weight": self.axis_skew_weight,
             "axis_kurt_weight": self.axis_kurt_weight,
+            "coverage_levels": list(self.coverage_levels),
+            "tail_levels": list(self.tail_levels),
+            "coverage_temperature": self.coverage_temperature,
             "mmd_mode": self.mmd_mode,
             "decoder_distribution": self.decoder_distribution,
             "mdn_components": self.mdn_components,
@@ -565,6 +648,10 @@ class CondPriorDeltaVAELoss(layers.Layer):
         lambda_mmd: float = 0.0,
         lambda_axis: float = 0.0,
         lambda_psd: float = 0.0,
+        lambda_coverage: float = 0.0,
+        coverage_levels: tuple[float, ...] = (0.50, 0.80, 0.95),
+        tail_levels: tuple[float, ...] = (0.05, 0.95),
+        coverage_temperature: float = 0.05,
         mmd_mode: str = "mean_residual",
         decoder_distribution: str = "gaussian",
         mmd_bandwidth: float | None = None,
@@ -576,6 +663,10 @@ class CondPriorDeltaVAELoss(layers.Layer):
         self.lambda_mmd = float(lambda_mmd)
         self.lambda_axis = float(lambda_axis)
         self.lambda_psd = float(lambda_psd)
+        self.lambda_coverage = float(lambda_coverage)
+        self.coverage_levels = tuple(float(x) for x in coverage_levels)
+        self.tail_levels = tuple(float(x) for x in tail_levels)
+        self.coverage_temperature = float(coverage_temperature)
         self.mmd_mode = _resolve_mmd_mode(mmd_mode)
         self.decoder_distribution = _resolve_decoder_distribution(decoder_distribution)
         if self.decoder_distribution != "gaussian":
@@ -595,6 +686,8 @@ class CondPriorDeltaVAELoss(layers.Layer):
             self.axis_loss_tracker = tf.keras.metrics.Mean(name="axis_loss")
         if self.lambda_psd > 0.0:
             self.psd_loss_tracker = tf.keras.metrics.Mean(name="psd_loss")
+        if self.lambda_coverage > 0.0:
+            self.coverage_loss_tracker = tf.keras.metrics.Mean(name="coverage_loss")
 
     def call(self, inputs):
         if len(inputs) < 7:
@@ -655,6 +748,17 @@ class CondPriorDeltaVAELoss(layers.Layer):
             self.psd_loss_tracker.update_state(psd_loss)
             total = total + self.lambda_psd * psd_loss
 
+        if self.lambda_coverage > 0.0:
+            coverage_loss = axis_coverage_tail_loss_tf(
+                tf.stop_gradient(delta_true),
+                _ensure_sample(),
+                coverage_levels=self.coverage_levels,
+                tail_levels=self.tail_levels,
+                temperature=self.coverage_temperature,
+            )
+            self.coverage_loss_tracker.update_state(coverage_loss)
+            total = total + self.lambda_coverage * coverage_loss
+
         self.add_loss(total)
         self.recon_loss_tracker.update_state(recon)
         self.kl_loss_tracker.update_state(tf.reduce_mean(kl_per_sample))
@@ -669,6 +773,8 @@ class CondPriorDeltaVAELoss(layers.Layer):
             m.append(self.axis_loss_tracker)
         if self.lambda_psd > 0.0:
             m.append(self.psd_loss_tracker)
+        if self.lambda_coverage > 0.0:
+            m.append(self.coverage_loss_tracker)
         return m
 
     def get_config(self):
@@ -679,6 +785,10 @@ class CondPriorDeltaVAELoss(layers.Layer):
             "lambda_mmd": self.lambda_mmd,
             "lambda_axis": self.lambda_axis,
             "lambda_psd": self.lambda_psd,
+            "lambda_coverage": self.lambda_coverage,
+            "coverage_levels": list(self.coverage_levels),
+            "tail_levels": list(self.tail_levels),
+            "coverage_temperature": self.coverage_temperature,
             "mmd_mode": self.mmd_mode,
             "decoder_distribution": self.decoder_distribution,
             "mmd_bandwidth": self.mmd_bandwidth,
