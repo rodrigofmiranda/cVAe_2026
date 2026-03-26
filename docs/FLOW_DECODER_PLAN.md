@@ -161,6 +161,10 @@ Preset:
 
 - `seq_flow_proof_quick`
 
+If even that is too expensive, use:
+
+- `seq_flow_micro_proof`
+
 Recommended command:
 
 ```bash
@@ -178,6 +182,28 @@ python -m src.protocol.run \
   --max_val_samples_per_exp 20000 \
   --max_dist_samples 20000 \
   --stat_tests --stat_mode quick --stat_max_n 2000 \
+  --no_data_reduction \
+  --no_baseline \
+  --train_regime_diagnostics_enabled 0
+```
+
+More aggressive micro-proof command:
+
+```bash
+cd /workspace/2026/feat_seq_bigru_residual_cvae
+python -m src.protocol.run \
+  --dataset_root data/dataset_fullsquare_organized \
+  --output_base outputs \
+  --protocol configs/all_regimes_sel4curr.json \
+  --train_once_eval_all \
+  --grid_preset seq_flow_micro_proof \
+  --max_epochs 60 \
+  --patience 8 \
+  --reduce_lr_patience 4 \
+  --max_samples_per_exp 30000 \
+  --max_val_samples_per_exp 5000 \
+  --max_dist_samples 5000 \
+  --stat_tests --stat_mode quick --stat_max_n 1000 \
   --no_data_reduction \
   --no_baseline \
   --train_regime_diagnostics_enabled 0

@@ -1429,6 +1429,44 @@ def _preset_seq_flow_proof_quick() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_flow_micro_proof() -> List[Dict[str, Any]]:
+    """Shortest scientifically-meaningful proof for the current flow line.
+
+    This preset keeps the exact same plain-flow objective as the quick proof,
+    but increases batch size so the recommended CLI caps can make it much
+    shorter in wall-clock time.
+    """
+
+    return [
+        dict(
+            group="F1_seq_flow_micro",
+            tag="F1microseq_W7_h64_lat4_sasflow_b0p002_fb0p10_lr0p0002_bs8192_L128-256-512",
+            cfg=_cfg(
+                arch_variant="seq_bigru_residual",
+                layer_sizes=[128, 256, 512],
+                latent_dim=4,
+                beta=0.002,
+                free_bits=0.10,
+                lr=2e-4,
+                batch_size=8192,
+                kl_anneal_epochs=40,
+                window_size=7,
+                window_stride=1,
+                window_pad_mode="edge",
+                seq_hidden_size=64,
+                seq_num_layers=1,
+                seq_bidirectional=True,
+                lambda_mmd=0.0,
+                mmd_mode="mean_residual",
+                lambda_axis=0.0,
+                lambda_psd=0.0,
+                decoder_distribution="flow",
+                shuffle_train_batches=True,
+            ),
+        ),
+    ]
+
+
 def _preset_seq_mdn_proof() -> List[Dict[str, Any]]:
     """Focused proof run for the seq MDN line on the full protocol."""
 
@@ -2021,6 +2059,8 @@ def select_grid(
             grid = _preset_seq_flow_smoke()
         elif preset_name == "seq_flow_proof_quick":
             grid = _preset_seq_flow_proof_quick()
+        elif preset_name == "seq_flow_micro_proof":
+            grid = _preset_seq_flow_micro_proof()
         elif preset_name == "seq_mdn_proof":
             grid = _preset_seq_mdn_proof()
         elif preset_name == "seq_mdn_conservative_proof":

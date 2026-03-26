@@ -45,6 +45,8 @@ Current flow status:
   - `outputs/exp_20260326_033237`
 - next active preset:
   - `seq_flow_proof_quick`
+- shortest proof preset:
+  - `seq_flow_micro_proof`
 - intent:
   - first quick scientific proof of the plain flow likelihood
   - keep all `12` regimes, but run with sample caps

@@ -191,6 +191,8 @@ Nesta branch, a prioridade imediata e:
       - o proximo passo nao e sweep grande; e uma prova curta real da linha flow
   - preset novo da Phase 2:
     - `grid_preset=seq_flow_proof_quick`
+  - preset ainda mais curto:
+    - `grid_preset=seq_flow_micro_proof`
   - desenho:
     - manter `12` regimes
     - manter `W7_h64_lat4`
@@ -206,6 +208,15 @@ Nesta branch, a prioridade imediata e:
     - `--max_dist_samples 20000`
     - `--stat_mode quick`
     - `--stat_max_n 2000`
+  - comando micro recomendado:
+    - `--max_epochs 60`
+    - `--patience 8`
+    - `--reduce_lr_patience 4`
+    - `--max_samples_per_exp 30000`
+    - `--max_val_samples_per_exp 5000`
+    - `--max_dist_samples 5000`
+    - `--stat_mode quick`
+    - `--stat_max_n 1000`
 
 ### Criterio operacional do teste causal `seq_sampled_mmd_compare`
 

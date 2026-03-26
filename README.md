@@ -73,6 +73,8 @@ Current implementation status:
   - `outputs/exp_20260326_033237`
 - next proof preset:
   - `seq_flow_proof_quick`
+- shortest proof preset:
+  - `seq_flow_micro_proof`
 
 The worktree path remains:
 
