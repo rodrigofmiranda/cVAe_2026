@@ -166,6 +166,23 @@ def build_windows_from_split_arrays(
     n_train_list = [int(v) for v in df_split["n_train"].tolist()]
     n_val_list = [int(v) for v in df_split["n_val"].tolist()]
 
+    exp_train = int(np.sum(n_train_list))
+    exp_val = int(np.sum(n_val_list))
+    if exp_train != int(len(X_train)):
+        raise ValueError(
+            "X_train length mismatch with df_split after split/cap: "
+            f"len(X_train)={len(X_train)} vs sum(n_train)={exp_train}. "
+            "If per-experiment caps were applied, update df_split to post-cap "
+            "counts before windowing."
+        )
+    if exp_val != int(len(X_val)):
+        raise ValueError(
+            "X_val length mismatch with df_split after split/cap: "
+            f"len(X_val)={len(X_val)} vs sum(n_val)={exp_val}. "
+            "If per-experiment caps were applied, update df_split to post-cap "
+            "counts before windowing."
+        )
+
     # Flatten all condition arrays for consistent indexing.
     D_train = np.asarray(D_train, dtype=np.float32).reshape(-1, 1)
     C_train = np.asarray(C_train, dtype=np.float32).reshape(-1, 1)

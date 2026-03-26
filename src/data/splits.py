@@ -5,6 +5,8 @@ src/data/splits.py — Per-experiment temporal split (head_tail).
 Canonical split utilities shared by training and evaluation.
 """
 
+from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 
@@ -232,3 +234,57 @@ def cap_val_samples_per_experiment(
         before_label="n_val_before",
         after_label="n_val_after",
     )
+
+
+def apply_caps_to_df_split(
+    df_split: pd.DataFrame,
+    df_train_cap: pd.DataFrame | None = None,
+    df_val_cap: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Return a split table updated to match post-cap train/val arrays.
+
+    The sequence pipeline windows already-capped arrays per experiment. If the
+    original ``df_split`` is reused after capping, the reconstruction cursor no
+    longer matches the concatenated arrays and windows can cross experiment
+    boundaries. This helper rewrites ``n_train``/``n_val`` to their post-cap
+    counts while keeping the original metadata rows/order.
+    """
+    if df_split is None:
+        raise ValueError("df_split must not be None")
+
+    df_out = df_split.copy()
+
+    def _validate_cap_rows(df_cap: pd.DataFrame, after_col: str) -> np.ndarray:
+        if len(df_cap) != len(df_out):
+            raise ValueError(
+                "Cap table length mismatch with df_split: "
+                f"len(df_cap)={len(df_cap)} vs len(df_split)={len(df_out)}"
+            )
+        if "exp_dir" in df_cap.columns and "exp_dir" in df_out.columns:
+            lhs = df_cap["exp_dir"].astype(str).tolist()
+            rhs = df_out["exp_dir"].astype(str).tolist()
+            if lhs != rhs:
+                raise ValueError(
+                    "Cap table experiment order mismatch with df_split."
+                )
+        if after_col not in df_cap.columns:
+            raise ValueError(f"df_cap must contain '{after_col}' column")
+        return df_cap[after_col].astype(int).to_numpy(copy=True)
+
+    if df_train_cap is not None:
+        train_after = _validate_cap_rows(df_train_cap, "n_train_after")
+        if "n_train_before" in df_train_cap.columns:
+            df_out["n_train_before_cap"] = (
+                df_train_cap["n_train_before"].astype(int).to_numpy(copy=True)
+            )
+        df_out["n_train"] = train_after
+
+    if df_val_cap is not None:
+        val_after = _validate_cap_rows(df_val_cap, "n_val_after")
+        if "n_val_before" in df_val_cap.columns:
+            df_out["n_val_before_cap"] = (
+                df_val_cap["n_val_before"].astype(int).to_numpy(copy=True)
+            )
+        df_out["n_val"] = val_after
+
+    return df_out

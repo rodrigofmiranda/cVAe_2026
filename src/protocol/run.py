@@ -62,6 +62,11 @@ from src.protocol.experiment_tracking import (
     write_latest_completed_experiment_record,
 )
 from src.training.logging import RunPaths
+from src.data.splits import (
+    apply_caps_to_df_split,
+    cap_train_samples_per_experiment,
+    cap_val_samples_per_experiment,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -1342,15 +1347,13 @@ def run_regime(
     if _need_data:
         try:
             from src.protocol.split_strategies import apply_split
-            from src.data.splits import (
-                cap_train_samples_per_experiment,
-                cap_val_samples_per_experiment,
-            )
 
             _val_split = float(ov.get("val_split", 0.2))
             _seed = int(ov.get("seed", 42))
             _max_spe = ov.get("max_samples_per_exp")
             _max_val_spe = ov.get("max_val_samples_per_exp")
+            _df_cap = None
+            _df_val_cap = None
 
             # Use already-filtered experiments from above
             exps = list(_filt_exps)
@@ -1387,6 +1390,13 @@ def run_regime(
                 print(
                     f"   ⚡ max_val_samples_per_exp pós-split: val={len(X_va):,} "
                     f"(cap={_mvs}/exp) | train={len(X_tr):,}"
+                )
+
+            if _df_cap is not None or _df_val_cap is not None:
+                _df_split = apply_caps_to_df_split(
+                    _df_split,
+                    df_train_cap=_df_cap,
+                    df_val_cap=_df_val_cap,
                 )
 
             # --- Commit 3P: shape guard ---

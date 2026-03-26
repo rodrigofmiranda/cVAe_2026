@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from src.data.splits import apply_caps_to_df_split
 from src.data.windowing import (
     build_windows_single_experiment,
     build_windows_from_split_arrays,
@@ -352,3 +353,86 @@ class TestBuildWindowsFromSplitArrays:
                 X, X, X[:, :1], X[:, :1],
                 df_bad, window_size=3,
             )
+
+    def test_length_mismatch_with_df_split_raises_after_cap(self):
+        X_tr = np.arange(16, dtype=np.float32).reshape(-1, 2)
+        Y_tr = X_tr.copy()
+        D_tr = np.ones((8, 1), dtype=np.float32)
+        C_tr = np.ones((8, 1), dtype=np.float32)
+        X_va = np.arange(8, dtype=np.float32).reshape(-1, 2)
+        Y_va = X_va.copy()
+        D_va = np.ones((4, 1), dtype=np.float32)
+        C_va = np.ones((4, 1), dtype=np.float32)
+        df_split = pd.DataFrame(
+            [
+                {"exp_dir": "/e1", "n_train": 6, "n_val": 2},
+                {"exp_dir": "/e2", "n_train": 6, "n_val": 2},
+            ]
+        )
+
+        # Simulate post-cap arrays, but keep stale pre-cap df_split.
+        with pytest.raises(ValueError, match="post-cap counts before windowing"):
+            build_windows_from_split_arrays(
+                X_tr[:8], Y_tr[:8], D_tr[:8], C_tr[:8],
+                X_va[:4], Y_va[:4], D_va[:4], C_va[:4],
+                df_split, window_size=3,
+            )
+
+    def test_corrected_df_split_after_cap_preserves_no_boundary_leak(self):
+        n_tr_pre, n_va_pre, W = 6, 3, 5
+        X1 = np.ones((n_tr_pre, 2), dtype=np.float32) * 1.0
+        X2 = np.ones((n_tr_pre, 2), dtype=np.float32) * 99.0
+        Y1 = X1.copy()
+        Y2 = X2.copy()
+        D1 = np.ones((n_tr_pre, 1), dtype=np.float32) * 0.8
+        D2 = np.ones((n_tr_pre, 1), dtype=np.float32) * 1.0
+        C1 = np.ones((n_tr_pre, 1), dtype=np.float32) * 100.0
+        C2 = np.ones((n_tr_pre, 1), dtype=np.float32) * 300.0
+        Xva1 = np.ones((n_va_pre, 2), dtype=np.float32) * 1.0
+        Xva2 = np.ones((n_va_pre, 2), dtype=np.float32) * 99.0
+        Yva1 = Xva1.copy()
+        Yva2 = Xva2.copy()
+        Dva1 = np.ones((n_va_pre, 1), dtype=np.float32) * 0.8
+        Dva2 = np.ones((n_va_pre, 1), dtype=np.float32) * 1.0
+        Cva1 = np.ones((n_va_pre, 1), dtype=np.float32) * 100.0
+        Cva2 = np.ones((n_va_pre, 1), dtype=np.float32) * 300.0
+
+        X_tr = np.concatenate([X1[:3], X2[:3]], axis=0)
+        Y_tr = np.concatenate([Y1[:3], Y2[:3]], axis=0)
+        D_tr = np.concatenate([D1[:3], D2[:3]], axis=0)
+        C_tr = np.concatenate([C1[:3], C2[:3]], axis=0)
+        X_va = np.concatenate([Xva1[:2], Xva2[:2]], axis=0)
+        Y_va = np.concatenate([Yva1[:2], Yva2[:2]], axis=0)
+        D_va = np.concatenate([Dva1[:2], Dva2[:2]], axis=0)
+        C_va = np.concatenate([Cva1[:2], Cva2[:2]], axis=0)
+
+        df_split = pd.DataFrame(
+            [
+                {"exp_dir": "/e1", "n_train": 6, "n_val": 3},
+                {"exp_dir": "/e2", "n_train": 6, "n_val": 3},
+            ]
+        )
+        df_train_cap = pd.DataFrame(
+            [
+                {"exp_dir": "/e1", "n_train_before": 6, "n_train_after": 3},
+                {"exp_dir": "/e2", "n_train_before": 6, "n_train_after": 3},
+            ]
+        )
+        df_val_cap = pd.DataFrame(
+            [
+                {"exp_dir": "/e1", "n_val_before": 3, "n_val_after": 2},
+                {"exp_dir": "/e2", "n_val_before": 3, "n_val_after": 2},
+            ]
+        )
+        df_post = apply_caps_to_df_split(df_split, df_train_cap=df_train_cap, df_val_cap=df_val_cap)
+
+        X_seq_tr, _, _, _, X_seq_va, _, _, _ = build_windows_from_split_arrays(
+            X_tr, Y_tr, D_tr, C_tr,
+            X_va, Y_va, D_va, C_va,
+            df_post, window_size=W,
+        )
+
+        assert np.all(X_seq_tr[:3] == 1.0)
+        assert np.all(X_seq_tr[3:] == 99.0)
+        assert np.all(X_seq_va[:2] == 1.0)
+        assert np.all(X_seq_va[2:] == 99.0)

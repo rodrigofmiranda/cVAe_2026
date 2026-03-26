@@ -20,6 +20,7 @@ from src.data.loading import (
 )
 from src.data.normalization import normalize_conditions
 from src.data.splits import (
+    apply_caps_to_df_split,
     cap_train_samples_per_experiment,
     cap_val_samples_per_experiment,
 )
@@ -236,9 +237,11 @@ def run_training_pipeline(
         f"{len(X_train):,} treino | {len(X_val):,} validação"
     )
 
+    _df_train_cap = None
+    _df_val_cap = None
     if ov.get("max_samples_per_exp") is not None:
         max_samples = int(ov["max_samples_per_exp"])
-        X_train, Y_train, D_train, C_train, _df_cap = cap_train_samples_per_experiment(
+        X_train, Y_train, D_train, C_train, _df_train_cap = cap_train_samples_per_experiment(
             X_train,
             Y_train,
             D_train,
@@ -266,6 +269,13 @@ def run_training_pipeline(
             "⚡ val capped pós-split "
             f"(max_val_samples_per_exp={max_val_samples}) | "
             f"train={len(X_train):,} | val={len(X_val):,}"
+        )
+
+    if _df_train_cap is not None or _df_val_cap is not None:
+        df_split = apply_caps_to_df_split(
+            df_split,
+            df_train_cap=_df_train_cap,
+            df_val_cap=_df_val_cap,
         )
 
     # Guard: seq_bigru_residual is incompatible with balanced_blocks (early check via overrides).
