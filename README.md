@@ -71,6 +71,8 @@ Current implementation status:
   - `seq_flow_smoke`
 - first structural smoke run completed:
   - `outputs/exp_20260326_033237`
+- next proof preset:
+  - `seq_flow_proof_quick`
 
 The worktree path remains:
 

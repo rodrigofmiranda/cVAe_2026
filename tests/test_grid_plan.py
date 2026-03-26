@@ -210,6 +210,21 @@ def test_select_grid_seq_flow_smoke_builds_single_flow_candidate():
     assert cfg["shuffle_train_batches"] is True
 
 
+def test_select_grid_seq_flow_proof_quick_builds_single_plain_flow_candidate():
+    grid = select_grid({"grid_preset": "seq_flow_proof_quick"})
+
+    assert len(grid) == 1
+    cfg = grid[0]["cfg"]
+    assert cfg["arch_variant"] == "seq_bigru_residual"
+    assert cfg["decoder_distribution"] == "flow"
+    assert cfg["lambda_mmd"] == 0.0
+    assert cfg["lambda_axis"] == 0.0
+    assert cfg["lambda_psd"] == 0.0
+    assert cfg["beta"] == 0.002
+    assert cfg["free_bits"] == 0.10
+    assert cfg["lr"] == 2e-4
+
+
 def test_select_grid_seq_mdn_proof_builds_two_component_sweep():
     grid = select_grid({"grid_preset": "seq_mdn_proof"})
 

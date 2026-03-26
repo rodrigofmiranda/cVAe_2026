@@ -189,6 +189,23 @@ Nesta branch, a prioridade imediata e:
       - build / save / reload / inference / protocolo fecharam
       - o modelo ainda esta cientificamente fraco
       - o proximo passo nao e sweep grande; e uma prova curta real da linha flow
+  - preset novo da Phase 2:
+    - `grid_preset=seq_flow_proof_quick`
+  - desenho:
+    - manter `12` regimes
+    - manter `W7_h64_lat4`
+    - usar `decoder_distribution=flow`
+    - usar a objective plain flow:
+      - `lambda_mmd=0.0`
+      - `lambda_axis=0.0`
+      - `lambda_psd=0.0`
+    - quick real por cap de treino, validacao e testes
+  - comando recomendado:
+    - `--max_samples_per_exp 100000`
+    - `--max_val_samples_per_exp 20000`
+    - `--max_dist_samples 20000`
+    - `--stat_mode quick`
+    - `--stat_max_n 2000`
 
 ### Criterio operacional do teste causal `seq_sampled_mmd_compare`
 

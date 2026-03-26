@@ -131,6 +131,10 @@ Current status:
 - result:
   - the flow branch is wired end-to-end
   - it is not yet scientifically competitive
+ - note:
+   - the structural smoke kept a small `lambda_mmd=0.25` anchor only to
+     exercise the auxiliary-loss path during the first end-to-end integration
+   - Phase 2 returns to the intended plain-flow objective
 
 ### Phase 2 — Single-Candidate Quick Proof
 
@@ -152,6 +156,32 @@ Quick mode:
 
 - keep all `12` regimes
 - cap train / validation / stat samples
+
+Preset:
+
+- `seq_flow_proof_quick`
+
+Recommended command:
+
+```bash
+cd /workspace/2026/feat_seq_bigru_residual_cvae
+python -m src.protocol.run \
+  --dataset_root data/dataset_fullsquare_organized \
+  --output_base outputs \
+  --protocol configs/all_regimes_sel4curr.json \
+  --train_once_eval_all \
+  --grid_preset seq_flow_proof_quick \
+  --max_epochs 120 \
+  --patience 12 \
+  --reduce_lr_patience 6 \
+  --max_samples_per_exp 100000 \
+  --max_val_samples_per_exp 20000 \
+  --max_dist_samples 20000 \
+  --stat_tests --stat_mode quick --stat_max_n 2000 \
+  --no_data_reduction \
+  --no_baseline \
+  --train_regime_diagnostics_enabled 0
+```
 
 ### Phase 3 — Small Flow Grid
 

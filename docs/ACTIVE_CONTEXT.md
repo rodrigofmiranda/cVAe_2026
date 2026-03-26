@@ -43,6 +43,11 @@ Current flow status:
   - `seq_flow_smoke`
 - structural smoke run already completed:
   - `outputs/exp_20260326_033237`
+- next active preset:
+  - `seq_flow_proof_quick`
+- intent:
+  - first quick scientific proof of the plain flow likelihood
+  - keep all `12` regimes, but run with sample caps
 
 Current branch-level plan:
 
