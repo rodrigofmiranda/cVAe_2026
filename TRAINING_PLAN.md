@@ -5,14 +5,14 @@
 
 ## Branch experimental atual
 
-- `feat/sample-aware-mmd`
+- `feat/conditional-flow-decoder`
 
 Nesta branch, a prioridade imediata e:
 
-- instrumentar melhor o residual sem mudar os gates
-- comparar `mean_residual` vs `sampled_residual` MMD
-- registrar sinais por regime, por eixo e por amplitude antes de decidir a
-  proxima loss
+- manter a instrumentacao residual ja pronta
+- parar de abrir novos sweeps apenas de MDN
+- implementar um decoder flow condicional sobre o residual
+- testar primeiro uma prova curta e estrutural antes de qualquer novo grid
 
 ## 0. Estado atual
 
@@ -163,6 +163,20 @@ Nesta branch, a prioridade imediata e:
     - `--max_dist_samples 20000`
     - `--stat_mode quick`
     - `--stat_max_n 2000`
+- Proximo plano estrutural da branch:
+  - documento canonico:
+    - `docs/FLOW_DECODER_PLAN.md`
+  - direcao:
+    - manter `seq_bigru_residual`
+    - substituir a likelihood do decoder por um flow condicional sobre
+      `Delta = Y - X`
+  - objetivo:
+    - atacar a forma da distribuicao do residuo em `0.8 m`
+    - sem depender de mais sweeps de mistura
+  - regra de execucao:
+    - primeiro smoke e prova unica
+    - so depois grid curto
+    - so depois protocolo full
 
 ### Criterio operacional do teste causal `seq_sampled_mmd_compare`
 

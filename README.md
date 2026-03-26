@@ -32,6 +32,7 @@ Historical note:
 Use these documents in this order:
 
 - [docs/ACTIVE_CONTEXT.md](docs/ACTIVE_CONTEXT.md) — shortest path for the unified branch context
+- [docs/FLOW_DECODER_PLAN.md](docs/FLOW_DECODER_PLAN.md) — active plan for the conditional flow decoder branch
 - [PROJECT_STATUS.md](PROJECT_STATUS.md) — current architecture and repo state
 - [TRAINING_PLAN.md](TRAINING_PLAN.md) — active scientific plan and gates
 - [docs/FUTURE_ADVERSARIAL_STRATEGY.md](docs/FUTURE_ADVERSARIAL_STRATEGY.md) — single backlog note for a future adversarial comeback
@@ -51,14 +52,15 @@ Historical refactor planning has been archived under:
 
 Current experimental branch in this worktree:
 
-- `feat/sample-aware-mmd`
+- `feat/conditional-flow-decoder`
 
 Purpose of this branch:
 
-- keep `outputs/exp_20260324_023558` as the stable seq reference
-- add diagnostic-first residual instrumentation before any new loss intervention
-- compare `mean_residual` vs `sampled_residual` MMD without changing the rest
-  of the protocol
+- keep the Gaussian seq reference and the best MDN quick line as baselines
+- stop spending more budget on pure MDN sweeps
+- implement a conditional flow decoder over the residual law
+- test whether a more expressive conditional likelihood closes the remaining
+  near-range distribution-shape gap
 
 The worktree path remains:
 
@@ -85,8 +87,8 @@ the nonlinearities and noise characteristics of the real channel.
 
 ## Residual Instrumentation
 
-This experimental branch adds a new diagnostic layer focused on the residual
-`Δ = Y - X`, without changing the acceptance gates yet.
+The branch keeps the residual instrumentation layer focused on the residual
+`Δ = Y - X`, which now becomes the direct target of the planned flow decoder.
 
 New outputs:
 
