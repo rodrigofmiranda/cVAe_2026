@@ -1931,6 +1931,100 @@ def _preset_seq_mdn_g5_shape_quick() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_mdn_structure_quick() -> List[Dict[str, Any]]:
+    """Quick structural MDN sweep around the best stable MDN anchor.
+
+    Why this preset exists:
+
+      - the local loss-space around the best MDN has already been explored
+        fairly aggressively
+      - the remaining gap is narrow (`0.8 m`, mostly `G5`)
+      - structural MDN capacity has barely been varied so far
+
+    Keep fixed:
+
+      - ``decoder_distribution="mdn"``
+      - ``mdn_components=3``
+      - ``beta=0.002``
+      - ``lambda_mmd=0.25``
+      - ``lambda_axis=0.01``
+      - ``lr=2e-4``
+      - ``free_bits=0.10``
+
+    Explore only:
+
+      - ``latent_dim`` in {4, 6, 8}
+      - ``seq_hidden_size`` in {64, 96}
+      - ``window_size`` in {7, 11}
+
+    The goal is to test whether the best MDN line was limited more by
+    representational capacity than by regularization.
+    """
+
+    def _seq_cfg(
+        *,
+        latent_dim: int = 4,
+        seq_hidden_size: int = 64,
+        window_size: int = 7,
+    ) -> Dict[str, Any]:
+        return _cfg(
+            arch_variant="seq_bigru_residual",
+            layer_sizes=[128, 256, 512],
+            latent_dim=latent_dim,
+            beta=0.002,
+            free_bits=0.10,
+            lr=2e-4,
+            batch_size=4096,
+            kl_anneal_epochs=80,
+            window_size=window_size,
+            window_stride=1,
+            window_pad_mode="edge",
+            seq_hidden_size=seq_hidden_size,
+            seq_num_layers=1,
+            seq_bidirectional=True,
+            lambda_mmd=0.25,
+            mmd_mode="mean_residual",
+            lambda_axis=0.01,
+            lambda_psd=0.0,
+            decoder_distribution="mdn",
+            mdn_components=3,
+            shuffle_train_batches=True,
+        )
+
+    return [
+        dict(
+            group="S19_seq_mdn_structure",
+            tag="S19seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(),
+        ),
+        dict(
+            group="S19_seq_mdn_structure",
+            tag="S19seq_W7_h64_lat6_mdn3_b0p002_lmmd0p25_axis0p01_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(latent_dim=6),
+        ),
+        dict(
+            group="S19_seq_mdn_structure",
+            tag="S19seq_W7_h64_lat8_mdn3_b0p002_lmmd0p25_axis0p01_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(latent_dim=8),
+        ),
+        dict(
+            group="S19_seq_mdn_structure",
+            tag="S19seq_W7_h96_lat4_mdn3_b0p002_lmmd0p25_axis0p01_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(seq_hidden_size=96),
+        ),
+        dict(
+            group="S19_seq_mdn_structure",
+            tag="S19seq_W11_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(window_size=11),
+        ),
+        dict(
+            group="S19_seq_mdn_structure",
+            tag="S19seq_W11_h96_lat6_mdn3_b0p002_lmmd0p25_axis0p01_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(latent_dim=6, seq_hidden_size=96, window_size=11),
+        ),
+    ]
+
+
 def _preset_best_compare_large() -> List[Dict[str, Any]]:
     """Comparative protocol-first grid using the strongest current candidates.
 
@@ -2151,6 +2245,8 @@ def select_grid(
             grid = _preset_seq_mdn_regime_weight_quick()
         elif preset_name == "seq_mdn_g5_shape_quick":
             grid = _preset_seq_mdn_g5_shape_quick()
+        elif preset_name == "seq_mdn_structure_quick":
+            grid = _preset_seq_mdn_structure_quick()
         elif preset_name == "best_compare_large":
             grid = _preset_best_compare_large()
         elif preset_name == "delta_residual_fast":
