@@ -17,6 +17,7 @@ from src.config.runtime_env import ensure_writable_mpl_config_dir
 from src.data.loading import load_experiments_as_list
 from src.data.normalization import apply_condition_norm, load_normalization_from_state
 from src.data.splits import (
+    apply_caps_to_df_split,
     cap_train_samples_per_experiment,
     cap_val_samples_per_experiment,
 )
@@ -186,6 +187,73 @@ def _stratified_val_indices_by_experiment(
         idx_eval.sort()
 
     return idx_eval
+
+
+def _apply_split_caps_for_evaluation(
+    *,
+    X_train: np.ndarray,
+    Y_train: np.ndarray,
+    D_train: np.ndarray,
+    C_train: np.ndarray,
+    X_val: np.ndarray,
+    Y_val: np.ndarray,
+    D_val: np.ndarray,
+    C_val: np.ndarray,
+    df_split: pd.DataFrame,
+    split_mode: str,
+    overrides: Dict[str, Any],
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, pd.DataFrame]:
+    """Apply per-experiment caps and rewrite df_split to post-cap counts.
+
+    Sequence evaluation rebuilds per-experiment windows from concatenated split
+    arrays. After train/val caps, the original ``df_split`` no longer matches
+    the capped arrays; reusing it makes window reconstruction cross experiment
+    boundaries or trigger the explicit guards in ``build_windows_from_split_arrays``.
+    """
+    if split_mode != "per_experiment":
+        return X_train, Y_train, D_train, C_train, X_val, Y_val, D_val, C_val, df_split
+
+    df_train_cap = None
+    df_val_cap = None
+
+    if overrides.get("max_samples_per_exp") is not None:
+        max_samples = int(overrides["max_samples_per_exp"])
+        X_train, Y_train, D_train, C_train, df_train_cap = cap_train_samples_per_experiment(
+            X_train,
+            Y_train,
+            D_train,
+            C_train,
+            df_split,
+            max_samples,
+        )
+        print(
+            f"⚡ max_samples_per_exp pós-split (train cap={max_samples}/exp) | "
+            f"train={len(X_train):,} | val={len(X_val):,}"
+        )
+
+    if overrides.get("max_val_samples_per_exp") is not None:
+        max_val_samples = int(overrides["max_val_samples_per_exp"])
+        X_val, Y_val, D_val, C_val, df_val_cap = cap_val_samples_per_experiment(
+            X_val,
+            Y_val,
+            D_val,
+            C_val,
+            df_split,
+            max_val_samples,
+        )
+        print(
+            f"⚡ max_val_samples_per_exp pós-split (val cap={max_val_samples}/exp) | "
+            f"train={len(X_train):,} | val={len(X_val):,}"
+        )
+
+    if df_train_cap is not None or df_val_cap is not None:
+        df_split = apply_caps_to_df_split(
+            df_split,
+            df_train_cap=df_train_cap,
+            df_val_cap=df_val_cap,
+        )
+
+    return X_train, Y_train, D_train, C_train, X_val, Y_val, D_val, C_val, df_split
 
 
 def evaluate_run(
@@ -379,35 +447,21 @@ def evaluate_run(
         within_exp_shuffle=within_shuffle,
     )
 
-    if split_mode == "per_experiment" and ov.get("max_samples_per_exp") is not None:
-        max_samples = int(ov["max_samples_per_exp"])
-        X_train, Y_train, D_train, C_train, _ = cap_train_samples_per_experiment(
-            X_train,
-            Y_train,
-            D_train,
-            C_train,
-            df_split,
-            max_samples,
+    X_train, Y_train, D_train, C_train, X_val, Y_val, D_val, C_val, df_split = (
+        _apply_split_caps_for_evaluation(
+            X_train=X_train,
+            Y_train=Y_train,
+            D_train=D_train,
+            C_train=C_train,
+            X_val=X_val,
+            Y_val=Y_val,
+            D_val=D_val,
+            C_val=C_val,
+            df_split=df_split,
+            split_mode=split_mode,
+            overrides=ov,
         )
-        print(
-            f"⚡ max_samples_per_exp pós-split (train cap={max_samples}/exp) | "
-            f"train={len(X_train):,} | val={len(X_val):,}"
-        )
-
-    if split_mode == "per_experiment" and ov.get("max_val_samples_per_exp") is not None:
-        max_val_samples = int(ov["max_val_samples_per_exp"])
-        X_val, Y_val, D_val, C_val, _ = cap_val_samples_per_experiment(
-            X_val,
-            Y_val,
-            D_val,
-            C_val,
-            df_split,
-            max_val_samples,
-        )
-        print(
-            f"⚡ max_val_samples_per_exp pós-split (val cap={max_val_samples}/exp) | "
-            f"train={len(X_train):,} | val={len(X_val):,}"
-        )
+    )
 
     print(f"✓ Split aplicado | train={len(X_train):,} | val={len(X_val):,} | mode={split_mode}")
 
