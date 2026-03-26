@@ -208,6 +208,32 @@ def test_select_grid_seq_mdn_proof_builds_two_component_sweep():
     assert all(item["cfg"]["shuffle_train_batches"] is False for item in grid)
 
 
+def test_select_grid_seq_mdn_regime_weight_quick_builds_three_run_compare():
+    grid = select_grid({"grid_preset": "seq_mdn_regime_weight_quick"})
+
+    assert len(grid) == 3
+    assert {item["group"] for item in grid} == {"S17_seq_mdn_regime_weight"}
+    assert all(item["cfg"]["arch_variant"] == "seq_bigru_residual" for item in grid)
+    assert all(item["cfg"]["decoder_distribution"] == "mdn" for item in grid)
+    assert all(item["cfg"]["mdn_components"] == 3 for item in grid)
+    assert all(item["cfg"]["beta"] == 0.002 for item in grid)
+    assert all(item["cfg"]["lambda_mmd"] == 0.25 for item in grid)
+    assert all(item["cfg"]["lambda_axis"] == 0.01 for item in grid)
+
+    control = grid[0]["cfg"]
+    weighted = [item["cfg"] for item in grid[1:]]
+    assert "train_regime_resample_weights" not in control
+    assert all("train_regime_resample_weights" in cfg for cfg in weighted)
+    assert all(
+        set(cfg["train_regime_resample_weights"]) == {
+            "dist_0p8m__curr_100ma",
+            "dist_0p8m__curr_300ma",
+            "dist_0p8m__curr_500ma",
+        }
+        for cfg in weighted
+    )
+
+
 def test_select_grid_legacy2025_ref_matches_expected_reference_cfg():
     grid = select_grid({"grid_preset": "legacy2025_ref"})
 

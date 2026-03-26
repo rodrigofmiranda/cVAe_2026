@@ -96,6 +96,16 @@ Next intervention to implement:
    - weighted anchor
    - one stronger weighted hedge
 
+Implementation status:
+
+- done
+- current preset:
+  - `seq_mdn_regime_weight_quick`
+- implementation detail:
+  - weighting is applied as fixed-size weighted resampling of the training
+    windows, so the epoch length stays constant while the hard `0.8 m`
+    regimes are emphasized
+
 ## Recommended Execution Order
 
 ### Phase 1

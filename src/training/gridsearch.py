@@ -13,8 +13,9 @@ import gc
 import json
 import re
 import time
+from collections import Counter
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
@@ -90,6 +91,149 @@ def _save_keras_model_compat(model: Any, path: Path) -> None:
         shutil.rmtree(tmp_path)
     tf.keras.models.save_model(model, str(tmp_path), save_format="tf")
     tmp_path.rename(path)
+
+
+def _format_regime_distance(distance_m: float) -> str:
+    s = f"{float(distance_m):.3f}".rstrip("0").rstrip(".").replace(".", "p")
+    return f"dist_{s}m"
+
+
+def _format_regime_current(current_mA: float) -> str:
+    return f"curr_{int(round(float(current_mA)))}mA"
+
+
+def _regime_label(distance_m: float, current_mA: float) -> str:
+    return f"{_format_regime_distance(distance_m)}__{_format_regime_current(current_mA)}"
+
+
+def _normalize_regime_weight_map(weights_cfg: Optional[Dict[str, Any]]) -> Dict[str, float]:
+    if not weights_cfg:
+        return {}
+    normalized: Dict[str, float] = {}
+    for key, value in dict(weights_cfg).items():
+        weight = float(value)
+        if weight <= 0.0:
+            raise ValueError(
+                "train_regime_resample_weights must contain strictly positive "
+                f"multipliers; got {weight!r} for {key!r}"
+            )
+        key_norm = str(key).strip().lower().replace(" ", "")
+        key_norm = key_norm.replace("/", "__curr_") if "/" in key_norm else key_norm
+        if "__curr_" not in key_norm or not key_norm.startswith("dist_"):
+            raise ValueError(
+                "train_regime_resample_weights keys must use the canonical "
+                "format 'dist_0p8m__curr_100mA'"
+            )
+        normalized[key_norm] = weight
+    return normalized
+
+
+def _build_regime_weight_vector(
+    d_raw: np.ndarray,
+    c_raw: np.ndarray,
+    weights_cfg: Optional[Dict[str, Any]],
+) -> Tuple[np.ndarray, np.ndarray]:
+    weights_map = _normalize_regime_weight_map(weights_cfg)
+    d_arr = np.asarray(d_raw, dtype=np.float32).reshape(-1)
+    c_arr = np.asarray(c_raw, dtype=np.float32).reshape(-1)
+    if len(d_arr) != len(c_arr):
+        raise ValueError(
+            f"regime weighting alignment mismatch: len(D)={len(d_arr)} "
+            f"vs len(C)={len(c_arr)}"
+        )
+    labels = np.asarray(
+        [_regime_label(float(d), float(c)) for d, c in zip(d_arr, c_arr)],
+        dtype=object,
+    )
+    labels_norm = np.asarray([str(x).strip().lower() for x in labels], dtype=object)
+    weights = np.ones(len(labels), dtype=np.float32)
+    if not weights_map:
+        return weights, labels
+    for regime_key, weight in weights_map.items():
+        weights[labels_norm == regime_key] = float(weight)
+    return weights, labels
+
+
+def _summarize_regime_counts(labels: np.ndarray) -> str:
+    counts = Counter(str(x) for x in labels.tolist())
+    parts = [f"{k}={counts[k]}" for k in sorted(counts)]
+    return ", ".join(parts)
+
+
+def _apply_regime_weighted_resampling(
+    *,
+    x_train: np.ndarray,
+    y_train: np.ndarray,
+    d_train_norm: np.ndarray,
+    c_train_norm: np.ndarray,
+    d_train_raw: Optional[np.ndarray],
+    c_train_raw: Optional[np.ndarray],
+    cfg: Dict[str, Any],
+    seed: int,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Optional[np.ndarray], Optional[np.ndarray], Dict[str, Any]]:
+    weights_cfg = cfg.get("train_regime_resample_weights")
+    if not weights_cfg:
+        return (
+            x_train,
+            y_train,
+            d_train_norm,
+            c_train_norm,
+            d_train_raw,
+            c_train_raw,
+            {"enabled": False},
+        )
+    if d_train_raw is None or c_train_raw is None:
+        raise ValueError(
+            "train_regime_resample_weights requires raw D/C arrays so regime "
+            "labels remain in physical units."
+        )
+
+    weights, labels = _build_regime_weight_vector(d_train_raw, c_train_raw, weights_cfg)
+    target_size = int(cfg.get("train_regime_resample_target_size", len(x_train)))
+    if target_size <= 0:
+        raise ValueError(
+            "train_regime_resample_target_size must be positive when regime "
+            "resampling is enabled."
+        )
+    if np.allclose(weights, 1.0):
+        return (
+            x_train,
+            y_train,
+            d_train_norm,
+            c_train_norm,
+            d_train_raw,
+            c_train_raw,
+            {
+                "enabled": True,
+                "changed": False,
+                "weights_map": _normalize_regime_weight_map(weights_cfg),
+                "before_counts": _summarize_regime_counts(labels),
+                "after_counts": _summarize_regime_counts(labels),
+                "target_size": int(target_size),
+            },
+        )
+
+    rng = np.random.default_rng(int(seed))
+    probs = weights.astype(np.float64)
+    probs /= probs.sum()
+    idx = rng.choice(len(x_train), size=target_size, replace=True, p=probs)
+    labels_after = labels[idx]
+    return (
+        x_train[idx],
+        y_train[idx],
+        d_train_norm[idx],
+        c_train_norm[idx],
+        np.asarray(d_train_raw)[idx],
+        np.asarray(c_train_raw)[idx],
+        {
+            "enabled": True,
+            "changed": True,
+            "weights_map": _normalize_regime_weight_map(weights_cfg),
+            "before_counts": _summarize_regime_counts(labels),
+            "after_counts": _summarize_regime_counts(labels_after),
+            "target_size": int(target_size),
+        },
+    )
 
 
 def checklist_table() -> "pd.DataFrame":
@@ -816,6 +960,34 @@ def run_gridsearch(
             D_va_raw_fit = None if D_val_raw is None else np.asarray(D_val_raw).reshape(-1, 1)
             C_va_raw_fit = None if C_val_raw is None else np.asarray(C_val_raw).reshape(-1, 1)
             X_va_center_fit = X_va_fit
+
+        (
+            X_tr_fit,
+            Y_tr_fit,
+            D_tr_fit,
+            C_tr_fit,
+            D_tr_raw_fit,
+            C_tr_raw_fit,
+            resample_info,
+        ) = _apply_regime_weighted_resampling(
+            x_train=X_tr_fit,
+            y_train=Y_tr_fit,
+            d_train_norm=D_tr_fit,
+            c_train_norm=C_tr_fit,
+            d_train_raw=D_tr_raw_fit,
+            c_train_raw=C_tr_raw_fit,
+            cfg=cfg,
+            seed=int(training_config.get("seed", 42)),
+        )
+        if resample_info.get("enabled"):
+            print(
+                "  ↳ regime resampling: "
+                f"target_size={resample_info['target_size']:,} | "
+                f"changed={bool(resample_info.get('changed', False))}"
+            )
+            print(f"     weights={resample_info.get('weights_map', {})}")
+            print(f"     before={resample_info.get('before_counts', '')}")
+            print(f"     after ={resample_info.get('after_counts', '')}")
 
         try:
             _shuffle_train_batches = bool(

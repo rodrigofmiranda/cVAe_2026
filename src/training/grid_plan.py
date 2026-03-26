@@ -1737,6 +1737,93 @@ def _preset_seq_mdn_g5_broader_quick() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_mdn_regime_weight_quick() -> List[Dict[str, Any]]:
+    """Compact MDN recovery grid using regime-aware weighted resampling.
+
+    Anchored on the strongest MDN quick result from ``exp_20260325_230938``:
+
+      - ``mdn3``
+      - ``beta=0.002``
+      - ``lambda_mmd=0.25``
+      - ``lambda_axis=0.01``
+      - ``lr=2e-4``
+
+    The remaining failures are concentrated in:
+
+      - ``dist_0p8m__curr_100mA``
+      - ``dist_0p8m__curr_300mA``
+      - ``dist_0p8m__curr_500mA``
+
+    Instead of reopening a broad hyperparameter sweep, keep the anchor fixed
+    and change only the training sampling distribution:
+
+      - control: no regime weighting
+      - G5 focus A: moderate emphasis on the hard 0.8m regimes
+      - G5 focus B: stronger emphasis hedge
+    """
+
+    def _seq_cfg(
+        *,
+        regime_weights: Optional[Dict[str, float]] = None,
+    ) -> Dict[str, Any]:
+        cfg = _cfg(
+            arch_variant="seq_bigru_residual",
+            layer_sizes=[128, 256, 512],
+            latent_dim=4,
+            beta=0.002,
+            free_bits=0.10,
+            lr=2e-4,
+            batch_size=4096,
+            kl_anneal_epochs=80,
+            window_size=7,
+            window_stride=1,
+            window_pad_mode="edge",
+            seq_hidden_size=64,
+            seq_num_layers=1,
+            seq_bidirectional=True,
+            lambda_mmd=0.25,
+            mmd_mode="mean_residual",
+            lambda_axis=0.01,
+            lambda_psd=0.0,
+            decoder_distribution="mdn",
+            mdn_components=3,
+            shuffle_train_batches=True,
+        )
+        if regime_weights:
+            cfg["train_regime_resample_weights"] = dict(regime_weights)
+        return cfg
+
+    return [
+        dict(
+            group="S17_seq_mdn_regime_weight",
+            tag="S17seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_rw0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(),
+        ),
+        dict(
+            group="S17_seq_mdn_regime_weight",
+            tag="S17seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_rwg5a_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(
+                regime_weights={
+                    "dist_0p8m__curr_100ma": 2.5,
+                    "dist_0p8m__curr_300ma": 2.5,
+                    "dist_0p8m__curr_500ma": 1.75,
+                }
+            ),
+        ),
+        dict(
+            group="S17_seq_mdn_regime_weight",
+            tag="S17seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_rwg5b_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(
+                regime_weights={
+                    "dist_0p8m__curr_100ma": 3.5,
+                    "dist_0p8m__curr_300ma": 3.5,
+                    "dist_0p8m__curr_500ma": 2.0,
+                }
+            ),
+        ),
+    ]
+
+
 def _preset_best_compare_large() -> List[Dict[str, Any]]:
     """Comparative protocol-first grid using the strongest current candidates.
 
@@ -1953,6 +2040,8 @@ def select_grid(
             grid = _preset_seq_mdn_g5_exploratory_quick()
         elif preset_name == "seq_mdn_g5_broader_quick":
             grid = _preset_seq_mdn_g5_broader_quick()
+        elif preset_name == "seq_mdn_regime_weight_quick":
+            grid = _preset_seq_mdn_regime_weight_quick()
         elif preset_name == "best_compare_large":
             grid = _preset_best_compare_large()
         elif preset_name == "delta_residual_fast":

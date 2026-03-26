@@ -176,6 +176,25 @@ Nesta branch, a prioridade imediata e:
     - `docs/MDN_G5_RECOVERY_PLAN.md`
   - proximo passo:
     - implementar weighting por regime em cima do anchor `S14`
+- Preset novo de recovery via weighting por regime:
+  - `grid_preset=seq_mdn_regime_weight_quick`
+  - foco:
+    - manter a melhor linha MDN `S14` fixa
+    - usar resampling ponderado sem aumentar o tamanho da epoca
+    - enfatizar:
+      - `dist_0p8m__curr_100mA`
+      - `dist_0p8m__curr_300mA`
+      - `dist_0p8m__curr_500mA`
+    - comparar:
+      - controle sem weighting
+      - weighting moderado
+      - weighting forte
+  - comando recomendado:
+    - `--max_samples_per_exp 100000`
+    - `--max_val_samples_per_exp 20000`
+    - `--max_dist_samples 20000`
+    - `--stat_mode quick`
+    - `--stat_max_n 2000`
 
 ### Criterio operacional do teste causal `seq_sampled_mmd_compare`
 

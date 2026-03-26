@@ -60,6 +60,7 @@ Purpose of this branch:
 - formally discard the current `sinh-arcsinh` flow line as a negative result
 - return to the best stable MDN family
 - recover the remaining `G5` failures in `0.8 m` without reopening `G6`
+- current intervention: regime-aware weighted resampling on top of the best MDN anchor
 
 The worktree path remains:
 

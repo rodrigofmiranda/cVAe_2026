@@ -36,6 +36,10 @@ Current branch-level plan:
 
 - [docs/MDN_G5_RECOVERY_PLAN.md](MDN_G5_RECOVERY_PLAN.md)
 
+Current active quick preset for this branch:
+
+- `seq_mdn_regime_weight_quick`
+
 Architectures available in this branch:
 
 - `seq_bigru_residual`
