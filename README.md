@@ -32,6 +32,7 @@ Historical note:
 Use these documents in this order:
 
 - [docs/ACTIVE_CONTEXT.md](docs/ACTIVE_CONTEXT.md) — shortest path for the unified branch context
+- [docs/MDN_G5_RECOVERY_PLAN.md](docs/MDN_G5_RECOVERY_PLAN.md) — active plan for the MDN recovery branch
 - [PROJECT_STATUS.md](PROJECT_STATUS.md) — current architecture and repo state
 - [TRAINING_PLAN.md](TRAINING_PLAN.md) — active scientific plan and gates
 - [docs/FUTURE_ADVERSARIAL_STRATEGY.md](docs/FUTURE_ADVERSARIAL_STRATEGY.md) — single backlog note for a future adversarial comeback
@@ -51,14 +52,14 @@ Historical refactor planning has been archived under:
 
 Current experimental branch in this worktree:
 
-- `feat/sample-aware-mmd`
+- `feat/mdn-g5-recovery`
 
 Purpose of this branch:
 
-- keep `outputs/exp_20260324_023558` as the stable seq reference
-- add diagnostic-first residual instrumentation before any new loss intervention
-- compare `mean_residual` vs `sampled_residual` MMD without changing the rest
-  of the protocol
+- keep the strongest Gaussian seq reference and the strongest MDN quick line as baselines
+- formally discard the current `sinh-arcsinh` flow line as a negative result
+- return to the best stable MDN family
+- recover the remaining `G5` failures in `0.8 m` without reopening `G6`
 
 The worktree path remains:
 

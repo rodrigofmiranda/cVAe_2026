@@ -5,14 +5,15 @@
 
 ## Branch experimental atual
 
-- `feat/sample-aware-mmd`
+- `feat/mdn-g5-recovery`
 
 Nesta branch, a prioridade imediata e:
 
-- instrumentar melhor o residual sem mudar os gates
-- comparar `mean_residual` vs `sampled_residual` MMD
-- registrar sinais por regime, por eixo e por amplitude antes de decidir a
-  proxima loss
+- manter a referencia gaussiana e a melhor linha MDN como baselines
+- descartar formalmente a linha atual do `conditional flow decoder`
+- voltar ao melhor MDN estavel
+- recuperar as falhas residuais de `G5` em `0.8 m`
+- implementar weighting por regime antes de abrir nova familia de decoder
 
 ## 0. Estado atual
 
@@ -163,6 +164,18 @@ Nesta branch, a prioridade imediata e:
     - `--max_dist_samples 20000`
     - `--stat_mode quick`
     - `--stat_max_n 2000`
+- Linha flow descartada nesta branch:
+  - evidencias:
+    - `exp_20260326_034522`
+    - `exp_20260326_035723`
+  - leitura:
+    - a plumbing funcionou
+    - a familia `sinh-arcsinh` por eixo nao ficou cientificamente competitiva
+    - nao justifica mais budget nesta iteracao
+  - documento canonico:
+    - `docs/MDN_G5_RECOVERY_PLAN.md`
+  - proximo passo:
+    - implementar weighting por regime em cima do anchor `S14`
 
 ### Criterio operacional do teste causal `seq_sampled_mmd_compare`
 

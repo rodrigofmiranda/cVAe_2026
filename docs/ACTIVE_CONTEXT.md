@@ -8,11 +8,12 @@ Read only these files first:
 
 1. [CODEX.md](../CODEX.md)
 2. [PROJECT_STATUS.md](../PROJECT_STATUS.md)
-3. [docs/PROTOCOL.md](PROTOCOL.md)
-4. [docs/DELTA_RESIDUAL_STATUS.md](DELTA_RESIDUAL_STATUS.md)
-5. [docs/RUN_REANALYSIS_PLAYBOOK.md](RUN_REANALYSIS_PLAYBOOK.md)
-6. [docs/FUTURE_ADVERSARIAL_STRATEGY.md](FUTURE_ADVERSARIAL_STRATEGY.md)
-7. [docs/NOISE_DISTRIBUTION_AUDIT.md](NOISE_DISTRIBUTION_AUDIT.md)
+3. [docs/MDN_G5_RECOVERY_PLAN.md](MDN_G5_RECOVERY_PLAN.md)
+4. [docs/PROTOCOL.md](PROTOCOL.md)
+5. [docs/DELTA_RESIDUAL_STATUS.md](DELTA_RESIDUAL_STATUS.md)
+6. [docs/RUN_REANALYSIS_PLAYBOOK.md](RUN_REANALYSIS_PLAYBOOK.md)
+7. [docs/FUTURE_ADVERSARIAL_STRATEGY.md](FUTURE_ADVERSARIAL_STRATEGY.md)
+8. [docs/NOISE_DISTRIBUTION_AUDIT.md](NOISE_DISTRIBUTION_AUDIT.md)
 
 Everything else is secondary unless a specific task requires it.
 
@@ -20,19 +21,20 @@ Everything else is secondary unless a specific task requires it.
 
 Active branch:
 
-- `feat/sample-aware-mmd`
+- `feat/mdn-g5-recovery`
 
 Current purpose:
 
-- keep `outputs/exp_20260324_023558` as the stable seq reference while testing
-  a targeted objective/diagnostic intervention
-- instrument the residual distribution at three levels:
-  - regime
-  - axis (`I/Q`)
-  - amplitude bin
-- compare `mean_residual` vs `sampled_residual` MMD under the same protocol
+- keep the strongest Gaussian seq line and the strongest MDN quick line as explicit baselines
+- mark the current `sinh-arcsinh` flow line as discarded for this iteration
+- return to the MDN anchor that already reached `9/12`
+- target only the remaining `G5` failures in the `0.8 m` regimes
 - use `configs/all_regimes_sel4curr.json` as the minimum active protocol
   (`0.8/1.0/1.5 m x 100/300/500/700 mA`)
+
+Current branch-level plan:
+
+- [docs/MDN_G5_RECOVERY_PLAN.md](MDN_G5_RECOVERY_PLAN.md)
 
 Architectures available in this branch:
 
