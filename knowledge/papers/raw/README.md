@@ -18,5 +18,5 @@ Boas praticas:
 Depois de adicionar novos PDFs, rode:
 
 ```bash
-python scripts/ingest_papers_docling.py
+python scripts/knowledge/ingest_papers_docling.py
 ```

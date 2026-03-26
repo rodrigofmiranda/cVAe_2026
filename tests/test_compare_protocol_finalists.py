@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from scripts.compare_protocol_finalists import _build_pivot, _collect_rows
+from scripts.analysis.compare_protocol_finalists import _build_pivot, _collect_rows
 
 
 def test_collect_rows_and_build_pivot(tmp_path: Path):

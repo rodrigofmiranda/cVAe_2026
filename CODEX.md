@@ -17,7 +17,7 @@ On a fresh Codex session:
 1. read [docs/agents/AI_AGENT_GUIDE.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/agents/AI_AGENT_GUIDE.md)
 2. inspect `git status --short`
 3. if a run may be active, inspect `pgrep -af "src.protocol.run|src.training.train"`
-4. run `python scripts/summarize_experiment.py` on the latest `outputs/exp_*`
+4. run `python scripts/analysis/summarize_experiment.py` on the latest `outputs/exp_*`
 
 ## Codex-Specific Notes
 

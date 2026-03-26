@@ -16,7 +16,7 @@
 #
 # Phase 5.
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
 echo "=== Smoke: dist-metrics (Phase 5 — exp_<ts> / studies layout) ==="
 

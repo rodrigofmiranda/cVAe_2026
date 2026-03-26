@@ -34,7 +34,7 @@ Useful project skills:
 ## Ignore Unless Asked
 
 - `knowledge/`
-- `scripts/index_knowledge_chroma.py`
+- `scripts/knowledge/index_knowledge_chroma.py`
 - `.gitignore` changes related to local paper/index tooling
 
 ## Out Of Scope

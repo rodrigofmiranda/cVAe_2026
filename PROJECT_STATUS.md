@@ -111,7 +111,7 @@ Docs ativos:
 cd /workspace/2026/feat_seq_bigru_residual_cvae
 git status -sb
 git worktree list
-python scripts/summarize_experiment.py "$(ls -td outputs/exp_* | head -1)"
+python scripts/analysis/summarize_experiment.py "$(ls -td outputs/exp_* | head -1)"
 ```
 
 Depois disso, leia:

@@ -50,13 +50,13 @@ Exemplos:
 Para converter os PDFs com Docling:
 
 ```bash
-python scripts/ingest_papers_docling.py
+python scripts/knowledge/ingest_papers_docling.py
 ```
 
 Ou com diretorios explicitos:
 
 ```bash
-python scripts/ingest_papers_docling.py \
+python scripts/knowledge/ingest_papers_docling.py \
   --input-dir knowledge/papers/raw \
   --output-dir knowledge/papers/parsed
 ```
@@ -66,13 +66,13 @@ python scripts/ingest_papers_docling.py \
 Depois do ingest, indexe o Markdown parseado:
 
 ```bash
-python scripts/index_knowledge_chroma.py
+python scripts/knowledge/index_knowledge_chroma.py
 ```
 
 Ou com paths explicitos:
 
 ```bash
-python scripts/index_knowledge_chroma.py \
+python scripts/knowledge/index_knowledge_chroma.py \
   --parsed-dir knowledge/papers/parsed \
   --db-dir knowledge/index/chroma_db \
   --state-path knowledge/index/index_state.json

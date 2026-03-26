@@ -20,20 +20,20 @@ knowledge/papers/parsed/<paper_id>/document.md
 ## Fluxo
 
 1. colocar PDFs em `knowledge/papers/raw/`
-2. converter com `scripts/ingest_papers_docling.py`
-3. indexar com `scripts/index_knowledge_chroma.py`
+2. converter com `scripts/knowledge/ingest_papers_docling.py`
+3. indexar com `scripts/knowledge/index_knowledge_chroma.py`
 4. recuperar trechos relevantes para prompts, notas e sinteses
 
 ## Comando
 
 ```bash
-python scripts/index_knowledge_chroma.py
+python scripts/knowledge/index_knowledge_chroma.py
 ```
 
 Ou com paths explicitos:
 
 ```bash
-python scripts/index_knowledge_chroma.py \
+python scripts/knowledge/index_knowledge_chroma.py \
   --parsed-dir knowledge/papers/parsed \
   --db-dir knowledge/index/chroma_db \
   --state-path knowledge/index/index_state.json

@@ -7,6 +7,12 @@ Usage:
     python scripts/test_dist1m_2grid.py
 """
 from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from src.data.loading import discover_experiments, parse_dist_curr_from_path
 
 # ── 1. Find dist=1.0m experiments ──────────────────────────

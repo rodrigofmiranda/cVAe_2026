@@ -10,7 +10,7 @@ fi
 
 if ! tmux has-session -t "${SESSION_NAME}" 2>/dev/null; then
   echo "tmux session '${SESSION_NAME}' is not running." >&2
-  echo "Start it first with: scripts/run_tf25_gpu.sh" >&2
+  echo "Start it first with: scripts/ops/run_tf25_gpu.sh" >&2
   exit 1
 fi
 

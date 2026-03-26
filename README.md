@@ -202,12 +202,11 @@ PROJECT_STATUS.md             Current codebase / validation status
 notebooks/                    Exploratory Jupyter notebooks
 outputs/                      Run artifacts (exp_YYYYMMDD_HHMMSS/)
 scripts/
-  train.sh                    Training wrapper
-  eval.sh                     Evaluation wrapper
-  run_tf25_gpu.sh             Start persistent TF 2.5 GPU container
-  enter_tf25_gpu.sh           Open an interactive shell inside the container
-  stop_tf25_gpu.sh            Stop and remove the persistent container
-  smoke_dist_metrics.sh       Quick smoke test for distribution metrics
+  README.md                   Script inventory and status map
+  ops/                        Active host / workflow wrappers
+  analysis/                   Active run-analysis and backfill helpers
+  knowledge/                  Paper ingestion / indexing helpers
+  archive/                    Historical diagnostics and retired one-offs
 tests/
   test_stat_tests.py          18 unit tests for MMD, Energy, PSD, FDR
   test_stat_plots.py          11 unit tests for stat fidelity plots
@@ -276,8 +275,8 @@ git clone -b feat/seq-bigru-residual-cvae https://github.com/rodrigofmiranda/cVA
 cd cVAe_2026
 git lfs pull
 
-bash scripts/run_tf25_gpu.sh
-bash scripts/enter_tf25_gpu.sh
+bash scripts/ops/run_tf25_gpu.sh
+bash scripts/ops/enter_tf25_gpu.sh
 ```
 
 Inside the container:
@@ -316,9 +315,9 @@ For long runs on a remote host, prefer a persistent `tmux` session on the host
 that owns the interactive Docker container. The repo now ships helper scripts:
 
 ```bash
-./scripts/run_tf25_gpu.sh
-./scripts/enter_tf25_gpu.sh
-./scripts/stop_tf25_gpu.sh
+./scripts/ops/run_tf25_gpu.sh
+./scripts/ops/enter_tf25_gpu.sh
+./scripts/ops/stop_tf25_gpu.sh
 ```
 
 These start a host-side `tmux` session named `cvae_tf25_gpu`, launch
@@ -672,10 +671,10 @@ python -m src.protocol.run \
 
 ```bash
 # Shared-global protocol run (wrapper over src.protocol.run --train_once_eval_all)
-bash scripts/train.sh
+bash scripts/ops/train.sh
 
 # Evaluate the latest (or a specific) run
-bash scripts/eval.sh
+bash scripts/ops/eval.sh
 ```
 
 ### CLI flags reference

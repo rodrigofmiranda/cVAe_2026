@@ -25,11 +25,14 @@ Uso:
 """
 from __future__ import annotations
 import sys, os, json, math
-sys.path.insert(0, "/workspace/2026")
-os.chdir("/workspace/2026")
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+os.chdir(str(ROOT))
 
 import numpy as np
-from pathlib import Path
 
 # ---------------------------------------------------------------------------
 MODEL_RUN_DIR    = Path("outputs/exp_20260318_204149/global_model")

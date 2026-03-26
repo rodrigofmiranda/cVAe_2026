@@ -2,7 +2,7 @@
 """Compare selected grid finalists across regimes inside a protocol run.
 
 Usage:
-    python scripts/compare_protocol_finalists.py outputs/exp_YYYYMMDD_HHMMSS \
+    python scripts/analysis/compare_protocol_finalists.py outputs/exp_YYYYMMDD_HHMMSS \
       --tags TAG_A TAG_B
 """
 
