@@ -55,6 +55,12 @@ Leitura atual:
   - ranking do grid por `mini_protocol_v1`
   - `decoder_sensitivity` seq/MDN corrigido e finito
   - `latent_summary` mantido apenas como telemetria de auditoria
+- tambem existe agora uma comparacao de throughput opt-in para a linha seq MDN:
+  - preset: `seq_mdn_v2_perf_compare_quick`
+  - controle atual: `batch_size=4096`, `batch_infer=8192`, `seq_gru_unroll=True`
+  - variante de lote maior: `batch_size=8192`, `batch_infer=16384`
+  - variante GRU rapida: `seq_gru_unroll=False`
+  - ressalva: `seq_gru_unroll=True` continua sendo o default conservador por compatibilidade historica com stacks novos, incluindo a linha com RTX 5090
 
 ## Ponto De Atencao Operacional
 

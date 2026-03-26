@@ -2118,6 +2118,89 @@ def _preset_seq_mdn_v2_quick() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_mdn_v2_perf_compare_quick() -> List[Dict[str, Any]]:
+    """Throughput-focused compare against the current MDN v2 anchor.
+
+    This preset is intentionally narrow:
+
+      1. current anchor (`batch_size=4096`, `batch_infer=8192`, `seq_gru_unroll=True`)
+      2. larger train/eval batches only
+      3. larger train/eval batches + `seq_gru_unroll=False`
+
+    The scientific objective is unchanged; this preset exists to compare
+    throughput/fit behaviour across the conservative path and the faster GRU
+    path. ``seq_gru_unroll=False`` remains opt-in because previous seq runs on
+    newer stacks (notably RTX 5090/cuDNN 9) motivated the conservative default.
+    """
+
+    analysis_quick_base = {
+        "mini_reanalysis_enabled": True,
+        "mini_reanalysis_scope": "all12",
+        "mini_reanalysis_max_samples_per_regime": 4096,
+        "grid_ranking_mode": "mini_protocol_v1",
+        "batch_infer": 8192,
+    }
+    analysis_quick_fast = {
+        **analysis_quick_base,
+        "batch_infer": 16384,
+    }
+
+    def _seq_cfg(
+        *,
+        batch_size: int,
+        seq_gru_unroll: bool,
+    ) -> Dict[str, Any]:
+        return _cfg(
+            arch_variant="seq_bigru_residual",
+            layer_sizes=[128, 256, 512],
+            latent_dim=4,
+            beta=0.002,
+            free_bits=0.10,
+            lr=2e-4,
+            batch_size=batch_size,
+            kl_anneal_epochs=80,
+            window_size=7,
+            window_stride=1,
+            window_pad_mode="edge",
+            seq_hidden_size=64,
+            seq_num_layers=1,
+            seq_bidirectional=True,
+            seq_gru_unroll=seq_gru_unroll,
+            lambda_mmd=0.25,
+            mmd_mode="mean_residual",
+            lambda_axis=0.01,
+            lambda_psd=0.0,
+            lambda_coverage=0.0,
+            coverage_levels=[0.50, 0.80, 0.95],
+            tail_levels=[0.05, 0.95],
+            coverage_temperature=0.05,
+            decoder_distribution="mdn",
+            mdn_components=3,
+            shuffle_train_batches=True,
+        )
+
+    return [
+        dict(
+            group="S21_seq_mdn_v2_perf",
+            tag="S21seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_cov0_bs4096_bi8192_gruroll1_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(batch_size=4096, seq_gru_unroll=True),
+            analysis_quick_overrides=analysis_quick_base,
+        ),
+        dict(
+            group="S21_seq_mdn_v2_perf",
+            tag="S21seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_cov0_bs8192_bi16384_gruroll1_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(batch_size=8192, seq_gru_unroll=True),
+            analysis_quick_overrides=analysis_quick_fast,
+        ),
+        dict(
+            group="S21_seq_mdn_v2_perf",
+            tag="S21seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_cov0_bs8192_bi16384_gruroll0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(batch_size=8192, seq_gru_unroll=False),
+            analysis_quick_overrides=analysis_quick_fast,
+        ),
+    ]
+
+
 def _preset_best_compare_large() -> List[Dict[str, Any]]:
     """Comparative protocol-first grid using the strongest current candidates.
 
@@ -2342,6 +2425,8 @@ def select_grid(
             grid = _preset_seq_mdn_structure_quick()
         elif preset_name == "seq_mdn_v2_quick":
             grid = _preset_seq_mdn_v2_quick()
+        elif preset_name == "seq_mdn_v2_perf_compare_quick":
+            grid = _preset_seq_mdn_v2_perf_compare_quick()
         elif preset_name == "best_compare_large":
             grid = _preset_best_compare_large()
         elif preset_name == "delta_residual_fast":

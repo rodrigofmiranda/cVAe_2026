@@ -59,6 +59,7 @@ K_WINDOW_PAD_MODE = "window_pad_mode"
 K_SEQ_HIDDEN_SIZE = "seq_hidden_size"
 K_SEQ_NUM_LAYERS = "seq_num_layers"
 K_SEQ_BIDIRECTIONAL = "seq_bidirectional"
+K_SEQ_GRU_UNROLL = "seq_gru_unroll"
 
 # --- Data reduction ---
 K_TARGET_SAMPLES = "target_samples_per_experiment"
@@ -148,6 +149,7 @@ MODEL_DEFAULTS: dict = {
     K_SEQ_HIDDEN_SIZE: 64,
     K_SEQ_NUM_LAYERS: 1,
     K_SEQ_BIDIRECTIONAL: True,
+    K_SEQ_GRU_UNROLL: True,
 }
 
 DATA_REDUCTION_DEFAULTS: dict = {

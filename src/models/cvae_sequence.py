@@ -152,6 +152,7 @@ def _bigru_stack(
     seq_hidden: int,
     seq_layers: int,
     seq_bidir: bool,
+    seq_gru_unroll: bool,
     dropout: float,
     name_prefix: str,
 ) -> tf.Tensor:
@@ -172,20 +173,18 @@ def _bigru_stack(
 
     Notes
     -----
-    We force ``unroll=True`` for the seq_bigru_residual family.
-
-    The sequence window is intentionally short (typically W=7), so explicit
-    unrolling is cheap and keeps execution on the stable Keras/TensorFlow GRU
-    path instead of the fused cuDNN kernel. This avoids runtime incompatibility
-    on newer GPU/cuDNN stacks (e.g. cuDNN 9 on RTX 5090) while preserving the
-    same model semantics for the short-window regime we use here.
+    ``seq_gru_unroll=True`` preserves the conservative execution path that was
+    adopted for the seq_bigru_residual family on newer GPU/cuDNN stacks
+    (including previous RTX 5090 issues). ``False`` is an opt-in throughput
+    experiment so TensorFlow may dispatch the fused/cuDNN GRU kernels when the
+    runtime supports them.
     """
     for i in range(seq_layers):
         return_seqs = i < seq_layers - 1
         gru = layers.GRU(
             seq_hidden,
             return_sequences=return_seqs,
-            unroll=True,
+            unroll=bool(seq_gru_unroll),
             name=f"{name_prefix}_gru_{i}",
         )
         if seq_bidir:
@@ -241,6 +240,7 @@ def build_seq_prior_net(cfg: Dict) -> tf.keras.Model:
     hidden    = int(cfg.get("seq_hidden_size", 64))
     n_layers  = int(cfg.get("seq_num_layers", 1))
     bidir     = bool(cfg.get("seq_bidirectional", True))
+    gru_unroll = bool(cfg.get("seq_gru_unroll", True))
     latent    = int(cfg["latent_dim"])
     act       = cfg.get("activation", "leaky_relu")
     dropout   = float(cfg.get("dropout", 0.0))
@@ -258,7 +258,9 @@ def build_seq_prior_net(cfg: Dict) -> tf.keras.Model:
     )
 
     # BiGRU context → (hidden*2,) or (hidden,)
-    h = _bigru_stack(seq_in, hidden, n_layers, bidir, dropout, name_prefix="prior_net")
+    h = _bigru_stack(
+        seq_in, hidden, n_layers, bidir, gru_unroll, dropout, name_prefix="prior_net"
+    )
 
     # MLP head
     h = _mlp_head(h, mlp_sizes, act, dropout, name_prefix="prior_net")
@@ -288,6 +290,7 @@ def build_seq_encoder(cfg: Dict) -> tf.keras.Model:
     hidden    = int(cfg.get("seq_hidden_size", 64))
     n_layers  = int(cfg.get("seq_num_layers", 1))
     bidir     = bool(cfg.get("seq_bidirectional", True))
+    gru_unroll = bool(cfg.get("seq_gru_unroll", True))
     latent    = int(cfg["latent_dim"])
     act       = cfg.get("activation", "leaky_relu")
     dropout   = float(cfg.get("dropout", 0.0))
@@ -306,7 +309,9 @@ def build_seq_encoder(cfg: Dict) -> tf.keras.Model:
     )
 
     # BiGRU context → (hidden*2,) or (hidden,)
-    h = _bigru_stack(seq_in, hidden, n_layers, bidir, dropout, name_prefix="encoder")
+    h = _bigru_stack(
+        seq_in, hidden, n_layers, bidir, gru_unroll, dropout, name_prefix="encoder"
+    )
 
     # Append y_center to the context vector before the MLP head
     h = layers.Concatenate(name="encoder_ctx_y")([h, y_cent_in])

@@ -63,6 +63,12 @@ The current implementation branch now includes an `MDN v2` path:
 - `mini_protocol_v1` ranking for grid champion selection
 - finite `decoder_sensitivity` for seq Gaussian / seq MDN
 - `latent_summary` kept as audit-only telemetry, not a search criterion
+- an opt-in throughput compare preset:
+  - `seq_mdn_v2_perf_compare_quick`
+  - control path keeps `seq_gru_unroll=True`
+  - faster path tries `batch_size=8192`, `batch_infer=16384`
+  - experimental GRU path tries `seq_gru_unroll=False`
+  - keep the conservative default when moving to another GPU stack, especially the RTX 5090 machine
 
 ## Operational Attention Point
 

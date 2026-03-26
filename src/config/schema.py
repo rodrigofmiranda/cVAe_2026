@@ -28,6 +28,7 @@ from src.config.defaults import (
     K_SEQ_HIDDEN_SIZE,
     K_SEQ_NUM_LAYERS,
     K_SEQ_BIDIRECTIONAL,
+    K_SEQ_GRU_UNROLL,
 )
 
 
@@ -70,6 +71,7 @@ class TrainConfig:
     seq_hidden_size: int = MODEL_DEFAULTS["seq_hidden_size"]
     seq_num_layers: int = MODEL_DEFAULTS["seq_num_layers"]
     seq_bidirectional: bool = MODEL_DEFAULTS["seq_bidirectional"]
+    seq_gru_unroll: bool = MODEL_DEFAULTS["seq_gru_unroll"]
 
     # loss / regularisation
     beta: float = MODEL_DEFAULTS["beta"]
@@ -122,6 +124,7 @@ class TrainConfig:
             seq_hidden_size=int(_get(d, "seq_hidden_size", MODEL_DEFAULTS["seq_hidden_size"], int)),
             seq_num_layers=int(_get(d, "seq_num_layers", MODEL_DEFAULTS["seq_num_layers"], int)),
             seq_bidirectional=bool(_get(d, "seq_bidirectional", MODEL_DEFAULTS["seq_bidirectional"])),
+            seq_gru_unroll=bool(_get(d, "seq_gru_unroll", MODEL_DEFAULTS["seq_gru_unroll"])),
             beta=float(_get(d, "beta", MODEL_DEFAULTS["beta"], float)),
             free_bits=float(_get(d, "free_bits", MODEL_DEFAULTS["free_bits"], float)),
             lambda_mmd=float(_get(d, "lambda_mmd", MODEL_DEFAULTS["lambda_mmd"], float)),

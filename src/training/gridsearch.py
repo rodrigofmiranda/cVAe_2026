@@ -329,7 +329,7 @@ def save_experiment_xlsx(xlsx_path: Path, row_dict: dict) -> None:
     cfg_keys = [
         "activation", "kl_anneal_epochs", "batch_size", "lr",
         "dropout", "free_bits", "layer_sizes", "latent_dim", "beta",
-        "arch_variant", "lambda_mmd", "mmd_mode",
+        "arch_variant", "lambda_mmd", "mmd_mode", "seq_gru_unroll",
     ]
     cfg_json = pd.DataFrame([{
         "cfg_json": json.dumps(
@@ -451,6 +451,7 @@ TRAINING_DIAGNOSTIC_COLUMNS: List[str] = [
     "layer_sizes",
     "window_size",
     "seq_hidden_size",
+    "seq_gru_unroll",
     "lambda_mmd",
     "mmd_mode",
     "epochs_ran",

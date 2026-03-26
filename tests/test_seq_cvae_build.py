@@ -81,6 +81,12 @@ class TestSubModelBuild:
         assert bigru.forward_layer.unroll is True
         assert bigru.backward_layer.unroll is True
 
+    def test_seq_gru_unroll_can_be_disabled_explicitly(self):
+        prior = build_seq_prior_net(_min_cfg(seq_bidirectional=True, seq_gru_unroll=False))
+        bigru = prior.get_layer("prior_net_bigru_0")
+        assert bigru.forward_layer.unroll is False
+        assert bigru.backward_layer.unroll is False
+
     # Input shapes — prior_net
     def test_prior_net_has_three_inputs(self):
         prior = build_seq_prior_net(_min_cfg(window_size=9))
