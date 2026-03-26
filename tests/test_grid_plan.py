@@ -242,6 +242,21 @@ def test_select_grid_seq_flow_micro_proof_builds_shortest_flow_candidate():
     assert cfg["kl_anneal_epochs"] == 40
 
 
+def test_select_grid_seq_flow_phase3_quick_builds_short_stabilization_sweep():
+    grid = select_grid({"grid_preset": "seq_flow_phase3_quick"})
+
+    assert len(grid) == 5
+    assert all(item["cfg"]["decoder_distribution"] == "flow" for item in grid)
+    assert all(item["cfg"]["flow_identity_init"] is True for item in grid)
+    assert {item["cfg"]["lambda_mmd"] for item in grid} == {0.0, 0.10}
+    assert {item["cfg"]["beta"] for item in grid} == {0.002, 0.003}
+    assert {item["cfg"]["batch_size"] for item in grid} == {8192}
+    assert {item["cfg"]["kl_anneal_epochs"] for item in grid} == {40}
+    assert {item["cfg"]["flow_log_scale_gain"] for item in grid} == {0.35, 0.25}
+    assert {item["cfg"]["flow_skew_gain"] for item in grid} == {0.75, 0.50}
+    assert {item["cfg"]["flow_log_tail_gain"] for item in grid} == {0.20, 0.10}
+
+
 def test_select_grid_seq_mdn_proof_builds_two_component_sweep():
     grid = select_grid({"grid_preset": "seq_mdn_proof"})
 

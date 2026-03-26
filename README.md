@@ -75,6 +75,8 @@ Current implementation status:
   - `seq_flow_proof_quick`
 - shortest proof preset:
   - `seq_flow_micro_proof`
+- next stabilization preset:
+  - `seq_flow_phase3_quick`
 
 The worktree path remains:
 

@@ -44,6 +44,10 @@ K_LAMBDA_AXIS = "lambda_axis"
 K_LAMBDA_PSD = "lambda_psd"
 K_DECODER_DISTRIBUTION = "decoder_distribution"
 K_MDN_COMPONENTS = "mdn_components"
+K_FLOW_IDENTITY_INIT = "flow_identity_init"
+K_FLOW_LOG_SCALE_GAIN = "flow_log_scale_gain"
+K_FLOW_SKEW_GAIN = "flow_skew_gain"
+K_FLOW_LOG_TAIL_GAIN = "flow_log_tail_gain"
 
 # --- Sequence model (seq_bigru_residual) ---
 K_WINDOW_SIZE = "window_size"
@@ -123,6 +127,10 @@ MODEL_DEFAULTS: dict = {
     K_LAMBDA_PSD: 0.0,
     K_DECODER_DISTRIBUTION: "gaussian",
     K_MDN_COMPONENTS: 1,
+    K_FLOW_IDENTITY_INIT: True,
+    K_FLOW_LOG_SCALE_GAIN: 0.35,
+    K_FLOW_SKEW_GAIN: 0.75,
+    K_FLOW_LOG_TAIL_GAIN: 0.20,
     # Sequence model defaults (ignored by point-wise variants)
     K_WINDOW_SIZE: 33,
     K_WINDOW_STRIDE: 1,

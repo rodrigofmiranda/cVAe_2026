@@ -139,6 +139,21 @@ class SliceFeatures(tf.keras.layers.Layer):
         return {**super().get_config(), "start": self.start, "end": self.end}
 
 
+@tf.keras.utils.register_keras_serializable(package="seq_cvae")
+class ScaleTanh(tf.keras.layers.Layer):
+    """Apply ``gain * tanh(x)`` as a serializable stabilizing transform."""
+
+    def __init__(self, gain: float, **kwargs):
+        super().__init__(**kwargs)
+        self.gain = float(gain)
+
+    def call(self, x):
+        return self.gain * tf.tanh(x)
+
+    def get_config(self):
+        return {**super().get_config(), "gain": self.gain}
+
+
 # ======================================================================
 # Internal helpers
 # ======================================================================
@@ -357,6 +372,10 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
         cfg.get("decoder_distribution", "gaussian")
     ).strip().lower()
     mdn_components = int(cfg.get("mdn_components", 1))
+    flow_identity_init = bool(cfg.get("flow_identity_init", True))
+    flow_log_scale_gain = float(cfg.get("flow_log_scale_gain", 0.35))
+    flow_skew_gain = float(cfg.get("flow_skew_gain", 0.75))
+    flow_log_tail_gain = float(cfg.get("flow_log_tail_gain", 0.20))
 
     z_in      = layers.Input(shape=(latent,), name="z_input")
     x_cent_in = layers.Input(shape=(2,),      name="x_center_input")
@@ -379,11 +398,23 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
         y_mean_flat = layers.Reshape((2 * k,), name="y_mean_flat")(y_mean)
         out = layers.Concatenate(name="output_params")([logits, y_mean_flat, delta_lv_flat])
     elif decoder_distribution == "flow":
-        raw_out = layers.Dense(8, name="output_params_raw")(h)
+        raw_out = layers.Dense(
+            8,
+            name="output_params_raw",
+            kernel_initializer="zeros" if flow_identity_init else "glorot_uniform",
+            bias_initializer="zeros",
+        )(h)
         delta_loc = SliceFeatures(0, 2, name="delta_loc")(raw_out)
-        log_scale = SliceFeatures(2, 4, name="flow_log_scale")(raw_out)
-        skew = SliceFeatures(4, 6, name="flow_skew")(raw_out)
-        log_tail = SliceFeatures(6, 8, name="flow_log_tail")(raw_out)
+        log_scale_raw = SliceFeatures(2, 4, name="flow_log_scale_raw")(raw_out)
+        skew_raw = SliceFeatures(4, 6, name="flow_skew_raw")(raw_out)
+        log_tail_raw = SliceFeatures(6, 8, name="flow_log_tail_raw")(raw_out)
+        log_scale = ScaleTanh(
+            flow_log_scale_gain, name="flow_log_scale"
+        )(log_scale_raw)
+        skew = ScaleTanh(flow_skew_gain, name="flow_skew")(skew_raw)
+        log_tail = ScaleTanh(
+            flow_log_tail_gain, name="flow_log_tail"
+        )(log_tail_raw)
         y_loc = layers.Add(name="y_loc_residual")([x_cent_in, delta_loc])
         out = layers.Concatenate(name="output_params")(
             [y_loc, log_scale, skew, log_tail]
@@ -634,6 +665,7 @@ def load_seq_model(path: str) -> tf.keras.Model:
             "ExtractCenterFrame": ExtractCenterFrame,
             "ClipValues": ClipValues,
             "SliceFeatures": SliceFeatures,
+            "ScaleTanh": ScaleTanh,
         },
         compile=False,
     )

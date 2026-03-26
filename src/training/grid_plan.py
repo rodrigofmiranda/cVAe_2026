@@ -1467,6 +1467,102 @@ def _preset_seq_flow_micro_proof() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_flow_phase3_quick() -> List[Dict[str, Any]]:
+    """Short Phase 3 flow grid focused on variance/tail stabilization.
+
+    Diagnostic reading from ``exp_20260326_034522``:
+
+    - the plain flow proof completed, so the branch is structurally viable
+    - the model massively over-dispersed the residual law in every regime
+    - the next sweep must therefore target scale/tail control first
+
+    This grid keeps the flow family fixed and only explores:
+
+    - default conservative gains vs a tighter flow parameterization
+    - no auxiliary loss vs a light MMD anchor
+    - one stronger-beta hedge on the tight+MMD line
+    """
+
+    def _seq_cfg(
+        *,
+        beta: float = 0.002,
+        lr: float = 2e-4,
+        lambda_mmd: float = 0.0,
+        flow_log_scale_gain: float = 0.35,
+        flow_skew_gain: float = 0.75,
+        flow_log_tail_gain: float = 0.20,
+    ) -> Dict[str, Any]:
+        return _cfg(
+            arch_variant="seq_bigru_residual",
+            layer_sizes=[128, 256, 512],
+            latent_dim=4,
+            beta=beta,
+            free_bits=0.10,
+            lr=lr,
+            batch_size=8192,
+            kl_anneal_epochs=40,
+            window_size=7,
+            window_stride=1,
+            window_pad_mode="edge",
+            seq_hidden_size=64,
+            seq_num_layers=1,
+            seq_bidirectional=True,
+            lambda_mmd=lambda_mmd,
+            mmd_mode="mean_residual",
+            lambda_axis=0.0,
+            lambda_psd=0.0,
+            decoder_distribution="flow",
+            flow_identity_init=True,
+            flow_log_scale_gain=flow_log_scale_gain,
+            flow_skew_gain=flow_skew_gain,
+            flow_log_tail_gain=flow_log_tail_gain,
+            shuffle_train_batches=True,
+        )
+
+    return [
+        dict(
+            group="F2_seq_flow_phase3",
+            tag="F2seq_W7_h64_lat4_sasflow_gdef_b0p002_fb0p10_lr0p0002_bs8192",
+            cfg=_seq_cfg(),
+        ),
+        dict(
+            group="F2_seq_flow_phase3",
+            tag="F2seq_W7_h64_lat4_sasflow_gtight_b0p002_fb0p10_lr0p0002_bs8192",
+            cfg=_seq_cfg(
+                flow_log_scale_gain=0.25,
+                flow_skew_gain=0.50,
+                flow_log_tail_gain=0.10,
+            ),
+        ),
+        dict(
+            group="F2_seq_flow_phase3",
+            tag="F2seq_W7_h64_lat4_sasflow_gdef_lmmd0p10_b0p002_fb0p10_lr0p0002_bs8192",
+            cfg=_seq_cfg(lambda_mmd=0.10),
+        ),
+        dict(
+            group="F2_seq_flow_phase3",
+            tag="F2seq_W7_h64_lat4_sasflow_gtight_lmmd0p10_b0p002_fb0p10_lr0p0002_bs8192",
+            cfg=_seq_cfg(
+                lambda_mmd=0.10,
+                flow_log_scale_gain=0.25,
+                flow_skew_gain=0.50,
+                flow_log_tail_gain=0.10,
+            ),
+        ),
+        dict(
+            group="F2_seq_flow_phase3",
+            tag="F2seq_W7_h64_lat4_sasflow_gtight_lmmd0p10_b0p003_fb0p10_lr0p0002_bs8192",
+            cfg=_seq_cfg(
+                beta=0.003,
+                lambda_mmd=0.10,
+                flow_log_scale_gain=0.25,
+                flow_skew_gain=0.50,
+                flow_log_tail_gain=0.10,
+            ),
+        ),
+    ]
+
+
 def _preset_seq_mdn_proof() -> List[Dict[str, Any]]:
     """Focused proof run for the seq MDN line on the full protocol."""
 
@@ -2061,6 +2157,8 @@ def select_grid(
             grid = _preset_seq_flow_proof_quick()
         elif preset_name == "seq_flow_micro_proof":
             grid = _preset_seq_flow_micro_proof()
+        elif preset_name == "seq_flow_phase3_quick":
+            grid = _preset_seq_flow_phase3_quick()
         elif preset_name == "seq_mdn_proof":
             grid = _preset_seq_mdn_proof()
         elif preset_name == "seq_mdn_conservative_proof":

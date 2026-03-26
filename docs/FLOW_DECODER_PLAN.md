@@ -211,14 +211,29 @@ python -m src.protocol.run \
 
 ### Phase 3 — Small Flow Grid
 
-Only if Phase 2 is sane.
+Phase 2 already answered one thing clearly:
+
+- the branch is structurally viable
+- but the plain flow line from `exp_20260326_034522` was massively over-dispersed
+
+So the first Phase 3 grid is not a generic sweep; it is a stabilization grid.
 
 Explore a small grid around:
 
-- number of flow transforms
-- coupling type
+- tighter flow parameter gains
+- a light `lambda_mmd` anchor
 - `beta`
-- a small `lambda_mmd` reintroduced only if needed
+
+Preset:
+
+- `seq_flow_phase3_quick`
+
+Scientific intent:
+
+- keep the current `sinh-arcsinh` flow family
+- reduce scale/tail freedom before trying richer flow stacks
+- test whether conservative flow gains plus a light MMD anchor are enough to
+  stop the large variance inflation seen in `exp_20260326_034522`
 
 ### Phase 4 — Full Protocol Compare
 

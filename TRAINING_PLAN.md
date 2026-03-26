@@ -217,6 +217,23 @@ Nesta branch, a prioridade imediata e:
     - `--max_dist_samples 5000`
     - `--stat_mode quick`
     - `--stat_max_n 1000`
+  - leitura da micro proof:
+    - `exp_20260326_034522`
+    - protocolo completou
+    - resultado cientifico:
+      - `0/12`
+      - superdispersao severa em todos os regimes
+      - `var_ratio_I/Q` muito acima de `1`, especialmente em `0.8 m`
+    - conclusao:
+      - o flow plain atual precisa ser estabilizado antes de qualquer comparacao seria
+  - preset novo da Phase 3:
+    - `grid_preset=seq_flow_phase3_quick`
+  - foco:
+    - manter a familia `sinh-arcsinh`
+    - inicializar o head do flow na identidade
+    - reduzir liberdade de escala/cauda via ganhos menores
+    - testar `lambda_mmd=0.10` como ancora leve
+    - incluir um hedge curto com `beta=0.003`
 
 ### Criterio operacional do teste causal `seq_sampled_mmd_compare`
 

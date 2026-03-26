@@ -80,6 +80,10 @@ class TrainConfig:
     lambda_psd: float = MODEL_DEFAULTS["lambda_psd"]
     decoder_distribution: str = MODEL_DEFAULTS["decoder_distribution"]
     mdn_components: int = MODEL_DEFAULTS["mdn_components"]
+    flow_identity_init: bool = MODEL_DEFAULTS["flow_identity_init"]
+    flow_log_scale_gain: float = MODEL_DEFAULTS["flow_log_scale_gain"]
+    flow_skew_gain: float = MODEL_DEFAULTS["flow_skew_gain"]
+    flow_log_tail_gain: float = MODEL_DEFAULTS["flow_log_tail_gain"]
     kl_anneal_epochs: int = MODEL_DEFAULTS["kl_anneal_epochs"]
 
     # optimiser / schedule
@@ -125,6 +129,10 @@ class TrainConfig:
                 d, "decoder_distribution", MODEL_DEFAULTS["decoder_distribution"]
             )),
             mdn_components=int(_get(d, "mdn_components", MODEL_DEFAULTS["mdn_components"], int)),
+            flow_identity_init=bool(_get(d, "flow_identity_init", MODEL_DEFAULTS["flow_identity_init"])),
+            flow_log_scale_gain=float(_get(d, "flow_log_scale_gain", MODEL_DEFAULTS["flow_log_scale_gain"], float)),
+            flow_skew_gain=float(_get(d, "flow_skew_gain", MODEL_DEFAULTS["flow_skew_gain"], float)),
+            flow_log_tail_gain=float(_get(d, "flow_log_tail_gain", MODEL_DEFAULTS["flow_log_tail_gain"], float)),
             kl_anneal_epochs=int(_get(d, "kl_anneal_epochs", MODEL_DEFAULTS["kl_anneal_epochs"], int)),
             lr=float(_get(d, "lr", MODEL_DEFAULTS["lr"], float)),
             batch_size=int(_get(d, "batch_size", MODEL_DEFAULTS["batch_size"], int)),

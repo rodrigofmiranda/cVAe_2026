@@ -50,6 +50,11 @@ Current flow status:
 - intent:
   - first quick scientific proof of the plain flow likelihood
   - keep all `12` regimes, but run with sample caps
+- latest flow proof reading:
+  - `outputs/exp_20260326_034522`
+  - structurally successful, scientifically poor
+  - next preset:
+    - `seq_flow_phase3_quick`
 
 Current branch-level plan:
 
