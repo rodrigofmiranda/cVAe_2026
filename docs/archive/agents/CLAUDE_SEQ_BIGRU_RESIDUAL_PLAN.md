@@ -88,7 +88,7 @@ Read these files in this exact order before making changes:
 
 1. [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_cvae/PROJECT_STATUS.md)
 2. [TRAINING_PLAN.md](/workspace/2026/feat_seq_bigru_residual_cvae/TRAINING_PLAN.md)
-3. [docs/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/PROTOCOL.md)
+3. [docs/reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/PROTOCOL.md)
 4. [src/models/cvae.py](/workspace/2026/feat_seq_bigru_residual_cvae/src/models/cvae.py)
 5. [src/data/loading.py](/workspace/2026/feat_seq_bigru_residual_cvae/src/data/loading.py)
 6. [src/protocol/split_strategies.py](/workspace/2026/feat_seq_bigru_residual_cvae/src/protocol/split_strategies.py)

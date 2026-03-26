@@ -31,22 +31,18 @@ Historical note:
 
 Use these documents in this order:
 
-- [docs/ACTIVE_CONTEXT.md](docs/ACTIVE_CONTEXT.md) — shortest path for the unified branch context
-- [docs/MDN_G5_RECOVERY_PLAN.md](docs/MDN_G5_RECOVERY_PLAN.md) — active plan for the MDN recovery branch
+- [docs/README.md](docs/README.md) — canonical documentation map
 - [PROJECT_STATUS.md](PROJECT_STATUS.md) — current architecture and repo state
-- [TRAINING_PLAN.md](TRAINING_PLAN.md) — active scientific plan and gates
-- [docs/FUTURE_ADVERSARIAL_STRATEGY.md](docs/FUTURE_ADVERSARIAL_STRATEGY.md) — single backlog note for a future adversarial comeback
-- [docs/RUN_REANALYSIS_PLAYBOOK.md](docs/RUN_REANALYSIS_PLAYBOOK.md) — how to review new `exp_*` runs quickly
-- [docs/DIAGNOSTIC_CHECKLIST.md](docs/DIAGNOSTIC_CHECKLIST.md) — executable diagnostic workflow
-- [docs/PROTOCOL.md](docs/PROTOCOL.md) — protocol runner, artifacts, CLI
-- [docs/MODELING_ASSUMPTIONS.md](docs/MODELING_ASSUMPTIONS.md) — modeling rationale
-- [docs/GEMINI_BOOTSTRAP.md](docs/GEMINI_BOOTSTRAP.md) — concise handoff for a secondary AI
-- [docs/GEMINI_PLAYBOOK.md](docs/GEMINI_PLAYBOOK.md) — operational playbook for known situations
-- [docs/GEMINI_PROMPTS.md](docs/GEMINI_PROMPTS.md) — prompt templates for Gemini or other copilots
+- [docs/active/WORKING_STATE.md](docs/active/WORKING_STATE.md) — single active working note for the current branch
+- [docs/reference/EXPERIMENT_WORKFLOW.md](docs/reference/EXPERIMENT_WORKFLOW.md) — how to launch and analyze experiments
+- [docs/reference/PROTOCOL.md](docs/reference/PROTOCOL.md) — protocol runner, artifacts, CLI
+- [docs/reference/MODELING_ASSUMPTIONS.md](docs/reference/MODELING_ASSUMPTIONS.md) — modeling rationale
+- [docs/agents/AI_AGENT_GUIDE.md](docs/agents/AI_AGENT_GUIDE.md) — shared guide for Codex, Claude, Gemini and other assistants
+- [docs/archive/ideas/FUTURE_ADVERSARIAL_STRATEGY.md](docs/archive/ideas/FUTURE_ADVERSARIAL_STRATEGY.md) — archived backlog note for a future adversarial comeback
 
 Historical refactor planning has been archived under:
 
-- [docs/archive/REFACTOR_PLAN_legacy.md](docs/archive/REFACTOR_PLAN_legacy.md)
+- [docs/archive/refactor/REFACTOR_PLAN_legacy.md](docs/archive/refactor/REFACTOR_PLAN_legacy.md)
 
 ## Experimental Branch
 
@@ -60,7 +56,7 @@ Purpose of this branch:
 - formally discard the current `sinh-arcsinh` flow line as a negative result
 - return to the best stable MDN family
 - recover the remaining `G5` failures in `0.8 m` without reopening `G6`
-- current intervention: regime-aware weighted resampling on top of the best MDN anchor
+- avoid reopening decoder-family exploration unless the current MDN anchor is exhausted
 
 The worktree path remains:
 
@@ -180,7 +176,7 @@ In practice:
   experiment rather than through separate training-only flows
 - the adversarial strategy was intentionally removed from this active code path;
   if we revisit it later, use
-  [docs/FUTURE_ADVERSARIAL_STRATEGY.md](docs/FUTURE_ADVERSARIAL_STRATEGY.md)
+  [docs/archive/ideas/FUTURE_ADVERSARIAL_STRATEGY.md](docs/archive/ideas/FUTURE_ADVERSARIAL_STRATEGY.md)
   as the only implementation note
 
 ## Repository layout
@@ -195,14 +191,14 @@ data/                         Dataset (Git LFS)
     dist_*/curr_*/IQ_data/
 docker/                       Dockerfile + container configs
 docs/
-  DIAGNOSTIC_CHECKLIST.md    Executable diagnosis workflow
-  MODELING_ASSUMPTIONS.md     Core modeling decisions
-  PROTOCOL.md                 Protocol runner reference
-  SESSION_STATE.md            Session/run state schema
+  README.md                   Canonical documentation map
+  active/                     Single active working note
+  agents/                     AI handoff docs
   archive/                    Historical plans kept out of the active path
+  operations/                 Host / infra operations notes
+  reference/                  Protocol and experiment workflow references
   smoke_b2_notes.txt          Historical smoke notes
 PROJECT_STATUS.md             Current codebase / validation status
-TRAINING_PLAN.md              Active scientific plan and acceptance gates
 notebooks/                    Exploratory Jupyter notebooks
 outputs/                      Run artifacts (exp_YYYYMMDD_HHMMSS/)
 scripts/

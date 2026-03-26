@@ -6,14 +6,14 @@ Use this file to avoid reading the whole repo every time.
 
 Read only these files first:
 
-1. [CODEX.md](../CODEX.md)
-2. [PROJECT_STATUS.md](../PROJECT_STATUS.md)
-3. [docs/MDN_G5_RECOVERY_PLAN.md](MDN_G5_RECOVERY_PLAN.md)
-4. [docs/PROTOCOL.md](PROTOCOL.md)
-5. [docs/DELTA_RESIDUAL_STATUS.md](DELTA_RESIDUAL_STATUS.md)
-6. [docs/RUN_REANALYSIS_PLAYBOOK.md](RUN_REANALYSIS_PLAYBOOK.md)
-7. [docs/FUTURE_ADVERSARIAL_STRATEGY.md](FUTURE_ADVERSARIAL_STRATEGY.md)
-8. [docs/NOISE_DISTRIBUTION_AUDIT.md](NOISE_DISTRIBUTION_AUDIT.md)
+1. [AI_AGENT_GUIDE.md](../agents/AI_AGENT_GUIDE.md)
+2. [PROJECT_STATUS.md](../../PROJECT_STATUS.md)
+3. [MDN_G5_RECOVERY_PLAN.md](MDN_G5_RECOVERY_PLAN.md)
+4. [PROTOCOL.md](../reference/PROTOCOL.md)
+5. [DELTA_RESIDUAL_STATUS.md](../research/DELTA_RESIDUAL_STATUS.md)
+6. [RUN_REANALYSIS_PLAYBOOK.md](../reference/RUN_REANALYSIS_PLAYBOOK.md)
+7. [FUTURE_ADVERSARIAL_STRATEGY.md](../archive/ideas/FUTURE_ADVERSARIAL_STRATEGY.md)
+8. [NOISE_DISTRIBUTION_AUDIT.md](NOISE_DISTRIBUTION_AUDIT.md)
 
 Everything else is secondary unless a specific task requires it.
 
@@ -34,7 +34,7 @@ Current purpose:
 
 Current branch-level plan:
 
-- [docs/MDN_G5_RECOVERY_PLAN.md](MDN_G5_RECOVERY_PLAN.md)
+- [MDN_G5_RECOVERY_PLAN.md](MDN_G5_RECOVERY_PLAN.md)
 
 Current active quick preset for this branch:
 
@@ -88,7 +88,7 @@ Recent replay run under the new axis-wise diagnostics:
 
 Current audit note for the remaining noise-shape mismatch:
 
-- [docs/NOISE_DISTRIBUTION_AUDIT.md](NOISE_DISTRIBUTION_AUDIT.md)
+- [NOISE_DISTRIBUTION_AUDIT.md](NOISE_DISTRIBUTION_AUDIT.md)
 - key reading:
   - the near-regime residual histograms are still under-dispersed
   - the current `MMD` term matches residual means, not sampled residual clouds
@@ -338,7 +338,7 @@ Current broader MDN G5 sweep:
 - the old local adversarial folder was deleted to save disk space
 - the branch name `feat/delta-residual-adv` remains available only as historical traceability
 - if we need to bring that strategy back later, use
-  [docs/FUTURE_ADVERSARIAL_STRATEGY.md](FUTURE_ADVERSARIAL_STRATEGY.md)
+  [docs/archive/ideas/FUTURE_ADVERSARIAL_STRATEGY.md](../archive/ideas/FUTURE_ADVERSARIAL_STRATEGY.md)
   as the single implementation note
 
 ## Canonical Artifacts

@@ -83,7 +83,7 @@ For the recent seq winner:
 
 If the task is about reviving the archived adversarial strategy:
 
-- first read [docs/FUTURE_ADVERSARIAL_STRATEGY.md](FUTURE_ADVERSARIAL_STRATEGY.md)
+- first read [docs/archive/ideas/FUTURE_ADVERSARIAL_STRATEGY.md](../archive/ideas/FUTURE_ADVERSARIAL_STRATEGY.md)
 - compare only against:
   - current best point-wise non-adversarial reference
   - current best seq reference

@@ -121,7 +121,7 @@ Reasoning:
   `lr=1e-4`, `batch_size=4096`, `dropout=0.0`, `kl_anneal_epochs=50`,
   `free_bits=0.0`.
 - For batch-size scaling around that same reference config, use the dedicated
-  protocol in [LEGACY_2025_BATCHSIZE_PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/LEGACY_2025_BATCHSIZE_PROTOCOL.md).
+  protocol in [LEGACY_2025_BATCHSIZE_PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/archive/legacy_2025/LEGACY_2025_BATCHSIZE_PROTOCOL.md).
 - For this variant, latent diagnostics intentionally report `KL(q||p)` as
   `n/a`, because the port uses `KL(q||N(0,I))` rather than a learned
   conditional prior.
