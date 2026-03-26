@@ -103,11 +103,12 @@ def _resolve_grid_analysis_quick(
     base_analysis_quick: Dict[str, Any],
     grid: List[Dict[str, Any]],
 ) -> Dict[str, Any]:
-    """Merge preset-level analysis overrides if the grid declares them.
+    """Resolve the base analysis_quick dict passed into grid-search.
 
-    The implementation is intentionally conservative: all grid items must agree
-    on the same ``analysis_quick_overrides`` payload, otherwise the preset is
-    considered ambiguous and the run aborts early.
+    Grid-search itself supports per-candidate ``analysis_quick_overrides``.
+    This helper only decides whether the run-level base dict can be safely
+    pre-merged for all candidates, or whether candidate-specific merging must
+    be deferred to ``run_gridsearch``.
     """
     merged = dict(base_analysis_quick)
     overrides = [
@@ -121,13 +122,31 @@ def _resolve_grid_analysis_quick(
     canonical = overrides[0]
     for other in overrides[1:]:
         if other != canonical:
-            raise ValueError(
-                "Grid preset mixes different analysis_quick_overrides across candidates; "
-                "this is not supported."
+            print(
+                "⚡ analysis_quick overrides vary across candidates; "
+                "gridsearch will apply them per candidate."
             )
+            return merged
 
     merged.update(canonical)
     print(f"⚡ analysis_quick overrides from preset: {canonical}")
+    return merged
+
+
+def _resolve_best_candidate_analysis_quick(
+    base_analysis_quick: Dict[str, Any],
+    grid: List[Dict[str, Any]],
+    best_grid_tag: str,
+) -> Dict[str, Any]:
+    """Return the merged analysis_quick dict for the champion candidate."""
+    merged = dict(base_analysis_quick)
+    if not best_grid_tag:
+        return merged
+    for item in grid:
+        if str(item.get("tag", "")) != str(best_grid_tag):
+            continue
+        merged.update(dict(item.get("analysis_quick_overrides", {})))
+        return merged
     return merged
 
 
@@ -411,6 +430,11 @@ def run_training_pipeline(
         and np.isfinite(df_results.iloc[0]["score_v2"])
         else float("nan")
     )
+    champion_analysis_quick = _resolve_best_candidate_analysis_quick(
+        analysis_quick,
+        grid,
+        best_grid_tag,
+    )
     artifacts = {
         "grid_results_csv": str(grid_csv_path),
         "grid_results_xlsx": str(grid_xlsx_path),
@@ -448,7 +472,7 @@ def run_training_pipeline(
         output_base=str(runtime.output_base.resolve()),
         training_config=runtime.training_config,
         data_reduction_config=runtime.data_reduction_config,
-        analysis_quick=analysis_quick,
+        analysis_quick=champion_analysis_quick,
         normalization={k: float(v) for k, v in norm_params.items()},
         data_split=data_split,
         eval_protocol=runtime.eval_protocol,
