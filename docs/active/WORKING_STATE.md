@@ -19,7 +19,10 @@ start here.
 - stable Gaussian reference:
   - `outputs/exp_20260324_023558`
   - `10/12`
-- best MDN line so far:
+- best valid MDN v2 line so far:
+  - `outputs/exp_20260327_161311`
+  - `9/12` (`gate_g5_pass=10`, `gate_g6_pass=12`)
+- historical MDN tie (same final score):
   - `outputs/exp_20260325_230938`
   - `9/12`
 
@@ -106,7 +109,7 @@ The current implementation branch now includes an `MDN v2` path:
     - protocol result: `5/12`
     - reading: negative for the hypothesis that a separate `tail_levels` sweep
       alone unlocks the remaining `0.8 m` gap
-  - 5090-safe overnight result:
+  - 5090-safe overnight historical result:
     - run: `outputs/exp_20260327_050158`
     - train-side winner: `S25 ... h96 / lat6 / gruroll1 ...`
     - protocol result is not scientifically valid yet
@@ -115,16 +118,23 @@ The current implementation branch now includes an `MDN v2` path:
     - useful signal that remains:
       - the strongest candidate came from a structural probe
       - `gate_g6` signal was the strongest seen so far in this MDN v2 branch
-    - correct next action:
-      - re-evaluate the trained model from `exp_20260327_050158/train`
-      - do not open another 5090 grid before that re-evaluation
+    - next action that was executed:
+      - re-evaluation run: `outputs/exp_20260327_161311`
+  - valid re-evaluation result:
+    - run: `outputs/exp_20260327_161311`
+    - champion: `S25 ... W7 / h64 / lat6 / gruroll1 ...`
+    - protocol result: `9/12`
+    - remaining failures:
+      - `0.8m / 300mA` (`G3`)
+      - `0.8m / 500mA` (`G5`)
+      - `0.8m / 700mA` (`G5`)
 
-Current branch reading after these two runs:
+Current branch reading after the latest valid re-evaluation:
 
-- `S23` remains the best valid MDN v2 result: `6/12`
-- the A600 tail-specific branch did not improve on it
-- the 5090 structural branch may still have headroom, but that claim is blocked
-  on environment parity, not on training quality
+- `S25` (`exp_20260327_161311`) is now the best valid MDN v2 result: `9/12`
+- this MDN v2 result ties the historical MDN best score (`9/12`)
+- the remaining gap is concentrated only in `0.8 m`
+- the branch is still `1` regime below the stable Gaussian reference (`10/12`)
 - the branch now includes a permanent runtime fix for this class of issue:
   - seq candidates that hit the cuDNN GRU runtime failure retry automatically
     on a compatibility backend
@@ -155,9 +165,10 @@ commit `a1660e2` is present before trusting a quick sequential run.
 
 Also verify environment parity before trusting a completed protocol:
 
-- `matplotlib` must be installed in the evaluation environment
-- otherwise the run can train successfully, write reanalysis JSONs, and still
-  end with `eval_status=failed`, which invalidates `G1-G3`
+- `matplotlib` should stay installed for full dashboard generation
+- if `matplotlib` is missing, plotting can be skipped; in this branch the
+  protocol metrics can still be counted
+- if `eval_status=failed` appears, inspect run logs before discarding the run
 
 Do not reopen:
 

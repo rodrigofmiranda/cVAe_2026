@@ -35,7 +35,11 @@ Referencias principais hoje:
 - referencia gaussiana estavel:
   - run: `outputs/exp_20260324_023558`
   - resultado: `10/12`
-- melhor linha MDN ate agora:
+- melhor linha MDN v2 valida ate agora:
+  - run: `outputs/exp_20260327_161311`
+  - resultado: `9/12`
+  - gates: `gate_g5_pass=10`, `gate_g6_pass=12`
+- melhor linha MDN historica (empate em score final):
   - run: `outputs/exp_20260325_230938`
   - resultado: `9/12`
 - ultimo teste negativo da branch atual:
@@ -116,7 +120,19 @@ Leitura atual:
       - o melhor candidato veio de probe estrutural
       - `gate_g5_pass=9`
       - `gate_g6_pass=10`
-      - isso sugere reavaliar esse modelo treinado antes de abrir outro grid
+      - isso motivou reavaliar o modelo treinado antes de abrir outro grid
+  - resultado da reavaliacao valida:
+    - run: `outputs/exp_20260327_161311`
+    - status: `completed`
+    - campeao validado: `S25 ... W7 / h64 / lat6 / gruroll1 ...`
+    - resultado: `9/12`
+    - falhas restantes:
+      - `0.8m / 300mA` (`G3`)
+      - `0.8m / 500mA` (`G5`)
+      - `0.8m / 700mA` (`G5`)
+    - leitura:
+      - melhor MDN v2 valida da branch ate o momento
+      - ainda `1` regime abaixo da referencia gaussiana `10/12`
   - regra operacional atual da linha RTX 5090:
     - existe agora retry automatico no gridsearch para candidatos seq com
       erro de runtime do cuDNN/GRU
