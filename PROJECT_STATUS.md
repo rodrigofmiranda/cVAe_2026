@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-> Atualizado em 2026-03-26.
+> Atualizado em 2026-03-27.
 > Este arquivo e o inventario oficial das worktrees e do estado ativo do repositorio.
 
 ## Worktrees
@@ -99,6 +99,30 @@ Leitura atual:
     - abre sweep proprio de `tail_levels`
     - mantém probes estruturais no caminho rapido `gruroll0`
     - serve como contraponto exploratorio ao overnight `5090-safe`
+  - resultado do contraponto no A600:
+    - run: `outputs/exp_20260327_050422`
+    - campeao: `S26 ... lat6 ... tail02-98 ...`
+    - resultado: `5/12`
+    - leitura: negativo para a hipotese de que abrir `tail_levels` separadamente
+      resolveria o gargalo de `0.8 m`
+  - resultado do overnight `5090-safe`:
+    - run: `outputs/exp_20260327_050158`
+    - campeao de treino: `S25 ... h96 / lat6 / gruroll1 ...`
+    - protocolo final ficou invalido
+    - causa operacional: ambiente de avaliacao sem `matplotlib`
+    - efeito: todos os regimes ficaram com `eval_status=failed` e `G1-G3`
+      vazios, entao o `0/12` nao pode ser tratado como resultado cientifico
+    - sinal util preservado:
+      - o melhor candidato veio de probe estrutural
+      - `gate_g5_pass=9`
+      - `gate_g6_pass=10`
+      - isso sugere reavaliar esse modelo treinado antes de abrir outro grid
+  - regra operacional atual da linha RTX 5090:
+    - nao tratar `seq_gru_unroll=False` como caminho seguro nessa stack
+    - no ultimo overnight, os candidatos locais `gruroll0` falharam no grid
+    - os candidatos que realmente treinaram foram os probes com `gruroll1`
+    - ate nova evidencia, considerar `gruroll1` como caminho confiavel na 5090
+      e `gruroll0` apenas como opcao experimental
 
 ## Ponto De Atencao Operacional
 
@@ -122,6 +146,15 @@ Commits de referencia desta correcao:
 
 - `a1660e2` `fix(seq): sync df_split after per-exp caps`
 - `c6d1a0a` `docs: drop stale smoke b2 notes`
+
+Outro ponto de atencao operacional confirmado nesta iteracao:
+
+- se o ambiente de avaliacao estiver sem `matplotlib`, o protocolo pode gerar
+  `metricas_globais_reanalysis.json` e ainda assim terminar com
+  `eval_status=failed`
+- isso invalida o julgamento final do run, porque `G1-G3` ficam vazios
+- referencia concreta:
+  - `outputs/exp_20260327_050158`
 
 ## Familias De Modelo Disponiveis
 

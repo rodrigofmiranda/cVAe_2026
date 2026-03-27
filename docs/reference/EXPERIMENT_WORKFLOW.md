@@ -24,6 +24,21 @@ git log --oneline -5
 pgrep -af "src.protocol.run|src.training.train"
 ```
 
+If the run is happening on another machine or another container image, also
+check environment parity before trusting the protocol result:
+
+```bash
+python - <<'PY'
+import importlib
+for name in ["numpy", "tensorflow", "matplotlib"]:
+    importlib.import_module(name)
+print("environment ok")
+PY
+```
+
+Missing `matplotlib` is enough to invalidate the protocol finish even when the
+model trained correctly and the reanalysis JSONs were produced.
+
 ## Quick Run Pattern
 
 Use quick caps when screening a hypothesis:
@@ -79,3 +94,13 @@ Protocol result comes first.
 Also do not accept a quick sequential result from another branch until you have
 verified the branch contains the post-cap `df_split` fix if per-experiment caps
 were used.
+
+Also do not accept a run as final if `summary_by_regime.csv` shows
+`eval_status=failed` across regimes because of an environment/import error.
+
+Recent example:
+
+- `outputs/exp_20260327_050158`
+- train/grid completed
+- protocol final became invalid because the evaluation environment was missing
+  `matplotlib`

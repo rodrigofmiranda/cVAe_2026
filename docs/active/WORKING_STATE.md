@@ -100,6 +100,34 @@ The current implementation branch now includes an `MDN v2` path:
     - opens a dedicated `tail_levels` sweep
     - keeps structural probes on the faster `gruroll0` path
     - meant to run in parallel with the 5090-safe overnight, not instead of it
+  - A600 tail exploration result:
+    - run: `outputs/exp_20260327_050422`
+    - champion: `S26 ... lat6 ... tail02-98 ...`
+    - protocol result: `5/12`
+    - reading: negative for the hypothesis that a separate `tail_levels` sweep
+      alone unlocks the remaining `0.8 m` gap
+  - 5090-safe overnight result:
+    - run: `outputs/exp_20260327_050158`
+    - train-side winner: `S25 ... h96 / lat6 / gruroll1 ...`
+    - protocol result is not scientifically valid yet
+    - reason: evaluation environment was missing `matplotlib`, so every regime
+      finished with `eval_status=failed`
+    - useful signal that remains:
+      - the strongest candidate came from a structural probe
+      - `gate_g6` signal was the strongest seen so far in this MDN v2 branch
+    - correct next action:
+      - re-evaluate the trained model from `exp_20260327_050158/train`
+      - do not open another 5090 grid before that re-evaluation
+
+Current branch reading after these two runs:
+
+- `S23` remains the best valid MDN v2 result: `6/12`
+- the A600 tail-specific branch did not improve on it
+- the 5090 structural branch may still have headroom, but that claim is blocked
+  on environment parity, not on training quality
+- on the current 5090 stack, `seq_gru_unroll=True` is the only reliable path
+  evidenced by the latest overnight; `gruroll0` should be treated as
+  experimental there
 
 ## Operational Attention Point
 
@@ -120,6 +148,12 @@ checked for the post-cap `df_split` fix.
 
 When resuming or cherry-picking to another branch, verify that the equivalent of
 commit `a1660e2` is present before trusting a quick sequential run.
+
+Also verify environment parity before trusting a completed protocol:
+
+- `matplotlib` must be installed in the evaluation environment
+- otherwise the run can train successfully, write reanalysis JSONs, and still
+  end with `eval_status=failed`, which invalidates `G1-G3`
 
 Do not reopen:
 
