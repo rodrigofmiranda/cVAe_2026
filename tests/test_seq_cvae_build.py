@@ -87,6 +87,16 @@ class TestSubModelBuild:
         assert bigru.forward_layer.unroll is False
         assert bigru.backward_layer.unroll is False
 
+    def test_seq_gru_compat_backend_uses_rnn_wrapper(self):
+        prior = build_seq_prior_net(
+            _min_cfg(seq_bidirectional=True, seq_gru_unroll=False, seq_gru_backend="compat")
+        )
+        bigru = prior.get_layer("prior_net_bigru_0")
+        assert bigru.forward_layer.__class__.__name__ == "RNN"
+        assert bigru.backward_layer.__class__.__name__ == "RNN"
+        assert bigru.forward_layer.cell.__class__.__name__ == "GRUCell"
+        assert bigru.backward_layer.cell.__class__.__name__ == "GRUCell"
+
     # Input shapes — prior_net
     def test_prior_net_has_three_inputs(self):
         prior = build_seq_prior_net(_min_cfg(window_size=9))

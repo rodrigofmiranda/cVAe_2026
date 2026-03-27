@@ -561,6 +561,31 @@ def _count_lr_drops(values: Sequence[float]) -> int:
     return int(drops)
 
 
+def _is_retryable_seq_gru_runtime_error(exc: Exception, cfg: Dict[str, Any]) -> bool:
+    """Return True when a seq GRU candidate should retry with compat backend.
+
+    This targets the specific runtime family where TensorFlow dispatches a
+    fused/cuDNN GRU kernel that fails on some GPU stacks even though the model
+    itself is otherwise valid.
+    """
+    arch = str(cfg.get("arch_variant", "")).strip().lower()
+    if arch != "seq_bigru_residual":
+        return False
+    if bool(cfg.get("seq_gru_unroll", True)):
+        return False
+    if str(cfg.get("seq_gru_backend", "fused")).strip().lower() in {"compat", "cell", "rnncell", "safe"}:
+        return False
+
+    text = f"{type(exc).__name__}: {exc!s} {exc!r}".lower()
+    needles = (
+        "failed to call dornnforward",
+        "sequence lengths for rnn are required from cudnn",
+        "cudnnrnn",
+        "__forward_gpu_gru_with_fallback",
+    )
+    return any(needle in text for needle in needles)
+
+
 def _build_training_diagnostics(
     *,
     history_dict: Dict[str, Sequence[float]],
@@ -950,15 +975,18 @@ def run_gridsearch(
     best_score: Optional[Tuple[float, ...]] = None
 
     for gi, item in enumerate(grid, start=1):
-        cfg = item["cfg"]
+        requested_cfg = dict(item["cfg"])
+        cfg = dict(requested_cfg)
         group = item["group"]
         tag = item["tag"]
         candidate_analysis_quick = dict(analysis_quick)
         candidate_analysis_quick.update(dict(item.get("analysis_quick_overrides", {})))
+        gru_runtime_retry_used = False
+        gru_runtime_retry_reason = ""
 
         print("\n" + "=" * 92)
         print(f"🚀 GRID {gi}/{len(grid)} | group={group} | tag={tag}")
-        print(f"    cfg = {cfg}")
+        print(f"    cfg = {requested_cfg}")
         print("=" * 92)
 
         tf.keras.backend.clear_session()
@@ -1042,278 +1070,453 @@ def run_gridsearch(
             print(f"     before={resample_info.get('before_counts', '')}")
             print(f"     after ={resample_info.get('after_counts', '')}")
 
-        try:
-            _shuffle_train_batches = bool(
-                cfg.get("shuffle_train_batches", training_config["shuffle_train_batches"])
-            )
-            if float(cfg.get("lambda_psd", 0.0)) > 0.0 and _shuffle_train_batches:
-                raise ValueError(
-                    "lambda_psd requires shuffle_train_batches=False so the batch "
-                    "still preserves temporal order for the PSD term."
+        while True:
+            try:
+                _shuffle_train_batches = bool(
+                    cfg.get("shuffle_train_batches", training_config["shuffle_train_batches"])
                 )
-            vae, kl_cb = build_cvae(cfg)
-            regime_diag_callback = None
-            if (
-                bool(candidate_analysis_quick.get("train_regime_diagnostics_enabled", True))
-                and D_va_raw_fit is not None
-                and C_va_raw_fit is not None
-            ):
-                regime_diag_callback = RegimeDiagnosticsCallback(
-                    logs_dir=run_paths.logs_dir,
-                    x_val_input=X_va_fit,
-                    x_val_center=X_va_center_fit,
-                    y_val=Y_va_fit,
-                    d_val_norm=D_va_fit,
-                    c_val_norm=C_va_fit,
-                    d_val_raw=D_va_raw_fit,
-                    c_val_raw=C_va_raw_fit,
-                    enabled=True,
-                    every_n_epochs=int(candidate_analysis_quick.get("train_regime_diagnostics_every", 10)),
-                    mc_samples=int(candidate_analysis_quick.get("train_regime_diagnostics_mc_samples", 4)),
-                    max_samples_per_regime=int(
-                        candidate_analysis_quick.get("train_regime_diagnostics_max_samples_per_regime", 4096)
-                    ),
-                    amplitude_bins=int(
-                        candidate_analysis_quick.get("train_regime_diagnostics_amplitude_bins", 4)
-                    ),
-                    focus_only_0p8m=bool(
-                        candidate_analysis_quick.get("train_regime_diagnostics_focus_only_0p8m", False)
-                    ),
-                    stat_seed=int(training_config.get("seed", 42)),
+                if float(cfg.get("lambda_psd", 0.0)) > 0.0 and _shuffle_train_batches:
+                    raise ValueError(
+                        "lambda_psd requires shuffle_train_batches=False so the batch "
+                        "still preserves temporal order for the PSD term."
+                    )
+                vae, kl_cb = build_cvae(cfg)
+                regime_diag_callback = None
+                if (
+                    bool(candidate_analysis_quick.get("train_regime_diagnostics_enabled", True))
+                    and D_va_raw_fit is not None
+                    and C_va_raw_fit is not None
+                ):
+                    regime_diag_callback = RegimeDiagnosticsCallback(
+                        logs_dir=run_paths.logs_dir,
+                        x_val_input=X_va_fit,
+                        x_val_center=X_va_center_fit,
+                        y_val=Y_va_fit,
+                        d_val_norm=D_va_fit,
+                        c_val_norm=C_va_fit,
+                        d_val_raw=D_va_raw_fit,
+                        c_val_raw=C_va_raw_fit,
+                        enabled=True,
+                        every_n_epochs=int(candidate_analysis_quick.get("train_regime_diagnostics_every", 10)),
+                        mc_samples=int(candidate_analysis_quick.get("train_regime_diagnostics_mc_samples", 4)),
+                        max_samples_per_regime=int(
+                            candidate_analysis_quick.get("train_regime_diagnostics_max_samples_per_regime", 4096)
+                        ),
+                        amplitude_bins=int(
+                            candidate_analysis_quick.get("train_regime_diagnostics_amplitude_bins", 4)
+                        ),
+                        focus_only_0p8m=bool(
+                            candidate_analysis_quick.get("train_regime_diagnostics_focus_only_0p8m", False)
+                        ),
+                        stat_seed=int(training_config.get("seed", 42)),
+                    )
+                mini_reanalysis_callback = None
+                if (
+                    bool(candidate_analysis_quick.get("mini_reanalysis_enabled", False))
+                    and D_va_raw_fit is not None
+                    and C_va_raw_fit is not None
+                ):
+                    mini_reanalysis_callback = MiniProtocolReanalysisCallback(
+                        artifact_dir=model_dir,
+                        x_val_input=X_va_fit,
+                        x_val_center=X_va_center_fit,
+                        y_val=Y_va_fit,
+                        d_val_norm=D_va_fit,
+                        c_val_norm=C_va_fit,
+                        d_val_raw=D_va_raw_fit,
+                        c_val_raw=C_va_raw_fit,
+                        enabled=True,
+                        scope=str(candidate_analysis_quick.get("mini_reanalysis_scope", "all12")),
+                        mc_samples=int(candidate_analysis_quick.get("mc_samples", 8)),
+                        max_samples_per_regime=int(
+                            candidate_analysis_quick.get("mini_reanalysis_max_samples_per_regime", 4096)
+                        ),
+                        stat_seed=int(training_config.get("seed", 42)),
+                    )
+                callbacks = build_callbacks(
+                    training_config,
+                    cfg,
+                    kl_cb,
+                    regime_diag_callback=regime_diag_callback,
+                    mini_reanalysis_callback=mini_reanalysis_callback,
                 )
-            mini_reanalysis_callback = None
-            if (
-                bool(candidate_analysis_quick.get("mini_reanalysis_enabled", False))
-                and D_va_raw_fit is not None
-                and C_va_raw_fit is not None
-            ):
-                mini_reanalysis_callback = MiniProtocolReanalysisCallback(
-                    artifact_dir=model_dir,
-                    x_val_input=X_va_fit,
-                    x_val_center=X_va_center_fit,
-                    y_val=Y_va_fit,
-                    d_val_norm=D_va_fit,
-                    c_val_norm=C_va_fit,
-                    d_val_raw=D_va_raw_fit,
-                    c_val_raw=C_va_raw_fit,
-                    enabled=True,
-                    scope=str(candidate_analysis_quick.get("mini_reanalysis_scope", "all12")),
-                    mc_samples=int(candidate_analysis_quick.get("mc_samples", 8)),
-                    max_samples_per_regime=int(
-                        candidate_analysis_quick.get("mini_reanalysis_max_samples_per_regime", 4096)
-                    ),
-                    stat_seed=int(training_config.get("seed", 42)),
+
+                t0 = time.time()
+                _keras_verbose = int(_ov.get("keras_verbose", 2))
+                _bs_cfg = int(cfg["batch_size"])
+                # Small-smoke stability: avoid single-step epochs when train << batch_size.
+                if len(X_tr_fit) < _bs_cfg:
+                    _bs_eff = max(128, len(X_tr_fit) // 64)
+                else:
+                    _bs_eff = _bs_cfg
+                hist = vae.fit(
+                    [X_tr_fit, D_tr_fit, C_tr_fit, Y_tr_fit], Y_tr_fit,
+                    validation_data=([X_va_fit, D_va_fit, C_va_fit, Y_va_fit], Y_va_fit),
+                    epochs=int(training_config["epochs"]),
+                    batch_size=int(_bs_eff),
+                    callbacks=callbacks,
+                    verbose=_keras_verbose,
+                    shuffle=_shuffle_train_batches,
                 )
-            callbacks = build_callbacks(
-                training_config,
-                cfg,
-                kl_cb,
-                regime_diag_callback=regime_diag_callback,
-                mini_reanalysis_callback=mini_reanalysis_callback,
-            )
+                train_time_s = float(time.time() - t0)
 
-            t0 = time.time()
-            _keras_verbose = int(_ov.get("keras_verbose", 2))
-            _bs_cfg = int(cfg["batch_size"])
-            # Small-smoke stability: avoid single-step epochs when train << batch_size.
-            if len(X_tr_fit) < _bs_cfg:
-                _bs_eff = max(128, len(X_tr_fit) // 64)
-            else:
-                _bs_eff = _bs_cfg
-            hist = vae.fit(
-                [X_tr_fit, D_tr_fit, C_tr_fit, Y_tr_fit], Y_tr_fit,
-                validation_data=([X_va_fit, D_va_fit, C_va_fit, Y_va_fit], Y_va_fit),
-                epochs=int(training_config["epochs"]),
-                batch_size=int(_bs_eff),
-                callbacks=callbacks,
-                verbose=_keras_verbose,
-                shuffle=_shuffle_train_batches,
-            )
-            train_time_s = float(time.time() - t0)
+                # Best epoch
+                val_mon = "val_recon_loss" if "val_recon_loss" in hist.history else "val_loss"
+                val_hist = hist.history.get(val_mon, [])
+                if len(val_hist) > 0:
+                    best_epoch = int(np.argmin(val_hist) + 1)
+                    best_val = float(np.min(val_hist))
+                else:
+                    best_epoch = 0
+                    best_val = float("nan")
 
-            # Best epoch
-            val_mon = "val_recon_loss" if "val_recon_loss" in hist.history else "val_loss"
-            val_hist = hist.history.get(val_mon, [])
-            if len(val_hist) > 0:
-                best_epoch = int(np.argmin(val_hist) + 1)
-                best_val = float(np.min(val_hist))
-            else:
-                best_epoch = 0
-                best_val = float("nan")
-
-            # Eval estratificado por experimento de validação.
-            _n_total = int(candidate_analysis_quick["n_eval_samples"])
-            _n_total = max(1, min(_n_total, len(X_va_fit)))
-            _rng_eval = np.random.default_rng(int(training_config.get("seed", 42)))
-            _idx = _stratified_val_indices_by_experiment(
-                n_total=_n_total,
-                n_val_total=len(X_va_fit),
-                df_split=df_split,
-                rng=_rng_eval,
-            )
-            Xv = X_va_fit[_idx]; Yv = Y_va_fit[_idx]
-            Dv = D_va_fit[_idx]; Cv = C_va_fit[_idx]
-            N = len(_idx)
-            # For point metrics (EVM/SNR/dist/plots), need (N, 2) center signal.
-            # For seq: Xv is (N, W, 2); Xv_center extracts the center timestep.
-            # For point-wise: Xv_center == Xv (no copy, same array).
-            if _arch == "seq_bigru_residual":
-                Xv_center = Xv[:, Xv.shape[1] // 2, :]  # (N, 2)
-            else:
-                Xv_center = Xv
-
-            rank_mode = str(candidate_analysis_quick.get("rank_mode", "mc")).lower()
-            K = int(candidate_analysis_quick.get("mc_samples", 8))
-
-            inf_det = create_inference_model_from_full(vae, deterministic=True)
-            Yp_det = inf_det.predict(
-                [Xv, Dv, Cv],
-                batch_size=int(candidate_analysis_quick["batch_infer"]),
-                verbose=0,
-            )
-
-            if rank_mode == "det" or K <= 1:
-                Yp = Yp_det
-                Yp_dist = Yp
-                X_dist = Xv_center
-                Y_dist = Yv
-                var_mc = float("nan")
-                Ys = None
-            else:
-                inf_sto = create_inference_model_from_full(vae, deterministic=False)
-                Ys = []
-                for _ in range(K):
-                    Ys.append(inf_sto.predict(
-                        [Xv, Dv, Cv],
-                        batch_size=int(candidate_analysis_quick["batch_infer"]),
-                        verbose=0,
-                    ))
-                Ys = np.stack(Ys, axis=0)
-                Yp = Ys.mean(axis=0)
-                # Distribution metrics must use MC concatenation (marginal predictive sample).
-                Yp_dist = Ys.reshape((-1, Ys.shape[-1]))
-                X_dist = np.tile(Xv_center, (K, 1))
-                Y_dist = np.tile(Yv, (K, 1))
-                var_mc = float(np.mean(np.var(Ys, axis=0)))
-
-            evm_real, _ = calculate_evm(Xv_center, Yv)
-            snr_real = calculate_snr(Xv_center, Yv)
-            if rank_mode != "det" and K > 1:
-                evm_pred, snr_pred = _mc_point_metric_means(Xv_center, Ys)
-            else:
-                evm_pred, _ = calculate_evm(Xv_center, Yp)
-                snr_pred = calculate_snr(Xv_center, Yp)
-
-            prior_net = vae.get_layer("prior_net")
-            mu_p, logvar_p = prior_net.predict(
-                [Xv, Dv, Cv],
-                batch_size=int(candidate_analysis_quick["batch_infer"]),
-                verbose=0,
-            )
-
-            std_mu_p = np.std(mu_p, axis=0)
-            active_dims = int(np.sum(std_mu_p > 0.05))
-
-            kl_dim = 0.5 * (np.exp(logvar_p) + mu_p ** 2 - 1.0 - logvar_p)
-            kl_mean_total = float(np.mean(np.sum(kl_dim, axis=1)))
-            kl_mean_per_dim = float(np.mean(np.mean(kl_dim, axis=0)))
-
-            dist_cfg_on = bool(candidate_analysis_quick.get("dist_metrics", True))
-            psd_nfft = int(candidate_analysis_quick.get("psd_nfft", 2048))
-            w_psd = float(candidate_analysis_quick.get("w_psd", 0.15))
-            w_skew = float(candidate_analysis_quick.get("w_skew", 0.05))
-            w_kurt = float(candidate_analysis_quick.get("w_kurt", 0.05))
-
-            if dist_cfg_on:
-                distm = residual_distribution_metrics(
-                    X_dist,
-                    Y_dist,
-                    Yp_dist,
-                    psd_nfft=psd_nfft,
-                    Y_samples=Ys,
-                    coverage_target=Yv,
+                # Eval estratificado por experimento de validação.
+                _n_total = int(candidate_analysis_quick["n_eval_samples"])
+                _n_total = max(1, min(_n_total, len(X_va_fit)))
+                _rng_eval = np.random.default_rng(int(training_config.get("seed", 42)))
+                _idx = _stratified_val_indices_by_experiment(
+                    n_total=_n_total,
+                    n_val_total=len(X_va_fit),
+                    df_split=df_split,
+                    rng=_rng_eval,
                 )
-                mean_l2 = float(distm["delta_mean_l2"])
-                cov_fro = float(distm["delta_cov_fro"])
-                var_real = float(distm["var_real_delta"])
-                var_pred = float(distm["var_pred_delta"])
-                skew_l2 = float(distm["delta_skew_l2"])
-                kurt_l2 = float(distm["delta_kurt_l2"])
-                psd_l2 = float(distm["delta_psd_l2"])
-                acf_l2 = float(distm.get("delta_acf_l2", float("nan")))
-            else:
-                d_real = (Y_dist - X_dist)
-                d_pred = (Yp_dist - X_dist)
-                var_real = float(np.mean(np.var(d_real, axis=0)))
-                var_pred = float(np.mean(np.var(d_pred, axis=0)))
-                mean_l2 = float(np.linalg.norm(np.mean(d_pred, 0) - np.mean(d_real, 0)))
-                cov_fro = float(np.linalg.norm(np.cov(d_pred.T) - np.cov(d_real.T), ord="fro"))
-                skew_l2 = 0.0; kurt_l2 = 0.0; psd_l2 = 0.0; acf_l2 = float("nan")
+                Xv = X_va_fit[_idx]; Yv = Y_va_fit[_idx]
+                Dv = D_va_fit[_idx]; Cv = C_va_fit[_idx]
+                N = len(_idx)
+                # For point metrics (EVM/SNR/dist/plots), need (N, 2) center signal.
+                # For seq: Xv is (N, W, 2); Xv_center extracts the center timestep.
+                # For point-wise: Xv_center == Xv (no copy, same array).
+                if _arch == "seq_bigru_residual":
+                    Xv_center = Xv[:, Xv.shape[1] // 2, :]  # (N, 2)
+                else:
+                    Xv_center = Xv
 
-            pen_var_mismatch = 0.0
-            if not np.isnan(var_mc):
-                pen_var_mismatch = float(abs(var_mc - var_real))
+                rank_mode = str(candidate_analysis_quick.get("rank_mode", "mc")).lower()
+                K = int(candidate_analysis_quick.get("mc_samples", 8))
 
-            history_dict = {
-                k: [float(x) for x in v]
-                for k, v in hist.history.items()
-            }
+                inf_det = create_inference_model_from_full(vae, deterministic=True)
+                Yp_det = inf_det.predict(
+                    [Xv, Dv, Cv],
+                    batch_size=int(candidate_analysis_quick["batch_infer"]),
+                    verbose=0,
+                )
 
-            score_v2 = compute_score_v2(
-                evm_real=evm_real, evm_pred=evm_pred,
-                snr_real=snr_real, snr_pred=snr_pred,
-                mean_l2=mean_l2, cov_fro=cov_fro,
-                active_dims=active_dims, latent_dim=int(cfg["latent_dim"]),
-                kl_mean_per_dim=kl_mean_per_dim,
-                var_mc=var_mc, var_real=var_real,
-                psd_l2=psd_l2, skew_l2=skew_l2, kurt_l2=kurt_l2,
-                w_psd=w_psd, w_skew=w_skew, w_kurt=w_kurt,
-            )
-            score = abs(evm_pred - evm_real) + abs(snr_pred - snr_real)
-            history_dict = {
-                k: [float(x) for x in v]
-                for k, v in hist.history.items()
-            }
+                if rank_mode == "det" or K <= 1:
+                    Yp = Yp_det
+                    Yp_dist = Yp
+                    X_dist = Xv_center
+                    Y_dist = Yv
+                    var_mc = float("nan")
+                    Ys = None
+                else:
+                    inf_sto = create_inference_model_from_full(vae, deterministic=False)
+                    Ys = []
+                    for _ in range(K):
+                        Ys.append(inf_sto.predict(
+                            [Xv, Dv, Cv],
+                            batch_size=int(candidate_analysis_quick["batch_infer"]),
+                            verbose=0,
+                        ))
+                    Ys = np.stack(Ys, axis=0)
+                    Yp = Ys.mean(axis=0)
+                    # Distribution metrics must use MC concatenation (marginal predictive sample).
+                    Yp_dist = Ys.reshape((-1, Ys.shape[-1]))
+                    X_dist = np.tile(Xv_center, (K, 1))
+                    Y_dist = np.tile(Yv, (K, 1))
+                    var_mc = float(np.mean(np.var(Ys, axis=0)))
 
-            row: Dict[str, Any] = {
-                "grid_id": gi,
-                "group": group,
-                "tag": tag,
-                **cfg,
-                "status": "ok",
-                "train_time_s": train_time_s,
-                "best_epoch": best_epoch,
-                "best_val_loss": best_val,
-                "evm_real_%": float(evm_real),
-                "evm_pred_%": float(evm_pred),
-                "delta_evm_%": float(evm_pred - evm_real),
-                "snr_real_db": float(snr_real),
-                "snr_pred_db": float(snr_pred),
-                "delta_snr_db": float(snr_pred - snr_real),
-                "score_abs_delta": float(score),
-                "score_v2": float(score_v2),
-                "active_dims": int(active_dims),
-                "kl_mean_total": float(kl_mean_total),
-                "kl_mean_per_dim": float(kl_mean_per_dim),
-                "delta_mean_l2": float(mean_l2),
-                "delta_cov_fro": float(cov_fro),
-                "var_real_delta": float(var_real),
-                "var_pred_delta": float(var_pred),
-                "delta_psd_l2": float(psd_l2),
-                "delta_acf_l2": float(acf_l2),
-                "delta_skew_l2": float(skew_l2),
-                "delta_kurt_l2": float(kurt_l2),
-                "var_mc_gen": (float(var_mc) if not np.isnan(var_mc) else float("nan")),
-                "pen_var_mismatch": float(pen_var_mismatch),
-                "rank_mode": str(candidate_analysis_quick.get("rank_mode", "mc")).lower(),
-                "mc_samples": int(candidate_analysis_quick.get("mc_samples", 8)),
-            }
-            ranking_mode = str(candidate_analysis_quick.get("grid_ranking_mode", "score_v2")).strip().lower()
-            row["ranking_mode"] = ranking_mode
-            if mini_reanalysis_callback is not None and getattr(mini_reanalysis_callback, "summary", None):
-                row.update(dict(mini_reanalysis_callback.summary))
-            else:
-                row.update({
+                evm_real, _ = calculate_evm(Xv_center, Yv)
+                snr_real = calculate_snr(Xv_center, Yv)
+                if rank_mode != "det" and K > 1:
+                    evm_pred, snr_pred = _mc_point_metric_means(Xv_center, Ys)
+                else:
+                    evm_pred, _ = calculate_evm(Xv_center, Yp)
+                    snr_pred = calculate_snr(Xv_center, Yp)
+
+                prior_net = vae.get_layer("prior_net")
+                mu_p, logvar_p = prior_net.predict(
+                    [Xv, Dv, Cv],
+                    batch_size=int(candidate_analysis_quick["batch_infer"]),
+                    verbose=0,
+                )
+
+                std_mu_p = np.std(mu_p, axis=0)
+                active_dims = int(np.sum(std_mu_p > 0.05))
+
+                kl_dim = 0.5 * (np.exp(logvar_p) + mu_p ** 2 - 1.0 - logvar_p)
+                kl_mean_total = float(np.mean(np.sum(kl_dim, axis=1)))
+                kl_mean_per_dim = float(np.mean(np.mean(kl_dim, axis=0)))
+
+                dist_cfg_on = bool(candidate_analysis_quick.get("dist_metrics", True))
+                psd_nfft = int(candidate_analysis_quick.get("psd_nfft", 2048))
+                w_psd = float(candidate_analysis_quick.get("w_psd", 0.15))
+                w_skew = float(candidate_analysis_quick.get("w_skew", 0.05))
+                w_kurt = float(candidate_analysis_quick.get("w_kurt", 0.05))
+
+                if dist_cfg_on:
+                    distm = residual_distribution_metrics(
+                        X_dist,
+                        Y_dist,
+                        Yp_dist,
+                        psd_nfft=psd_nfft,
+                        Y_samples=Ys,
+                        coverage_target=Yv,
+                    )
+                    mean_l2 = float(distm["delta_mean_l2"])
+                    cov_fro = float(distm["delta_cov_fro"])
+                    var_real = float(distm["var_real_delta"])
+                    var_pred = float(distm["var_pred_delta"])
+                    skew_l2 = float(distm["delta_skew_l2"])
+                    kurt_l2 = float(distm["delta_kurt_l2"])
+                    psd_l2 = float(distm["delta_psd_l2"])
+                    acf_l2 = float(distm.get("delta_acf_l2", float("nan")))
+                else:
+                    d_real = (Y_dist - X_dist)
+                    d_pred = (Yp_dist - X_dist)
+                    var_real = float(np.mean(np.var(d_real, axis=0)))
+                    var_pred = float(np.mean(np.var(d_pred, axis=0)))
+                    mean_l2 = float(np.linalg.norm(np.mean(d_pred, 0) - np.mean(d_real, 0)))
+                    cov_fro = float(np.linalg.norm(np.cov(d_pred.T) - np.cov(d_real.T), ord="fro"))
+                    skew_l2 = 0.0; kurt_l2 = 0.0; psd_l2 = 0.0; acf_l2 = float("nan")
+
+                pen_var_mismatch = 0.0
+                if not np.isnan(var_mc):
+                    pen_var_mismatch = float(abs(var_mc - var_real))
+
+                history_dict = {
+                    k: [float(x) for x in v]
+                    for k, v in hist.history.items()
+                }
+
+                score_v2 = compute_score_v2(
+                    evm_real=evm_real, evm_pred=evm_pred,
+                    snr_real=snr_real, snr_pred=snr_pred,
+                    mean_l2=mean_l2, cov_fro=cov_fro,
+                    active_dims=active_dims, latent_dim=int(cfg["latent_dim"]),
+                    kl_mean_per_dim=kl_mean_per_dim,
+                    var_mc=var_mc, var_real=var_real,
+                    psd_l2=psd_l2, skew_l2=skew_l2, kurt_l2=kurt_l2,
+                    w_psd=w_psd, w_skew=w_skew, w_kurt=w_kurt,
+                )
+                score = abs(evm_pred - evm_real) + abs(snr_pred - snr_real)
+                history_dict = {
+                    k: [float(x) for x in v]
+                    for k, v in hist.history.items()
+                }
+
+                row: Dict[str, Any] = {
+                    "grid_id": gi,
+                    "group": group,
+                    "tag": tag,
+                    **cfg,
+                    "requested_seq_gru_unroll": bool(requested_cfg.get("seq_gru_unroll", True)),
+                    "effective_seq_gru_unroll": bool(cfg.get("seq_gru_unroll", True)),
+                    "seq_gru_backend": str(cfg.get("seq_gru_backend", "fused")),
+                    "seq_gru_runtime_retry_used": bool(gru_runtime_retry_used),
+                    "seq_gru_runtime_retry_reason": str(gru_runtime_retry_reason),
+                    "status": "ok",
+                    "train_time_s": train_time_s,
+                    "best_epoch": best_epoch,
+                    "best_val_loss": best_val,
+                    "evm_real_%": float(evm_real),
+                    "evm_pred_%": float(evm_pred),
+                    "delta_evm_%": float(evm_pred - evm_real),
+                    "snr_real_db": float(snr_real),
+                    "snr_pred_db": float(snr_pred),
+                    "delta_snr_db": float(snr_pred - snr_real),
+                    "score_abs_delta": float(score),
+                    "score_v2": float(score_v2),
+                    "active_dims": int(active_dims),
+                    "kl_mean_total": float(kl_mean_total),
+                    "kl_mean_per_dim": float(kl_mean_per_dim),
+                    "delta_mean_l2": float(mean_l2),
+                    "delta_cov_fro": float(cov_fro),
+                    "var_real_delta": float(var_real),
+                    "var_pred_delta": float(var_pred),
+                    "delta_psd_l2": float(psd_l2),
+                    "delta_acf_l2": float(acf_l2),
+                    "delta_skew_l2": float(skew_l2),
+                    "delta_kurt_l2": float(kurt_l2),
+                    "var_mc_gen": (float(var_mc) if not np.isnan(var_mc) else float("nan")),
+                    "pen_var_mismatch": float(pen_var_mismatch),
+                    "rank_mode": str(candidate_analysis_quick.get("rank_mode", "mc")).lower(),
+                    "mc_samples": int(candidate_analysis_quick.get("mc_samples", 8)),
+                }
+                ranking_mode = str(candidate_analysis_quick.get("grid_ranking_mode", "score_v2")).strip().lower()
+                row["ranking_mode"] = ranking_mode
+                if mini_reanalysis_callback is not None and getattr(mini_reanalysis_callback, "summary", None):
+                    row.update(dict(mini_reanalysis_callback.summary))
+                else:
+                    row.update({
+                        "mini_n_regimes": float("nan"),
+                        "mini_n_pass": float("nan"),
+                        "mini_n_partial": float("nan"),
+                        "mini_n_fail": float("nan"),
+                        "mini_n_g5_fail": float("nan"),
+                        "mini_n_g6_fail": float("nan"),
+                        "mini_mean_abs_delta_coverage_95": float("nan"),
+                        "mini_mean_delta_jb": float("nan"),
+                        "mini_mean_delta_psd_l2": float("nan"),
+                        "mini_mean_delta_skew_l2": float("nan"),
+                        "mini_mean_delta_kurt_l2": float("nan"),
+                    })
+                row.update(
+                    _build_training_diagnostics(
+                        history_dict=history_dict,
+                        cfg=cfg,
+                        max_epochs=int(training_config["epochs"]),
+                        active_dims=active_dims,
+                        kl_mean_total=kl_mean_total,
+                        kl_mean_per_dim=kl_mean_per_dim,
+                    )
+                )
+                results.append(row)
+
+                kl_dim_mean = np.mean(
+                    0.5 * (np.exp(logvar_p) + mu_p ** 2 - 1.0 - logvar_p), axis=0
+                )
+                summary_lines = [
+                    f"grid_id: {gi} | group={group} | tag={tag}",
+                    f"EVM real: {evm_real:.2f}% | EVM pred: {evm_pred:.2f}% | ΔEVM: {(evm_pred - evm_real):+.2f}%",
+                    f"SNR real: {snr_real:.2f} dB | SNR pred: {snr_pred:.2f} dB | ΔSNR: {(snr_pred - snr_real):+.2f} dB",
+                    f"score_abs_delta: {score:.4f}",
+                    f"score_v2: {score_v2:.4f}",
+                    f"active_dims: {active_dims}/{int(cfg['latent_dim'])} | KL_mean_total: {kl_mean_total:.3f}",
+                    f"epochs_ran: {row['epochs_ran']} | best_epoch: {row['best_epoch']} | "
+                    f"best_epoch_ratio: {row['best_epoch_ratio']:.2f}",
+                ]
+
+                results[-1]["report_png_path"] = ""
+                results[-1]["report_xlsx_path"] = ""
+                results[-1]["plot_bundle_dir"] = ""
+                results[-1]["plot_bundle_count"] = 0
+
+                # Save the full trainable model.
+                model_path = model_dir / "model_full.keras"
+                _save_keras_model_compat(vae, model_path)
+                results[-1]["model_full_path"] = str(model_path)
+
+                current_key = _candidate_ranking_key(row, ranking_mode)
+                best_key = None if best_score is None else best_score
+                is_best = best_key is None or current_key < best_key
+                if is_best:
+                    best_score = current_key
+                    print("🏆 Novo melhor modelo do grid — salvando como 'best_model_full.keras'...")
+
+                    best_path = MODELS_DIR / "best_model_full.keras"
+                    _save_keras_model_compat(vae, best_path)
+
+                    _save_keras_model_compat(
+                        vae.get_layer("decoder"),
+                        MODELS_DIR / "best_decoder.keras",
+                    )
+                    _save_keras_model_compat(
+                        vae.get_layer("prior_net"),
+                        MODELS_DIR / "best_prior_net.keras",
+                    )
+
+                    payload = {
+                        "history": history_dict,
+                        "train_time_s": train_time_s,
+                        "epochs_ran": int(
+                            len(next(iter(hist.history.values())))
+                            if hist.history else 0
+                        ),
+                        "grid_cfg": cfg,
+                        "grid_id": gi,
+                        "group": group,
+                        "tag": tag,
+                        "score_abs_delta": float(score),
+                        "score_v2": float(score_v2),
+                        "active_dims": int(active_dims),
+                        "kl_mean_total": float(kl_mean_total),
+                        "kl_mean_per_dim": float(kl_mean_per_dim),
+                        "delta_mean_l2": float(mean_l2),
+                        "delta_cov_fro": float(cov_fro),
+                    }
+                    hist_path = run_paths.write_json(
+                        "logs/training_history.json", payload
+                    )
+                    print(f"✓ training_history.json salvo: {hist_path}")
+
+                    best_grid_plots_dir = run_paths.plots_dir
+                    try:
+                        dashboard_path = save_champion_analysis_dashboard(
+                            plots_dir=best_grid_plots_dir,
+                            Xv=Xv_center,
+                            Yv=Yv,
+                            Yp=Yp,
+                            std_mu_p=std_mu_p,
+                            kl_dim_mean=kl_dim_mean,
+                            summary_lines=summary_lines + [
+                                f"ranking criterion: {ranking_mode}",
+                            ],
+                            model_label=f"Champion ({tag})",
+                            title=f"Champion Analysis Dashboard | {tag}",
+                        )
+                        print(
+                            f"✓ Champion analysis dashboard salvo: {dashboard_path}"
+                        )
+                    except ModuleNotFoundError as exc:
+                        if exc.name != "matplotlib":
+                            raise
+                        print(
+                            "⚠️  matplotlib não está instalado neste ambiente; "
+                            "pulando geração de plots do melhor grid sem invalidar o resultado."
+                        )
+
+                break
+
+            except Exception as e:
+                if _is_retryable_seq_gru_runtime_error(e, cfg):
+                    gru_runtime_retry_used = True
+                    gru_runtime_retry_reason = str(type(e).__name__)
+                    print(
+                        "⚠️  GRU fused/cuDNN runtime falhou para este candidato; "
+                        "retry automático com seq_gru_backend='compat'."
+                    )
+                    tf.keras.backend.clear_session()
+                    gc.collect()
+                    cfg = dict(requested_cfg)
+                    cfg["seq_gru_backend"] = "compat"
+                    continue
+                print(f"[ERRO] Falha no grid_id={gi} tag={tag}: {repr(e)}")
+                ranking_mode = str(candidate_analysis_quick.get("grid_ranking_mode", "score_v2")).strip().lower()
+                results.append({
+                    "grid_id": gi,
+                    "group": group,
+                    "tag": tag,
+                    **cfg,
+                    "requested_seq_gru_unroll": bool(requested_cfg.get("seq_gru_unroll", True)),
+                    "effective_seq_gru_unroll": bool(cfg.get("seq_gru_unroll", True)),
+                    "seq_gru_backend": str(cfg.get("seq_gru_backend", "fused")),
+                    "seq_gru_runtime_retry_used": bool(gru_runtime_retry_used),
+                    "seq_gru_runtime_retry_reason": str(gru_runtime_retry_reason),
+                    "status": "FAILED",
+                    "ranking_mode": ranking_mode,
+                    "train_time_s": float("nan"),
+                    "best_epoch": 0,
+                    "best_val_loss": float("nan"),
+                    "evm_real_%": float("nan"),
+                    "evm_pred_%": float("nan"),
+                    "delta_evm_%": float("nan"),
+                    "snr_real_db": float("nan"),
+                    "snr_pred_db": float("nan"),
+                    "delta_snr_db": float("nan"),
+                    "score_abs_delta": float("inf"),
+                    "score_v2": float("inf"),
+                    "active_dims": 0,
+                    "kl_mean_total": float("nan"),
+                    "kl_mean_per_dim": float("nan"),
+                    "delta_mean_l2": float("nan"),
+                    "delta_cov_fro": float("nan"),
+                    "delta_psd_l2": float("nan"),
+                    "delta_acf_l2": float("nan"),
+                    "delta_skew_l2": float("nan"),
+                    "delta_kurt_l2": float("nan"),
+                    "var_real_delta": float("nan"),
+                    "var_pred_delta": float("nan"),
+                    "pen_var_mismatch": float("nan"),
                     "mini_n_regimes": float("nan"),
                     "mini_n_pass": float("nan"),
                     "mini_n_partial": float("nan"),
@@ -1325,161 +1528,11 @@ def run_gridsearch(
                     "mini_mean_delta_psd_l2": float("nan"),
                     "mini_mean_delta_skew_l2": float("nan"),
                     "mini_mean_delta_kurt_l2": float("nan"),
+                    "model_full_path": "",
+                    "report_png_path": "",
+                    "report_xlsx_path": "",
                 })
-            row.update(
-                _build_training_diagnostics(
-                    history_dict=history_dict,
-                    cfg=cfg,
-                    max_epochs=int(training_config["epochs"]),
-                    active_dims=active_dims,
-                    kl_mean_total=kl_mean_total,
-                    kl_mean_per_dim=kl_mean_per_dim,
-                )
-            )
-            results.append(row)
-
-            kl_dim_mean = np.mean(
-                0.5 * (np.exp(logvar_p) + mu_p ** 2 - 1.0 - logvar_p), axis=0
-            )
-            summary_lines = [
-                f"grid_id: {gi} | group={group} | tag={tag}",
-                f"EVM real: {evm_real:.2f}% | EVM pred: {evm_pred:.2f}% | ΔEVM: {(evm_pred - evm_real):+.2f}%",
-                f"SNR real: {snr_real:.2f} dB | SNR pred: {snr_pred:.2f} dB | ΔSNR: {(snr_pred - snr_real):+.2f} dB",
-                f"score_abs_delta: {score:.4f}",
-                f"score_v2: {score_v2:.4f}",
-                f"active_dims: {active_dims}/{int(cfg['latent_dim'])} | KL_mean_total: {kl_mean_total:.3f}",
-                f"epochs_ran: {row['epochs_ran']} | best_epoch: {row['best_epoch']} | "
-                f"best_epoch_ratio: {row['best_epoch_ratio']:.2f}",
-            ]
-
-            results[-1]["report_png_path"] = ""
-            results[-1]["report_xlsx_path"] = ""
-            results[-1]["plot_bundle_dir"] = ""
-            results[-1]["plot_bundle_count"] = 0
-
-            # Save the full trainable model.
-            model_path = model_dir / "model_full.keras"
-            _save_keras_model_compat(vae, model_path)
-            results[-1]["model_full_path"] = str(model_path)
-
-            current_key = _candidate_ranking_key(row, ranking_mode)
-            best_key = None if best_score is None else best_score
-            is_best = best_key is None or current_key < best_key
-            if is_best:
-                best_score = current_key
-                print("🏆 Novo melhor modelo do grid — salvando como 'best_model_full.keras'...")
-
-                best_path = MODELS_DIR / "best_model_full.keras"
-                _save_keras_model_compat(vae, best_path)
-
-                _save_keras_model_compat(
-                    vae.get_layer("decoder"),
-                    MODELS_DIR / "best_decoder.keras",
-                )
-                _save_keras_model_compat(
-                    vae.get_layer("prior_net"),
-                    MODELS_DIR / "best_prior_net.keras",
-                )
-
-                payload = {
-                    "history": history_dict,
-                    "train_time_s": train_time_s,
-                    "epochs_ran": int(
-                        len(next(iter(hist.history.values())))
-                        if hist.history else 0
-                    ),
-                    "grid_cfg": cfg,
-                    "grid_id": gi,
-                    "group": group,
-                    "tag": tag,
-                    "score_abs_delta": float(score),
-                    "score_v2": float(score_v2),
-                    "active_dims": int(active_dims),
-                    "kl_mean_total": float(kl_mean_total),
-                    "kl_mean_per_dim": float(kl_mean_per_dim),
-                    "delta_mean_l2": float(mean_l2),
-                    "delta_cov_fro": float(cov_fro),
-                }
-                hist_path = run_paths.write_json(
-                    "logs/training_history.json", payload
-                )
-                print(f"✓ training_history.json salvo: {hist_path}")
-
-                best_grid_plots_dir = run_paths.plots_dir
-                try:
-                    dashboard_path = save_champion_analysis_dashboard(
-                        plots_dir=best_grid_plots_dir,
-                        Xv=Xv_center,
-                        Yv=Yv,
-                        Yp=Yp,
-                        std_mu_p=std_mu_p,
-                        kl_dim_mean=kl_dim_mean,
-                        summary_lines=summary_lines + [
-                            f"ranking criterion: {ranking_mode}",
-                        ],
-                        model_label=f"Champion ({tag})",
-                        title=f"Champion Analysis Dashboard | {tag}",
-                    )
-                    print(
-                        f"✓ Champion analysis dashboard salvo: {dashboard_path}"
-                    )
-                except ModuleNotFoundError as exc:
-                    if exc.name != "matplotlib":
-                        raise
-                    print(
-                        "⚠️  matplotlib não está instalado neste ambiente; "
-                        "pulando geração de plots do melhor grid sem invalidar o resultado."
-                    )
-
-        except Exception as e:
-            print(f"[ERRO] Falha no grid_id={gi} tag={tag}: {repr(e)}")
-            ranking_mode = str(candidate_analysis_quick.get("grid_ranking_mode", "score_v2")).strip().lower()
-            results.append({
-                "grid_id": gi,
-                "group": group,
-                "tag": tag,
-                **cfg,
-                "status": "FAILED",
-                "ranking_mode": ranking_mode,
-                "train_time_s": float("nan"),
-                "best_epoch": 0,
-                "best_val_loss": float("nan"),
-                "evm_real_%": float("nan"),
-                "evm_pred_%": float("nan"),
-                "delta_evm_%": float("nan"),
-                "snr_real_db": float("nan"),
-                "snr_pred_db": float("nan"),
-                "delta_snr_db": float("nan"),
-                "score_abs_delta": float("inf"),
-                "score_v2": float("inf"),
-                "active_dims": 0,
-                "kl_mean_total": float("nan"),
-                "kl_mean_per_dim": float("nan"),
-                "delta_mean_l2": float("nan"),
-                "delta_cov_fro": float("nan"),
-                "delta_psd_l2": float("nan"),
-                "delta_acf_l2": float("nan"),
-                "delta_skew_l2": float("nan"),
-                "delta_kurt_l2": float("nan"),
-                "var_real_delta": float("nan"),
-                "var_pred_delta": float("nan"),
-                "pen_var_mismatch": float("nan"),
-                "mini_n_regimes": float("nan"),
-                "mini_n_pass": float("nan"),
-                "mini_n_partial": float("nan"),
-                "mini_n_fail": float("nan"),
-                "mini_n_g5_fail": float("nan"),
-                "mini_n_g6_fail": float("nan"),
-                "mini_mean_abs_delta_coverage_95": float("nan"),
-                "mini_mean_delta_jb": float("nan"),
-                "mini_mean_delta_psd_l2": float("nan"),
-                "mini_mean_delta_skew_l2": float("nan"),
-                "mini_mean_delta_kurt_l2": float("nan"),
-                "model_full_path": "",
-                "report_png_path": "",
-                "report_xlsx_path": "",
-            })
-            continue
+                break
 
     # --- Build sorted results table ---
     df_results = pd.DataFrame(results)

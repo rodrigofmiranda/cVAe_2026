@@ -36,8 +36,9 @@ print("environment ok")
 PY
 ```
 
-Missing `matplotlib` is enough to invalidate the protocol finish even when the
-model trained correctly and the reanalysis JSONs were produced.
+If `matplotlib` is missing, the dashboard plot is skipped. The protocol result
+should still remain valid; missing plots are no longer a reason to discard the
+run.
 
 ## Quick Run Pattern
 
@@ -95,12 +96,7 @@ Also do not accept a quick sequential result from another branch until you have
 verified the branch contains the post-cap `df_split` fix if per-experiment caps
 were used.
 
-Also do not accept a run as final if `summary_by_regime.csv` shows
-`eval_status=failed` across regimes because of an environment/import error.
-
-Recent example:
-
-- `outputs/exp_20260327_050158`
-- train/grid completed
-- protocol final became invalid because the evaluation environment was missing
-  `matplotlib`
+Also inspect `gridsearch_results.csv` for runtime fallback columns when a seq
+candidate is run on a new GPU stack. A successful retry onto the compatibility
+GRU backend is operationally acceptable, but it should be noted in the run
+review.

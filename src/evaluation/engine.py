@@ -706,17 +706,26 @@ def evaluate_run(
         sens_rms=sens["decoder_output_rms_std"],
         arch_variant=arch_variant,
     )
-    dashboard_path = save_champion_analysis_dashboard(
-        plots_dir=run_paths.plots_dir,
-        Xv=Xv_center,
-        Yv=Yv,
-        Yp=Yp,
-        std_mu_p=z_std_p,
-        kl_dim_mean=df_lat["kl_p_to_N0I_dim_mean"].values,
-        summary_lines=summary_text.splitlines(),
-        model_label="cVAE",
-        title=f"Champion Analysis Dashboard | {output_dir.name}",
-    )
+    dashboard_path = ""
+    try:
+        dashboard_path = save_champion_analysis_dashboard(
+            plots_dir=run_paths.plots_dir,
+            Xv=Xv_center,
+            Yv=Yv,
+            Yp=Yp,
+            std_mu_p=z_std_p,
+            kl_dim_mean=df_lat["kl_p_to_N0I_dim_mean"].values,
+            summary_lines=summary_text.splitlines(),
+            model_label="cVAE",
+            title=f"Champion Analysis Dashboard | {output_dir.name}",
+        )
+    except ModuleNotFoundError as exc:
+        if exc.name != "matplotlib":
+            raise
+        print(
+            "⚠️  matplotlib não está instalado neste ambiente; "
+            "pulando dashboard sem invalidar a avaliação."
+        )
 
     print("\n✅ Análise concluída.")
     print(f"📌 Figuras em: {run_paths.plots_dir}")

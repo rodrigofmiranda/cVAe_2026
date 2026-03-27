@@ -118,11 +118,12 @@ Leitura atual:
       - `gate_g6_pass=10`
       - isso sugere reavaliar esse modelo treinado antes de abrir outro grid
   - regra operacional atual da linha RTX 5090:
-    - nao tratar `seq_gru_unroll=False` como caminho seguro nessa stack
-    - no ultimo overnight, os candidatos locais `gruroll0` falharam no grid
-    - os candidatos que realmente treinaram foram os probes com `gruroll1`
-    - ate nova evidencia, considerar `gruroll1` como caminho confiavel na 5090
-      e `gruroll0` apenas como opcao experimental
+    - existe agora retry automatico no gridsearch para candidatos seq com
+      erro de runtime do cuDNN/GRU
+    - quando o kernel fused falha, o treino reabre o mesmo candidato com
+      backend GRU compativel
+    - isso evita depender de presets separados por GPU so para contornar o
+      `DoRnnForward` da 5090
 
 ## Ponto De Atencao Operacional
 
@@ -150,9 +151,8 @@ Commits de referencia desta correcao:
 Outro ponto de atencao operacional confirmado nesta iteracao:
 
 - se o ambiente de avaliacao estiver sem `matplotlib`, o protocolo pode gerar
-  `metricas_globais_reanalysis.json` e ainda assim terminar com
-  `eval_status=failed`
-- isso invalida o julgamento final do run, porque `G1-G3` ficam vazios
+  `metricas_globais_reanalysis.json`
+- a avaliacao agora pula o dashboard sem invalidar o resultado final
 - referencia concreta:
   - `outputs/exp_20260327_050158`
 

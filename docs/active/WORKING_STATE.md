@@ -125,9 +125,13 @@ Current branch reading after these two runs:
 - the A600 tail-specific branch did not improve on it
 - the 5090 structural branch may still have headroom, but that claim is blocked
   on environment parity, not on training quality
-- on the current 5090 stack, `seq_gru_unroll=True` is the only reliable path
-  evidenced by the latest overnight; `gruroll0` should be treated as
-  experimental there
+- the branch now includes a permanent runtime fix for this class of issue:
+  - seq candidates that hit the cuDNN GRU runtime failure retry automatically
+    on a compatibility backend
+  - this removes the need to hand-curate grids just to dodge the RTX 5090 GRU
+    failure mode
+- the evaluation path also no longer invalidates a whole protocol just because
+  `matplotlib` is missing; plots are skipped and the metrics still count
 
 ## Operational Attention Point
 

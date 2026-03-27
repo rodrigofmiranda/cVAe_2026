@@ -147,12 +147,56 @@ def _activation_layer(name: str):
     return layers.Activation(name)
 
 
+def _make_gru_layer(
+    *,
+    seq_hidden: int,
+    return_sequences: bool,
+    seq_gru_unroll: bool,
+    seq_gru_backend: str,
+    name: str,
+):
+    """Build one GRU layer using either the fused or compatibility backend.
+
+    ``seq_gru_unroll=True`` keeps the original conservative path based on
+    ``layers.GRU(..., unroll=True)``.
+
+    ``seq_gru_unroll=False`` with ``seq_gru_backend="compat"`` forces a
+    backend-neutral implementation using ``layers.RNN(GRUCell(...))``. This is
+    slower than the fused path, but it avoids runtime dependence on cuDNN GRU
+    kernels, which is necessary on some stacks (for example the RTX 5090 line
+    that raised `DoRnnForward` errors).
+    """
+    backend = str(seq_gru_backend or "fused").strip().lower()
+    if bool(seq_gru_unroll):
+        return layers.GRU(
+            seq_hidden,
+            return_sequences=return_sequences,
+            unroll=True,
+            name=name,
+        )
+    if backend in {"compat", "cell", "rnncell", "safe"}:
+        cell = layers.GRUCell(seq_hidden, name=f"{name}_cell")
+        return layers.RNN(
+            cell,
+            return_sequences=return_sequences,
+            unroll=False,
+            name=name,
+        )
+    return layers.GRU(
+        seq_hidden,
+        return_sequences=return_sequences,
+        unroll=False,
+        name=name,
+    )
+
+
 def _bigru_stack(
     h: tf.Tensor,
     seq_hidden: int,
     seq_layers: int,
     seq_bidir: bool,
     seq_gru_unroll: bool,
+    seq_gru_backend: str,
     dropout: float,
     name_prefix: str,
 ) -> tf.Tensor:
@@ -174,17 +218,18 @@ def _bigru_stack(
     Notes
     -----
     ``seq_gru_unroll=True`` preserves the conservative execution path that was
-    adopted for the seq_bigru_residual family on newer GPU/cuDNN stacks
-    (including previous RTX 5090 issues). ``False`` is an opt-in throughput
-    experiment so TensorFlow may dispatch the fused/cuDNN GRU kernels when the
-    runtime supports them.
+    adopted for the seq_bigru_residual family on newer GPU/cuDNN stacks.
+    ``False`` no longer implies a cuDNN dependency by itself: the actual GRU
+    backend is controlled by ``seq_gru_backend`` so the training loop can
+    retry failed fused kernels using a compatibility backend.
     """
     for i in range(seq_layers):
         return_seqs = i < seq_layers - 1
-        gru = layers.GRU(
-            seq_hidden,
+        gru = _make_gru_layer(
+            seq_hidden=seq_hidden,
             return_sequences=return_seqs,
-            unroll=bool(seq_gru_unroll),
+            seq_gru_unroll=seq_gru_unroll,
+            seq_gru_backend=seq_gru_backend,
             name=f"{name_prefix}_gru_{i}",
         )
         if seq_bidir:
@@ -241,6 +286,7 @@ def build_seq_prior_net(cfg: Dict) -> tf.keras.Model:
     n_layers  = int(cfg.get("seq_num_layers", 1))
     bidir     = bool(cfg.get("seq_bidirectional", True))
     gru_unroll = bool(cfg.get("seq_gru_unroll", True))
+    gru_backend = str(cfg.get("seq_gru_backend", "fused"))
     latent    = int(cfg["latent_dim"])
     act       = cfg.get("activation", "leaky_relu")
     dropout   = float(cfg.get("dropout", 0.0))
@@ -259,7 +305,7 @@ def build_seq_prior_net(cfg: Dict) -> tf.keras.Model:
 
     # BiGRU context → (hidden*2,) or (hidden,)
     h = _bigru_stack(
-        seq_in, hidden, n_layers, bidir, gru_unroll, dropout, name_prefix="prior_net"
+        seq_in, hidden, n_layers, bidir, gru_unroll, gru_backend, dropout, name_prefix="prior_net"
     )
 
     # MLP head
@@ -291,6 +337,7 @@ def build_seq_encoder(cfg: Dict) -> tf.keras.Model:
     n_layers  = int(cfg.get("seq_num_layers", 1))
     bidir     = bool(cfg.get("seq_bidirectional", True))
     gru_unroll = bool(cfg.get("seq_gru_unroll", True))
+    gru_backend = str(cfg.get("seq_gru_backend", "fused"))
     latent    = int(cfg["latent_dim"])
     act       = cfg.get("activation", "leaky_relu")
     dropout   = float(cfg.get("dropout", 0.0))
@@ -310,7 +357,7 @@ def build_seq_encoder(cfg: Dict) -> tf.keras.Model:
 
     # BiGRU context → (hidden*2,) or (hidden,)
     h = _bigru_stack(
-        seq_in, hidden, n_layers, bidir, gru_unroll, dropout, name_prefix="encoder"
+        seq_in, hidden, n_layers, bidir, gru_unroll, gru_backend, dropout, name_prefix="encoder"
     )
 
     # Append y_center to the context vector before the MLP head

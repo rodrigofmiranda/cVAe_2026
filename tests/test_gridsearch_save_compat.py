@@ -3,7 +3,11 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from src.training.gridsearch import _save_keras_model_compat, run_gridsearch
+from src.training.gridsearch import (
+    _is_retryable_seq_gru_runtime_error,
+    _save_keras_model_compat,
+    run_gridsearch,
+)
 
 
 class _FakeModel:
@@ -76,3 +80,29 @@ def test_run_gridsearch_rejects_empty_grid_with_clear_message(tmp_path: Path):
         assert "NON_EXISTENT" in msg
     else:
         raise AssertionError("expected ValueError for empty filtered grid")
+
+
+def test_retryable_seq_gru_runtime_error_detects_cudnn_failure_signature():
+    cfg = {"arch_variant": "seq_bigru_residual", "seq_gru_unroll": False}
+    exc = RuntimeError("Sequence lengths for RNN are required from CUDNN 9.0+")
+
+    assert _is_retryable_seq_gru_runtime_error(exc, cfg) is True
+
+
+def test_retryable_seq_gru_runtime_error_ignores_non_seq_or_compat_cfg():
+    exc = RuntimeError("Failed to call DoRnnForward with model config")
+
+    assert _is_retryable_seq_gru_runtime_error(
+        exc, {"arch_variant": "concat", "seq_gru_unroll": False}
+    ) is False
+    assert _is_retryable_seq_gru_runtime_error(
+        exc, {"arch_variant": "seq_bigru_residual", "seq_gru_unroll": True}
+    ) is False
+    assert _is_retryable_seq_gru_runtime_error(
+        exc,
+        {
+            "arch_variant": "seq_bigru_residual",
+            "seq_gru_unroll": False,
+            "seq_gru_backend": "compat",
+        },
+    ) is False
