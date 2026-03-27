@@ -265,6 +265,7 @@ def test_select_grid_seq_imdd_graybox_smoke_builds_single_gaussian_candidate():
     assert cfg["seq_hidden_size"] == 16
     assert cfg["batch_size"] == 8192
     assert cfg["imdd_poly_orders"] == [1, 3, 5]
+    assert grid[0]["analysis_quick_overrides"]["batch_infer"] == 16384
 
 
 def test_select_grid_seq_mdn_v2_perf_compare_quick_builds_control_and_fast_variants():

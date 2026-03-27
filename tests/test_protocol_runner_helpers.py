@@ -1,5 +1,9 @@
 from pathlib import Path
+import json
+import sys
+import types
 
+import numpy as np
 import pandas as pd
 
 from src.protocol.run import (
@@ -13,6 +17,7 @@ from src.protocol.run import (
     _effective_stat_max_n,
     _limit_protocol_regimes,
     _protocol_execution_mode,
+    _quick_cvae_predict,
     _resolve_reuse_model_run_dir,
     _should_run_cvae,
 )
@@ -210,3 +215,59 @@ def test_extract_training_operational_artifacts_reads_saved_paths(tmp_path: Path
 
     assert out["grid_training_diagnostics_csv"] == str(diag)
     assert out["training_dashboard_png"] == str(dash)
+
+
+def test_quick_predict_uses_batch_infer_from_state_run(
+    monkeypatch,
+    tmp_path: Path,
+):
+    model_dir = tmp_path / "models"
+    model_dir.mkdir(parents=True, exist_ok=True)
+    (model_dir / "best_model_full.keras").write_text("stub", encoding="utf-8")
+    (tmp_path / "state_run.json").write_text(
+        json.dumps(
+            {
+                "normalization": {"D_min": 0.8, "D_max": 1.5, "C_min": 100.0, "C_max": 700.0},
+                "eval_protocol": {"batch_infer": 16384},
+                "analysis_quick": {"batch_infer": 4096},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    calls = {"batch_sizes": []}
+
+    class _DummyInference:
+        def predict(self, inputs, batch_size=None, verbose=0):
+            calls["batch_sizes"].append(batch_size)
+            x = inputs[0]
+            return np.zeros((x.shape[0], 2), dtype=np.float32)
+
+    monkeypatch.setitem(
+        sys.modules,
+        "tensorflow",
+        types.SimpleNamespace(random=types.SimpleNamespace(set_seed=lambda _seed: None)),
+    )
+    monkeypatch.setattr(
+        "src.protocol.run._get_quick_pred_runtime_entry",
+        lambda _model_path: {
+            "vae": object(),
+            "is_seq": False,
+            "inference_det": _DummyInference(),
+            "inference_sto": _DummyInference(),
+        },
+    )
+
+    pred = _quick_cvae_predict(
+        tmp_path,
+        np.zeros((8, 2), dtype=np.float32),
+        np.full((8, 1), 1.0, dtype=np.float32),
+        np.full((8, 1), 100.0, dtype=np.float32),
+        mc_samples=2,
+        seed=42,
+        mode="mc_concat",
+        max_points=4,
+    )
+
+    assert pred is not None
+    assert calls["batch_sizes"] == [16384, 16384]

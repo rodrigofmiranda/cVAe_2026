@@ -1023,7 +1023,7 @@ def _quick_cvae_predict(
     X_va,
     D_va,
     C_va,
-    batch_size: int = 4096,
+    batch_size: Optional[int] = None,
     mc_samples: int = 16,
     seed: int = 42,
     mode: str = "mc_concat",
@@ -1089,8 +1089,10 @@ def _quick_cvae_predict(
         from src.data.normalization import apply_condition_norm
         D_arr = _np.asarray(D_va)
         C_arr = _np.asarray(C_va)
+        _state_qp = None
         try:
             _state = json.loads((run_dir / "state_run.json").read_text())
+            _state_qp = _state
             _norm = _state.get("normalization", {})
             _norm_params = {
                 "D_min": float(_norm.get("D_min", D_arr.min())),
@@ -1104,6 +1106,13 @@ def _quick_cvae_predict(
                 "D_min": float(D_arr.min()), "D_max": float(D_arr.max()),
                 "C_min": float(C_arr.min()), "C_max": float(C_arr.max()),
             }
+
+        if batch_size is None:
+            _evalp = dict((_state_qp or {}).get("eval_protocol", {}))
+            _aq = dict((_state_qp or {}).get("analysis_quick", {}))
+            batch_size = int(_evalp.get("batch_infer", _aq.get("batch_infer", 8192)))
+        else:
+            batch_size = int(batch_size)
 
         _D_norm, _C_norm = apply_condition_norm(D_arr.ravel(), C_arr.ravel(), _norm_params)
         _D_norm = _D_norm.reshape(-1, 1)
