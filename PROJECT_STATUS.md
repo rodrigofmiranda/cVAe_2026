@@ -61,6 +61,15 @@ Leitura atual:
   - variante de lote maior: `batch_size=8192`, `batch_infer=16384`
   - variante GRU rapida: `seq_gru_unroll=False`
   - ressalva: `seq_gru_unroll=True` continua sendo o default conservador por compatibilidade historica com stacks novos, incluindo a linha com RTX 5090
+- resultado do compare operacional mais recente:
+  - run: `outputs/exp_20260326_234236`
+  - vencedor operacional: `batch_size=8192`, `batch_infer=16384`, `seq_gru_unroll=False`
+  - throughput observado no A6000:
+    - controle `4096/gruroll1`: ~`14s/epoch`
+    - lote maior `8192/gruroll1`: ~`7s/epoch`
+    - lote maior `8192/gruroll0`: ~`6s/epoch`
+  - preset de continuidade cientifica sobre essa base:
+    - `seq_mdn_v2_fastbase_quick`
 
 ## Ponto De Atencao Operacional
 

@@ -69,6 +69,12 @@ The current implementation branch now includes an `MDN v2` path:
   - faster path tries `batch_size=8192`, `batch_infer=16384`
   - experimental GRU path tries `seq_gru_unroll=False`
   - keep the conservative default when moving to another GPU stack, especially the RTX 5090 machine
+- the latest throughput compare selected the faster operational baseline:
+  - `batch_size=8192`
+  - `batch_infer=16384`
+  - `seq_gru_unroll=False`
+  - continuity preset for the next scientific quicks:
+    - `seq_mdn_v2_fastbase_quick`
 
 ## Operational Attention Point
 
