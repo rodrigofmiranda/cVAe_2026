@@ -268,6 +268,21 @@ def test_select_grid_seq_imdd_graybox_smoke_builds_single_gaussian_candidate():
     assert grid[0]["analysis_quick_overrides"]["batch_infer"] == 16384
 
 
+def test_select_grid_seq_imdd_graybox_capacity_quick_builds_local_capacity_sweep():
+    grid = select_grid({"grid_preset": "seq_imdd_graybox_capacity_quick"})
+
+    assert len(grid) == 4
+    assert {item["group"] for item in grid} == {"SGB1_seq_imdd_graybox_capacity"}
+    assert all(item["cfg"]["arch_variant"] == "seq_imdd_graybox" for item in grid)
+    assert all(item["cfg"]["decoder_distribution"] == "gaussian" for item in grid)
+    assert all(item["cfg"]["window_size"] == 7 for item in grid)
+    assert all(item["cfg"]["batch_size"] == 8192 for item in grid)
+    assert [item["cfg"]["seq_hidden_size"] for item in grid] == [16, 32, 32, 32]
+    assert [item["cfg"]["latent_dim"] for item in grid] == [4, 4, 6, 6]
+    assert [item["cfg"]["layer_sizes"] for item in grid] == [[64, 128], [64, 128], [64, 128], [128, 256]]
+    assert all(item["analysis_quick_overrides"]["batch_infer"] == 32768 for item in grid)
+
+
 def test_select_grid_seq_mdn_v2_perf_compare_quick_builds_control_and_fast_variants():
     grid = select_grid({"grid_preset": "seq_mdn_v2_perf_compare_quick"})
 

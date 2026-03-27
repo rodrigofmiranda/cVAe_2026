@@ -656,6 +656,126 @@ def _preset_seq_imdd_graybox_smoke() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_imdd_graybox_capacity_quick() -> List[Dict[str, Any]]:
+    """First scientific quick for the gray-box IM/DD sequence line.
+
+    The smoke validated plumbing but was intentionally tiny and Gaussian-only.
+    This quick stays Gaussian for now and asks the first meaningful question:
+
+      - does moderate capacity recover the 0.8m / 1.0m regimes at all?
+
+    The sweep is deliberately local:
+      - anchor = smoke-sized model
+      - wider GRU
+      - wider GRU + slightly larger latent
+      - same plus a denser MLP head
+    """
+    analysis_quick_overrides = {"batch_infer": 32768}
+
+    return [
+        {
+            "group": "SGB1_seq_imdd_graybox_capacity",
+            "tag": "SGB1imdd_W7_h16_lat4_b0p001_fb0p10_lr0p0003_bs8192_bi32768_L64-128_poly135",
+            "cfg": _cfg(
+                arch_variant="seq_imdd_graybox",
+                layer_sizes=[64, 128],
+                latent_dim=4,
+                beta=0.001,
+                free_bits=0.10,
+                lr=3e-4,
+                batch_size=8192,
+                kl_anneal_epochs=5,
+                window_size=7,
+                window_stride=1,
+                window_pad_mode="edge",
+                seq_hidden_size=16,
+                seq_num_layers=1,
+                seq_bidirectional=True,
+                decoder_distribution="gaussian",
+                imdd_poly_orders=[1, 3, 5],
+                imdd_include_center_delta=True,
+                imdd_include_power=True,
+            ),
+            "analysis_quick_overrides": analysis_quick_overrides,
+        },
+        {
+            "group": "SGB1_seq_imdd_graybox_capacity",
+            "tag": "SGB1imdd_W7_h32_lat4_b0p001_fb0p10_lr0p0003_bs8192_bi32768_L64-128_poly135",
+            "cfg": _cfg(
+                arch_variant="seq_imdd_graybox",
+                layer_sizes=[64, 128],
+                latent_dim=4,
+                beta=0.001,
+                free_bits=0.10,
+                lr=3e-4,
+                batch_size=8192,
+                kl_anneal_epochs=5,
+                window_size=7,
+                window_stride=1,
+                window_pad_mode="edge",
+                seq_hidden_size=32,
+                seq_num_layers=1,
+                seq_bidirectional=True,
+                decoder_distribution="gaussian",
+                imdd_poly_orders=[1, 3, 5],
+                imdd_include_center_delta=True,
+                imdd_include_power=True,
+            ),
+            "analysis_quick_overrides": analysis_quick_overrides,
+        },
+        {
+            "group": "SGB1_seq_imdd_graybox_capacity",
+            "tag": "SGB1imdd_W7_h32_lat6_b0p001_fb0p10_lr0p0003_bs8192_bi32768_L64-128_poly135",
+            "cfg": _cfg(
+                arch_variant="seq_imdd_graybox",
+                layer_sizes=[64, 128],
+                latent_dim=6,
+                beta=0.001,
+                free_bits=0.10,
+                lr=3e-4,
+                batch_size=8192,
+                kl_anneal_epochs=5,
+                window_size=7,
+                window_stride=1,
+                window_pad_mode="edge",
+                seq_hidden_size=32,
+                seq_num_layers=1,
+                seq_bidirectional=True,
+                decoder_distribution="gaussian",
+                imdd_poly_orders=[1, 3, 5],
+                imdd_include_center_delta=True,
+                imdd_include_power=True,
+            ),
+            "analysis_quick_overrides": analysis_quick_overrides,
+        },
+        {
+            "group": "SGB1_seq_imdd_graybox_capacity",
+            "tag": "SGB1imdd_W7_h32_lat6_b0p001_fb0p10_lr0p0003_bs8192_bi32768_L128-256_poly135",
+            "cfg": _cfg(
+                arch_variant="seq_imdd_graybox",
+                layer_sizes=[128, 256],
+                latent_dim=6,
+                beta=0.001,
+                free_bits=0.10,
+                lr=3e-4,
+                batch_size=8192,
+                kl_anneal_epochs=5,
+                window_size=7,
+                window_stride=1,
+                window_pad_mode="edge",
+                seq_hidden_size=32,
+                seq_num_layers=1,
+                seq_bidirectional=True,
+                decoder_distribution="gaussian",
+                imdd_poly_orders=[1, 3, 5],
+                imdd_include_center_delta=True,
+                imdd_include_power=True,
+            ),
+            "analysis_quick_overrides": analysis_quick_overrides,
+        },
+    ]
+
+
 def _preset_seq_residual_mmd() -> List[Dict[str, Any]]:
     """MMD-augmented seq_bigru_residual sweep (Etapa C — G6 investigation).
 
@@ -3063,6 +3183,8 @@ def select_grid(
             grid = _preset_seq_residual_small()
         elif preset_name == "seq_imdd_graybox_smoke":
             grid = _preset_seq_imdd_graybox_smoke()
+        elif preset_name == "seq_imdd_graybox_capacity_quick":
+            grid = _preset_seq_imdd_graybox_capacity_quick()
         elif preset_name == "seq_residual_mmd":
             grid = _preset_seq_residual_mmd()
         elif preset_name == "seq_residual_mmd_final":
