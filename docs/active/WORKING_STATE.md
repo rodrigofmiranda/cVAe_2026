@@ -95,6 +95,11 @@ The current implementation branch now includes an `MDN v2` path:
     - `seq_mdn_v2_overnight_5090safe_quick`
     - keeps `seq_gru_unroll=False` only on the validated `W7 / h64` branch
     - forces `seq_gru_unroll=True` on structural probes (`h96`, `W11`, combined probes)
+  - A600 complementary exploratory preset:
+    - `seq_mdn_v2_a600_tail_explore_quick`
+    - opens a dedicated `tail_levels` sweep
+    - keeps structural probes on the faster `gruroll0` path
+    - meant to run in parallel with the 5090-safe overnight, not instead of it
 
 ## Operational Attention Point
 

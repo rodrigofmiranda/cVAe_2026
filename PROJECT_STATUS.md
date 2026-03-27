@@ -94,6 +94,11 @@ Leitura atual:
       - `seq_mdn_v2_overnight_5090safe_quick`
       - mantem `gruroll0` so no ramo local `W7 / h64`
       - força `gruroll1` em `h96`, `W11` e probes combinados
+  - preset complementar para o A600:
+    - `seq_mdn_v2_a600_tail_explore_quick`
+    - abre sweep proprio de `tail_levels`
+    - mantém probes estruturais no caminho rapido `gruroll0`
+    - serve como contraponto exploratorio ao overnight `5090-safe`
 
 ## Ponto De Atencao Operacional
 

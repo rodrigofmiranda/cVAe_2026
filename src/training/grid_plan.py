@@ -2698,6 +2698,149 @@ def _preset_seq_mdn_v2_overnight_5090safe_quick() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_mdn_v2_a600_tail_explore_quick() -> List[Dict[str, Any]]:
+    """A600-only overnight grid focused on tail calibration headroom.
+
+    This preset complements the 5090-safe overnight:
+
+      - keep the fast A600 path with `seq_gru_unroll=False`
+      - open a dedicated sweep over `tail_levels`
+      - include two structural probes that are intentionally left on the faster
+        GRU path because this stack has already tolerated them
+
+    Scientific intent:
+
+      - test whether the remaining `G5` gap is more sensitive to tail shaping
+        than to another round of plain coverage-temperature tuning
+      - probe whether a small capacity increase helps once tails are tightened
+    """
+
+    analysis_quick_overrides = {
+        "mini_reanalysis_enabled": True,
+        "mini_reanalysis_scope": "all12",
+        "mini_reanalysis_max_samples_per_regime": 4096,
+        "grid_ranking_mode": "mini_protocol_v1",
+        "batch_infer": 16384,
+    }
+
+    def _seq_cfg(
+        *,
+        lambda_coverage: float,
+        coverage_temperature: float,
+        tail_levels: List[float],
+        lambda_axis: float = 0.01,
+        latent_dim: int = 4,
+        seq_hidden_size: int = 64,
+        batch_size: int = 8192,
+    ) -> Dict[str, Any]:
+        return _cfg(
+            arch_variant="seq_bigru_residual",
+            layer_sizes=[128, 256, 512],
+            latent_dim=latent_dim,
+            beta=0.002,
+            free_bits=0.10,
+            lr=2e-4,
+            batch_size=batch_size,
+            kl_anneal_epochs=80,
+            window_size=7,
+            window_stride=1,
+            window_pad_mode="edge",
+            seq_hidden_size=seq_hidden_size,
+            seq_num_layers=1,
+            seq_bidirectional=True,
+            seq_gru_unroll=False,
+            lambda_mmd=0.25,
+            mmd_mode="mean_residual",
+            lambda_axis=lambda_axis,
+            lambda_psd=0.0,
+            lambda_coverage=lambda_coverage,
+            coverage_levels=[0.50, 0.80, 0.95],
+            tail_levels=tail_levels,
+            coverage_temperature=coverage_temperature,
+            decoder_distribution="mdn",
+            mdn_components=3,
+            shuffle_train_batches=True,
+        )
+
+    return [
+        dict(
+            group="S26_seq_mdn_v2_a600_tail",
+            tag="S26seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_cov0p06_tail05-95_t0p03_bs8192_bi16384_gruroll0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(
+                lambda_coverage=0.06,
+                coverage_temperature=0.03,
+                tail_levels=[0.05, 0.95],
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S26_seq_mdn_v2_a600_tail",
+            tag="S26seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_cov0p06_tail02-98_t0p03_bs8192_bi16384_gruroll0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(
+                lambda_coverage=0.06,
+                coverage_temperature=0.03,
+                tail_levels=[0.02, 0.98],
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S26_seq_mdn_v2_a600_tail",
+            tag="S26seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_cov0p06_tail01-99_t0p03_bs8192_bi16384_gruroll0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(
+                lambda_coverage=0.06,
+                coverage_temperature=0.03,
+                tail_levels=[0.01, 0.99],
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S26_seq_mdn_v2_a600_tail",
+            tag="S26seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_cov0p07_tail02-98_t0p03_bs8192_bi16384_gruroll0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(
+                lambda_coverage=0.07,
+                coverage_temperature=0.03,
+                tail_levels=[0.02, 0.98],
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S26_seq_mdn_v2_a600_tail",
+            tag="S26seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p0125_cov0p06_tail02-98_t0p03_bs8192_bi16384_gruroll0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(
+                lambda_coverage=0.06,
+                coverage_temperature=0.03,
+                tail_levels=[0.02, 0.98],
+                lambda_axis=0.0125,
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S26_seq_mdn_v2_a600_tail",
+            tag="S26seq_W7_h64_lat6_mdn3_b0p002_lmmd0p25_axis0p01_cov0p06_tail02-98_t0p03_bs6144_bi16384_gruroll0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(
+                lambda_coverage=0.06,
+                coverage_temperature=0.03,
+                tail_levels=[0.02, 0.98],
+                latent_dim=6,
+                batch_size=6144,
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S26_seq_mdn_v2_a600_tail",
+            tag="S26seq_W7_h96_lat4_mdn3_b0p002_lmmd0p25_axis0p01_cov0p06_tail02-98_t0p03_bs6144_bi16384_gruroll0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(
+                lambda_coverage=0.06,
+                coverage_temperature=0.03,
+                tail_levels=[0.02, 0.98],
+                seq_hidden_size=96,
+                batch_size=6144,
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+    ]
+
+
 def _preset_best_compare_large() -> List[Dict[str, Any]]:
     """Comparative protocol-first grid using the strongest current candidates.
 
@@ -2932,6 +3075,8 @@ def select_grid(
             grid = _preset_seq_mdn_v2_overnight_decision_quick()
         elif preset_name == "seq_mdn_v2_overnight_5090safe_quick":
             grid = _preset_seq_mdn_v2_overnight_5090safe_quick()
+        elif preset_name == "seq_mdn_v2_a600_tail_explore_quick":
+            grid = _preset_seq_mdn_v2_a600_tail_explore_quick()
         elif preset_name == "best_compare_large":
             grid = _preset_best_compare_large()
         elif preset_name == "delta_residual_fast":
