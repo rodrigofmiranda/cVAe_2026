@@ -2543,6 +2543,161 @@ def _preset_seq_mdn_v2_overnight_decision_quick() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_mdn_v2_overnight_5090safe_quick() -> List[Dict[str, Any]]:
+    """5090-safe overnight MDN v2 grid.
+
+    This preset keeps the scientific intent of
+    ``seq_mdn_v2_overnight_decision_quick`` but encodes the runtime guardrail
+    learned from the RTX 5090 stack:
+
+      - keep `seq_gru_unroll=False` only on the already validated `W7 / h64`
+        branch
+      - force `seq_gru_unroll=True` on structural probes such as `h96` or
+        `W11`
+
+    That separates scientific failures from cuDNN runtime failures on the
+    5090 machine.
+    """
+
+    analysis_quick_overrides = {
+        "mini_reanalysis_enabled": True,
+        "mini_reanalysis_scope": "all12",
+        "mini_reanalysis_max_samples_per_regime": 4096,
+        "grid_ranking_mode": "mini_protocol_v1",
+        "batch_infer": 16384,
+    }
+
+    def _seq_cfg(
+        *,
+        lambda_coverage: float,
+        coverage_temperature: float,
+        lambda_axis: float = 0.01,
+        lambda_mmd: float = 0.25,
+        latent_dim: int = 4,
+        seq_hidden_size: int = 64,
+        window_size: int = 7,
+        batch_size: int = 8192,
+        seq_gru_unroll: bool = False,
+    ) -> Dict[str, Any]:
+        return _cfg(
+            arch_variant="seq_bigru_residual",
+            layer_sizes=[128, 256, 512],
+            latent_dim=latent_dim,
+            beta=0.002,
+            free_bits=0.10,
+            lr=2e-4,
+            batch_size=batch_size,
+            kl_anneal_epochs=80,
+            window_size=window_size,
+            window_stride=1,
+            window_pad_mode="edge",
+            seq_hidden_size=seq_hidden_size,
+            seq_num_layers=1,
+            seq_bidirectional=True,
+            seq_gru_unroll=seq_gru_unroll,
+            lambda_mmd=lambda_mmd,
+            mmd_mode="mean_residual",
+            lambda_axis=lambda_axis,
+            lambda_psd=0.0,
+            lambda_coverage=lambda_coverage,
+            coverage_levels=[0.50, 0.80, 0.95],
+            tail_levels=[0.05, 0.95],
+            coverage_temperature=coverage_temperature,
+            decoder_distribution="mdn",
+            mdn_components=3,
+            shuffle_train_batches=True,
+        )
+
+    return [
+        # Local branch: keep the already validated 5090 fast path.
+        dict(
+            group="S25_seq_mdn_v2_overnight_5090safe",
+            tag="S25seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_cov0p06_t0p03_bs8192_bi16384_gruroll0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(lambda_coverage=0.06, coverage_temperature=0.03, seq_gru_unroll=False),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S25_seq_mdn_v2_overnight_5090safe",
+            tag="S25seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_cov0p07_t0p03_bs8192_bi16384_gruroll0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(lambda_coverage=0.07, coverage_temperature=0.03, seq_gru_unroll=False),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S25_seq_mdn_v2_overnight_5090safe",
+            tag="S25seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_cov0p06_t0p025_bs8192_bi16384_gruroll0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(lambda_coverage=0.06, coverage_temperature=0.025, seq_gru_unroll=False),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S25_seq_mdn_v2_overnight_5090safe",
+            tag="S25seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_cov0p06_t0p035_bs8192_bi16384_gruroll0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(lambda_coverage=0.06, coverage_temperature=0.035, seq_gru_unroll=False),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S25_seq_mdn_v2_overnight_5090safe",
+            tag="S25seq_W7_h64_lat4_mdn3_b0p002_lmmd0p30_axis0p01_cov0p06_t0p03_bs8192_bi16384_gruroll0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(
+                lambda_coverage=0.06,
+                coverage_temperature=0.03,
+                lambda_mmd=0.30,
+                seq_gru_unroll=False,
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        # Structural probes: force the conservative GRU path on the 5090 stack.
+        dict(
+            group="S25_seq_mdn_v2_overnight_5090safe",
+            tag="S25seq_W7_h64_lat6_mdn3_b0p002_lmmd0p25_axis0p01_cov0p06_t0p03_bs6144_bi16384_gruroll1_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(
+                lambda_coverage=0.06,
+                coverage_temperature=0.03,
+                latent_dim=6,
+                batch_size=6144,
+                seq_gru_unroll=True,
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S25_seq_mdn_v2_overnight_5090safe",
+            tag="S25seq_W7_h96_lat4_mdn3_b0p002_lmmd0p25_axis0p01_cov0p06_t0p03_bs6144_bi16384_gruroll1_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(
+                lambda_coverage=0.06,
+                coverage_temperature=0.03,
+                seq_hidden_size=96,
+                batch_size=6144,
+                seq_gru_unroll=True,
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S25_seq_mdn_v2_overnight_5090safe",
+            tag="S25seq_W11_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_cov0p06_t0p03_bs6144_bi16384_gruroll1_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(
+                lambda_coverage=0.06,
+                coverage_temperature=0.03,
+                window_size=11,
+                batch_size=6144,
+                seq_gru_unroll=True,
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S25_seq_mdn_v2_overnight_5090safe",
+            tag="S25seq_W7_h96_lat6_mdn3_b0p002_lmmd0p25_axis0p01_cov0p06_t0p03_bs6144_bi16384_gruroll1_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(
+                lambda_coverage=0.06,
+                coverage_temperature=0.03,
+                latent_dim=6,
+                seq_hidden_size=96,
+                batch_size=6144,
+                seq_gru_unroll=True,
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+    ]
+
+
 def _preset_best_compare_large() -> List[Dict[str, Any]]:
     """Comparative protocol-first grid using the strongest current candidates.
 
@@ -2775,6 +2930,8 @@ def select_grid(
             grid = _preset_seq_mdn_v2_g5_followup_quick()
         elif preset_name == "seq_mdn_v2_overnight_decision_quick":
             grid = _preset_seq_mdn_v2_overnight_decision_quick()
+        elif preset_name == "seq_mdn_v2_overnight_5090safe_quick":
+            grid = _preset_seq_mdn_v2_overnight_5090safe_quick()
         elif preset_name == "best_compare_large":
             grid = _preset_best_compare_large()
         elif preset_name == "delta_residual_fast":

@@ -91,6 +91,10 @@ The current implementation branch now includes an `MDN v2` path:
   - overnight decision preset:
     - `seq_mdn_v2_overnight_decision_quick`
     - mixes S23-local refinement and small exploratory probes
+  - 5090-safe overnight preset:
+    - `seq_mdn_v2_overnight_5090safe_quick`
+    - keeps `seq_gru_unroll=False` only on the validated `W7 / h64` branch
+    - forces `seq_gru_unroll=True` on structural probes (`h96`, `W11`, combined probes)
 
 ## Operational Attention Point
 

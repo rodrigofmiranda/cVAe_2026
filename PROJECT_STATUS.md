@@ -87,6 +87,13 @@ Leitura atual:
   - preset overnight para decidir continuidade da linha:
     - `seq_mdn_v2_overnight_decision_quick`
     - mistura refinamento local do `S23` + probes estruturais/exploratorios
+  - ressalva operacional:
+    - na RTX 5090, o overnight original nao e seguro para probes estruturais com
+      `seq_gru_unroll=False`
+    - preset seguro para essa stack:
+      - `seq_mdn_v2_overnight_5090safe_quick`
+      - mantem `gruroll0` so no ramo local `W7 / h64`
+      - força `gruroll1` em `h96`, `W11` e probes combinados
 
 ## Ponto De Atencao Operacional
 
