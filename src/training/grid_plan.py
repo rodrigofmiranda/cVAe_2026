@@ -2733,7 +2733,7 @@ def _preset_seq_mdn_v2_ceiling_probe_quick() -> List[Dict[str, Any]]:
         beta=0.002,
         free_bits=0.10,
         lr=2e-4,
-        batch_size=8192,
+        batch_size=6144,
         kl_anneal_epochs=80,
         window_size=7,
         window_stride=1,
