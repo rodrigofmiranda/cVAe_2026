@@ -2290,6 +2290,106 @@ def _preset_seq_mdn_v2_fastbase_quick() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_mdn_v2_g5_followup_quick() -> List[Dict[str, Any]]:
+    """Local follow-up around the best fastbase+coverage MDN v2 candidate.
+
+    Anchor chosen from ``seq_mdn_v2_fastbase_quick``:
+
+      - ``lambda_coverage=0.05``
+      - ``coverage_temperature=0.03``
+      - ``batch_size=8192``
+      - ``batch_infer=16384``
+      - ``seq_gru_unroll=False``
+
+    Goal:
+
+      - preserve the `G6` recovery seen in the fastbase coverage run
+      - probe a narrow neighborhood that may recover one more `G5` regime
+
+    Local knobs only:
+
+      - slightly lighter / stronger coverage
+      - slightly softer temperature
+      - one small `lambda_axis` hedge
+    """
+
+    analysis_quick_overrides = {
+        "mini_reanalysis_enabled": True,
+        "mini_reanalysis_scope": "all12",
+        "mini_reanalysis_max_samples_per_regime": 4096,
+        "grid_ranking_mode": "mini_protocol_v1",
+        "batch_infer": 16384,
+    }
+
+    def _seq_cfg(
+        *,
+        lambda_coverage: float,
+        coverage_temperature: float,
+        lambda_axis: float = 0.01,
+    ) -> Dict[str, Any]:
+        return _cfg(
+            arch_variant="seq_bigru_residual",
+            layer_sizes=[128, 256, 512],
+            latent_dim=4,
+            beta=0.002,
+            free_bits=0.10,
+            lr=2e-4,
+            batch_size=8192,
+            kl_anneal_epochs=80,
+            window_size=7,
+            window_stride=1,
+            window_pad_mode="edge",
+            seq_hidden_size=64,
+            seq_num_layers=1,
+            seq_bidirectional=True,
+            seq_gru_unroll=False,
+            lambda_mmd=0.25,
+            mmd_mode="mean_residual",
+            lambda_axis=lambda_axis,
+            lambda_psd=0.0,
+            lambda_coverage=lambda_coverage,
+            coverage_levels=[0.50, 0.80, 0.95],
+            tail_levels=[0.05, 0.95],
+            coverage_temperature=coverage_temperature,
+            decoder_distribution="mdn",
+            mdn_components=3,
+            shuffle_train_batches=True,
+        )
+
+    return [
+        dict(
+            group="S23_seq_mdn_v2_g5",
+            tag="S23seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_cov0p05_t0p03_bs8192_bi16384_gruroll0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(lambda_coverage=0.05, coverage_temperature=0.03, lambda_axis=0.01),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S23_seq_mdn_v2_g5",
+            tag="S23seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_cov0p04_t0p03_bs8192_bi16384_gruroll0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(lambda_coverage=0.04, coverage_temperature=0.03, lambda_axis=0.01),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S23_seq_mdn_v2_g5",
+            tag="S23seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_cov0p06_t0p03_bs8192_bi16384_gruroll0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(lambda_coverage=0.06, coverage_temperature=0.03, lambda_axis=0.01),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S23_seq_mdn_v2_g5",
+            tag="S23seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p01_cov0p05_t0p04_bs8192_bi16384_gruroll0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(lambda_coverage=0.05, coverage_temperature=0.04, lambda_axis=0.01),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S23_seq_mdn_v2_g5",
+            tag="S23seq_W7_h64_lat4_mdn3_b0p002_lmmd0p25_axis0p0125_cov0p05_t0p03_bs8192_bi16384_gruroll0_fb0p10_lr0p0002_L128-256-512",
+            cfg=_seq_cfg(lambda_coverage=0.05, coverage_temperature=0.03, lambda_axis=0.0125),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+    ]
+
+
 def _preset_best_compare_large() -> List[Dict[str, Any]]:
     """Comparative protocol-first grid using the strongest current candidates.
 
@@ -2518,6 +2618,8 @@ def select_grid(
             grid = _preset_seq_mdn_v2_perf_compare_quick()
         elif preset_name == "seq_mdn_v2_fastbase_quick":
             grid = _preset_seq_mdn_v2_fastbase_quick()
+        elif preset_name == "seq_mdn_v2_g5_followup_quick":
+            grid = _preset_seq_mdn_v2_g5_followup_quick()
         elif preset_name == "best_compare_large":
             grid = _preset_best_compare_large()
         elif preset_name == "delta_residual_fast":

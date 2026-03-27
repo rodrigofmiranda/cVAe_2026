@@ -70,6 +70,14 @@ Leitura atual:
     - lote maior `8192/gruroll0`: ~`6s/epoch`
   - preset de continuidade cientifica sobre essa base:
     - `seq_mdn_v2_fastbase_quick`
+- resultado do primeiro quick cientifico nessa base rapida:
+  - run: `outputs/exp_20260327_021632`
+  - campeao: `S22 ... cov0p05_t0p03 ...`
+  - resultado: `5/12`
+  - ganho principal: `G6` subiu de `4` para `6` passes contra o fastbase sem coverage
+  - tradeoff: `G5` caiu de `10` para `9`
+  - preset de follow-up local:
+    - `seq_mdn_v2_g5_followup_quick`
 
 ## Ponto De Atencao Operacional
 

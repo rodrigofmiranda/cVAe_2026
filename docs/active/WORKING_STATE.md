@@ -75,6 +75,14 @@ The current implementation branch now includes an `MDN v2` path:
   - `seq_gru_unroll=False`
   - continuity preset for the next scientific quicks:
     - `seq_mdn_v2_fastbase_quick`
+- the first scientific quick on top of that faster baseline improved the line:
+  - run: `outputs/exp_20260327_021632`
+  - champion: `S22 ... cov0.05 / t=0.03 ...`
+  - protocol result: `5/12`
+  - main gain: `G6` recovery compared with the fastbase anchor
+  - remaining gap: `G5` still concentrated at `0.8 m`
+  - local follow-up preset:
+    - `seq_mdn_v2_g5_followup_quick`
 
 ## Operational Attention Point
 
