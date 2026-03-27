@@ -297,14 +297,14 @@ def run_training_pipeline(
             df_val_cap=_df_val_cap,
         )
 
-    # Guard: seq_bigru_residual is incompatible with balanced_blocks (early check via overrides).
+    # Guard: sequence windowed variants are incompatible with balanced_blocks (early check via overrides).
     _arch_override = str(ov.get("arch_variant", "")).strip().lower()
-    if _arch_override == "seq_bigru_residual":
+    if _arch_override in {"seq_bigru_residual", "seq_imdd_graybox"}:
         _dr_enabled = bool(runtime.data_reduction_config.get("enabled", False))
         _dr_mode = str(runtime.data_reduction_config.get("mode", "balanced_blocks")).lower()
         if _dr_enabled and _dr_mode == "balanced_blocks":
             raise ValueError(
-                "arch_variant='seq_bigru_residual' requires contiguous temporal data; "
+                f"arch_variant='{_arch_override}' requires contiguous temporal data; "
                 "mode='balanced_blocks' breaks temporal context needed for windowing. "
                 "Use no_data_reduction=True or set data_reduction mode='center_crop'."
             )
@@ -349,15 +349,24 @@ def run_training_pipeline(
 
     # Guard: comprehensive check after grid selection — catches arch_variant set per-cfg.
     _seq_in_grid = any(
-        str(item["cfg"].get("arch_variant", "")).strip().lower() == "seq_bigru_residual"
+        str(item["cfg"].get("arch_variant", "")).strip().lower()
+        in {"seq_bigru_residual", "seq_imdd_graybox"}
         for item in grid
     )
     if _seq_in_grid:
         _dr_enabled = bool(runtime.data_reduction_config.get("enabled", False))
         _dr_mode = str(runtime.data_reduction_config.get("mode", "balanced_blocks")).lower()
         if _dr_enabled and _dr_mode == "balanced_blocks":
+            _seq_variants = sorted(
+                {
+                    str(item["cfg"].get("arch_variant", "")).strip().lower()
+                    for item in grid
+                    if str(item["cfg"].get("arch_variant", "")).strip().lower()
+                    in {"seq_bigru_residual", "seq_imdd_graybox"}
+                }
+            )
             raise ValueError(
-                "arch_variant='seq_bigru_residual' is incompatible with "
+                f"windowed sequence arch_variants {_seq_variants} are incompatible with "
                 "data_reduction mode='balanced_blocks': non-contiguous block selection "
                 "breaks temporal context required for windowing. "
                 "Use no_data_reduction=True or set data_reduction mode='center_crop'."

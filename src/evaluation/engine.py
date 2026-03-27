@@ -323,11 +323,11 @@ def evaluate_run(
     prior = vae.get_layer("prior_net")
     decoder = vae.get_layer("decoder")
 
-    # Detect seq_bigru_residual via prior input rank (rank-3 → windowed sequence input)
+    # Detect windowed sequence variants via prior input rank (rank-3 → windowed sequence input)
     _is_seq = len(prior.inputs[0].shape) == 3
     if _is_seq:
         print(
-            f"🔄 seq_bigru_residual detected (prior input rank=3, W={prior.inputs[0].shape[1]}) "
+            f"🔄 sequence arch detected (prior input rank=3, W={prior.inputs[0].shape[1]}) "
             "— windowed inference will be applied."
         )
 
@@ -342,6 +342,8 @@ def evaluate_run(
             arch_variant = "legacy_2025_zero_y"
         elif vae.name == "cvae_condprior_delta_residual":
             arch_variant = "delta_residual"
+        elif _is_seq and vae.name == "cvae_seq_imdd_graybox":
+            arch_variant = "seq_imdd_graybox"
         elif _is_seq:
             arch_variant = "seq_bigru_residual"
         else:

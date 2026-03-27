@@ -259,7 +259,7 @@ class TestNoBoundaryCrossing:
 # ===========================================================================
 
 class TestIncompatiblePathsRaise:
-    """Guard logic for balanced_blocks + seq_bigru_residual."""
+    """Guard logic for balanced_blocks + sequence windowed variants."""
 
     def _make_runtime_like(self, mode: str = "balanced_blocks", enabled: bool = True):
         """Simulate what pipeline.py sees from runtime.data_reduction_config."""
@@ -267,13 +267,13 @@ class TestIncompatiblePathsRaise:
 
     def _check_guard(self, arch_variant: str, data_reduction_config: dict) -> None:
         """Replicate the guard logic from pipeline.py (post-grid-selection)."""
-        _seq_in_grid = arch_variant == "seq_bigru_residual"
+        _seq_in_grid = arch_variant in {"seq_bigru_residual", "seq_imdd_graybox"}
         if _seq_in_grid:
             _dr_enabled = bool(data_reduction_config.get("enabled", False))
             _dr_mode = str(data_reduction_config.get("mode", "balanced_blocks")).lower()
             if _dr_enabled and _dr_mode == "balanced_blocks":
                 raise ValueError(
-                    "arch_variant='seq_bigru_residual' is incompatible with "
+                    f"windowed sequence arch_variants ['{arch_variant}'] are incompatible with "
                     "data_reduction mode='balanced_blocks'"
                 )
 
@@ -285,6 +285,11 @@ class TestIncompatiblePathsRaise:
     def test_seq_plus_center_crop_does_not_raise(self):
         dr = self._make_runtime_like(mode="center_crop", enabled=True)
         self._check_guard("seq_bigru_residual", dr)  # must not raise
+
+    def test_graybox_seq_plus_balanced_blocks_raises(self):
+        dr = self._make_runtime_like(mode="balanced_blocks", enabled=True)
+        with pytest.raises(ValueError, match="balanced_blocks"):
+            self._check_guard("seq_imdd_graybox", dr)
 
     def test_seq_plus_disabled_reduction_does_not_raise(self):
         dr = self._make_runtime_like(mode="balanced_blocks", enabled=False)

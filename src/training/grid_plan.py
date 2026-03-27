@@ -620,6 +620,41 @@ def _preset_seq_residual_small() -> List[Dict[str, Any]]:
     return [item for item in all_seq if item["group"] == "S1_seq_small"]
 
 
+def _preset_seq_imdd_graybox_smoke() -> List[Dict[str, Any]]:
+    """Single-item smoke preset for the gray-box IM/DD sequential cVAE.
+
+    This preset is intentionally small and Gaussian-only. It exists to validate
+    the integration of the new physically-motivated sequence architecture
+    before opening a scientific grid.
+    """
+    return [
+        {
+            "group": "SGB0_seq_imdd_graybox_smoke",
+            "tag": "SGB0imdd_W7_h16_lat4_b0p001_fb0p10_lr0p0003_bs4096_L64-128_poly135",
+            "cfg": _cfg(
+                arch_variant="seq_imdd_graybox",
+                layer_sizes=[64, 128],
+                latent_dim=4,
+                beta=0.001,
+                free_bits=0.10,
+                lr=3e-4,
+                batch_size=4096,
+                kl_anneal_epochs=5,
+                window_size=7,
+                window_stride=1,
+                window_pad_mode="edge",
+                seq_hidden_size=16,
+                seq_num_layers=1,
+                seq_bidirectional=True,
+                decoder_distribution="gaussian",
+                imdd_poly_orders=[1, 3, 5],
+                imdd_include_center_delta=True,
+                imdd_include_power=True,
+            ),
+        }
+    ]
+
+
 def _preset_seq_residual_mmd() -> List[Dict[str, Any]]:
     """MMD-augmented seq_bigru_residual sweep (Etapa C — G6 investigation).
 
@@ -3025,6 +3060,8 @@ def select_grid(
             grid = _preset_seq_residual_smoke()
         elif preset_name == "seq_residual_small":
             grid = _preset_seq_residual_small()
+        elif preset_name == "seq_imdd_graybox_smoke":
+            grid = _preset_seq_imdd_graybox_smoke()
         elif preset_name == "seq_residual_mmd":
             grid = _preset_seq_residual_mmd()
         elif preset_name == "seq_residual_mmd_final":

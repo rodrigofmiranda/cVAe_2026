@@ -569,7 +569,7 @@ def _is_retryable_seq_gru_runtime_error(exc: Exception, cfg: Dict[str, Any]) -> 
     itself is otherwise valid.
     """
     arch = str(cfg.get("arch_variant", "")).strip().lower()
-    if arch != "seq_bigru_residual":
+    if arch not in {"seq_bigru_residual", "seq_imdd_graybox"}:
         return False
     if bool(cfg.get("seq_gru_unroll", True)):
         return False
@@ -1023,13 +1023,13 @@ def run_gridsearch(
         gc.collect()
         model_dir = _grid_artifact_dir(MODELS_DIR, gi, tag)
 
-        # --- Phase 5: per-item windowing for seq_bigru_residual ---
+        # --- Phase 5: per-item windowing for sequence windowed variants ---
         _arch = str(cfg.get("arch_variant", "concat")).strip().lower()
-        if _arch == "seq_bigru_residual":
+        if _arch in {"seq_bigru_residual", "seq_imdd_graybox"}:
             from src.data.windowing import build_windows_from_split_arrays
             if df_split is None:
                 raise RuntimeError(
-                    "seq_bigru_residual requires df_split; "
+                    f"{_arch} requires df_split; "
                     "ensure run_training_pipeline passes df_split to run_gridsearch."
                 )
             _ws  = int(cfg.get("window_size", 33))
@@ -1216,7 +1216,7 @@ def run_gridsearch(
                 # For point metrics (EVM/SNR/dist/plots), need (N, 2) center signal.
                 # For seq: Xv is (N, W, 2); Xv_center extracts the center timestep.
                 # For point-wise: Xv_center == Xv (no copy, same array).
-                if _arch == "seq_bigru_residual":
+                if _arch in {"seq_bigru_residual", "seq_imdd_graybox"}:
                     Xv_center = Xv[:, Xv.shape[1] // 2, :]  # (N, 2)
                 else:
                     Xv_center = Xv

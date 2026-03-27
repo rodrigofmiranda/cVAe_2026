@@ -135,6 +135,64 @@ class SliceFeatures(tf.keras.layers.Layer):
         return {**super().get_config(), "start": self.start, "end": self.end}
 
 
+@tf.keras.utils.register_keras_serializable(package="seq_cvae")
+class IMDDMemoryPolynomialSequence(tf.keras.layers.Layer):
+    """Expand a complex-envelope window using memory-polynomial features.
+
+    Each timestep ``x_k = [I_k, Q_k]`` is mapped to a bank of odd-order terms
+    ``x_k * |x_k|^(p-1)`` with optional centered-delta features.  This gives
+    the sequence encoder/prior a gray-box basis tailored to IM/DD LED
+    nonlinearity and short memory effects while preserving a standard tensor
+    interface for the surrounding BiGRU stack.
+    """
+
+    def __init__(
+        self,
+        orders=(1, 3, 5),
+        include_center_delta: bool = True,
+        include_power: bool = True,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.orders = tuple(int(o) for o in orders)
+        self.include_center_delta = bool(include_center_delta)
+        self.include_power = bool(include_power)
+        if not self.orders:
+            raise ValueError("orders must contain at least one odd polynomial order.")
+        for order in self.orders:
+            if order <= 0 or order % 2 == 0:
+                raise ValueError(
+                    f"IMDDMemoryPolynomialSequence expects positive odd orders; got {order!r}."
+                )
+
+    def call(self, x):
+        x = tf.convert_to_tensor(x)
+        power = tf.reduce_sum(tf.square(x), axis=-1, keepdims=True)
+        center_idx = tf.shape(x)[1] // 2
+        center = x[:, center_idx:center_idx + 1, :]
+
+        feats = []
+        if self.include_power:
+            feats.append(power)
+        for order in self.orders:
+            exponent = (order - 1) // 2
+            if exponent == 0:
+                feats.append(x)
+            else:
+                feats.append(x * tf.pow(power, tf.cast(exponent, x.dtype)))
+        if self.include_center_delta:
+            feats.append(x - center)
+        return tf.concat(feats, axis=-1)
+
+    def get_config(self):
+        return {
+            **super().get_config(),
+            "orders": list(self.orders),
+            "include_center_delta": self.include_center_delta,
+            "include_power": self.include_power,
+        }
+
+
 # ======================================================================
 # Internal helpers
 # ======================================================================
@@ -291,16 +349,26 @@ def build_seq_prior_net(cfg: Dict) -> tf.keras.Model:
     act       = cfg.get("activation", "leaky_relu")
     dropout   = float(cfg.get("dropout", 0.0))
     mlp_sizes = list(cfg["layer_sizes"])
+    arch_variant = str(cfg.get("arch_variant", "seq_bigru_residual")).strip().lower()
 
     x_win_in = layers.Input(shape=(W, 2), name="prior_net_x_window")
     d_in     = layers.Input(shape=(1,),   name="prior_net_d")
     c_in     = layers.Input(shape=(1,),   name="prior_net_c")
 
+    x_seq = x_win_in
+    if arch_variant == "seq_imdd_graybox":
+        x_seq = IMDDMemoryPolynomialSequence(
+            orders=tuple(cfg.get("imdd_poly_orders", [1, 3, 5])),
+            include_center_delta=bool(cfg.get("imdd_include_center_delta", True)),
+            include_power=bool(cfg.get("imdd_include_power", True)),
+            name="prior_net_imdd_poly",
+        )(x_win_in)
+
     # Broadcast (d, c) along the time axis and concatenate with x_window → (W, 4)
     d_rep  = layers.RepeatVector(W, name="prior_net_d_rep")(d_in)
     c_rep  = layers.RepeatVector(W, name="prior_net_c_rep")(c_in)
     seq_in = layers.Concatenate(axis=-1, name="prior_net_seq_in")(
-        [x_win_in, d_rep, c_rep]
+        [x_seq, d_rep, c_rep]
     )
 
     # BiGRU context → (hidden*2,) or (hidden,)
@@ -342,17 +410,27 @@ def build_seq_encoder(cfg: Dict) -> tf.keras.Model:
     act       = cfg.get("activation", "leaky_relu")
     dropout   = float(cfg.get("dropout", 0.0))
     mlp_sizes = list(cfg["layer_sizes"])
+    arch_variant = str(cfg.get("arch_variant", "seq_bigru_residual")).strip().lower()
 
     x_win_in  = layers.Input(shape=(W, 2), name="encoder_x_window")
     d_in      = layers.Input(shape=(1,),   name="encoder_d")
     c_in      = layers.Input(shape=(1,),   name="encoder_c")
     y_cent_in = layers.Input(shape=(2,),   name="encoder_y_center")
 
+    x_seq = x_win_in
+    if arch_variant == "seq_imdd_graybox":
+        x_seq = IMDDMemoryPolynomialSequence(
+            orders=tuple(cfg.get("imdd_poly_orders", [1, 3, 5])),
+            include_center_delta=bool(cfg.get("imdd_include_center_delta", True)),
+            include_power=bool(cfg.get("imdd_include_power", True)),
+            name="encoder_imdd_poly",
+        )(x_win_in)
+
     # Broadcast (d, c) and concatenate with x_window → (W, 4)
     d_rep  = layers.RepeatVector(W, name="encoder_d_rep")(d_in)
     c_rep  = layers.RepeatVector(W, name="encoder_c_rep")(c_in)
     seq_in = layers.Concatenate(axis=-1, name="encoder_seq_in")(
-        [x_win_in, d_rep, c_rep]
+        [x_seq, d_rep, c_rep]
     )
 
     # BiGRU context → (hidden*2,) or (hidden,)
@@ -403,6 +481,7 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
         cfg.get("decoder_distribution", "gaussian")
     ).strip().lower()
     mdn_components = int(cfg.get("mdn_components", 1))
+    arch_variant = str(cfg.get("arch_variant", "seq_bigru_residual")).strip().lower()
 
     z_in      = layers.Input(shape=(latent,), name="z_input")
     x_cent_in = layers.Input(shape=(2,),      name="x_center_input")
@@ -413,7 +492,40 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
 
     h = _mlp_head(h, mlp_sizes, act, dropout, name_prefix="dec")
 
-    if decoder_distribution == "mdn":
+    if arch_variant == "seq_imdd_graybox" and decoder_distribution != "gaussian":
+        raise ValueError(
+            "arch_variant='seq_imdd_graybox' currently supports only decoder_distribution='gaussian'."
+        )
+
+    if arch_variant == "seq_imdd_graybox":
+        power = layers.Lambda(
+            lambda t: tf.reduce_sum(tf.square(t), axis=-1, keepdims=True),
+            name="phys_power",
+        )(x_cent_in)
+        cubic_term = layers.Multiply(name="phys_cubic")([x_cent_in, power])
+        quintic_term = layers.Multiply(name="phys_quintic")([cubic_term, power])
+        phys_features = layers.Concatenate(name="phys_features")(
+            [x_cent_in, cubic_term, quintic_term, d_in, c_in]
+        )
+        phys_hidden = layers.Dense(
+            max(16, int(mlp_sizes[0]) // 2),
+            kernel_initializer="glorot_uniform",
+            name="phys_dense_0",
+        )(phys_features)
+        phys_hidden = _activation_layer(act)(phys_hidden)
+        if dropout > 0:
+            phys_hidden = layers.Dropout(dropout, name="phys_drop_0")(phys_hidden)
+        phys_delta = layers.Dense(2, name="phys_delta_mean")(phys_hidden)
+
+        raw_out = layers.Dense(4, name="stoch_output_params_raw")(h)
+        stoch_delta_mean = SliceFeatures(0, 2, name="stoch_delta_mean")(raw_out)
+        delta_lv = SliceFeatures(2, 4, name="delta_log_var")(raw_out)
+        total_delta = layers.Add(name="graybox_total_delta")(
+            [phys_delta, stoch_delta_mean]
+        )
+        y_mean = layers.Add(name="y_mean_residual")([x_cent_in, total_delta])
+        out = layers.Concatenate(name="output_params")([y_mean, delta_lv])
+    elif decoder_distribution == "mdn":
         k = int(mdn_components)
         raw_out = layers.Dense(5 * k, name="output_params_raw")(h)
         logits = SliceFeatures(0, k, name="mixture_logits")(raw_out)
@@ -465,6 +577,7 @@ def build_seq_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
     free_bits        = float(cfg.get("free_bits", 0.0))
     kl_anneal_epochs = int(cfg.get("kl_anneal_epochs", 50))
     half             = W // 2
+    arch_variant     = str(cfg.get("arch_variant", "seq_bigru_residual")).strip().lower()
 
     encoder   = build_seq_encoder(cfg)
     prior_net = build_seq_prior_net(cfg)
@@ -530,9 +643,10 @@ def build_seq_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
         loss_inputs.append(x_center)
     y_mean_out = loss_layer(loss_inputs)
 
+    model_name = "cvae_seq_imdd_graybox" if arch_variant == "seq_imdd_graybox" else "cvae_seq_condprior"
     vae = models.Model(
         [x_win_in, d_in, c_in, y_in], y_mean_out,
-        name="cvae_seq_condprior",
+        name=model_name,
     )
     opt = tf.keras.optimizers.Adam(learning_rate=lr, clipnorm=1.0)
     vae.compile(optimizer=opt)
@@ -664,6 +778,7 @@ def load_seq_model(path: str) -> tf.keras.Model:
             "ExtractCenterFrame": ExtractCenterFrame,
             "ClipValues": ClipValues,
             "SliceFeatures": SliceFeatures,
+            "IMDDMemoryPolynomialSequence": IMDDMemoryPolynomialSequence,
         },
         compile=False,
     )

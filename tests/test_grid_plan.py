@@ -254,6 +254,18 @@ def test_select_grid_seq_mdn_v2_quick_enables_mini_protocol_ranking_and_coverage
     assert analysis_overrides[0]["grid_ranking_mode"] == "mini_protocol_v1"
 
 
+def test_select_grid_seq_imdd_graybox_smoke_builds_single_gaussian_candidate():
+    grid = select_grid({"grid_preset": "seq_imdd_graybox_smoke"})
+
+    assert len(grid) == 1
+    cfg = grid[0]["cfg"]
+    assert cfg["arch_variant"] == "seq_imdd_graybox"
+    assert cfg["decoder_distribution"] == "gaussian"
+    assert cfg["window_size"] == 7
+    assert cfg["seq_hidden_size"] == 16
+    assert cfg["imdd_poly_orders"] == [1, 3, 5]
+
+
 def test_select_grid_seq_mdn_v2_perf_compare_quick_builds_control_and_fast_variants():
     grid = select_grid({"grid_preset": "seq_mdn_v2_perf_compare_quick"})
 

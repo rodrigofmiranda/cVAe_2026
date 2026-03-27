@@ -58,6 +58,7 @@ def _normalize_arch_variant(arch_variant: str) -> str:
         "channel_residual",
         "delta_residual",
         "seq_bigru_residual",
+        "seq_imdd_graybox",
         "legacy_2025_zero_y",
     }
     if variant not in valid:
@@ -255,7 +256,7 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
     activation = cfg.get("activation", "leaky_relu")
     arch_variant = _normalize_arch_variant(cfg.get("arch_variant", "concat"))
 
-    if arch_variant == "seq_bigru_residual":
+    if arch_variant in {"seq_bigru_residual", "seq_imdd_graybox"}:
         from src.models.cvae_sequence import build_seq_cvae  # lazy import
         return build_seq_cvae(cfg)
     if arch_variant == "legacy_2025_zero_y":
@@ -308,10 +309,13 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
     decoder_distribution = str(cfg.get("decoder_distribution", "gaussian"))
     mdn_components = int(cfg.get("mdn_components", 1))
     aux_needs_x = any(v > 0.0 for v in (lambda_mmd, lambda_axis, lambda_psd, lambda_coverage))
-    if decoder_distribution.strip().lower() != "gaussian" and arch_variant != "seq_bigru_residual":
+    if (
+        decoder_distribution.strip().lower() != "gaussian"
+        and arch_variant not in {"seq_bigru_residual", "seq_imdd_graybox"}
+    ):
         raise ValueError(
             "decoder_distribution='mdn' is currently supported only for "
-            "arch_variant='seq_bigru_residual'."
+            "sequence residual variants."
         )
     if arch_variant == "delta_residual":
         loss_layer = CondPriorDeltaVAELoss(
