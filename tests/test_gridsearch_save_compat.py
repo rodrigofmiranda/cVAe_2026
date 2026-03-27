@@ -89,6 +89,21 @@ def test_retryable_seq_gru_runtime_error_detects_cudnn_failure_signature():
     assert _is_retryable_seq_gru_runtime_error(exc, cfg) is True
 
 
+def test_retryable_seq_gru_runtime_error_detects_cancelled_error_context():
+    class CancelledError(Exception):
+        pass
+
+    cfg = {"arch_variant": "seq_bigru_residual", "seq_gru_unroll": False}
+
+    try:
+        raise RuntimeError("Failed to call DoRnnForward with model config")
+    except RuntimeError as cause:
+        try:
+            raise CancelledError("RecvAsync is cancelled") from cause
+        except CancelledError as exc:
+            assert _is_retryable_seq_gru_runtime_error(exc, cfg) is True
+
+
 def test_retryable_seq_gru_runtime_error_ignores_non_seq_or_compat_cfg():
     exc = RuntimeError("Failed to call DoRnnForward with model config")
 

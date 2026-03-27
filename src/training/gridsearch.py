@@ -576,14 +576,44 @@ def _is_retryable_seq_gru_runtime_error(exc: Exception, cfg: Dict[str, Any]) -> 
     if str(cfg.get("seq_gru_backend", "fused")).strip().lower() in {"compat", "cell", "rnncell", "safe"}:
         return False
 
-    text = f"{type(exc).__name__}: {exc!s} {exc!r}".lower()
+    seen_ids = set()
+    texts: List[str] = []
+    stack: List[BaseException] = [exc]
+    while stack:
+        current = stack.pop()
+        if current is None:
+            continue
+        obj_id = id(current)
+        if obj_id in seen_ids:
+            continue
+        seen_ids.add(obj_id)
+        texts.append(
+            f"{type(current).__name__}: {current!s} {current!r}".lower()
+        )
+        cause = getattr(current, "__cause__", None)
+        context = getattr(current, "__context__", None)
+        if cause is not None:
+            stack.append(cause)
+        if context is not None:
+            stack.append(context)
+
+    text = " || ".join(texts)
     needles = (
         "failed to call dornnforward",
         "sequence lengths for rnn are required from cudnn",
         "cudnnrnn",
         "__forward_gpu_gru_with_fallback",
     )
-    return any(needle in text for needle in needles)
+    if any(needle in text for needle in needles):
+        return True
+
+    cancelled_markers = (
+        "cancellederror",
+        "recvasync is cancelled",
+        "local rendezvous is aborting with status: internal",
+        "local rendezvous recv item cancelled",
+    )
+    return any(marker in text for marker in cancelled_markers)
 
 
 def _build_training_diagnostics(
