@@ -76,8 +76,17 @@ Leitura atual:
   - resultado: `5/12`
   - ganho principal: `G6` subiu de `4` para `6` passes contra o fastbase sem coverage
   - tradeoff: `G5` caiu de `10` para `9`
-  - preset de follow-up local:
-    - `seq_mdn_v2_g5_followup_quick`
+- preset de follow-up local:
+  - `seq_mdn_v2_g5_followup_quick`
+- resultado do follow-up local:
+  - run: `outputs/exp_20260327_032019`
+  - campeao: `S23 ... cov0p06_t0p03 ...`
+  - resultado: `6/12`
+  - ganho principal: `0.8m / 700mA` virou `pass`
+  - gaps restantes: `0.8m` de baixa corrente, `1.0m / 300-500mA`, `1.5m / 300mA`
+  - preset overnight para decidir continuidade da linha:
+    - `seq_mdn_v2_overnight_decision_quick`
+    - mistura refinamento local do `S23` + probes estruturais/exploratorios
 
 ## Ponto De Atencao Operacional
 

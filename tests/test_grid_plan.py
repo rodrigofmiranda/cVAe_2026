@@ -315,6 +315,30 @@ def test_select_grid_seq_mdn_v2_g5_followup_quick_stays_local_to_fastbase_champi
     assert analysis_overrides[0]["grid_ranking_mode"] == "mini_protocol_v1"
 
 
+def test_select_grid_seq_mdn_v2_overnight_decision_quick_combines_local_and_exploratory_candidates():
+    grid = select_grid({"grid_preset": "seq_mdn_v2_overnight_decision_quick"})
+
+    assert len(grid) == 9
+    assert {item["group"] for item in grid} == {"S24_seq_mdn_v2_overnight"}
+    assert all(item["cfg"]["arch_variant"] == "seq_bigru_residual" for item in grid)
+    assert all(item["cfg"]["decoder_distribution"] == "mdn" for item in grid)
+    assert all(item["cfg"]["mdn_components"] == 3 for item in grid)
+    assert all(item["cfg"]["seq_gru_unroll"] is False for item in grid)
+    assert {item["cfg"]["lambda_coverage"] for item in grid} == {0.06, 0.07}
+    assert {item["cfg"]["coverage_temperature"] for item in grid} == {0.025, 0.03, 0.035}
+    assert {item["cfg"]["latent_dim"] for item in grid} == {4, 6}
+    assert {item["cfg"]["seq_hidden_size"] for item in grid} == {64, 96}
+    assert {item["cfg"]["window_size"] for item in grid} == {7, 11}
+    assert {item["cfg"]["lambda_mmd"] for item in grid} == {0.25, 0.30}
+    assert {item["cfg"]["batch_size"] for item in grid} == {6144, 8192}
+
+    analysis_overrides = [item["analysis_quick_overrides"] for item in grid]
+    assert all(ov == analysis_overrides[0] for ov in analysis_overrides)
+    assert analysis_overrides[0]["batch_infer"] == 16384
+    assert analysis_overrides[0]["mini_reanalysis_enabled"] is True
+    assert analysis_overrides[0]["grid_ranking_mode"] == "mini_protocol_v1"
+
+
 def test_select_grid_legacy2025_ref_matches_expected_reference_cfg():
     grid = select_grid({"grid_preset": "legacy2025_ref"})
 

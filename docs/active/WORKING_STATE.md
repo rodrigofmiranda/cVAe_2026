@@ -81,8 +81,16 @@ The current implementation branch now includes an `MDN v2` path:
   - protocol result: `5/12`
   - main gain: `G6` recovery compared with the fastbase anchor
   - remaining gap: `G5` still concentrated at `0.8 m`
-  - local follow-up preset:
-    - `seq_mdn_v2_g5_followup_quick`
+- local follow-up preset:
+  - `seq_mdn_v2_g5_followup_quick`
+- the local follow-up improved the line again:
+  - run: `outputs/exp_20260327_032019`
+  - champion: `S23 ... cov0.06 / t=0.03 ...`
+  - protocol result: `6/12`
+  - main gain: `0.8m / 700mA` moved to pass
+  - overnight decision preset:
+    - `seq_mdn_v2_overnight_decision_quick`
+    - mixes S23-local refinement and small exploratory probes
 
 ## Operational Attention Point
 
