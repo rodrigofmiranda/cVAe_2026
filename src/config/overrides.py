@@ -68,6 +68,7 @@ class RunOverrides:
     keras_verbose: Optional[int] = None
 
     # --- Eval / dist metrics ---
+    batch_infer: Optional[int] = None
     psd_nfft: Optional[int] = None
     max_dist_samples: Optional[int] = None
     gauss_alpha: Optional[float] = None

@@ -175,6 +175,10 @@ def build_evaluation_runtime(
     eval_cfg = EvalProtocolConfig.from_dict(state_data.get("eval_protocol", {}))
     training_config = dict(state_data.get("training_config", {}))
 
+    if ov.get("batch_infer") is not None:
+        analysis_cfg.batch_infer = int(ov["batch_infer"])
+        eval_cfg.batch_infer = int(ov["batch_infer"])
+
     return EvaluationRuntime(
         run_dir=Path(run_dir),
         dataset_root=Path(resolved_dataset_root),

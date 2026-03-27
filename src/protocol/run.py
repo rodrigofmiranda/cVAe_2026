@@ -98,6 +98,8 @@ def parse_args():
                    help="Cap validation samples per experiment after split (default: all)")
     p.add_argument("--val_split", type=float, default=None)
     p.add_argument("--seed", type=int, default=None)
+    p.add_argument("--batch_infer", type=int, default=None,
+                   help="Inference batch size for evaluation/quick_predict (default: use state/preset)")
     p.add_argument("--patience", type=int, default=None,
                    help="Early stopping patience after KL warmup (default: use TRAINING_CONFIG)")
     p.add_argument("--reduce_lr_patience", type=int, default=None,
@@ -1594,6 +1596,7 @@ def run_regime(
         mode: str,
         df_split=None,
         max_points: Optional[int] = None,
+        batch_size: Optional[int] = None,
     ):
         key = (
             str(mode).strip().lower(),
@@ -1601,6 +1604,7 @@ def run_regime(
             int(seed),
             int(X_va.shape[0]),
             None if max_points is None else int(max_points),
+            None if batch_size is None else int(batch_size),
         )
         if key not in _quick_pred_cache:
             _quick_pred_cache[key] = _quick_cvae_predict(
@@ -1608,6 +1612,7 @@ def run_regime(
                 X_va,
                 D_va,
                 C_va,
+                batch_size=batch_size,
                 mc_samples=mc_samples,
                 seed=seed,
                 mode=mode,
@@ -1667,6 +1672,7 @@ def run_regime(
                     X_va=_X_va,
                     D_va=_D_va,
                     C_va=_C_va,
+                    batch_size=ov.get("batch_infer"),
                     mc_samples=_mc_dm,
                     seed=int(ov.get("seed", 42)),
                     mode="mc_concat",
@@ -1728,6 +1734,7 @@ def run_regime(
                 X_va=_X_va,
                 D_va=_D_va,
                 C_va=_C_va,
+                batch_size=ov.get("batch_infer"),
                 mc_samples=_mc_bins,
                 seed=int(ov.get("seed", 42)),
                 mode="mc_concat",
@@ -1785,6 +1792,7 @@ def run_regime(
                 X_va=_X_va,
                 D_va=_D_va,
                 C_va=_C_va,
+                batch_size=ov.get("batch_infer"),
                 mc_samples=_mc_sf,
                 seed=stat_seed,
                 mode="mc_concat",

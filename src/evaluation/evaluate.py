@@ -46,6 +46,8 @@ def parse_args():
                         help="Truncate samples per experiment (default: all)")
     parser.add_argument("--max_val_samples_per_exp", type=int, default=None,
                         help="Truncate validation samples per experiment after split")
+    parser.add_argument("--batch_infer", type=int, default=None,
+                        help="Inference batch size for evaluation/prediction")
     parser.add_argument("--psd_nfft", type=int, default=None,
                         help="Override PSD NFFT size (default: use state config)")
     parser.add_argument("--max_dist_samples", type=int, default=None,

@@ -73,6 +73,38 @@ def test_build_evaluation_runtime_roundtrip_uses_state_dataset_root(tmp_path, mo
     assert runtime.training_config["seed"] == 7
 
 
+def test_build_evaluation_runtime_applies_batch_infer_override(tmp_path, monkeypatch):
+    monkeypatch.delenv("DATASET_ROOT", raising=False)
+    monkeypatch.delenv("OUTPUT_BASE", raising=False)
+    monkeypatch.delenv("RUN_ID", raising=False)
+
+    run_dir = tmp_path / "run_0002"
+    state_path = write_state_run(
+        run_dir,
+        run_id="run_0002",
+        dataset_root="/tmp/dataset_root",
+        output_base="/tmp/outputs",
+        training_config={"seed": 7, "validation_split": 0.2},
+        data_reduction_config={"enabled": True},
+        analysis_quick=AnalysisConfig.from_dict({"batch_infer": 8192}).to_dict(),
+        normalization={"D_min": 1.0, "D_max": 1.5, "C_min": 300.0, "C_max": 900.0},
+        data_split={"split_mode": "per_experiment", "validation_split": 0.2, "seed": 7},
+        eval_protocol=EvalProtocolConfig.from_dict({"batch_infer": 8192}).to_dict(),
+        grid={"n_models": 1},
+        artifacts={"best_model_full": str(run_dir / "models" / "best_model_full.keras")},
+    )
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+
+    runtime = build_evaluation_runtime(
+        run_dir=run_dir,
+        state=state,
+        overrides={"batch_infer": 16384},
+    )
+
+    assert runtime.analysis_quick["batch_infer"] == 16384
+    assert runtime.eval_protocol["batch_infer"] == 16384
+
+
 def test_train_engine_does_not_require_env_vars(monkeypatch):
     monkeypatch.delenv("DATASET_ROOT", raising=False)
     monkeypatch.delenv("OUTPUT_BASE", raising=False)
