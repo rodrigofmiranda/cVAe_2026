@@ -263,6 +263,7 @@ def test_select_grid_seq_imdd_graybox_smoke_builds_single_gaussian_candidate():
     assert cfg["decoder_distribution"] == "gaussian"
     assert cfg["window_size"] == 7
     assert cfg["seq_hidden_size"] == 16
+    assert cfg["batch_size"] == 8192
     assert cfg["imdd_poly_orders"] == [1, 3, 5]
 
 

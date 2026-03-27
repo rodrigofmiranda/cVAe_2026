@@ -630,7 +630,7 @@ def _preset_seq_imdd_graybox_smoke() -> List[Dict[str, Any]]:
     return [
         {
             "group": "SGB0_seq_imdd_graybox_smoke",
-            "tag": "SGB0imdd_W7_h16_lat4_b0p001_fb0p10_lr0p0003_bs4096_L64-128_poly135",
+            "tag": "SGB0imdd_W7_h16_lat4_b0p001_fb0p10_lr0p0003_bs8192_L64-128_poly135",
             "cfg": _cfg(
                 arch_variant="seq_imdd_graybox",
                 layer_sizes=[64, 128],
@@ -638,7 +638,7 @@ def _preset_seq_imdd_graybox_smoke() -> List[Dict[str, Any]]:
                 beta=0.001,
                 free_bits=0.10,
                 lr=3e-4,
-                batch_size=4096,
+                batch_size=8192,
                 kl_anneal_epochs=5,
                 window_size=7,
                 window_stride=1,
