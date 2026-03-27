@@ -2698,6 +2698,114 @@ def _preset_seq_mdn_v2_overnight_5090safe_quick() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_mdn_v2_ceiling_probe_quick() -> List[Dict[str, Any]]:
+    """Ceiling probe: test untouched hyperparameter axes for MDN v2.
+
+    The best MDN v2 result so far is 9/12 (S25, W7/h64/lat6/mdn3).
+    Three regimes fail at 0.8 m:
+      - 300 mA: G3 (cov_rel_var = 0.226, threshold < 0.20)
+      - 500 mA: G5 (delta_jb_stat_rel = 0.574, threshold < 0.20)
+      - 700 mA: G5 (delta_jb_stat_rel = 0.468, threshold < 0.20)
+
+    This grid probes axes that remained fixed throughout the MDN v2 line:
+      A) mdn_components = 5  (was always 3)
+      B) deeper decoder      (was always [128,256,512])
+      C) latent_dim = 8      (was max 6)
+      D) higher beta          (was always 0.002)
+      E) higher lambda_axis   (was always 0.01)
+
+    Each candidate changes exactly one axis from the champion baseline
+    so the effect is attributable.
+    """
+    analysis_quick_overrides = {
+        "train_regime_diagnostics_enabled": False,
+        "mini_reanalysis_enabled": True,
+        "mini_reanalysis_scope": "all12",
+        "mini_reanalysis_max_samples_per_regime": 4096,
+        "grid_ranking_mode": "mini_protocol_v1",
+        "batch_infer": 16384,
+    }
+
+    _base = dict(
+        arch_variant="seq_bigru_residual",
+        layer_sizes=[128, 256, 512],
+        latent_dim=6,
+        beta=0.002,
+        free_bits=0.10,
+        lr=2e-4,
+        batch_size=8192,
+        kl_anneal_epochs=80,
+        window_size=7,
+        window_stride=1,
+        window_pad_mode="edge",
+        seq_hidden_size=64,
+        seq_num_layers=1,
+        seq_bidirectional=True,
+        seq_gru_unroll=True,
+        lambda_mmd=0.25,
+        mmd_mode="mean_residual",
+        lambda_axis=0.01,
+        lambda_psd=0.0,
+        lambda_coverage=0.06,
+        coverage_levels=[0.50, 0.80, 0.95],
+        tail_levels=[0.05, 0.95],
+        coverage_temperature=0.03,
+        decoder_distribution="mdn",
+        mdn_components=3,
+        shuffle_train_batches=True,
+    )
+
+    def _variant(overrides: Dict[str, Any]) -> Dict[str, Any]:
+        cfg = dict(_base)
+        cfg.update(overrides)
+        return _cfg(**cfg)
+
+    return [
+        # 0 — Champion control (exact S25 winner for direct comparison)
+        dict(
+            group="S26_seq_mdn_v2_ceiling_probe",
+            tag="S26seq_control_W7_h64_lat6_mdn3_cov0p06_t0p03_L128-256-512",
+            cfg=_variant({}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        # A — MDN 5 components (more mixture capacity for residual shape)
+        dict(
+            group="S26_seq_mdn_v2_ceiling_probe",
+            tag="S26seq_mdn5_W7_h64_lat6_cov0p06_t0p03_L128-256-512",
+            cfg=_variant({"mdn_components": 5}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        # B — Deeper decoder (extra capacity for covariance fit)
+        dict(
+            group="S26_seq_mdn_v2_ceiling_probe",
+            tag="S26seq_decdeep_W7_h64_lat6_mdn3_cov0p06_t0p03_L128-256-512-256",
+            cfg=_variant({"layer_sizes": [128, 256, 512, 256]}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        # C — Latent dim 8 (more latent capacity)
+        dict(
+            group="S26_seq_mdn_v2_ceiling_probe",
+            tag="S26seq_lat8_W7_h64_mdn3_cov0p06_t0p03_L128-256-512",
+            cfg=_variant({"latent_dim": 8}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        # D — Higher beta (stronger KL regularization → more gaussian latent)
+        dict(
+            group="S26_seq_mdn_v2_ceiling_probe",
+            tag="S26seq_beta5e3_W7_h64_lat6_mdn3_cov0p06_t0p03_L128-256-512",
+            cfg=_variant({"beta": 0.005}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        # E — Higher lambda_axis (direct shape regularization)
+        dict(
+            group="S26_seq_mdn_v2_ceiling_probe",
+            tag="S26seq_axis5e2_W7_h64_lat6_mdn3_cov0p06_t0p03_L128-256-512",
+            cfg=_variant({"lambda_axis": 0.05}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+    ]
+
+
 def _preset_seq_mdn_v2_a600_tail_explore_quick() -> List[Dict[str, Any]]:
     """A600-only overnight grid focused on tail calibration headroom.
 
@@ -3075,6 +3183,8 @@ def select_grid(
             grid = _preset_seq_mdn_v2_overnight_decision_quick()
         elif preset_name == "seq_mdn_v2_overnight_5090safe_quick":
             grid = _preset_seq_mdn_v2_overnight_5090safe_quick()
+        elif preset_name == "seq_mdn_v2_ceiling_probe_quick":
+            grid = _preset_seq_mdn_v2_ceiling_probe_quick()
         elif preset_name == "seq_mdn_v2_a600_tail_explore_quick":
             grid = _preset_seq_mdn_v2_a600_tail_explore_quick()
         elif preset_name == "best_compare_large":
