@@ -8,6 +8,8 @@ CONTAINER_NAME="${CVAE_TF25_CONTAINER_NAME:-cvae_tf25_gpu}"
 SESSION_NAME="${CVAE_TF25_TMUX_SESSION:-cvae_tf25_gpu}"
 IMAGE_NAME="${CVAE_TF25_IMAGE:-vlc/tf25-gpu-ready:1}"
 CONTAINER_WORKDIR="${CVAE_TF25_WORKDIR:-/workspace/2026/feat_seq_bigru_residual_cvae}"
+TF_CPP_MIN_LOG_LEVEL_VALUE="${CVAE_TF_CPP_MIN_LOG_LEVEL:-2}"
+TF_ENABLE_ONEDNN_OPTS_VALUE="${CVAE_TF_ENABLE_ONEDNN_OPTS:-0}"
 
 if ! command -v tmux >/dev/null 2>&1; then
   echo "tmux is required on the host for persistent container sessions." >&2
@@ -30,6 +32,8 @@ cd $(printf '%q' "${REPO_ROOT}") && exec docker run --rm -it \
   --security-opt apparmor=unconfined \
   -e NVIDIA_VISIBLE_DEVICES=all \
   -e NVIDIA_DRIVER_CAPABILITIES=compute,utility \
+  -e TF_CPP_MIN_LOG_LEVEL=$(printf '%q' "${TF_CPP_MIN_LOG_LEVEL_VALUE}") \
+  -e TF_ENABLE_ONEDNN_OPTS=$(printf '%q' "${TF_ENABLE_ONEDNN_OPTS_VALUE}") \
   -u $(printf '%q' "$(id -u):$(id -g)") \
   -v $(printf '%q' "${REPO_ROOT}:${CONTAINER_WORKDIR}") \
   -w $(printf '%q' "${CONTAINER_WORKDIR}") \
