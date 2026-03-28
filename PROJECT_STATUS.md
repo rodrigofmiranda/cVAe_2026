@@ -1,23 +1,28 @@
 # PROJECT_STATUS
 
-> Atualizado em 2026-03-27.
-> Este arquivo e o inventario oficial das worktrees e do estado ativo do repositorio.
+> Atualizado em 2026-03-28.
+> Este arquivo e o inventario oficial das worktrees e do estado ativo do repositorio nesta worktree dedicada ao flow.
 
 ## Worktrees
 
 Worktrees git registradas neste repositorio:
 
 1. `/workspace/2026/feat_seq_bigru_residual_cvae`
-   - branch: `feat/mdn-g5-recovery`
-   - status: worktree ativa atual
-   - foco: recuperar as falhas residuais de `G5` perto de `0.8 m` partindo da
-     melhor linha MDN estavel
-
-No momento nao ha worktree secundaria registrada por `git worktree list`.
+   - branch: `feat/seq-imdd-graybox-mdn`
+   - status: linha paralela ja registrada
+   - foco: rota graybox / IMDD e documentacao consolidada
+2. `/workspace/2026/feat_seq_bigru_residual_mdn_route`
+   - branch: `feat/seq-bigru-residual-mdn-route`
+   - status: worktree paralela ja registrada
+   - foco: reruns dedicados da linha `seq_bigru_residual + MDN`
+3. `/workspace/2026/feat_seq_bigru_residual_flow_route`
+   - branch: `feat/seq-bigru-residual-spline-flow`
+   - status: worktree ativa desta copia
+   - foco: rota dedicada `seq_bigru_residual + flow`
 
 ## Branch Atual
 
-- branch ativa: `feat/mdn-g5-recovery`
+- branch ativa: `feat/seq-bigru-residual-spline-flow`
 - entrypoint canonico:
   - `python -m src.protocol.run`
 
@@ -29,6 +34,30 @@ O fluxo publico de experimentacao permanece:
   - `--reuse_model_run_dir`
 
 ## Estado Cientifico
+
+Decisao desta branch:
+
+- o `flow_family="coupling_2d"` foi implementado, testado e formalmente
+  marcado como linha negativa nesta iteracao
+- runs de referencia desta branch:
+  - `outputs/exp_20260328_204607`
+    - `seq_flow_coupling_smoke`
+    - `0/12`
+    - valor: prova estrutural do pipeline
+  - `outputs/exp_20260328_210003`
+    - `seq_flow_coupling_guided_quick`
+    - `0/12`
+    - valor: resultado cientifico negativo, nao apenas smoke
+- leitura:
+  - os 4 candidatos do quick ficaram `0/12` tambem no mini-protocol
+  - nao houve `flag_undertrained`
+  - nao houve `flag_posterior_collapse`
+  - houve `flag_unstable`
+  - portanto o gargalo nao e ajuste fino de hiperparametro
+- decisao operacional:
+  - nao abrir outro sweep da formulacao atual `coupling_2d`
+  - se flow voltar mais tarde, deve ser outra familia estrutural
+  - o anchor de verdade continua sendo a linha MDN `10/12`
 
 Referencias principais hoje:
 
@@ -51,7 +80,8 @@ Leitura atual:
 
 - a familia `seq_bigru_residual` continua sendo a principal linha temporal
 - a melhor MDN ficou competitiva, mas ainda abaixo da referencia gaussiana
-- `sample-aware MMD`, o flow `sinh-arcsinh` atual e o weighting puro por regime
+- `sample-aware MMD`, o flow `sinh-arcsinh` antigo, o novo flow `coupling_2d`
+  e o weighting puro por regime
   devem ser tratados como linhas negativas nesta iteracao
 - o gargalo restante segue concentrado em `0.8 m`, principalmente em `G5`
 - a linha ativa agora e `MDN v2`:
@@ -209,13 +239,13 @@ Artefatos operacionais principais:
 
 Raiz:
 
-- [README.md](/workspace/2026/feat_seq_bigru_residual_cvae/README.md)
+- [README.md](/workspace/2026/feat_seq_bigru_residual_flow_route/README.md)
   - guia principal do repositorio para leitura no GitHub
-- [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_cvae/PROJECT_STATUS.md)
+- [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_flow_route/PROJECT_STATUS.md)
   - inventario oficial das worktrees e estado ativo
-- [CODEX.md](/workspace/2026/feat_seq_bigru_residual_cvae/CODEX.md)
+- [CODEX.md](/workspace/2026/feat_seq_bigru_residual_flow_route/CODEX.md)
   - stub de auto-discovery para Codex
-- [CLAUDE.md](/workspace/2026/feat_seq_bigru_residual_cvae/CLAUDE.md)
+- [CLAUDE.md](/workspace/2026/feat_seq_bigru_residual_flow_route/CLAUDE.md)
   - stub de auto-discovery para Claude
 
 Docs ativos:

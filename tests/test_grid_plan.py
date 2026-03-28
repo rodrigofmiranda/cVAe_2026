@@ -197,6 +197,30 @@ def test_select_grid_seq_mdn_smoke_builds_single_mdn_candidate():
     assert cfg["shuffle_train_batches"] is False
 
 
+def test_select_grid_seq_flow_coupling_smoke_builds_single_flow_candidate():
+    grid = select_grid({"grid_preset": "seq_flow_coupling_smoke"})
+
+    assert len(grid) == 1
+    cfg = grid[0]["cfg"]
+    assert cfg["arch_variant"] == "seq_bigru_residual"
+    assert cfg["decoder_distribution"] == "flow"
+    assert cfg["flow_family"] == "coupling_2d"
+    assert cfg["flow_identity_init"] is True
+    assert cfg["shuffle_train_batches"] is True
+
+
+def test_select_grid_seq_flow_coupling_guided_quick_builds_four_run_compare():
+    grid = select_grid({"grid_preset": "seq_flow_coupling_guided_quick"})
+
+    assert len(grid) == 4
+    assert {item["group"] for item in grid} == {"F5_seq_flow_coupling_quick"}
+    assert all(item["cfg"]["arch_variant"] == "seq_bigru_residual" for item in grid)
+    assert all(item["cfg"]["decoder_distribution"] == "flow" for item in grid)
+    assert all(item["cfg"]["flow_family"] == "coupling_2d" for item in grid)
+    assert {item["cfg"]["latent_dim"] for item in grid} == {4, 6}
+    assert {item["cfg"]["seq_hidden_size"] for item in grid} == {64, 96}
+
+
 def test_select_grid_seq_mdn_proof_builds_two_component_sweep():
     grid = select_grid({"grid_preset": "seq_mdn_proof"})
 

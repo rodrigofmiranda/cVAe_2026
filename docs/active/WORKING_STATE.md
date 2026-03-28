@@ -8,11 +8,46 @@ start here.
 ## Current Worktree
 
 - active worktree:
-  - `/workspace/2026/feat_seq_bigru_residual_cvae`
+  - `/workspace/2026/feat_seq_bigru_residual_flow_route`
 - active branch:
-  - `feat/mdn-g5-recovery`
+  - `feat/seq-bigru-residual-spline-flow`
 - git worktree count:
-  - `1`
+  - `3`
+
+## Current Flow Route Snapshot
+
+- route purpose:
+  - isolate the next conditional-density line on its own branch/worktree
+- decoder families currently wired in this lane:
+  - `flow_family="coupling_2d"`:
+    - new default here
+    - joint 2-D affine coupling flow
+  - `flow_family="sinh_arcsinh"`:
+    - legacy control / compatibility only
+- new presets:
+  - `seq_flow_coupling_smoke`
+  - `seq_flow_coupling_guided_quick`
+- first structural smoke in this lane:
+  - `outputs/exp_20260328_204607`
+  - result: `0/12`
+  - reading:
+    - integration success
+    - scientific result still negative
+    - diagnostics: `flag_undertrained=True`, `flag_posterior_collapse=True`,
+      `active_dim_ratio=0.0`
+- first meaningful quick in this lane:
+  - `outputs/exp_20260328_210003`
+  - preset: `seq_flow_coupling_guided_quick`
+  - result: `0/12`
+  - reading:
+    - not just a smoke failure
+    - all 4 grid candidates also ended `0/12` on the mini protocol
+    - diagnostics no longer point to undertraining or collapse
+    - the present `coupling_2d` formulation is a formal negative result
+- branch-local decision:
+  - stop sweeping the current `flow_family="coupling_2d"`
+  - preserve this branch as a documented negative route
+  - if flow returns later, use a materially different family
 
 ## Current Scientific Anchors
 

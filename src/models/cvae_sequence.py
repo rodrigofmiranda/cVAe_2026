@@ -60,7 +60,12 @@ from src.models.losses import (
     CondPriorDeltaVAELoss,
     CondPriorVAELoss,
     StdNormalHeteroscedasticVAELoss,
+    _flow_deterministic_point,
+    _flow_layer_family_from_names,
     _mdn_expected_mean,
+    _resolve_decoder_distribution,
+    _resolve_flow_family,
+    _sample_flow,
     _sample_mdn,
 )
 from src.models.sampling import Sampling
@@ -133,6 +138,21 @@ class SliceFeatures(tf.keras.layers.Layer):
 
     def get_config(self):
         return {**super().get_config(), "start": self.start, "end": self.end}
+
+
+@tf.keras.utils.register_keras_serializable(package="seq_cvae")
+class ScaleTanh(tf.keras.layers.Layer):
+    """Bound activations to ``[-gain, gain]`` with a smooth tanh transform."""
+
+    def __init__(self, gain: float, **kwargs):
+        super().__init__(**kwargs)
+        self.gain = float(gain)
+
+    def call(self, x):
+        return self.gain * tf.math.tanh(x)
+
+    def get_config(self):
+        return {**super().get_config(), "gain": self.gain}
 
 
 # ======================================================================
@@ -382,9 +402,10 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
         delta_mean = MLP(z, x_center, d, c)[:, :2]
         y_mean     = x_center + delta_mean
 
-    Output is Gaussian or MDN depending on ``decoder_distribution``:
+    Output is Gaussian, MDN, or flow depending on ``decoder_distribution``:
     - Gaussian: ``(mean_I, mean_Q, logvar_I, logvar_Q)``
     - MDN: flattened ``(logits[K], mean[K,2], logvar[K,2])``
+    - Flow: family-specific conditional-flow parameters
 
     Parameters
     ----------
@@ -403,6 +424,15 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
         cfg.get("decoder_distribution", "gaussian")
     ).strip().lower()
     mdn_components = int(cfg.get("mdn_components", 1))
+    flow_family = _resolve_flow_family(cfg.get("flow_family", "coupling_2d"))
+    flow_identity_init = bool(cfg.get("flow_identity_init", True))
+    flow_log_scale_gain = float(cfg.get("flow_log_scale_gain", 0.35))
+    flow_skew_gain = float(cfg.get("flow_skew_gain", 0.75))
+    flow_log_tail_gain = float(cfg.get("flow_log_tail_gain", 0.20))
+    flow_coupling_shift_gain = float(cfg.get("flow_coupling_shift_gain", 1.25))
+    flow_coupling_log_scale_gain = float(
+        cfg.get("flow_coupling_log_scale_gain", 0.75)
+    )
 
     z_in      = layers.Input(shape=(latent,), name="z_input")
     x_cent_in = layers.Input(shape=(2,),      name="x_center_input")
@@ -424,6 +454,47 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
         y_mean = layers.Add(name="y_mean_components")([x_center_rep, delta_mean])
         y_mean_flat = layers.Reshape((2 * k,), name="y_mean_flat")(y_mean)
         out = layers.Concatenate(name="output_params")([logits, y_mean_flat, delta_lv_flat])
+    elif decoder_distribution == "flow":
+        raw_out = layers.Dense(
+            8,
+            name="output_params_raw",
+            kernel_initializer="zeros" if flow_identity_init else "glorot_uniform",
+            bias_initializer="zeros",
+        )(h)
+        delta_loc = SliceFeatures(0, 2, name="delta_loc")(raw_out)
+        y_loc = layers.Add(name="y_loc_residual")([x_cent_in, delta_loc])
+        if flow_family == "sinh_arcsinh":
+            log_scale_raw = SliceFeatures(2, 4, name="flow_log_scale_raw")(raw_out)
+            skew_raw = SliceFeatures(4, 6, name="flow_skew_raw")(raw_out)
+            log_tail_raw = SliceFeatures(6, 8, name="flow_log_tail_raw")(raw_out)
+            log_scale = ScaleTanh(flow_log_scale_gain, name="flow_log_scale")(log_scale_raw)
+            skew = ScaleTanh(flow_skew_gain, name="flow_skew")(skew_raw)
+            log_tail = ScaleTanh(flow_log_tail_gain, name="flow_log_tail")(log_tail_raw)
+            out = layers.Concatenate(name="output_params")(
+                [y_loc, log_scale, skew, log_tail]
+            )
+        else:
+            base_log_scale_raw = SliceFeatures(
+                2, 4, name="flow_base_log_scale_raw"
+            )(raw_out)
+            coupling_shift_raw = SliceFeatures(
+                4, 6, name="flow_coupling_shift_raw"
+            )(raw_out)
+            coupling_log_scale_raw = SliceFeatures(
+                6, 8, name="flow_coupling_log_scale_raw"
+            )(raw_out)
+            base_log_scale = ScaleTanh(
+                flow_log_scale_gain, name="flow_base_log_scale"
+            )(base_log_scale_raw)
+            coupling_shift = ScaleTanh(
+                flow_coupling_shift_gain, name="flow_coupling_shift"
+            )(coupling_shift_raw)
+            coupling_log_scale = ScaleTanh(
+                flow_coupling_log_scale_gain, name="flow_coupling_log_scale"
+            )(coupling_log_scale_raw)
+            out = layers.Concatenate(name="output_params")(
+                [y_loc, base_log_scale, coupling_shift, coupling_log_scale]
+            )
     else:
         # Residual: predict (delta_mean, delta_log_var), then add x_center to mean
         raw_out = layers.Dense(4, name="output_params_raw")(h)
@@ -508,6 +579,7 @@ def build_seq_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
     coverage_temperature = float(cfg.get("coverage_temperature", 0.05))
     mmd_mode = str(cfg.get("mmd_mode", "mean_residual"))
     decoder_distribution = str(cfg.get("decoder_distribution", "gaussian"))
+    flow_family = str(cfg.get("flow_family", "coupling_2d"))
     mdn_components = int(cfg.get("mdn_components", 1))
     loss_layer = CondPriorVAELoss(
         beta=0.0, free_bits=free_bits,
@@ -524,6 +596,7 @@ def build_seq_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
         coverage_temperature=coverage_temperature,
         mmd_mode=mmd_mode,
         decoder_distribution=decoder_distribution,
+        flow_family=flow_family,
         mdn_components=mdn_components,
         name="condprior_loss",
     )
@@ -591,10 +664,34 @@ def create_seq_inference_model(
 
     x_center = ExtractCenterFrame(half, name="x_center_extract")(x_win_in)
     out_params = dec([z, x_center, d_in, c_in])
-    out_dim = int(dec.output_shape[-1])
-    is_mdn = out_dim > 4 and out_dim % 5 == 0
+    decoder_layer_names = {layer.name for layer in dec.layers}
+    try:
+        loss_layer = full_model.get_layer("condprior_loss")
+        decoder_distribution = _resolve_decoder_distribution(
+            getattr(loss_layer, "decoder_distribution", None)
+            or loss_layer.get_config().get("decoder_distribution", "gaussian")
+        )
+        flow_family = _resolve_flow_family(
+            getattr(loss_layer, "flow_family", None)
+            or loss_layer.get_config().get(
+                "flow_family",
+                _flow_layer_family_from_names(decoder_layer_names),
+            )
+        )
+    except Exception:
+        out_dim = int(dec.output_shape[-1])
+        if out_dim > 4 and out_dim % 5 == 0:
+            decoder_distribution = "mdn"
+            flow_family = "coupling_2d"
+        elif out_dim == 8 and any(name.startswith("flow_") for name in decoder_layer_names):
+            decoder_distribution = "flow"
+            flow_family = _flow_layer_family_from_names(decoder_layer_names)
+        else:
+            decoder_distribution = "gaussian"
+            flow_family = "coupling_2d"
 
-    if is_mdn:
+    if decoder_distribution == "mdn":
+        out_dim = int(dec.output_shape[-1])
         k = out_dim // 5
         logits = SliceFeatures(0, k, name="mixture_logits")(out_params)
         y_mean_flat = SliceFeatures(k, k + 2 * k, name="y_mean_flat")(out_params)
@@ -619,6 +716,17 @@ def create_seq_inference_model(
                 lambda xs: _sample_mdn(xs[0], xs[1], xs[2]),
                 name="y_sample",
             )([logits, y_mean_components, y_log_var_components])
+    elif decoder_distribution == "flow":
+        if deterministic:
+            y = layers.Lambda(
+                lambda t: _flow_deterministic_point(t, flow_family=flow_family),
+                name="y_det",
+            )(out_params)
+        else:
+            y = layers.Lambda(
+                lambda t: _sample_flow(t, flow_family=flow_family),
+                name="y_sample",
+            )(out_params)
     else:
         y_mean = SliceFeatures(0, 2, name="y_mean")(out_params)
         y_log_var_raw = SliceFeatures(2, 4, name="y_logvar_slice")(out_params)
@@ -666,6 +774,7 @@ def load_seq_model(path: str) -> tf.keras.Model:
             "ExtractCenterFrame": ExtractCenterFrame,
             "ClipValues": ClipValues,
             "SliceFeatures": SliceFeatures,
+            "ScaleTanh": ScaleTanh,
         },
         compile=False,
     )

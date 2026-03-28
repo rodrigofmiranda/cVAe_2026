@@ -241,10 +241,36 @@ def _resolve_decoder_distribution(mode: str | None) -> str:
         "mdn": "mdn",
         "mixture": "mdn",
         "mixture_density": "mdn",
+        "flow": "flow",
+        "normalizing_flow": "flow",
+        "conditional_flow": "flow",
     }
     if mode_norm not in aliases:
         raise ValueError(
-            "decoder_distribution must be one of {'gaussian', 'mdn'}; "
+            "decoder_distribution must be one of {'gaussian', 'mdn', 'flow'}; "
+            f"got {mode!r}"
+        )
+    return aliases[mode_norm]
+
+
+def _resolve_flow_family(mode: str | None) -> str:
+    """Return the canonical flow decoder family."""
+    mode_norm = str(mode or "coupling_2d").strip().lower()
+    aliases = {
+        "coupling": "coupling_2d",
+        "coupling_2d": "coupling_2d",
+        "affine_coupling": "coupling_2d",
+        "affine_coupling_2d": "coupling_2d",
+        "joint_affine_coupling": "coupling_2d",
+        "sinh_arcsinh": "sinh_arcsinh",
+        "sinh_arcsinh_flow": "sinh_arcsinh",
+        "sas": "sinh_arcsinh",
+        "axis_sas": "sinh_arcsinh",
+        "legacy_sas": "sinh_arcsinh",
+    }
+    if mode_norm not in aliases:
+        raise ValueError(
+            "flow_family must be one of {'coupling_2d', 'sinh_arcsinh'}; "
             f"got {mode!r}"
         )
     return aliases[mode_norm]
@@ -312,6 +338,275 @@ def _sample_mdn(
     mean_sel = tf.gather_nd(comp_mean, gather_idx)
     log_var_sel = tf.gather_nd(comp_log_var, gather_idx)
     return _sample_heteroscedastic(mean_sel, log_var_sel)
+
+
+FLOW_LOG_SCALE_CLAMP_LO = -8.0
+FLOW_LOG_SCALE_CLAMP_HI = 3.0
+FLOW_SKEW_CLAMP = 3.0
+FLOW_LOG_TAIL_CLAMP_LO = np.log(0.5)
+FLOW_LOG_TAIL_CLAMP_HI = np.log(2.0)
+FLOW_COUPLING_SHIFT_PARAM_CLAMP = 3.0
+FLOW_COUPLING_SHIFT_EFFECT_CLAMP = 6.0
+FLOW_COUPLING_LOG_SCALE_PARAM_CLAMP = 2.0
+FLOW_COUPLING_LOG_SCALE_EFFECT_CLAMP = 2.5
+
+
+def _flow_layer_family_from_names(layer_names) -> str:
+    """Infer the flow family from decoder layer names."""
+    names = {str(name) for name in (layer_names or [])}
+    if any("flow_coupling_" in name for name in names):
+        return "coupling_2d"
+    if "flow_skew" in names or "flow_log_tail" in names:
+        return "sinh_arcsinh"
+    return "coupling_2d"
+
+
+def _unpack_flow_params(
+    out_params: tf.Tensor,
+    *,
+    flow_family: str = "coupling_2d",
+) -> tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
+    """Split conditional flow output into family-specific parameter blocks."""
+    family = _resolve_flow_family(flow_family)
+    y_loc = out_params[:, :2]
+    p1 = out_params[:, 2:4]
+    p2 = out_params[:, 4:6]
+    p3 = out_params[:, 6:8]
+    return y_loc, p1, p2, p3
+
+
+def _clamp_sas_flow_params(
+    log_scale: tf.Tensor,
+    skew: tf.Tensor,
+    log_tail: tf.Tensor,
+) -> tuple[tf.Tensor, tf.Tensor, tf.Tensor]:
+    """Clamp legacy sinh-arcsinh flow parameters to a stable band."""
+    log_scale = tf.clip_by_value(
+        log_scale, FLOW_LOG_SCALE_CLAMP_LO, FLOW_LOG_SCALE_CLAMP_HI
+    )
+    skew = tf.clip_by_value(skew, -FLOW_SKEW_CLAMP, FLOW_SKEW_CLAMP)
+    log_tail = tf.clip_by_value(
+        log_tail, FLOW_LOG_TAIL_CLAMP_LO, FLOW_LOG_TAIL_CLAMP_HI
+    )
+    return log_scale, skew, log_tail
+
+
+def _flow_forward_sinh_arcsinh(
+    eps: tf.Tensor,
+    *,
+    y_loc: tf.Tensor,
+    log_scale: tf.Tensor,
+    skew: tf.Tensor,
+    log_tail: tf.Tensor,
+) -> tf.Tensor:
+    """Transform base Gaussian samples into observations via per-axis SAS flow."""
+    log_scale, skew, log_tail = _clamp_sas_flow_params(log_scale, skew, log_tail)
+    scale = tf.exp(log_scale)
+    tail = tf.exp(log_tail)
+    warped = tf.sinh((tf.math.asinh(eps) + skew) / tail)
+    return y_loc + scale * warped
+
+
+def _flow_inverse_sinh_arcsinh(
+    y: tf.Tensor,
+    *,
+    y_loc: tf.Tensor,
+    log_scale: tf.Tensor,
+    skew: tf.Tensor,
+    log_tail: tf.Tensor,
+) -> tuple[tf.Tensor, tf.Tensor]:
+    """Map observations back to the standard-normal base for SAS flow."""
+    log_scale, skew, log_tail = _clamp_sas_flow_params(log_scale, skew, log_tail)
+    scale = tf.exp(log_scale)
+    tail = tf.exp(log_tail)
+    x = (y - y_loc) / (scale + 1e-6)
+    base = tf.sinh(tail * tf.math.asinh(x) - skew)
+    log_abs_det = (
+        log_tail
+        + tf.math.log(tf.cosh(tail * tf.math.asinh(x) - skew) + 1e-6)
+        - 0.5 * tf.math.log1p(tf.square(x))
+        - log_scale
+    )
+    return base, tf.reduce_sum(log_abs_det, axis=-1)
+
+
+def _clamp_coupling_flow_params(
+    base_log_scale: tf.Tensor,
+    coupling_shift: tf.Tensor,
+    coupling_log_scale: tf.Tensor,
+) -> tuple[tf.Tensor, tf.Tensor, tf.Tensor]:
+    """Clamp 2-D affine-coupling flow parameters."""
+    base_log_scale = tf.clip_by_value(
+        base_log_scale, FLOW_LOG_SCALE_CLAMP_LO, FLOW_LOG_SCALE_CLAMP_HI
+    )
+    coupling_shift = tf.clip_by_value(
+        coupling_shift,
+        -FLOW_COUPLING_SHIFT_PARAM_CLAMP,
+        FLOW_COUPLING_SHIFT_PARAM_CLAMP,
+    )
+    coupling_log_scale = tf.clip_by_value(
+        coupling_log_scale,
+        -FLOW_COUPLING_LOG_SCALE_PARAM_CLAMP,
+        FLOW_COUPLING_LOG_SCALE_PARAM_CLAMP,
+    )
+    return base_log_scale, coupling_shift, coupling_log_scale
+
+
+def _coupling_effects(
+    base0: tf.Tensor,
+    coupling_shift: tf.Tensor,
+    coupling_log_scale: tf.Tensor,
+) -> tuple[tf.Tensor, tf.Tensor]:
+    """Return shift/log-scale effects for the second axis in the 2-D coupling flow."""
+    shift = coupling_shift[:, :1] + coupling_shift[:, 1:2] * tf.tanh(base0)
+    log_scale = (
+        coupling_log_scale[:, :1]
+        + coupling_log_scale[:, 1:2] * tf.tanh(base0)
+    )
+    shift = tf.clip_by_value(
+        shift,
+        -FLOW_COUPLING_SHIFT_EFFECT_CLAMP,
+        FLOW_COUPLING_SHIFT_EFFECT_CLAMP,
+    )
+    log_scale = tf.clip_by_value(
+        log_scale,
+        -FLOW_COUPLING_LOG_SCALE_EFFECT_CLAMP,
+        FLOW_COUPLING_LOG_SCALE_EFFECT_CLAMP,
+    )
+    return shift, log_scale
+
+
+def _flow_forward_coupling_2d(
+    eps: tf.Tensor,
+    *,
+    y_loc: tf.Tensor,
+    base_log_scale: tf.Tensor,
+    coupling_shift: tf.Tensor,
+    coupling_log_scale: tf.Tensor,
+) -> tf.Tensor:
+    """Transform base Gaussian samples via a simple joint 2-D affine coupling flow."""
+    base_log_scale, coupling_shift, coupling_log_scale = _clamp_coupling_flow_params(
+        base_log_scale,
+        coupling_shift,
+        coupling_log_scale,
+    )
+    base_scale = tf.exp(base_log_scale)
+    base0 = eps[:, :1]
+    y0 = y_loc[:, :1] + base_scale[:, :1] * base0
+    shift, eff_log_scale = _coupling_effects(base0, coupling_shift, coupling_log_scale)
+    inner1 = tf.exp(eff_log_scale) * eps[:, 1:2] + shift
+    y1 = y_loc[:, 1:2] + base_scale[:, 1:2] * inner1
+    return tf.concat([y0, y1], axis=-1)
+
+
+def _flow_inverse_coupling_2d(
+    y: tf.Tensor,
+    *,
+    y_loc: tf.Tensor,
+    base_log_scale: tf.Tensor,
+    coupling_shift: tf.Tensor,
+    coupling_log_scale: tf.Tensor,
+) -> tuple[tf.Tensor, tf.Tensor]:
+    """Map observations back to the standard-normal base for the coupling flow."""
+    base_log_scale, coupling_shift, coupling_log_scale = _clamp_coupling_flow_params(
+        base_log_scale,
+        coupling_shift,
+        coupling_log_scale,
+    )
+    base_scale = tf.exp(base_log_scale)
+    base0 = (y[:, :1] - y_loc[:, :1]) / (base_scale[:, :1] + 1e-6)
+    shift, eff_log_scale = _coupling_effects(base0, coupling_shift, coupling_log_scale)
+    inner1 = (y[:, 1:2] - y_loc[:, 1:2]) / (base_scale[:, 1:2] + 1e-6)
+    base1 = (inner1 - shift) * tf.exp(-eff_log_scale)
+    base = tf.concat([base0, base1], axis=-1)
+    log_abs_det = -(
+        base_log_scale[:, :1] + base_log_scale[:, 1:2] + eff_log_scale
+    )
+    return base, tf.squeeze(log_abs_det, axis=-1)
+
+
+def flow_reconstruction_loss(
+    y_true: tf.Tensor,
+    out_params: tf.Tensor,
+    *,
+    flow_family: str = "coupling_2d",
+) -> tf.Tensor:
+    """Exact NLL for the configured conditional flow decoder."""
+    family = _resolve_flow_family(flow_family)
+    y_loc, p1, p2, p3 = _unpack_flow_params(out_params, flow_family=family)
+    if family == "sinh_arcsinh":
+        base, log_abs_det = _flow_inverse_sinh_arcsinh(
+            y_true,
+            y_loc=y_loc,
+            log_scale=p1,
+            skew=p2,
+            log_tail=p3,
+        )
+    else:
+        base, log_abs_det = _flow_inverse_coupling_2d(
+            y_true,
+            y_loc=y_loc,
+            base_log_scale=p1,
+            coupling_shift=p2,
+            coupling_log_scale=p3,
+        )
+    log_base = -0.5 * (
+        tf.square(base) + tf.cast(np.log(2.0 * np.pi), tf.float32)
+    )
+    log_prob = tf.reduce_sum(log_base, axis=-1) + log_abs_det
+    return -tf.reduce_mean(log_prob)
+
+
+def _flow_deterministic_point(
+    out_params: tf.Tensor,
+    *,
+    flow_family: str = "coupling_2d",
+) -> tf.Tensor:
+    """Median-like deterministic representative for the configured flow family."""
+    family = _resolve_flow_family(flow_family)
+    y_loc, p1, p2, p3 = _unpack_flow_params(out_params, flow_family=family)
+    zeros = tf.zeros_like(y_loc)
+    if family == "sinh_arcsinh":
+        return _flow_forward_sinh_arcsinh(
+            zeros,
+            y_loc=y_loc,
+            log_scale=p1,
+            skew=p2,
+            log_tail=p3,
+        )
+    return _flow_forward_coupling_2d(
+        zeros,
+        y_loc=y_loc,
+        base_log_scale=p1,
+        coupling_shift=p2,
+        coupling_log_scale=p3,
+    )
+
+
+def _sample_flow(
+    out_params: tf.Tensor,
+    *,
+    flow_family: str = "coupling_2d",
+) -> tf.Tensor:
+    """Draw one stochastic sample from the configured conditional flow decoder."""
+    family = _resolve_flow_family(flow_family)
+    y_loc, p1, p2, p3 = _unpack_flow_params(out_params, flow_family=family)
+    eps = tf.random.normal(tf.shape(y_loc), dtype=y_loc.dtype)
+    if family == "sinh_arcsinh":
+        return _flow_forward_sinh_arcsinh(
+            eps,
+            y_loc=y_loc,
+            log_scale=p1,
+            skew=p2,
+            log_tail=p3,
+        )
+    return _flow_forward_coupling_2d(
+        eps,
+        y_loc=y_loc,
+        base_log_scale=p1,
+        coupling_shift=p2,
+        coupling_log_scale=p3,
+    )
 
 
 def _batch_axis_stats(x: tf.Tensor) -> tuple[tf.Tensor, tf.Tensor, tf.Tensor]:
@@ -480,6 +775,7 @@ class CondPriorVAELoss(layers.Layer):
         coverage_temperature: float = 0.05,
         mmd_mode: str = "mean_residual",
         decoder_distribution: str = "gaussian",
+        flow_family: str = "coupling_2d",
         mdn_components: int = 1,
         mmd_bandwidth: float | None = None,
         **kwargs,
@@ -500,6 +796,7 @@ class CondPriorVAELoss(layers.Layer):
         self.coverage_temperature = float(coverage_temperature)
         self.mmd_mode = _resolve_mmd_mode(mmd_mode)
         self.decoder_distribution = _resolve_decoder_distribution(decoder_distribution)
+        self.flow_family = _resolve_flow_family(flow_family)
         self.mdn_components = int(mdn_components)
         self.mmd_bandwidth = mmd_bandwidth
         self.beta = tf.Variable(
@@ -537,6 +834,24 @@ class CondPriorVAELoss(layers.Layer):
                 nonlocal y_sample_cache
                 if y_sample_cache is None:
                     y_sample_cache = _sample_mdn(logits, comp_mean, comp_log_var)
+                return y_sample_cache
+        elif self.decoder_distribution == "flow":
+            y_mean = _flow_deterministic_point(
+                out_params, flow_family=self.flow_family
+            )
+            recon = flow_reconstruction_loss(
+                y_true,
+                out_params,
+                flow_family=self.flow_family,
+            )
+            y_sample_cache = None
+
+            def _ensure_sample():
+                nonlocal y_sample_cache
+                if y_sample_cache is None:
+                    y_sample_cache = _sample_flow(
+                        out_params, flow_family=self.flow_family
+                    )
                 return y_sample_cache
         else:
             y_mean, y_log_var = _unpack_gaussian_params(out_params)
@@ -646,6 +961,7 @@ class CondPriorVAELoss(layers.Layer):
             "coverage_temperature": self.coverage_temperature,
             "mmd_mode": self.mmd_mode,
             "decoder_distribution": self.decoder_distribution,
+            "flow_family": self.flow_family,
             "mdn_components": self.mdn_components,
             "mmd_bandwidth": self.mmd_bandwidth,
         })

@@ -1355,6 +1355,131 @@ def _preset_seq_mdn_smoke() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_flow_coupling_smoke() -> List[Dict[str, Any]]:
+    """Single-candidate smoke for the joint 2-D coupling flow decoder."""
+
+    return [
+        dict(
+            group="F4_seq_flow_coupling_smoke",
+            tag="F4seq_W7_h64_lat4_flowcpl_b0p002_fb0p10_lr0p0002_bs4096_L128-256-512",
+            cfg=_cfg(
+                arch_variant="seq_bigru_residual",
+                layer_sizes=[128, 256, 512],
+                latent_dim=4,
+                beta=0.002,
+                free_bits=0.10,
+                lr=2e-4,
+                batch_size=4096,
+                kl_anneal_epochs=80,
+                window_size=7,
+                window_stride=1,
+                window_pad_mode="edge",
+                seq_hidden_size=64,
+                seq_num_layers=1,
+                seq_bidirectional=True,
+                lambda_mmd=0.0,
+                lambda_axis=0.0,
+                lambda_psd=0.0,
+                lambda_coverage=0.0,
+                decoder_distribution="flow",
+                flow_family="coupling_2d",
+                flow_identity_init=True,
+                flow_log_scale_gain=0.35,
+                flow_coupling_shift_gain=1.25,
+                flow_coupling_log_scale_gain=0.75,
+                shuffle_train_batches=True,
+            ),
+        ),
+    ]
+
+
+def _preset_seq_flow_coupling_guided_quick() -> List[Dict[str, Any]]:
+    """Guided quick grid for the joint 2-D coupling flow route.
+
+    Starts from the strongest seq residual/MDN region we know about and swaps
+    only the decoder family plus a small amount of calibration pressure.
+    """
+
+    analysis_quick_overrides = {
+        "mini_reanalysis_enabled": True,
+        "mini_reanalysis_scope": "all12",
+        "mini_reanalysis_max_samples_per_regime": 4096,
+        "grid_ranking_mode": "mini_protocol_v1",
+        "batch_infer": 16384,
+    }
+
+    def _seq_cfg(
+        *,
+        latent_dim: int = 4,
+        seq_hidden_size: int = 64,
+        batch_size: int = 8192,
+        lambda_mmd: float = 0.25,
+        lambda_axis: float = 0.01,
+        lambda_coverage: float = 0.04,
+        coverage_temperature: float = 0.03,
+        flow_coupling_shift_gain: float = 1.25,
+        flow_coupling_log_scale_gain: float = 0.75,
+    ) -> Dict[str, Any]:
+        return _cfg(
+            arch_variant="seq_bigru_residual",
+            layer_sizes=[128, 256, 512],
+            latent_dim=latent_dim,
+            beta=0.002,
+            free_bits=0.10,
+            lr=2e-4,
+            batch_size=batch_size,
+            kl_anneal_epochs=80,
+            window_size=7,
+            window_stride=1,
+            window_pad_mode="edge",
+            seq_hidden_size=seq_hidden_size,
+            seq_num_layers=1,
+            seq_bidirectional=True,
+            lambda_mmd=lambda_mmd,
+            mmd_mode="mean_residual",
+            lambda_axis=lambda_axis,
+            lambda_psd=0.0,
+            lambda_coverage=lambda_coverage,
+            coverage_levels=[0.50, 0.80, 0.95],
+            tail_levels=[0.05, 0.95],
+            coverage_temperature=coverage_temperature,
+            decoder_distribution="flow",
+            flow_family="coupling_2d",
+            flow_identity_init=True,
+            flow_log_scale_gain=0.35,
+            flow_coupling_shift_gain=flow_coupling_shift_gain,
+            flow_coupling_log_scale_gain=flow_coupling_log_scale_gain,
+            shuffle_train_batches=True,
+        )
+
+    return [
+        dict(
+            group="F5_seq_flow_coupling_quick",
+            tag="F5seq_W7_h64_lat4_flowcpl_b0p002_lmmd0p25_cov0p04_t0p03_fb0p10_lr0p0002_bs8192_L128-256-512",
+            cfg=_seq_cfg(),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="F5_seq_flow_coupling_quick",
+            tag="F5seq_W7_h64_lat6_flowcpl_b0p002_lmmd0p25_cov0p04_t0p03_fb0p10_lr0p0002_bs8192_L128-256-512",
+            cfg=_seq_cfg(latent_dim=6),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="F5_seq_flow_coupling_quick",
+            tag="F5seq_W7_h64_lat4_flowcpl_b0p002_lmmd0p10_cov0p00_fb0p10_lr0p0002_bs8192_L128-256-512",
+            cfg=_seq_cfg(lambda_mmd=0.10, lambda_axis=0.0, lambda_coverage=0.0),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="F5_seq_flow_coupling_quick",
+            tag="F5seq_W7_h96_lat6_flowcpl_b0p002_lmmd0p25_cov0p04_t0p03_fb0p10_lr0p0002_bs6144_L128-256-512",
+            cfg=_seq_cfg(latent_dim=6, seq_hidden_size=96, batch_size=6144),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+    ]
+
+
 def _preset_seq_mdn_proof() -> List[Dict[str, Any]]:
     """Focused proof run for the seq MDN line on the full protocol."""
 
@@ -3559,6 +3684,10 @@ def select_grid(
             grid = _preset_seq_hybrid_loss_smoke()
         elif preset_name == "seq_mdn_smoke":
             grid = _preset_seq_mdn_smoke()
+        elif preset_name == "seq_flow_coupling_smoke":
+            grid = _preset_seq_flow_coupling_smoke()
+        elif preset_name == "seq_flow_coupling_guided_quick":
+            grid = _preset_seq_flow_coupling_guided_quick()
         elif preset_name == "seq_mdn_proof":
             grid = _preset_seq_mdn_proof()
         elif preset_name == "seq_mdn_conservative_proof":

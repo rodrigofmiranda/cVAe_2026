@@ -178,7 +178,7 @@ def build_decoder(
     decoder_distribution = str(decoder_distribution or "gaussian").strip().lower()
     if decoder_distribution != "gaussian":
         raise ValueError(
-            "Point-wise MDN decoder is not implemented yet; "
+            "Point-wise non-Gaussian decoders are not implemented yet; "
             "use decoder_distribution='gaussian' or the seq_bigru_residual variant."
         )
     if arch_variant == "legacy_2025_zero_y":
@@ -310,7 +310,7 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
     aux_needs_x = any(v > 0.0 for v in (lambda_mmd, lambda_axis, lambda_psd, lambda_coverage))
     if decoder_distribution.strip().lower() != "gaussian" and arch_variant != "seq_bigru_residual":
         raise ValueError(
-            "decoder_distribution='mdn' is currently supported only for "
+            "decoder_distribution in {'mdn', 'flow'} is currently supported only for "
             "arch_variant='seq_bigru_residual'."
         )
     if arch_variant == "delta_residual":

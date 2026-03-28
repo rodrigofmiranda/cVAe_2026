@@ -8,24 +8,24 @@ Autoencoder (cVAE) with heteroscedastic decoding and conditional prior.
 
 This folder is:
 
-- `/workspace/2026/feat_seq_bigru_residual_cvae`
+- `/workspace/2026/feat_seq_bigru_residual_flow_route`
 
 Meaning of the name:
 
-- `feat_seq_bigru_residual_cvae` comes from the Git branch name `feat/seq-bigru-residual-cvae`
-- the name is historical; this folder is now the main unified worktree
-- this folder contains the current code for all active architecture families
+- `feat_seq_bigru_residual_flow_route` is a dedicated worktree for the flow lane
+- this folder isolates decoder-family exploration from the main MDN worktrees
+- this folder contains the current code for the conditional-flow route only
 
 Use this folder when:
 
-- you want the main day-to-day repository
-- you want to switch architecture by `arch_variant`
-- you want to compare `seq_bigru_residual` and `delta_residual`
+- you want to work on the dedicated `seq_bigru_residual + flow` route
+- you want to validate a decoder-family experiment without disturbing the MDN lane
+- you want a clean branch-local record of the flow result
 
 Historical note:
 
-- the old local folder for the adversarial line was removed to save disk space
-- the branch name `feat/delta-residual-adv` still exists only for traceability
+- this worktree was forked from `feat/mdn-g5-recovery`
+- the best active scientific anchor still lives in the MDN lane, not here
 
 ## Current Docs
 
@@ -48,21 +48,43 @@ Historical refactor planning has been archived under:
 
 Current experimental branch in this worktree:
 
-- `feat/mdn-g5-recovery`
+- `feat/seq-bigru-residual-spline-flow`
 
 Purpose of this branch:
 
-- keep the strongest Gaussian seq reference and the strongest MDN quick line as baselines
-- formally discard the current `sinh-arcsinh` flow line as a negative result
-- return to the best stable MDN family
-- recover the remaining `G5` failures in `0.8 m` without reopening `G6`
-- avoid reopening decoder-family exploration unless the current MDN anchor is exhausted
+- test a richer conditional-flow decoder family for `seq_bigru_residual`
+- move beyond the old axis-separable `sinh-arcsinh` flow
+- decide quickly whether the current `coupling_2d` formulation deserves more time
+- record the result formally so the main branch does not need to rediscover it
 
 The worktree path remains:
 
-- `/workspace/2026/feat_seq_bigru_residual_cvae`
+- `/workspace/2026/feat_seq_bigru_residual_flow_route`
 
-The folder name is historical; the active Git branch may differ from the path.
+## Current Branch Conclusion
+
+This branch has already produced two decisive runs:
+
+- structural smoke:
+  - `outputs/exp_20260328_204607`
+  - `0/12`
+  - useful only to prove end-to-end integration
+- guided quick:
+  - `outputs/exp_20260328_210003`
+  - `0/12`
+  - all four grid candidates also `0/12` on the mini protocol
+
+Current scientific reading:
+
+- the present `flow_family="coupling_2d"` formulation is a **negative result**
+  for this iteration
+- this is not a simple undertraining story:
+  - the guided quick candidates did **not** flag `undertrained`
+  - they did **not** flag posterior collapse
+  - they did flag instability and failed all protocol gates
+- do not open another hyperparameter sweep on the current `coupling_2d` line
+- if flow is revisited later, it should be with a materially different family,
+  not another local variation of the same decoder
 
 ## Objective
 

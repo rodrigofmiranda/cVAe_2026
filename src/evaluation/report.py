@@ -173,7 +173,11 @@ def decoder_sensitivity(
 
     Returns ``{"decoder_output_variance_mean": …, "decoder_output_rms_std": …}``.
     """
-    from src.models.losses import _mdn_expected_mean
+    from src.models.losses import (
+        _flow_deterministic_point,
+        _flow_layer_family_from_names,
+        _mdn_expected_mean,
+    )
 
     mu_p, lv_p = prior_net.predict([Xb, Db, Cb], batch_size=batch_size, verbose=0)
     lv_p = np.clip(lv_p, -10, 10)
@@ -216,6 +220,14 @@ def decoder_sensitivity(
             logits = out_params[:, :k]
             comp_mean = out_params[:, k : k + 2 * k].reshape((-1, k, 2))
             y_mean = _mdn_expected_mean(logits, comp_mean).numpy()
+        elif out_dim == 8:
+            flow_family = _flow_layer_family_from_names(
+                layer.name for layer in getattr(decoder_net, "layers", [])
+            )
+            y_mean = _flow_deterministic_point(
+                out_params,
+                flow_family=flow_family,
+            ).numpy()
         else:
             return {
                 "decoder_output_variance_mean": float("nan"),
