@@ -47,8 +47,18 @@ Important provenance rule:
 
 - not every `5090` experiment exists as a full runnable local environment here
 - some `5090` runs were only copied back as experiment artifacts
+- the remote `5090` host may be on a different branch from the local worktrees
+  at the same time
 - when comparing anchors, always treat host provenance as part of the
   experimental context, not just the git commit
+
+Current reported remote snapshot:
+
+- date: `2026-03-28`
+- host: remote `5090`
+- repo path: `~/RODRIGO/cVAe_2026`
+- branch: `feat/mdn-g5-recovery`
+- worktree state: clean
 
 ## Current Scientific Position
 
@@ -85,6 +95,8 @@ Current reading:
   - some strong anchors came from the remote `5090` lane
   - current investigations are being executed on the local `A6000` lane
   - only a subset of remote experiments was imported locally
+  - the remote lane may also be on another branch in parallel, so branch
+    provenance must be checked explicitly
 - The unresolved scientific region remains concentrated around `0.8 m`,
   especially G5 and G6 at lower currents.
 

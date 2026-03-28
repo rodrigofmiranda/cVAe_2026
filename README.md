@@ -401,8 +401,11 @@ This matters scientifically:
 - not every historical experiment from the remote `5090` host is copied into
   the local workspace
 - some anchors were imported only as run artifacts
+- the remote `5090` host can also be working on a different branch in parallel
+  from the local `A6000` session
 - direct comparisons should always check:
   - host provenance
+  - branch provenance
   - software stack
   - whether the run was produced locally or imported from the remote lane
 

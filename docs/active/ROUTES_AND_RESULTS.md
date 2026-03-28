@@ -23,6 +23,12 @@ Important:
   local workspace
 - some anchors are therefore imported artifacts, not locally re-created runs
 - host provenance must be tracked alongside commit and software stack
+- branch provenance must also be tracked, because the remote `5090` host can be
+  working on another branch in parallel
+- reported remote snapshot on `2026-03-28`:
+  - repo path `~/RODRIGO/cVAe_2026`
+  - branch `feat/mdn-g5-recovery`
+  - clean working tree
 
 ## Canonical Anchors
 
