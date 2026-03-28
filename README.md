@@ -34,6 +34,7 @@ Use these documents in this order:
 - [docs/README.md](docs/README.md) — canonical documentation map
 - [PROJECT_STATUS.md](PROJECT_STATUS.md) — current architecture and repo state
 - [docs/active/WORKING_STATE.md](docs/active/WORKING_STATE.md) — single active working note for the current branch
+- [docs/active/ROUTES_AND_RESULTS.md](docs/active/ROUTES_AND_RESULTS.md) — compact matrix of worktrees, branches, tested routes and recent outcomes
 - [docs/reference/EXPERIMENT_WORKFLOW.md](docs/reference/EXPERIMENT_WORKFLOW.md) — how to launch and analyze experiments
 - [docs/reference/PROTOCOL.md](docs/reference/PROTOCOL.md) — protocol runner, artifacts, CLI
 - [docs/reference/MODELING_ASSUMPTIONS.md](docs/reference/MODELING_ASSUMPTIONS.md) — modeling rationale
@@ -64,6 +65,44 @@ The worktree path remains:
 - `/workspace/2026/feat_seq_bigru_residual_cvae`
 
 The folder name is historical; the active Git branch may differ from the path.
+
+## Current Multi-Worktree Snapshot
+
+Current worktree registry:
+
+- main worktree:
+  - `/workspace/2026/feat_seq_bigru_residual_cvae`
+  - branch: `feat/seq-imdd-graybox-mdn`
+  - current route result: `outputs/exp_20260328_023302`
+  - result: `5/12`
+- dedicated rerun worktree:
+  - `/workspace/2026/feat_seq_bigru_residual_mdn_route`
+  - branch: `feat/seq-bigru-residual-mdn-route`
+  - current route result: `outputs/exp_20260328_041729`
+  - result: `4/12`
+
+Key reference results:
+
+- stable Gaussian reference:
+  - `outputs/exp_20260324_023558`
+  - `10/12`
+- best historical MDN:
+  - `outputs/exp_20260325_230938`
+  - `9/12`
+- previous-branch MDN benchmark:
+  - `outputs/exp_20260327_161311`
+  - `9/12`
+- gray-box Gaussian anchor:
+  - `outputs/exp_20260327_172148`
+  - `6/12`
+
+Current reading:
+
+- `seq_imdd_graybox + MDN` is implemented and valid, but not promoted
+- the dedicated `seq_bigru_residual + MDN` rerun also underperformed the
+  historical `9/12` anchors
+- the immediate next question is now reproducibility drift, not a broader blind
+  hyperparameter sweep
 
 ## Objective
 
