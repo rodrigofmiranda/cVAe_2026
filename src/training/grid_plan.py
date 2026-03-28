@@ -2806,6 +2806,317 @@ def _preset_seq_mdn_v2_ceiling_probe_quick() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_mdn_v2_ceiling_full() -> List[Dict[str, Any]]:
+    """Phase 1b: retrain top ceiling-probe candidates with maximum data + full eval.
+
+    Advances the three most informative candidates from the quick ceiling probe:
+      - control (S25 clone) to measure stochastic variance
+      - lat8    (latent_dim=8, best quick-probe result: 5/12)
+      - mdn5    (mdn_components=5, second-best variant: 4/12)
+
+    Intended to run WITHOUT --max_samples_per_exp (use all ~8.6 M train samples)
+    and with full protocol evaluation (no quick overrides).
+    """
+    analysis_quick_overrides = {
+        "train_regime_diagnostics_enabled": False,
+        "mini_reanalysis_enabled": True,
+        "mini_reanalysis_scope": "all12",
+        "mini_reanalysis_max_samples_per_regime": 4096,
+        "grid_ranking_mode": "mini_protocol_v1",
+        "batch_infer": 16384,
+    }
+
+    _base = dict(
+        arch_variant="seq_bigru_residual",
+        layer_sizes=[128, 256, 512],
+        latent_dim=6,
+        beta=0.002,
+        free_bits=0.10,
+        lr=2e-4,
+        batch_size=6144,
+        kl_anneal_epochs=80,
+        window_size=7,
+        window_stride=1,
+        window_pad_mode="edge",
+        seq_hidden_size=64,
+        seq_num_layers=1,
+        seq_bidirectional=True,
+        seq_gru_unroll=True,
+        lambda_mmd=0.25,
+        mmd_mode="mean_residual",
+        lambda_axis=0.01,
+        lambda_psd=0.0,
+        lambda_coverage=0.06,
+        coverage_levels=[0.50, 0.80, 0.95],
+        tail_levels=[0.05, 0.95],
+        coverage_temperature=0.03,
+        decoder_distribution="mdn",
+        mdn_components=3,
+        shuffle_train_batches=True,
+    )
+
+    def _variant(overrides: Dict[str, Any]) -> Dict[str, Any]:
+        cfg = dict(_base)
+        cfg.update(overrides)
+        return _cfg(**cfg)
+
+    return [
+        # 0 — Control (exact S25 baseline for variance estimation)
+        dict(
+            group="S26_seq_mdn_v2_ceiling_full",
+            tag="S26full_control_W7_h64_lat6_mdn3_cov0p06_t0p03_L128-256-512",
+            cfg=_variant({}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        # 1 — Latent dim 8 (best quick-probe candidate: 5/12)
+        dict(
+            group="S26_seq_mdn_v2_ceiling_full",
+            tag="S26full_lat8_W7_h64_mdn3_cov0p06_t0p03_L128-256-512",
+            cfg=_variant({"latent_dim": 8}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        # 2 — MDN 5 components (second-best quick-probe variant: 4/12)
+        dict(
+            group="S26_seq_mdn_v2_ceiling_full",
+            tag="S26full_mdn5_W7_h64_lat6_cov0p06_t0p03_L128-256-512",
+            cfg=_variant({"mdn_components": 5}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+    ]
+
+
+def _preset_seq_coverage_tail_sweep() -> List[Dict[str, Any]]:
+    """Coverage/tail calibration sweep — MDN v2 lat8 base.
+
+    Systematic under-dispersion observed across ALL regimes: the cVAE
+    consistently produces lighter tails and a broader/flatter peak than
+    the real distribution (Δcov95 ≈ -0.17 universal). The current
+    lambda_coverage=0.06 gradient is too weak to compete with recon loss.
+
+    This grid directly targets tail calibration by varying:
+      A) lambda_coverage: 0.06 (control) → 0.15 → 0.25 → 0.40
+      B) tail_levels: [0.05,0.95] → [0.01,0.99]  (extreme tails)
+      C) coverage_temperature: 0.03 → 0.01  (harder/sharper loss)
+
+    Base config: lat8 MDN v2 champion (best full-protocol result: 8/12).
+    Run WITHOUT --max_samples_per_exp (full 8.6M) + full stat eval.
+    """
+    analysis_quick_overrides = {
+        "train_regime_diagnostics_enabled": False,
+        "mini_reanalysis_enabled": True,
+        "mini_reanalysis_scope": "all12",
+        "mini_reanalysis_max_samples_per_regime": 4096,
+        "grid_ranking_mode": "mini_protocol_v1",
+        "batch_infer": 16384,
+    }
+
+    _base = dict(
+        arch_variant="seq_bigru_residual",
+        layer_sizes=[128, 256, 512],
+        latent_dim=8,
+        beta=0.002,
+        free_bits=0.10,
+        lr=2e-4,
+        batch_size=6144,
+        kl_anneal_epochs=80,
+        window_size=7,
+        window_stride=1,
+        window_pad_mode="edge",
+        seq_hidden_size=64,
+        seq_num_layers=1,
+        seq_bidirectional=True,
+        seq_gru_unroll=True,
+        lambda_mmd=0.25,
+        mmd_mode="mean_residual",
+        lambda_axis=0.01,
+        lambda_psd=0.0,
+        lambda_coverage=0.06,
+        coverage_levels=[0.50, 0.80, 0.95],
+        tail_levels=[0.05, 0.95],
+        coverage_temperature=0.03,
+        decoder_distribution="mdn",
+        mdn_components=3,
+        shuffle_train_batches=True,
+    )
+
+    def _variant(overrides):
+        cfg = dict(_base)
+        cfg.update(overrides)
+        return _cfg(**cfg)
+
+    return [
+        # 0 — Control (lat8 baseline, coverage as-is)
+        dict(
+            group="S27_coverage_tail_sweep",
+            tag="S27cov_ctrl_lc0p06_tail95_t0p03",
+            cfg=_variant({}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        # A1 — Stronger coverage (2.5x)
+        dict(
+            group="S27_coverage_tail_sweep",
+            tag="S27cov_lc0p15_tail95_t0p03",
+            cfg=_variant({"lambda_coverage": 0.15}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        # A2 — Stronger coverage (4x)
+        dict(
+            group="S27_coverage_tail_sweep",
+            tag="S27cov_lc0p25_tail95_t0p03",
+            cfg=_variant({"lambda_coverage": 0.25}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        # A3 — Strongest coverage (6.5x)
+        dict(
+            group="S27_coverage_tail_sweep",
+            tag="S27cov_lc0p40_tail95_t0p03",
+            cfg=_variant({"lambda_coverage": 0.40}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        # B — Extreme tail levels (1st/99th percentile) + strong coverage
+        dict(
+            group="S27_coverage_tail_sweep",
+            tag="S27cov_lc0p25_tail99_t0p03",
+            cfg=_variant({"lambda_coverage": 0.25, "tail_levels": [0.01, 0.99]}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        # C — Extreme tails + hard temperature (sharper loss)
+        dict(
+            group="S27_coverage_tail_sweep",
+            tag="S27cov_lc0p25_tail99_t0p01",
+            cfg=_variant({"lambda_coverage": 0.25, "tail_levels": [0.01, 0.99],
+                          "coverage_temperature": 0.01}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+    ]
+
+
+def _preset_seq_mdn_v2_0p8m_isolation() -> List[Dict[str, Any]]:
+    """Diagnostic: MDN v2 lat8 trained ONLY on 0.8m data.
+
+    Tests the hypothesis that 0.8m gate failures come from inter-distance
+    conflict in the global model. If a model trained exclusively on 0.8m
+    passes gates that the global model fails, the problem is conditioning,
+    not architecture capacity.
+    """
+    analysis_quick_overrides = {
+        "train_regime_diagnostics_enabled": False,
+        "mini_reanalysis_enabled": True,
+        "mini_reanalysis_scope": "all12",
+        "mini_reanalysis_max_samples_per_regime": 4096,
+        "grid_ranking_mode": "mini_protocol_v1",
+        "batch_infer": 16384,
+    }
+
+    _base = dict(
+        arch_variant="seq_bigru_residual",
+        layer_sizes=[128, 256, 512],
+        latent_dim=8,
+        beta=0.002,
+        free_bits=0.10,
+        lr=2e-4,
+        batch_size=6144,
+        kl_anneal_epochs=80,
+        window_size=7,
+        window_stride=1,
+        window_pad_mode="edge",
+        seq_hidden_size=64,
+        seq_num_layers=1,
+        seq_bidirectional=True,
+        seq_gru_unroll=True,
+        lambda_mmd=0.25,
+        mmd_mode="mean_residual",
+        lambda_axis=0.01,
+        lambda_psd=0.0,
+        lambda_coverage=0.06,
+        coverage_levels=[0.50, 0.80, 0.95],
+        tail_levels=[0.05, 0.95],
+        coverage_temperature=0.03,
+        decoder_distribution="mdn",
+        mdn_components=3,
+        shuffle_train_batches=True,
+    )
+
+    return [
+        dict(
+            group="S26_seq_mdn_v2_0p8m_isolation",
+            tag="S26iso08_lat8_W7_h64_mdn3_cov0p06_t0p03_L128-256-512",
+            cfg=_cfg(**_base),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+    ]
+
+
+def _preset_seq_gaussian_reference_full() -> List[Dict[str, Any]]:
+    """Phase 2: Gaussian decoder reference for MDN v2 ceiling comparison.
+
+    Same architecture and hyperparameters as the MDN v2 lat8 champion,
+    but with decoder_distribution='gaussian' instead of 'mdn'.
+    Also includes the S25 baseline config (lat6) with gaussian decoder.
+
+    Intended to run WITHOUT --max_samples_per_exp (all ~8.6 M train samples)
+    and with full protocol evaluation for a direct comparison.
+    """
+    analysis_quick_overrides = {
+        "train_regime_diagnostics_enabled": False,
+        "mini_reanalysis_enabled": True,
+        "mini_reanalysis_scope": "all12",
+        "mini_reanalysis_max_samples_per_regime": 4096,
+        "grid_ranking_mode": "mini_protocol_v1",
+        "batch_infer": 16384,
+    }
+
+    _base = dict(
+        arch_variant="seq_bigru_residual",
+        layer_sizes=[128, 256, 512],
+        latent_dim=6,
+        beta=0.002,
+        free_bits=0.10,
+        lr=2e-4,
+        batch_size=6144,
+        kl_anneal_epochs=80,
+        window_size=7,
+        window_stride=1,
+        window_pad_mode="edge",
+        seq_hidden_size=64,
+        seq_num_layers=1,
+        seq_bidirectional=True,
+        seq_gru_unroll=True,
+        lambda_mmd=0.25,
+        mmd_mode="mean_residual",
+        lambda_axis=0.01,
+        lambda_psd=0.0,
+        lambda_coverage=0.06,
+        coverage_levels=[0.50, 0.80, 0.95],
+        tail_levels=[0.05, 0.95],
+        coverage_temperature=0.03,
+        decoder_distribution="gaussian",
+        shuffle_train_batches=True,
+    )
+
+    def _variant(overrides: Dict[str, Any]) -> Dict[str, Any]:
+        cfg = dict(_base)
+        cfg.update(overrides)
+        return _cfg(**cfg)
+
+    return [
+        # 0 — Gaussian baseline (lat6, same as S25 but gaussian decoder)
+        dict(
+            group="S26_seq_gaussian_reference",
+            tag="S26gauss_lat6_W7_h64_cov0p06_t0p03_L128-256-512",
+            cfg=_variant({}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        # 1 — Gaussian with lat8 (match MDN v2 champion architecture)
+        dict(
+            group="S26_seq_gaussian_reference",
+            tag="S26gauss_lat8_W7_h64_cov0p06_t0p03_L128-256-512",
+            cfg=_variant({"latent_dim": 8}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+    ]
+
+
 def _preset_seq_mdn_v2_a600_tail_explore_quick() -> List[Dict[str, Any]]:
     """A600-only overnight grid focused on tail calibration headroom.
 
@@ -3185,6 +3496,14 @@ def select_grid(
             grid = _preset_seq_mdn_v2_overnight_5090safe_quick()
         elif preset_name == "seq_mdn_v2_ceiling_probe_quick":
             grid = _preset_seq_mdn_v2_ceiling_probe_quick()
+        elif preset_name == "seq_mdn_v2_ceiling_full":
+            grid = _preset_seq_mdn_v2_ceiling_full()
+        elif preset_name == "seq_coverage_tail_sweep":
+            grid = _preset_seq_coverage_tail_sweep()
+        elif preset_name == "seq_mdn_v2_0p8m_isolation":
+            grid = _preset_seq_mdn_v2_0p8m_isolation()
+        elif preset_name == "seq_gaussian_reference_full":
+            grid = _preset_seq_gaussian_reference_full()
         elif preset_name == "seq_mdn_v2_a600_tail_explore_quick":
             grid = _preset_seq_mdn_v2_a600_tail_explore_quick()
         elif preset_name == "best_compare_large":
