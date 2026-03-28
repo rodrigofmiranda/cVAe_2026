@@ -97,6 +97,12 @@ This is the single active working note for the current worktree.
   - data caps matched, so data quantity is not the main explanation
   - seed is set once at pipeline start, so isolated single-candidate reruns are
     runtime probes, not exact reproductions of a late grid position
+- decoder-family note:
+  - the old `feat/conditional-flow-decoder` branch already tested a narrow
+    conditional flow family and discarded it
+  - this does **not** discard richer conditional density decoders
+  - guide:
+    - [reference/CONDITIONAL_DENSITY_DECODER_GUIDE.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/CONDITIONAL_DENSITY_DECODER_GUIDE.md)
 
 ## Recent Decision
 

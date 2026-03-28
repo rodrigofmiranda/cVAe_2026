@@ -29,6 +29,11 @@ Read only these first:
 
 Add a sixth file only if the task needs it.
 
+Recommended sixth file when the task is about decoder families or noise-shape
+learning:
+
+6. [reference/CONDITIONAL_DENSITY_DECODER_GUIDE.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/CONDITIONAL_DENSITY_DECODER_GUIDE.md)
+
 ## Current Scientific Anchors
 
 - stable Gaussian reference:
