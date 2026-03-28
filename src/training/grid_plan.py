@@ -3084,6 +3084,95 @@ def _preset_seq_kurt_loss_sweep() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_mdn_components_sweep() -> List[Dict[str, Any]]:
+    """S29 — MDN components sweep on S27 A2 champion base.
+
+    S28 showed that lambda_kurt (explicit kurtosis pressure) does not fix G5
+    at 0.8m/100mA and 300mA — the JBrel failure is rooted in the MDN's limited
+    capacity to reproduce leptokurtic peak+tail structure with only 3 components.
+
+    The ceiling probe (S26) tested mdn_components=5 globally but on the older
+    base (no lambda_coverage, 100k/exp quick run) — it showed marginal gain vs
+    lat8 with 3 components. Now that lambda_coverage=0.25 reshapes the MDN
+    component placement, more components may unlock the shape capacity needed
+    for 0.8m low-current regimes.
+
+    This sweep fixes the S27 A2 base and varies mdn_components:
+      CTRL: mdn_components=3 (exact S27 A2 winner — measures training variance)
+      A1:   mdn_components=5
+      A2:   mdn_components=8
+
+    Full data (8.6M), same eval flags as S27/S28.
+    """
+    analysis_quick_overrides = {
+        "train_regime_diagnostics_enabled": False,
+        "mini_reanalysis_enabled": True,
+        "mini_reanalysis_scope": "all12",
+        "mini_reanalysis_max_samples_per_regime": 4096,
+        "grid_ranking_mode": "mini_protocol_v1",
+        "batch_infer": 16384,
+    }
+
+    _base = dict(
+        arch_variant="seq_bigru_residual",
+        layer_sizes=[128, 256, 512],
+        latent_dim=8,
+        beta=0.002,
+        free_bits=0.10,
+        lr=2e-4,
+        batch_size=6144,
+        kl_anneal_epochs=80,
+        window_size=7,
+        window_stride=1,
+        window_pad_mode="edge",
+        seq_hidden_size=64,
+        seq_num_layers=1,
+        seq_bidirectional=True,
+        seq_gru_unroll=True,
+        lambda_mmd=0.25,
+        mmd_mode="mean_residual",
+        lambda_axis=0.01,
+        lambda_psd=0.0,
+        lambda_coverage=0.25,
+        coverage_levels=[0.50, 0.80, 0.95],
+        tail_levels=[0.05, 0.95],
+        coverage_temperature=0.03,
+        lambda_kurt=0.0,
+        decoder_distribution="mdn",
+        mdn_components=3,
+        shuffle_train_batches=True,
+    )
+
+    def _variant(overrides):
+        cfg = dict(_base)
+        cfg.update(overrides)
+        return _cfg(**cfg)
+
+    return [
+        # CTRL — exact S27 A2 winner (mdn=3, second seed for variance estimate)
+        dict(
+            group="S29_mdn_components_sweep",
+            tag="S29mdn_ctrl_k3",
+            cfg=_variant({}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        # A1 — 5 MDN components
+        dict(
+            group="S29_mdn_components_sweep",
+            tag="S29mdn_k5",
+            cfg=_variant({"mdn_components": 5}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        # A2 — 8 MDN components
+        dict(
+            group="S29_mdn_components_sweep",
+            tag="S29mdn_k8",
+            cfg=_variant({"mdn_components": 8}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+    ]
+
+
 def _preset_seq_mdn_v2_0p8m_isolation() -> List[Dict[str, Any]]:
     """Diagnostic: MDN v2 lat8 trained ONLY on 0.8m data.
 
@@ -3595,6 +3684,8 @@ def select_grid(
             grid = _preset_seq_coverage_tail_sweep()
         elif preset_name == "seq_kurt_loss_sweep":
             grid = _preset_seq_kurt_loss_sweep()
+        elif preset_name == "seq_mdn_components_sweep":
+            grid = _preset_seq_mdn_components_sweep()
         elif preset_name == "seq_mdn_v2_0p8m_isolation":
             grid = _preset_seq_mdn_v2_0p8m_isolation()
         elif preset_name == "seq_gaussian_reference_full":
