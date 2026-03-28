@@ -168,6 +168,19 @@ class TestSubModelBuild:
         assert dec.get_layer("phys_delta_mean") is not None
         assert dec.get_layer("graybox_total_delta") is not None
 
+    def test_graybox_mdn_decoder_builds_physical_mixture_branch(self):
+        dec = build_seq_decoder(
+            _min_cfg(
+                arch_variant="seq_imdd_graybox",
+                decoder_distribution="mdn",
+                mdn_components=3,
+            )
+        )
+        assert dec.outputs[0].shape[1:] == (15,)
+        assert dec.get_layer("phys_delta_mean") is not None
+        assert dec.get_layer("graybox_total_delta_components") is not None
+        assert dec.get_layer("graybox_y_mean_components") is not None
+
 
 # ===========================================================================
 # 1 — Full model build
@@ -441,6 +454,22 @@ class TestPointWiseIsolation:
         vae, kl_cb = build_cvae(cfg)
         assert vae is not None
         assert vae.name == "cvae_seq_imdd_graybox"
+        assert kl_cb is not None
+
+    def test_seq_imdd_graybox_mdn_dispatches_via_build_cvae(self):
+        from src.models.cvae import build_cvae
+        cfg = {
+            "layer_sizes": [32, 64], "latent_dim": 4, "beta": 0.001,
+            "lr": 3e-4, "dropout": 0.0, "free_bits": 0.0,
+            "kl_anneal_epochs": 5, "arch_variant": "seq_imdd_graybox",
+            "window_size": 7, "seq_hidden_size": 16, "seq_num_layers": 1,
+            "seq_bidirectional": True, "decoder_distribution": "mdn",
+            "mdn_components": 3,
+        }
+        vae, kl_cb = build_cvae(cfg)
+        assert vae is not None
+        assert vae.name == "cvae_seq_imdd_graybox"
+        assert vae.get_layer("decoder").output_shape[-1] == 15
         assert kl_cb is not None
 
     def test_seq_bigru_residual_build_cvae_layer_names(self):

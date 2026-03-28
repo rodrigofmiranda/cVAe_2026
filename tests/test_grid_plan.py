@@ -268,6 +268,24 @@ def test_select_grid_seq_imdd_graybox_smoke_builds_single_gaussian_candidate():
     assert grid[0]["analysis_quick_overrides"]["batch_infer"] == 16384
 
 
+def test_select_grid_seq_imdd_graybox_mdn_smoke_builds_single_mdn_candidate():
+    grid = select_grid({"grid_preset": "seq_imdd_graybox_mdn_smoke"})
+
+    assert len(grid) == 1
+    cfg = grid[0]["cfg"]
+    assert cfg["arch_variant"] == "seq_imdd_graybox"
+    assert cfg["decoder_distribution"] == "mdn"
+    assert cfg["mdn_components"] == 3
+    assert cfg["window_size"] == 7
+    assert cfg["seq_hidden_size"] == 32
+    assert cfg["latent_dim"] == 6
+    assert cfg["batch_size"] == 6144
+    assert cfg["lambda_mmd"] == 0.25
+    assert cfg["lambda_axis"] == 0.01
+    assert cfg["lambda_coverage"] == 0.04
+    assert grid[0]["analysis_quick_overrides"]["batch_infer"] == 16384
+
+
 def test_select_grid_seq_imdd_graybox_capacity_quick_builds_local_capacity_sweep():
     grid = select_grid({"grid_preset": "seq_imdd_graybox_capacity_quick"})
 
@@ -281,6 +299,28 @@ def test_select_grid_seq_imdd_graybox_capacity_quick_builds_local_capacity_sweep
     assert [item["cfg"]["latent_dim"] for item in grid] == [4, 4, 6, 6]
     assert [item["cfg"]["layer_sizes"] for item in grid] == [[64, 128], [64, 128], [64, 128], [128, 256]]
     assert all(item["analysis_quick_overrides"]["batch_infer"] == 32768 for item in grid)
+
+
+def test_select_grid_seq_imdd_graybox_mdn_guided_quick_builds_local_mdn_sweep():
+    grid = select_grid({"grid_preset": "seq_imdd_graybox_mdn_guided_quick"})
+
+    assert len(grid) == 4
+    assert {item["group"] for item in grid} == {"SGBM1_seq_imdd_graybox_mdn_guided"}
+    assert all(item["cfg"]["arch_variant"] == "seq_imdd_graybox" for item in grid)
+    assert all(item["cfg"]["decoder_distribution"] == "mdn" for item in grid)
+    assert all(item["cfg"]["mdn_components"] == 3 for item in grid)
+    assert all(item["cfg"]["seq_hidden_size"] == 32 for item in grid)
+    assert all(item["cfg"]["latent_dim"] == 6 for item in grid)
+    assert {item["cfg"]["window_size"] for item in grid} == {7, 11}
+    assert {item["cfg"]["lr"] for item in grid} == {2e-4, 3e-4}
+    assert {item["cfg"]["lambda_coverage"] for item in grid} == {0.04, 0.06}
+
+    analysis_overrides = [item["analysis_quick_overrides"] for item in grid]
+    assert all(ov == analysis_overrides[0] for ov in analysis_overrides)
+    assert analysis_overrides[0]["mini_reanalysis_enabled"] is True
+    assert analysis_overrides[0]["mini_reanalysis_scope"] == "all12"
+    assert analysis_overrides[0]["grid_ranking_mode"] == "mini_protocol_v1"
+    assert analysis_overrides[0]["batch_infer"] == 16384
 
 
 def test_select_grid_seq_mdn_v2_perf_compare_quick_builds_control_and_fast_variants():

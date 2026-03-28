@@ -656,6 +656,55 @@ def _preset_seq_imdd_graybox_smoke() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_imdd_graybox_mdn_smoke() -> List[Dict[str, Any]]:
+    """Single-item smoke preset for the gray-box IM/DD + MDN route.
+
+    This is the first structural attempt to preserve the gray-box inductive
+    bias while giving the decoder enough flexibility to match non-Gaussian
+    residual shapes.
+    """
+    return [
+        {
+            "group": "SGBM0_seq_imdd_graybox_mdn_smoke",
+            "tag": (
+                "SGBM0imdd_W7_h32_lat6_mdn3_b0p002_lmmd0p25_axis0p01_"
+                "cov0p04_t0p03_fb0p10_lr0p0002_bs6144_bi16384_L128-256_poly135"
+            ),
+            "cfg": _cfg(
+                arch_variant="seq_imdd_graybox",
+                layer_sizes=[128, 256],
+                latent_dim=6,
+                beta=0.002,
+                free_bits=0.10,
+                lr=2e-4,
+                batch_size=6144,
+                kl_anneal_epochs=80,
+                window_size=7,
+                window_stride=1,
+                window_pad_mode="edge",
+                seq_hidden_size=32,
+                seq_num_layers=1,
+                seq_bidirectional=True,
+                seq_gru_unroll=True,
+                decoder_distribution="mdn",
+                mdn_components=3,
+                lambda_mmd=0.25,
+                lambda_axis=0.01,
+                lambda_psd=0.0,
+                lambda_coverage=0.04,
+                coverage_levels=[0.50, 0.80, 0.95],
+                tail_levels=[0.05, 0.95],
+                coverage_temperature=0.03,
+                shuffle_train_batches=True,
+                imdd_poly_orders=[1, 3, 5],
+                imdd_include_center_delta=True,
+                imdd_include_power=True,
+            ),
+            "analysis_quick_overrides": {"batch_infer": 16384},
+        }
+    ]
+
+
 def _preset_seq_imdd_graybox_capacity_quick() -> List[Dict[str, Any]]:
     """First scientific quick for the gray-box IM/DD sequence line.
 
@@ -773,6 +822,238 @@ def _preset_seq_imdd_graybox_capacity_quick() -> List[Dict[str, Any]]:
             ),
             "analysis_quick_overrides": analysis_quick_overrides,
         },
+    ]
+
+
+def _preset_seq_imdd_graybox_guided_large() -> List[Dict[str, Any]]:
+    """Guided larger sweep for the gray-box IM/DD sequence line.
+
+    Anchors on the strongest SGB1 gray-box configs from exp_20260327_172148
+    and expands only along directions that remain scientifically justified:
+
+      - longer-budget reruns of the current winner pair
+      - lower learning rate around the same local basin
+      - higher recurrent / MLP capacity toward the stronger MDN benchmark
+      - a small W11 probe instead of a blind window sweep
+
+    Intended to be paired with a longer run budget such as
+    ``--max_epochs 90-120`` and ``--patience 12-16``.
+
+    Interpretation gates for follow-up decisions:
+
+      - if ``flag_undertrained=True``, increase epochs/patience before changing
+        beta/free-bits/latent structure
+      - only lower the initial learning rate when ``flag_lr_floor=True`` and
+        late validation slope is still negative
+      - only increase capacity when training is otherwise stable and the
+        structural error remains high
+      - treat posterior-collapse flags as the trigger for beta/free-bits or
+        latent-dimension changes
+    """
+    analysis_quick_overrides = {"batch_infer": 32768}
+
+    def _item(
+        *,
+        window_size: int,
+        seq_hidden_size: int,
+        latent_dim: int,
+        lr: float,
+        batch_size: int,
+        layer_sizes: List[int],
+    ) -> Dict[str, Any]:
+        return {
+            "group": "SGB2_seq_imdd_graybox_guided",
+            "tag": (
+                f"SGB2imdd_W{window_size}_h{seq_hidden_size}_lat{latent_dim}_"
+                f"b0p001_fb0p10_lr{_tag_lr(lr)}_bs{batch_size}_bi32768_"
+                f"L{_tag_layers(layer_sizes)}_poly135"
+            ),
+            "cfg": _cfg(
+                arch_variant="seq_imdd_graybox",
+                layer_sizes=layer_sizes,
+                latent_dim=latent_dim,
+                beta=0.001,
+                free_bits=0.10,
+                lr=lr,
+                batch_size=batch_size,
+                kl_anneal_epochs=5,
+                window_size=window_size,
+                window_stride=1,
+                window_pad_mode="edge",
+                seq_hidden_size=seq_hidden_size,
+                seq_num_layers=1,
+                seq_bidirectional=True,
+                decoder_distribution="gaussian",
+                imdd_poly_orders=[1, 3, 5],
+                imdd_include_center_delta=True,
+                imdd_include_power=True,
+            ),
+            "analysis_quick_overrides": analysis_quick_overrides,
+        }
+
+    return [
+        _item(
+            window_size=7,
+            seq_hidden_size=32,
+            latent_dim=6,
+            lr=3e-4,
+            batch_size=8192,
+            layer_sizes=[64, 128],
+        ),
+        _item(
+            window_size=7,
+            seq_hidden_size=32,
+            latent_dim=6,
+            lr=3e-4,
+            batch_size=8192,
+            layer_sizes=[128, 256],
+        ),
+        _item(
+            window_size=7,
+            seq_hidden_size=32,
+            latent_dim=6,
+            lr=2e-4,
+            batch_size=8192,
+            layer_sizes=[64, 128],
+        ),
+        _item(
+            window_size=7,
+            seq_hidden_size=32,
+            latent_dim=6,
+            lr=2e-4,
+            batch_size=8192,
+            layer_sizes=[128, 256],
+        ),
+        _item(
+            window_size=7,
+            seq_hidden_size=64,
+            latent_dim=6,
+            lr=3e-4,
+            batch_size=8192,
+            layer_sizes=[128, 256],
+        ),
+        _item(
+            window_size=7,
+            seq_hidden_size=64,
+            latent_dim=6,
+            lr=2e-4,
+            batch_size=6144,
+            layer_sizes=[128, 256],
+        ),
+        _item(
+            window_size=7,
+            seq_hidden_size=64,
+            latent_dim=6,
+            lr=2e-4,
+            batch_size=6144,
+            layer_sizes=[128, 256, 512],
+        ),
+        _item(
+            window_size=7,
+            seq_hidden_size=64,
+            latent_dim=8,
+            lr=2e-4,
+            batch_size=6144,
+            layer_sizes=[128, 256],
+        ),
+        _item(
+            window_size=7,
+            seq_hidden_size=64,
+            latent_dim=8,
+            lr=2e-4,
+            batch_size=6144,
+            layer_sizes=[128, 256, 512],
+        ),
+        _item(
+            window_size=11,
+            seq_hidden_size=32,
+            latent_dim=6,
+            lr=2e-4,
+            batch_size=8192,
+            layer_sizes=[128, 256],
+        ),
+        _item(
+            window_size=11,
+            seq_hidden_size=64,
+            latent_dim=6,
+            lr=2e-4,
+            batch_size=6144,
+            layer_sizes=[128, 256],
+        ),
+    ]
+
+
+def _preset_seq_imdd_graybox_mdn_guided_quick() -> List[Dict[str, Any]]:
+    """First local MDN sweep for the gray-box IM/DD sequence line.
+
+    Anchors on the best gray-box Gaussian region from ``exp_20260327_172148``
+    and the stable seq MDN v2 settings from ``exp_20260327_161311``:
+
+      - keep the stronger gray-box core (`W7`, `h32`, `lat6`, `[128,256]`)
+      - use `mdn3` as the smallest useful mixture
+      - search only along learning-rate, coverage weight, and `W11`
+      - rank the grid with `mini_protocol_v1` to reduce train/protocol drift
+    """
+    analysis_quick_overrides = {
+        "mini_reanalysis_enabled": True,
+        "mini_reanalysis_scope": "all12",
+        "mini_reanalysis_max_samples_per_regime": 4096,
+        "grid_ranking_mode": "mini_protocol_v1",
+        "batch_infer": 16384,
+    }
+
+    def _item(
+        *,
+        window_size: int,
+        lr: float,
+        lambda_coverage: float,
+    ) -> Dict[str, Any]:
+        cov_tag = str(lambda_coverage).replace(".", "p")
+        return {
+            "group": "SGBM1_seq_imdd_graybox_mdn_guided",
+            "tag": (
+                f"SGBM1imdd_W{window_size}_h32_lat6_mdn3_b0p002_lmmd0p25_axis0p01_"
+                f"cov{cov_tag}_t0p03_fb0p10_lr{_tag_lr(lr)}_"
+                "bs6144_bi16384_L128-256_poly135"
+            ),
+            "cfg": _cfg(
+                arch_variant="seq_imdd_graybox",
+                layer_sizes=[128, 256],
+                latent_dim=6,
+                beta=0.002,
+                free_bits=0.10,
+                lr=lr,
+                batch_size=6144,
+                kl_anneal_epochs=80,
+                window_size=window_size,
+                window_stride=1,
+                window_pad_mode="edge",
+                seq_hidden_size=32,
+                seq_num_layers=1,
+                seq_bidirectional=True,
+                seq_gru_unroll=True,
+                decoder_distribution="mdn",
+                mdn_components=3,
+                lambda_mmd=0.25,
+                lambda_axis=0.01,
+                lambda_psd=0.0,
+                lambda_coverage=lambda_coverage,
+                coverage_levels=[0.50, 0.80, 0.95],
+                tail_levels=[0.05, 0.95],
+                coverage_temperature=0.03,
+                shuffle_train_batches=True,
+                imdd_poly_orders=[1, 3, 5],
+                imdd_include_center_delta=True,
+                imdd_include_power=True,
+            ),
+            "analysis_quick_overrides": analysis_quick_overrides,
+        }
+
+    return [
+        _item(window_size=7, lr=2e-4, lambda_coverage=0.04),
+        _item(window_size=7, lr=2e-4, lambda_coverage=0.06),
+        _item(window_size=7, lr=3e-4, lambda_coverage=0.04),
+        _item(window_size=11, lr=2e-4, lambda_coverage=0.04),
     ]
 
 
@@ -3183,8 +3464,14 @@ def select_grid(
             grid = _preset_seq_residual_small()
         elif preset_name == "seq_imdd_graybox_smoke":
             grid = _preset_seq_imdd_graybox_smoke()
+        elif preset_name == "seq_imdd_graybox_mdn_smoke":
+            grid = _preset_seq_imdd_graybox_mdn_smoke()
         elif preset_name == "seq_imdd_graybox_capacity_quick":
             grid = _preset_seq_imdd_graybox_capacity_quick()
+        elif preset_name == "seq_imdd_graybox_guided_large":
+            grid = _preset_seq_imdd_graybox_guided_large()
+        elif preset_name == "seq_imdd_graybox_mdn_guided_quick":
+            grid = _preset_seq_imdd_graybox_mdn_guided_quick()
         elif preset_name == "seq_residual_mmd":
             grid = _preset_seq_residual_mmd()
         elif preset_name == "seq_residual_mmd_final":

@@ -492,11 +492,6 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
 
     h = _mlp_head(h, mlp_sizes, act, dropout, name_prefix="dec")
 
-    if arch_variant == "seq_imdd_graybox" and decoder_distribution != "gaussian":
-        raise ValueError(
-            "arch_variant='seq_imdd_graybox' currently supports only decoder_distribution='gaussian'."
-        )
-
     if arch_variant == "seq_imdd_graybox":
         power = layers.Lambda(
             lambda t: tf.reduce_sum(tf.square(t), axis=-1, keepdims=True),
@@ -517,14 +512,40 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
             phys_hidden = layers.Dropout(dropout, name="phys_drop_0")(phys_hidden)
         phys_delta = layers.Dense(2, name="phys_delta_mean")(phys_hidden)
 
-        raw_out = layers.Dense(4, name="stoch_output_params_raw")(h)
-        stoch_delta_mean = SliceFeatures(0, 2, name="stoch_delta_mean")(raw_out)
-        delta_lv = SliceFeatures(2, 4, name="delta_log_var")(raw_out)
-        total_delta = layers.Add(name="graybox_total_delta")(
-            [phys_delta, stoch_delta_mean]
-        )
-        y_mean = layers.Add(name="y_mean_residual")([x_cent_in, total_delta])
-        out = layers.Concatenate(name="output_params")([y_mean, delta_lv])
+        if decoder_distribution == "mdn":
+            k = int(mdn_components)
+            raw_out = layers.Dense(5 * k, name="stoch_output_params_raw")(h)
+            logits = SliceFeatures(0, k, name="mixture_logits")(raw_out)
+            stoch_delta_mean_flat = SliceFeatures(
+                k, k + 2 * k, name="stoch_delta_mean_flat"
+            )(raw_out)
+            delta_lv_flat = SliceFeatures(
+                k + 2 * k, k + 4 * k, name="delta_log_var_flat"
+            )(raw_out)
+            stoch_delta_mean = layers.Reshape(
+                (k, 2), name="stoch_delta_mean_components"
+            )(stoch_delta_mean_flat)
+            phys_delta_rep = layers.RepeatVector(k, name="phys_delta_rep")(phys_delta)
+            total_delta = layers.Add(name="graybox_total_delta_components")(
+                [phys_delta_rep, stoch_delta_mean]
+            )
+            x_center_rep = layers.RepeatVector(k, name="x_center_mixture_rep")(x_cent_in)
+            y_mean = layers.Add(name="graybox_y_mean_components")(
+                [x_center_rep, total_delta]
+            )
+            y_mean_flat = layers.Reshape((2 * k,), name="y_mean_flat")(y_mean)
+            out = layers.Concatenate(name="output_params")(
+                [logits, y_mean_flat, delta_lv_flat]
+            )
+        else:
+            raw_out = layers.Dense(4, name="stoch_output_params_raw")(h)
+            stoch_delta_mean = SliceFeatures(0, 2, name="stoch_delta_mean")(raw_out)
+            delta_lv = SliceFeatures(2, 4, name="delta_log_var")(raw_out)
+            total_delta = layers.Add(name="graybox_total_delta")(
+                [phys_delta, stoch_delta_mean]
+            )
+            y_mean = layers.Add(name="y_mean_residual")([x_cent_in, total_delta])
+            out = layers.Concatenate(name="output_params")([y_mean, delta_lv])
     elif decoder_distribution == "mdn":
         k = int(mdn_components)
         raw_out = layers.Dense(5 * k, name="output_params_raw")(h)

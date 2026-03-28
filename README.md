@@ -48,15 +48,16 @@ Historical refactor planning has been archived under:
 
 Current experimental branch in this worktree:
 
-- `feat/mdn-g5-recovery`
+- `feat/seq-imdd-graybox-mdn`
 
 Purpose of this branch:
 
-- keep the strongest Gaussian seq reference and the strongest MDN quick line as baselines
-- formally discard the current `sinh-arcsinh` flow line as a negative result
-- return to the best stable MDN family
-- recover the remaining `G5` failures in `0.8 m` without reopening `G6`
-- avoid reopening decoder-family exploration unless the current MDN anchor is exhausted
+- open the `seq_imdd_graybox + MDN` route on its own branch
+- keep the gray-box inductive bias while giving the decoder a non-Gaussian residual law
+- test whether the residual shape and constellation thickness improve when the gray-box decoder is no longer forced to stay Gaussian
+- keep the next fallback route isolated on its own branch:
+  - `feat/seq-bigru-residual-mdn-route`
+  - this is the immediate fallback if `graybox + MDN` still stays too clean in shape
 
 The worktree path remains:
 
@@ -101,6 +102,23 @@ New runtime controls:
 - `train_regime_diagnostics_max_samples_per_regime`
 - `train_regime_diagnostics_amplitude_bins`
 - `train_regime_diagnostics_focus_only_0p8m`
+
+## Active Gray-Box Sweep Rule
+
+For the current `seq_imdd_graybox` exploration, hyperparameter decisions
+should be driven by the saved training diagnostics tables, not by ad hoc
+log reading alone.
+
+- increase `epochs` / `patience` first when `flag_undertrained=True`
+- change `beta`, `free_bits`, or `latent_dim` only when collapse indicators
+  appear
+- increase capacity only when training is stable and structural error remains
+  high
+- keep `train/tables/grid_training_diagnostics.csv` and
+  `train/tables/gridsearch_results.csv` as required artifacts for each sweep
+- for the new structural route, start from:
+  - `seq_imdd_graybox_mdn_smoke`
+  - `seq_imdd_graybox_mdn_guided_quick`
 
 ## Modeling Philosophy
 
@@ -160,6 +178,10 @@ active architecture is chosen by the grid/config field:
   - sequence-aware residual model
   - uses a short input window (`window_size=7`) and a BiGRU prior/encoder
   - requires `--no_data_reduction` because balanced block reduction breaks temporal context
+- `arch_variant="seq_imdd_graybox"`
+  - sequence-aware gray-box residual model for IM/DD structure
+  - prior and encoder use IM/DD memory-polynomial features
+  - decoder now supports both Gaussian and MDN residual parameterizations
 - `arch_variant="legacy_2025_zero_y"`
   - faithful port of the 2025 notebook-era model for controlled comparison
 

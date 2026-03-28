@@ -10,9 +10,29 @@ start here.
 - active worktree:
   - `/workspace/2026/feat_seq_bigru_residual_cvae`
 - active branch:
-  - `feat/mdn-g5-recovery`
+  - `feat/seq-imdd-graybox-mdn`
 - git worktree count:
-  - `1`
+  - `2`
+
+## Queued Architecture Routes
+
+These are the current routes to try, in order, and they should stay on
+separate branches.
+
+- current route:
+  - branch: `feat/seq-imdd-graybox-mdn`
+  - objective: keep the IM/DD gray-box inductive bias but replace the
+    Gaussian residual law with `MDN`
+  - entry presets:
+    - `seq_imdd_graybox_mdn_smoke`
+    - `seq_imdd_graybox_mdn_guided_quick`
+- next route:
+  - branch: `feat/seq-bigru-residual-mdn-route`
+  - objective: return to the stronger `seq_bigru_residual + MDN` family if
+    gray-box + MDN still fails to copy the residual shape / constellation
+    thickness
+  - use this as the immediate fallback benchmark lane, not as a broad
+    exploratory branch
 
 ## Current Scientific Anchors
 
@@ -22,6 +42,12 @@ start here.
 - best MDN line so far:
   - `outputs/exp_20260325_230938`
   - `9/12`
+- current gray-box anchor:
+  - `outputs/exp_20260327_172148`
+  - `6/12`
+- gray-box + MDN branch result:
+  - `outputs/exp_20260328_023302`
+  - `5/12`
 
 ## What Was Already Explored
 
@@ -56,6 +82,32 @@ remaining gap:
 - per-axis shape control
 - quantile / tail-aware regularization
 - other direct `G5`-oriented corrections
+
+2026-03-28 route pivot:
+
+- the gray-box Gaussian family is no longer the main search lane
+- the new first-priority route is `seq_imdd_graybox + MDN`
+- if that still leaves the constellation visibly too clean or the residual
+  law visibly too Gaussian, move immediately to `seq_bigru_residual + MDN`
+  on its dedicated branch instead of reopening another Gaussian sweep
+
+2026-03-28 gray-box + MDN result:
+
+- integration succeeded end to end on this branch
+- smoke validation:
+  - run: `outputs/exp_20260328_003030`
+  - purpose: plumbing only
+  - result: `0/12`
+- first real guided run:
+  - run: `outputs/exp_20260328_023302`
+  - champion: `SGBM1 ... cov0.06 / lr=2e-4 / W7 / h32 / lat6`
+  - protocol result: `5/12`
+- training diagnostics on the four candidates did not indicate
+  undertraining or posterior collapse
+- practical reading:
+  - `seq_imdd_graybox + MDN` is a valid implemented route
+  - it did not beat the gray-box Gaussian anchor
+  - it also did not justify staying as the main branch for the next sweep
 
 The current implementation branch now includes an `MDN v2` path:
 
@@ -132,6 +184,30 @@ Current branch reading after these two runs:
     failure mode
 - the evaluation path also no longer invalidates a whole protocol just because
   `matplotlib` is missing; plots are skipped and the metrics still count
+
+## Gray-Box Hyperparameter Gates
+
+Use these as the official decision checklist for the next `seq_imdd_graybox`
+sweeps.
+
+- choose the winner by protocol result first; use train-side grid ranking only
+  as a pre-protocol filter
+- if `flag_undertrained=True`, first increase `max_epochs` / `patience`
+  before changing `beta`, `free_bits`, or latent structure
+- if `flag_posterior_collapse=True` or `active_dim_ratio` drops materially,
+  adjust `free_bits`, `beta`, or `latent_dim`
+- if `flag_overfit=True`, do not promote the candidate even if point metrics
+  look good
+- only lower the initial `lr` when `flag_lr_floor=True` and the late
+  validation slope is still negative
+- only increase capacity when training is otherwise stable and structural
+  error remains high
+- keep `train/tables/grid_training_diagnostics.csv` and
+  `train/tables/gridsearch_results.csv` as mandatory artifacts for gray-box
+  sweeps
+- periodic per-regime train diagnostics are useful for live monitoring, but
+  they are observability; the final hyperparameter decision comes from the
+  saved diagnostics tables above
 
 ## Operational Attention Point
 
