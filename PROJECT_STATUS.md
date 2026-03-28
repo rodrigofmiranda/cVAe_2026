@@ -99,6 +99,12 @@ Current reading:
     provenance must be checked explicitly
 - The unresolved scientific region remains concentrated around `0.8 m`,
   especially G5 and G6 at lower currents.
+- Decoder-family guide:
+  - the historical negative flow result refers to the retired narrow
+    `sinh-arcsinh` per-axis flow line
+  - richer conditional density decoders remain open
+  - see:
+    - [docs/reference/CONDITIONAL_DENSITY_DECODER_GUIDE.md](/workspace/2026/feat_seq_bigru_residual_mdn_route/docs/reference/CONDITIONAL_DENSITY_DECODER_GUIDE.md)
 
 ## Tested Route Summary
 

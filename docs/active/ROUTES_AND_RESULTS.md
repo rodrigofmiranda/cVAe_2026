@@ -55,6 +55,7 @@ Important:
 | `seq_imdd_graybox` Gaussian | `exp_20260327_172148`, `exp_20260327_183153` | `6/12`, `5/12` | Viable but below the best MDN family |
 | `seq_imdd_graybox + MDN` smoke | `exp_20260328_003030` | `0/12` | Plumbing only; not a scientific result |
 | `seq_imdd_graybox + MDN` guided quick | `exp_20260328_023302` | `5/12` | Route is implemented and valid, but not better than gray-box Gaussian |
+| Historical `conditional-flow-decoder` branch | `exp_20260326_034522`, `exp_20260326_035723` | `0/12`, `0/12` | Narrow per-axis `sinh-arcsinh` flow line was tested and discarded |
 | `sample-aware MMD` | historical branch results | Negative | Do not reopen as the main lane |
 | Current `sinh-arcsinh` flow line | historical branch results | Negative | Discarded for this cycle |
 | Pure regime-resampling | historical branch results | Negative | Did not solve the remaining gap |
@@ -103,6 +104,12 @@ Important:
     state inside multi-candidate grids
 - The unresolved scientific zone is still concentrated in `0.8 m`, with G5/G6
   failures dominating low-current regimes.
+- Decoder-family guide:
+  - the negative flow result refers to the old narrow `sinh-arcsinh` per-axis
+    flow line
+  - richer conditional density decoders remain scientifically open
+  - see:
+    - [reference/CONDITIONAL_DENSITY_DECODER_GUIDE.md](/workspace/2026/feat_seq_bigru_residual_mdn_route/docs/reference/CONDITIONAL_DENSITY_DECODER_GUIDE.md)
 
 ## Current Queue
 

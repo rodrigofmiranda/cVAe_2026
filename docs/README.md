@@ -23,6 +23,7 @@ agent tooling conventions:
 - [reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_mdn_route/docs/reference/PROTOCOL.md)
 - [reference/MODELING_ASSUMPTIONS.md](/workspace/2026/feat_seq_bigru_residual_mdn_route/docs/reference/MODELING_ASSUMPTIONS.md)
 - [reference/EXPERIMENT_WORKFLOW.md](/workspace/2026/feat_seq_bigru_residual_mdn_route/docs/reference/EXPERIMENT_WORKFLOW.md)
+- [reference/CONDITIONAL_DENSITY_DECODER_GUIDE.md](/workspace/2026/feat_seq_bigru_residual_mdn_route/docs/reference/CONDITIONAL_DENSITY_DECODER_GUIDE.md)
 
 ## Agent Docs
 

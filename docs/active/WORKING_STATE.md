@@ -77,6 +77,12 @@ This is the single active working note for the current worktree.
 - the training pipeline sets seed once at startup, so a single-candidate rerun
   is useful for runtime sensitivity, but it is not a byte-for-byte
   reproduction of `grid_006` inside a 9-candidate search
+- decoder-family note:
+  - the old `feat/conditional-flow-decoder` branch already tested a narrow
+    conditional flow family and discarded it
+  - this does **not** discard richer conditional density decoders
+  - guide:
+    - [reference/CONDITIONAL_DENSITY_DECODER_GUIDE.md](/workspace/2026/feat_seq_bigru_residual_mdn_route/docs/reference/CONDITIONAL_DENSITY_DECODER_GUIDE.md)
 
 ## Most Relevant Runs
 
