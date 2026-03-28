@@ -85,6 +85,21 @@ start here.
   - **conclusion: lambda_kurt is not the right lever for G5**; the JB test failure
     at 0.8m is not addressable by isolated 4th-moment pressure; the gap is rooted in
     the MDN's inability to reproduce the leptokurtic structure at low current
+- **MDN components sweep (S29, 3 candidates: k=3/5/8)**:
+  - run: `outputs/exp_20260328_210953`
+  - base: exact S27 A2 config (`lambda_coverage=0.25`, lat8)
+  - CTRL k=3: `8/12` full protocol — **3rd independent seed**: distribution of full protocol
+    across 3 seeds of S27-A2 config = `{10, 4, 8}`, expected value ~7, high variance
+  - CTRL k=3 mini = `7/12` | G3=11 G5=7 G6=12 — better than S28 CTRL (4/12),
+    confirming S28 was a bad draw not a systematic regression
+  - **k=5 (A1): regresses to `5/12` mini** | G3=9 G5=5 G6=9 — strictly worse
+    than k=3; more components destabilise G3 and G6 at this learning rate
+  - **k=8 (A2): `6/12` mini** | G3=10 G5=6 G6=12 — marginal G5 improvement vs
+    k=3 (6 vs 7), G6 recovers to 12/12, but 0.8m/100mA and 300mA still fail G5
+  - **0.8m/300mA JBrel is extreme in all seeds**: CTRL=8.07, k=5=10.47, k=8=3.45 —
+    this regime's leptokurtic shape does not yield to any MDN capacity increase tested
+  - **conclusion: more MDN components do NOT fix G5**; k=5 hurts, k=8 is marginal;
+    the shape constraint at 0.8m low-current is architecture-agnostic within MDN family
 
 ## Current Reading
 
@@ -127,54 +142,55 @@ The 0.8m problem has two independent layers:
 - **G5 (shape)**: intrinsic to 0.8m low-current regimes; the real distribution
   is near-Gaussian with high kurtosis at low currents; any shape mismatch
   becomes a large relative JB error; `lambda_coverage=0.25` is insufficient
-  to fix 100mA and 300mA
+  to fix 100mA and 300mA; tested MDN k=3/5/8 — none fixes it (S29)
 
-Current branch reading (2026-03-28, after S27 + S28):
+Current branch reading (2026-03-28, after S27 + S28 + S29):
 
 - `S27cov_lc0p25_tail95_t0p03` (`exp_20260328_153611`) is the best known result:
-  **`10/12`** full protocol — but this is at the **optimistic tail of training
-  variance**, not a stable expected value
-- S28 CTRL (exact same config) achieved only `4/12` in a fresh training run,
-  confirming high training variance; the expected performance may be `5–8/12`
+  **`10/12`** full protocol
+- three independent seeds of S27-A2 config: `{10, 4, 8}` full protocol passes
+  → E[pass] ≈ 7, high variance; the `10/12` is the optimistic tail
+- S29 CTRL k=3 = `8/12` full / `7/12` mini — better than S28 CTRL (`4/12`),
+  confirming S28 was an unlucky draw; typical expected value is ~7–8/12
 - remaining `2/12` gap is `0.8m/100mA` and `0.8m/300mA`, failing only G5;
-  this gap is intrinsic to the leptokurtic shape of low-current 0.8m noise and
-  has resisted all shape-targeted interventions (lambda_axis, lambda_kurt, lambda_coverage)
-- G6 passes 12/12 in S27 A2 — statistical fidelity (MMD/Energy) is solid when the
-  model trains well, but also variance-dependent
-- the residual constellation overlay gap is **systematic and not resolved** by
-  the current approach; even in passing regimes the model point cloud is too
-  uniform relative to real data
+  tested lambda_axis, lambda_kurt, lambda_coverage, k=3/5/8 MDN — none fixes it
+- G5 failure at 0.8m/300mA is extreme (JBrel=3–10 across seeds) and persistent
+- the residual constellation overlay gap is **systematic and not resolved**;
+  even in passing regimes the model point cloud is too uniform relative to real data
 
 ## Current Direction
 
-New anchor: `S27cov_lc0p25_tail95_t0p03` (`exp_20260328_153611`, `10/12`).
+Anchor: `S27cov_lc0p25_tail95_t0p03` (`exp_20260328_153611`, `10/12` best known).
 
-S27 has closed the coverage/lambda axis. The residual gap is:
+The G5 shape gap at `0.8m/100mA` and `0.8m/300mA` has been systematically attacked
+with all available loss-side and architecture-side interventions:
 
-1. G5 at `0.8m/100mA` and `0.8m/300mA` — JBrel still above threshold; the
-   model cannot reproduce the leptokurtic shape of low-current 0.8m noise
-2. Constellation overlay gap — universal, present even in passing regimes;
-   the model point cloud is always too uniform relative to real data
+| Intervention | Result |
+|---|---|
+| lambda_axis (S26) | marginal, not G5-specific |
+| lambda_coverage sweep (S27) | +2 regimes (G3 fix), not G5 at 100/300mA |
+| lambda_kurt (S28) | negative; lk=0.10 catastrophic |
+| MDN k=5 (S29) | regresses to 5/12 — worse |
+| MDN k=8 (S29) | marginal (6/12), 0.8m fails persist |
 
-Open questions for the next intervention:
+**The 0.8m/100mA and 300mA G5 failure appears to be a hard constraint of the
+leptokurtic shape at short distance and low current, not addressable within the
+current seq_bigru_residual + MDN + coverage-loss family.**
 
-- **training variance is the dominant problem**: S28 CTRL proves the `10/12` result
-  has high variance; the real expected performance with current config may be `5–8/12`;
-  variance must be characterised before concluding that the ceiling is `10/12`
-  - option: run 3 seeds of S27 A2 config to get a reliable E[pass] estimate
-- **more MDN components** at 0.8m low-current regimes (targeted, not global)?
-  Previously tested globally (negative at mdn=5); targeted via regime-conditioning not
-  yet tried; may give more capacity for the leptokurtic shape
-- **accept 10/12 as best known** and move to the next scientific milestone,
-  acknowledging that the S27 A2 result may not be stably reproducible
+Open questions:
+- **accept the current ceiling** (~7–8/12 expected, 10/12 best known) and move
+  to the next scientific milestone
+- investigate whether 0.8m/100mA and 300mA can be fixed by a **regime-specific
+  conditioning** approach (e.g. separate MDN head or regime embedding) rather
+  than global architecture changes — not yet tried
 
 Do not reopen:
 - `tail_levels=[0.01,0.99]` — tested negative in S27
 - `lambda_coverage>0.25` — 0.40 collapses to 4/12
 - `coverage_temperature=0.01` alone — marginal gain vs complexity
-- **`lambda_kurt`** — S28 negative result: does not improve G5, hurts JBrel at
-  moderate values (lk=0.10 catastrophic), and does not compensate for training
-  variance; the kurtosis loss is not the right lever for the 0.8m G5 gap
+- **`lambda_kurt`** — S28 negative; catastrophic at lk=0.10; not the right lever
+- **`mdn_components` global sweep** — S29 negative; k=5 hurts, k=8 marginal;
+  more components globally do not fix 0.8m G5
 
 The current implementation branch now includes an `MDN v2` path:
 
