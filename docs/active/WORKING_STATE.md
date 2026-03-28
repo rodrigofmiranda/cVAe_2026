@@ -22,14 +22,21 @@ start here.
 - best valid MDN v2 (mini_protocol, 100k/exp):
   - `outputs/exp_20260327_161311`
   - `9/12` (`gate_g5_pass=10`, `gate_g6_pass=12`)
-- **best valid MDN v2 (full protocol + G6, 8.6M train)**:
+- best valid MDN v2 (full protocol + G6, 8.6M train) — superseded:
   - `outputs/exp_20260327_225213`
-  - **`8/12`** champion: `S26full_lat8` (`latent_dim=8`, MDN 3 components)
+  - `8/12` champion: `S26full_lat8` (`latent_dim=8`, MDN 3 components)
   - all `1.0m` and `1.5m` pass; all `0.8m` fail
+- **best valid MDN v2 (full protocol + G6, 8.6M train)**:
+  - `outputs/exp_20260328_153611`
+  - **`10/12`** champion: `S27cov_lc0p25_tail95_t0p03` (`lambda_coverage=0.25`)
+  - passes: all `1.5m`, all `1.0m`, `0.8m/500mA`, `0.8m/700mA`
+  - fails: `0.8m/100mA` (JBrel=3.59), `0.8m/300mA` (JBrel=0.36) — G5 only
+  - G3 now passes on all 12 regimes; G6 now passes on all 12 regimes
+  - `gate_g5_pass=10`, `gate_g6_pass=12`, `mean_stat_mmd_qval=0.37`
 - Gaussian reference (full protocol + G6, 8.6M train):
   - `outputs/exp_20260328_023430`
   - `4/12` champion: `S26gauss_lat8`
-  - MDN v2 gains +4 regimes over Gaussian (all `1.0m`)
+  - MDN v2 gains +6 regimes over Gaussian (now with S27 anchor)
 - 0.8m isolation diagnostic:
   - `outputs/exp_20260328_042412`
   - `0/4` pass — confirms 0.8m failure is partly intrinsic, not only inter-distance conflict
@@ -43,7 +50,7 @@ start here.
 - aggressive MDN + hybrid loss:
   - unstable / over-dispersed
 - conservative and exploratory MDN:
-  - best result so far: `9/12` (mini_protocol), `8/12` (full protocol with G6)
+  - best result: `9/12` (mini_protocol), `8/12` → `10/12` (full protocol with G6)
 - `conditional flow decoder`:
   - current implementation discarded
 - pure regime-weighted resampling:
@@ -51,55 +58,95 @@ start here.
 - ceiling probe axes (mdn_components, deeper decoder, higher beta, higher lambda_axis):
   - all negative or marginal vs lat8
 - Gaussian decoder as reference:
-  - `4/12` full protocol — MDN v2 clearly better (+4 regimes on all `1.0m`)
+  - `4/12` full protocol — MDN v2 clearly better (+6 regimes with S27 anchor)
 - 0.8m isolation (trained only on 0.8m data):
   - `0/4` — G3 fixed by isolation but G5/G6 remain; under-dispersion persists
+- `lambda_coverage` sweep (S27, 6 candidates):
+  - **winner: `lambda_coverage=0.25`, `10/12` full protocol** — new best
+  - `lambda_coverage=0.40`: collapses back to `4/12` — too aggressive, destabilises ELBO
+  - `tail_levels=[0.01,0.99]` (B/C candidates): negative — broader tails hurt more than help
+  - the optimal point is narrow: `0.25` wins, `0.15` gives only `5/12`, `0.40` regresses
+  - G3 and G6 now pass everywhere; G5 still fails at `0.8m/100mA` and `0.8m/300mA`
 
 ## Current Reading
 
-The universal under-dispersion problem:
+The universal under-dispersion problem — updated after S27:
 
-- `Δcov95 ≈ -0.17` across **all** 12 regimes, including those that pass the
-  protocol gates
-- the cVAE generates lighter tails and a slightly broader centre than the real
-  distribution — visible in all noise distribution plots and constellation
-  overlays
-- even at regimes where the model "passes", the shape is not fully correct:
-  the real distribution has a sharper peak and heavier tails simultaneously
-  (leptokurtic profile)
-- this is a systematic under-dispersion driven by the ELBO objective: the
-  model prioritises the bulk of the distribution and does not have enough
-  gradient pressure on the tails
+- with `lambda_coverage=0.06` (previous anchor): `Δcov95 ≈ -0.14` avg across
+  12 regimes — coverage_95 ≈ 0.806 mean (target: 0.950)
+- with `lambda_coverage=0.25` (S27 winner): `Δcov95 ≈ -0.18` avg — coverage
+  actually regressed slightly in the quantile sense, **but G5 (JB/shape)
+  improved dramatically** across all regimes except 0.8m/100mA and 0.8m/300mA
+- interpretation: the stronger coverage signal does not increase the quantile
+  coverage of the marginal, but it reshapes the gradient so that the MDN
+  components learn a **better shape** (lower skew/kurt error, lower JBrel)
+  at the cost of slightly narrower marginal quantiles — net gain: +2 regimes
+- the shape mismatch is not solved by coverage loss alone; it is reformulated
+
+Residual shape gap (visible in analysis dashboards, 0.8m regimes):
+
+- **0.8m / 100mA, 300mA** (fail, G5✗): the real distribution has a very sharp,
+  narrow peak and heavier tails simultaneously (leptokurtic); the model
+  produces a flatter, more uniform bell — the MDN cannot capture this with
+  3 components at this regime; JBrel = 3.59 (100mA) and 0.36 (300mA)
+- **0.8m / 500mA, 700mA** (pass, G5✓): JBrel = 0.17 — just under threshold;
+  the noise distribution shape is better but the **residual constellation
+  overlay is still visibly different**: the model's point cloud is more
+  uniform/spherical, the real data shows more structure at the edges
+- **even passing regimes (1.0m, 1.5m)**: the constellation overlay still
+  reveals the same gap — the model is always slightly more uniform, the real
+  data has residual spatial structure at the extremes that the cVAE does not
+  reproduce
+- this is a systematic pattern: the model captures the **bulk** of the
+  distribution well but misses the **leptokurtic edge structure** regardless
+  of distance or current; visible in every noise distribution Q-Q and every
+  constellation overlay
 
 The 0.8m problem has two independent layers:
 
-- **G3 (covariance)**: caused by inter-distance conflict in the global model;
-  isolation fixes it (`covVar` drops from `0.32` to `0.07` at `100mA`)
-- **G5/G6 (shape + statistical fidelity)**: intrinsic to 0.8m low-current
-  regimes; the real distribution is near-Gaussian at low currents, so any
-  mismatch in the kurtosis/skew dimension becomes a large relative error;
-  the isolated model oscillates between "too Gaussian" and "too
-  non-Gaussian" without converging to the correct shape; `MMDq` collapses
-  to `~0.007` even in isolation
+- **G3 (covariance)**: caused by inter-distance conflict — now resolved at
+  `lambda_coverage=0.25`; G3 passes in all 12 regimes including 0.8m
+- **G5 (shape)**: intrinsic to 0.8m low-current regimes; the real distribution
+  is near-Gaussian with high kurtosis at low currents; any shape mismatch
+  becomes a large relative JB error; `lambda_coverage=0.25` is insufficient
+  to fix 100mA and 300mA
 
-Current active intervention:
+Current branch reading (2026-03-28, after S27):
 
-- `seq_coverage_tail_sweep` (S27) — in progress
-- sweeps `lambda_coverage` from `0.06` to `0.40` and `tail_levels` from
-  `[0.05, 0.95]` to `[0.01, 0.99]`, plus a harder `coverage_temperature=0.01`
-- hypothesis: the current gradient from coverage loss is too weak relative to
-  reconstruction loss; a stronger coverage signal should force the model to
-  place more probability mass in the tails
+- `S27cov_lc0p25_tail95_t0p03` (`exp_20260328_153611`) is the new best:
+  **`10/12`** full protocol
+- remaining `2/12` gap is `0.8m/100mA` and `0.8m/300mA`, failing only G5
+- G6 now passes everywhere — the statistical fidelity (MMD/Energy) is solid
+- the residual constellation overlay gap is **systematic and not resolved** by
+  the current approach; even in passing regimes the model point cloud is too
+  uniform relative to real data
 
 ## Current Direction
 
-Use `S26full_lat8` (exp_20260327_225213) as the anchor and target the
-tail/coverage calibration gap directly:
+New anchor: `S27cov_lc0p25_tail95_t0p03` (`exp_20260328_153611`, `10/12`).
 
-- `lambda_coverage` sweep: `0.06 → 0.15 → 0.25 → 0.40`
-- `tail_levels` extension: `[0.05, 0.95] → [0.01, 0.99]`
-- `coverage_temperature` hardening: `0.03 → 0.01`
-- do not reopen architecture search until coverage calibration is resolved
+S27 has closed the coverage/lambda axis. The residual gap is:
+
+1. G5 at `0.8m/100mA` and `0.8m/300mA` — JBrel still above threshold; the
+   model cannot reproduce the leptokurtic shape of low-current 0.8m noise
+2. Constellation overlay gap — universal, present even in passing regimes;
+   the model point cloud is always too uniform relative to real data
+
+Open questions for the next intervention:
+
+- **more MDN components** at 0.8m low-current regimes (targeted, not global)?
+  Previously tested globally (negative); targeted via regime-conditioning not
+  yet tried
+- **explicit kurtosis / higher-moment loss term**? Would add direct pressure on
+  the 4th moment rather than relying on JB indirectly through coverage
+- **accept 10/12 and move to next scientific milestone**? The remaining failure
+  is intrinsic to the 0.8m/low-current regime and has resisted all structural
+  interventions so far
+
+Do not reopen:
+- `tail_levels=[0.01,0.99]` — tested negative in S27
+- `lambda_coverage>0.25` — 0.40 collapses to 4/12
+- `coverage_temperature=0.01` alone — marginal gain vs complexity
 
 The current implementation branch now includes an `MDN v2` path:
 
@@ -217,8 +264,9 @@ Current branch reading (2026-03-28):
   - G3: inter-distance covariance conflict (addressable with better conditioning)
   - G5/G6: systematic under-dispersion + shape calibration failure at low-current
     near-Gaussian regimes (under-coverage Δcov95 ≈ -0.17 universal)
-- active intervention: `seq_coverage_tail_sweep` (S27) targeting `lambda_coverage`
-  and `tail_levels`
+- S27 result: `seq_coverage_tail_sweep` — `10/12` full protocol at
+  `lambda_coverage=0.25`; remaining failures: `0.8m/100mA` and `0.8m/300mA`
+  (G5 only, JBrel too high); G3 and G6 now pass in all 12 regimes
 
 ## Operational Attention Point
 
