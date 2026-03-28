@@ -48,19 +48,18 @@ Historical refactor planning has been archived under:
 
 Current experimental branch in this worktree:
 
-- `feat/mdn-g5-recovery`
+- `feat/seq-bigru-residual-mdn-route`
 
 Purpose of this branch:
 
-- keep the strongest Gaussian seq reference and the strongest MDN quick line as baselines
-- formally discard the current `sinh-arcsinh` flow line as a negative result
-- return to the best stable MDN family
-- recover the remaining `G5` failures in `0.8 m` without reopening `G6`
-- avoid reopening decoder-family exploration unless the current MDN anchor is exhausted
+- isolate the `seq_bigru_residual + MDN` route in its own worktree
+- validate whether the strongest historical MDN line still reproduces under the
+  current stack
+- avoid mixing reproducibility triage with the `seq_imdd_graybox + MDN` work
 
 The worktree path remains:
 
-- `/workspace/2026/feat_seq_bigru_residual_cvae`
+- `/workspace/2026/feat_seq_bigru_residual_mdn_route`
 
 The folder name is historical; the active Git branch may differ from the path.
 

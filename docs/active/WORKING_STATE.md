@@ -8,11 +8,11 @@ start here.
 ## Current Worktree
 
 - active worktree:
-  - `/workspace/2026/feat_seq_bigru_residual_cvae`
+  - `/workspace/2026/feat_seq_bigru_residual_mdn_route`
 - active branch:
-  - `feat/mdn-g5-recovery`
+  - `feat/seq-bigru-residual-mdn-route`
 - git worktree count:
-  - `1`
+  - `2`
 
 ## Current Scientific Anchors
 
@@ -22,6 +22,9 @@ start here.
 - best MDN line so far:
   - `outputs/exp_20260325_230938`
   - `9/12`
+- current dedicated rerun on this branch:
+  - `outputs/exp_20260328_041729`
+  - `4/12`
 
 ## What Was Already Explored
 
@@ -56,6 +59,21 @@ remaining gap:
 - per-axis shape control
 - quantile / tail-aware regularization
 - other direct `G5`-oriented corrections
+
+2026-03-28 dedicated branch reading:
+
+- this branch exists to isolate the `seq_bigru_residual + MDN` route from the
+  gray-box work
+- rerunning `seq_mdn_v2_overnight_5090safe_quick` on this branch produced:
+  - run: `outputs/exp_20260328_041729`
+  - champion: `S25 ... cov0.06 / t0.025 / W7 / h64 / lat4`
+  - protocol result: `4/12`
+- this does not reproduce the historical `9/12` MDN anchor
+- practical reading:
+  - the immediate problem on this branch is reproducibility / environment drift
+  - the next useful task is not a broader sweep
+  - the next useful task is to explain why the historical MDN line is not
+    reproducing under the current stack
 
 The current implementation branch now includes an `MDN v2` path:
 
