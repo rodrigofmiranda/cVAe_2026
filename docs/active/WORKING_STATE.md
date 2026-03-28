@@ -67,6 +67,24 @@ start here.
   - `tail_levels=[0.01,0.99]` (B/C candidates): negative — broader tails hurt more than help
   - the optimal point is narrow: `0.25` wins, `0.15` gives only `5/12`, `0.40` regresses
   - G3 and G6 now pass everywhere; G5 still fails at `0.8m/100mA` and `0.8m/300mA`
+- **explicit kurtosis loss `lambda_kurt` sweep (S28, 4 candidates)**:
+  - run: `outputs/exp_20260328_191811`
+  - base: exact S27 A2 config (`lambda_coverage=0.25`, MDN3, lat8)
+  - **CTRL (lk=0.0) regressed to `4/12` mini** — expected `~9/12` from S27 A2; **confirms
+    HIGH TRAINING VARIANCE**: the S27 A2 `10/12` result is at the optimistic tail of the
+    initialization distribution, not a stable mode
+  - G3 regressed from `12/12` (S27) to `5/12` (CTRL): the covariance fix from
+    `lambda_coverage=0.25` is also variance-dependent, not guaranteed
+  - **lambda_kurt does NOT improve G5**: stuck at `4/12` across all 4 candidates
+    (only `1.5m` regimes pass G5 regardless of lambda_kurt)
+  - **lambda_kurt at moderate values is destructive**: lk=0.10 causes JBrel
+    explosion at `0.8m` (JBrel_I/Q up to 588/462) — catastrophic shape degradation
+  - G3 and G6 **do improve** with lambda_kurt: at lk=0.20, G3=9/12 and G6=9/12,
+    better than CTRL (G3=5, G6=5) — the kurtosis pressure reshapes the MDN
+    components in a way that helps distributional matching but not JB shape
+  - **conclusion: lambda_kurt is not the right lever for G5**; the JB test failure
+    at 0.8m is not addressable by isolated 4th-moment pressure; the gap is rooted in
+    the MDN's inability to reproduce the leptokurtic structure at low current
 
 ## Current Reading
 
@@ -111,12 +129,18 @@ The 0.8m problem has two independent layers:
   becomes a large relative JB error; `lambda_coverage=0.25` is insufficient
   to fix 100mA and 300mA
 
-Current branch reading (2026-03-28, after S27):
+Current branch reading (2026-03-28, after S27 + S28):
 
-- `S27cov_lc0p25_tail95_t0p03` (`exp_20260328_153611`) is the new best:
-  **`10/12`** full protocol
-- remaining `2/12` gap is `0.8m/100mA` and `0.8m/300mA`, failing only G5
-- G6 now passes everywhere — the statistical fidelity (MMD/Energy) is solid
+- `S27cov_lc0p25_tail95_t0p03` (`exp_20260328_153611`) is the best known result:
+  **`10/12`** full protocol — but this is at the **optimistic tail of training
+  variance**, not a stable expected value
+- S28 CTRL (exact same config) achieved only `4/12` in a fresh training run,
+  confirming high training variance; the expected performance may be `5–8/12`
+- remaining `2/12` gap is `0.8m/100mA` and `0.8m/300mA`, failing only G5;
+  this gap is intrinsic to the leptokurtic shape of low-current 0.8m noise and
+  has resisted all shape-targeted interventions (lambda_axis, lambda_kurt, lambda_coverage)
+- G6 passes 12/12 in S27 A2 — statistical fidelity (MMD/Energy) is solid when the
+  model trains well, but also variance-dependent
 - the residual constellation overlay gap is **systematic and not resolved** by
   the current approach; even in passing regimes the model point cloud is too
   uniform relative to real data
@@ -134,19 +158,23 @@ S27 has closed the coverage/lambda axis. The residual gap is:
 
 Open questions for the next intervention:
 
+- **training variance is the dominant problem**: S28 CTRL proves the `10/12` result
+  has high variance; the real expected performance with current config may be `5–8/12`;
+  variance must be characterised before concluding that the ceiling is `10/12`
+  - option: run 3 seeds of S27 A2 config to get a reliable E[pass] estimate
 - **more MDN components** at 0.8m low-current regimes (targeted, not global)?
-  Previously tested globally (negative); targeted via regime-conditioning not
-  yet tried
-- **explicit kurtosis / higher-moment loss term**? Would add direct pressure on
-  the 4th moment rather than relying on JB indirectly through coverage
-- **accept 10/12 and move to next scientific milestone**? The remaining failure
-  is intrinsic to the 0.8m/low-current regime and has resisted all structural
-  interventions so far
+  Previously tested globally (negative at mdn=5); targeted via regime-conditioning not
+  yet tried; may give more capacity for the leptokurtic shape
+- **accept 10/12 as best known** and move to the next scientific milestone,
+  acknowledging that the S27 A2 result may not be stably reproducible
 
 Do not reopen:
 - `tail_levels=[0.01,0.99]` — tested negative in S27
 - `lambda_coverage>0.25` — 0.40 collapses to 4/12
 - `coverage_temperature=0.01` alone — marginal gain vs complexity
+- **`lambda_kurt`** — S28 negative result: does not improve G5, hurts JBrel at
+  moderate values (lk=0.10 catastrophic), and does not compensate for training
+  variance; the kurtosis loss is not the right lever for the 0.8m G5 gap
 
 The current implementation branch now includes an `MDN v2` path:
 
