@@ -13,6 +13,21 @@ This is the single active working note for the current worktree.
 - git worktree count:
   - `2`
 
+## Execution Provenance
+
+- remote lane:
+  - `5090` host
+  - long runs usually executed via `scripts/ops/run_tf25_gpu.sh` under host
+    `tmux`
+- local lane:
+  - `A6000` workstation backing the current workspace session
+  - current reruns and audits executed locally
+- artifact scope:
+  - only a subset of remote `5090` experiments is copied into this local
+    workspace
+  - some historical anchors therefore exist here as imported artifacts, not as
+    locally generated runs
+
 ## What This Branch Is For
 
 - implement `seq_imdd_graybox + MDN`
@@ -61,6 +76,19 @@ This is the single active working note for the current worktree.
 - The immediate next lane has already moved to the dedicated
   `seq_bigru_residual + MDN` worktree because that family still owns the best
   historical MDN results.
+- The dedicated MDN reproducibility lane now has a controlled isolation run:
+  - `outputs/exp_20260328_181213`
+  - exact historical candidate tag
+  - `2/12`
+- The current reproducibility blocker is now understood more sharply:
+  - historical `9/12` MDN anchors ran on `Python 3.12.3 / TensorFlow 2.17.0 /
+    NumPy 1.26.4`
+  - current reruns are on `Python 3.8.10 / TensorFlow 2.8.0 / NumPy 1.21.1`
+  - host provenance also changed between the remote `5090` lane and the local
+    `A6000` lane
+  - data caps matched, so data quantity is not the main explanation
+  - seed is set once at pipeline start, so isolated single-candidate reruns are
+    runtime probes, not exact reproductions of a late grid position
 
 ## Recent Decision
 
@@ -76,7 +104,8 @@ This is the single active working note for the current worktree.
    - explain why the historical `9/12` MDN line is not reproducing under the
      current stack
 2. only after that, decide whether the next work should be:
-   - a local `seq_bigru_residual + MDN` follow-up
+   - a `seq_bigru_residual + MDN` rerun inside the documented `tf25_gpu`
+     container path
    - or a return to gray-box work with a much tighter hypothesis
 
 ## Do Not Reopen Blindly

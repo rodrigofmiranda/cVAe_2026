@@ -32,6 +32,24 @@ The public experiment flow remains:
 - reuse of a trained model:
   - `--reuse_model_run_dir`
 
+## Execution Contexts
+
+The current experiment history was produced across two machines:
+
+1. remote `5090` host
+   - long runs commonly executed through the documented `tf25_gpu` container
+     path and host-side `tmux`
+2. local `A6000` workstation
+   - current reruns and reproducibility checks executed from the local runtime
+     available in this workspace
+
+Important provenance rule:
+
+- not every `5090` experiment exists as a full runnable local environment here
+- some `5090` runs were only copied back as experiment artifacts
+- when comparing anchors, always treat host provenance as part of the
+  experimental context, not just the git commit
+
 ## Current Scientific Position
 
 Main verified anchors:
@@ -63,6 +81,10 @@ Current reading:
   `9/12` MDN anchors.
 - The immediate problem is now reproducibility drift, not lack of architecture
   options.
+- Part of that drift is operational:
+  - some strong anchors came from the remote `5090` lane
+  - current investigations are being executed on the local `A6000` lane
+  - only a subset of remote experiments was imported locally
 - The unresolved scientific region remains concentrated around `0.8 m`,
   especially G5 and G6 at lower currents.
 

@@ -10,6 +10,20 @@ recent experimental outcomes that matter right now.
 | `/workspace/2026/feat_seq_bigru_residual_cvae` | `feat/seq-imdd-graybox-mdn` | Implement and test `seq_imdd_graybox + MDN` | Implemented, tested, not promoted |
 | `/workspace/2026/feat_seq_bigru_residual_mdn_route` | `feat/seq-bigru-residual-mdn-route` | Dedicated rerun lane for `seq_bigru_residual + MDN` | Dedicated rerun completed, reproducibility gap open |
 
+## Host Provenance
+
+| Execution lane | Typical hardware / workflow | Notes |
+|---|---|---|
+| Remote lane | `5090` host + `tf25_gpu` container + host `tmux` | Used for some long runs and historical anchors |
+| Local lane | local `A6000` runtime in this workspace | Used for current reruns and audits |
+
+Important:
+
+- only part of the remote `5090` experiment history was copied back into the
+  local workspace
+- some anchors are therefore imported artifacts, not locally re-created runs
+- host provenance must be tracked alongside commit and software stack
+
 ## Canonical Anchors
 
 | Run | Family / reading | Pass | G3 | G5 | G6 | Score |
@@ -21,6 +35,7 @@ recent experimental outcomes that matter right now.
 | `exp_20260327_183153` | Gray-box Gaussian guided large | 5/12 | 10 | 9 | 6 | 0.5822 |
 | `exp_20260328_023302` | Gray-box + MDN guided quick | 5/12 | 9 | 9 | 5 | 0.9632 |
 | `exp_20260328_041729` | Dedicated seq MDN rerun | 4/12 | 9 | 6 | 5 | 0.9617 |
+| `exp_20260328_181213` | Single-candidate MDN isolation rerun | 2/12 | 4 | 8 | 2 | 3.8720 |
 
 ## Variations Tested
 
@@ -30,7 +45,7 @@ recent experimental outcomes that matter right now.
 | `seq_bigru_residual + MDN` historical | `exp_20260325_230938`, `exp_20260327_161311` | `9/12` | Confirms MDN can model the channel well when the stack is right |
 | `seq_bigru_residual + MDN v2` fastbase / local follow-ups | `exp_20260327_021632`, `exp_20260327_032019` | `5/12`, `6/12` | Coverage and local G5 tuning helped, but did not recover the old `9/12` ceiling |
 | `seq_bigru_residual + MDN` tail explore | `exp_20260327_050422` | `5/12` | Tail-level sweep alone did not unlock `0.8 m` |
-| `seq_bigru_residual + MDN` dedicated rerun branch | `exp_20260328_041729` | `4/12` | Current reproducibility is worse than the historical MDN anchors |
+| `seq_bigru_residual + MDN` dedicated rerun branch | `exp_20260328_041729`, `exp_20260328_181213` | `4/12`, `2/12` | Current reproducibility is worse than the historical MDN anchors, even when isolating the exact historical candidate |
 | `seq_imdd_graybox` Gaussian | `exp_20260327_172148`, `exp_20260327_183153` | `6/12`, `5/12` | Viable but below the best MDN family |
 | `seq_imdd_graybox + MDN` smoke | `exp_20260328_003030` | `0/12` | Plumbing only; not a scientific result |
 | `seq_imdd_graybox + MDN` guided quick | `exp_20260328_023302` | `5/12` | Route is implemented and valid, but not better than gray-box Gaussian |
@@ -80,10 +95,12 @@ recent experimental outcomes that matter right now.
 - The dedicated `seq_bigru_residual + MDN` rerun did not reproduce the old
   `9/12` anchors.
 - The immediate blocker is now reproducibility drift:
-  - environment
-  - defaults
-  - ranking path
-  - evaluation stack
+  - runtime stack changed from `Py3.12 / TF2.17 / NumPy1.26` to
+    `Py3.8 / TF2.8 / NumPy1.21`
+  - data quantity matched the good benchmark caps, so sample count is not the
+    main explanation
+  - pipeline seed is set once globally, so candidate order still affects RNG
+    state inside a multi-candidate grid
 - The unresolved scientific zone is still concentrated in `0.8 m`, with G5/G6
   failures dominating low-current regimes.
 
@@ -91,7 +108,8 @@ recent experimental outcomes that matter right now.
 
 1. Explain why the historical `seq_bigru_residual + MDN` line no longer
    reproduces `9/12` under the current stack.
-2. Only after reproducing that baseline, reopen local G5/G6 tuning.
+2. Reproduce the benchmark family only inside the documented `tf25_gpu`
+   container path before reopening any MDN sweep.
 3. Keep `seq_imdd_graybox + MDN` available as an implemented branch, but do
    not prioritize another long gray-box grid yet.
 

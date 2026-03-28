@@ -385,6 +385,27 @@ These start a host-side `tmux` session named `cvae_tf25_gpu`, launch
 `docker run --rm -it ... bash` inside it, and let you reattach later without
 killing the container when your local editor disconnects.
 
+### Execution provenance note
+
+The current project history mixes two execution contexts:
+
+- remote `5090` host:
+  - long runs typically launched inside the documented `tf25_gpu` container
+    flow with host-side `tmux`
+- local `A6000` workstation:
+  - many reruns and local investigations executed directly from the current
+    shell / local container
+
+This matters scientifically:
+
+- not every historical experiment from the remote `5090` host is copied into
+  the local workspace
+- some anchors were imported only as run artifacts
+- direct comparisons should always check:
+  - host provenance
+  - software stack
+  - whether the run was produced locally or imported from the remote lane
+
 ### Reduced multi-regime and model-reuse workflow
 
 For the current 12-regime reduced protocol (`0.8/1.0/1.5 m × 100/300/500/700 mA`):
