@@ -13,6 +13,21 @@ This is the single active working note for the current worktree.
 - git worktree count:
   - `2`
 
+## Execution Provenance
+
+- remote lane:
+  - `5090` host
+  - long runs usually executed via `scripts/ops/run_tf25_gpu.sh` under host
+    `tmux`
+- local lane:
+  - `A6000` workstation backing the current workspace session
+  - current reruns and audits executed locally
+- artifact scope:
+  - only a subset of remote `5090` experiments is copied into this local
+    workspace
+  - some historical anchors therefore exist here as imported artifacts, not as
+    locally generated runs
+
 ## What This Branch Is For
 
 - isolate the `seq_bigru_residual + MDN` family from gray-box work
@@ -24,6 +39,10 @@ This is the single active working note for the current worktree.
 - dedicated rerun completed:
   - `outputs/exp_20260328_041729`
   - result: `4/12`
+- controlled isolation rerun completed:
+  - `outputs/exp_20260328_181213`
+  - exact historical candidate tag
+  - result: `2/12`
 - historical anchors still better:
   - `outputs/exp_20260325_230938`
   - `outputs/exp_20260327_161311`
@@ -35,9 +54,21 @@ This is the single active working note for the current worktree.
 - therefore the next problem on this branch is reproducibility drift
 - this is not the moment for a broader MDN hyperparameter sweep
 - the branch should now be used to compare:
-  - environment behavior
+  - runtime stack behavior
   - effective defaults
+  - candidate-order / RNG effects
   - ranking and evaluation path differences
+- current evidence says:
+  - data quantity matched the good benchmark caps
+  - changing `patience` alone did not recover the route
+  - the strongest visible change is stack drift from
+    `Python 3.12.3 / TensorFlow 2.17.0 / NumPy 1.26.4`
+    to `Python 3.8.10 / TensorFlow 2.8.0 / NumPy 1.21.1`
+  - host provenance also changed between the remote `5090` lane and the local
+    `A6000` lane
+- the training pipeline sets seed once at startup, so a single-candidate rerun
+  is useful for runtime sensitivity, but it is not a byte-for-byte
+  reproduction of `grid_006` inside a 9-candidate search
 
 ## Most Relevant Runs
 
@@ -50,10 +81,14 @@ This is the single active working note for the current worktree.
 - dedicated rerun on this branch:
   - `outputs/exp_20260328_041729`
   - `4/12`
+- controlled isolation rerun on this branch:
+  - `outputs/exp_20260328_181213`
+  - `2/12`
 
 ## Immediate Next Actions
 
-1. explain why the old MDN line no longer reproduces `9/12`
+1. rerun the benchmark family only inside the documented `tf25_gpu` container
+   path
 2. only after that, reopen local G5/G6 tuning on `seq_bigru_residual + MDN`
 3. keep the gray-box + MDN branch available as a separate implemented route,
    but do not mix that code path into this reproducibility lane
