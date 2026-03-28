@@ -27,6 +27,13 @@ This is the single active working note for the current worktree.
     workspace
   - some historical anchors therefore exist here as imported artifacts, not as
     locally generated runs
+- branch scope:
+  - the remote `5090` host may be working on a different branch in parallel
+    from the local `A6000` session
+  - reported remote snapshot on `2026-03-28`:
+    - repo path `~/RODRIGO/cVAe_2026`
+    - branch `feat/mdn-g5-recovery`
+    - clean working tree
 
 ## What This Branch Is For
 
@@ -66,6 +73,7 @@ This is the single active working note for the current worktree.
     to `Python 3.8.10 / TensorFlow 2.8.0 / NumPy 1.21.1`
   - host provenance also changed between the remote `5090` lane and the local
     `A6000` lane
+  - branch provenance may also differ between those two lanes
 - the training pipeline sets seed once at startup, so a single-candidate rerun
   is useful for runtime sensitivity, but it is not a byte-for-byte
   reproduction of `grid_006` inside a 9-candidate search
