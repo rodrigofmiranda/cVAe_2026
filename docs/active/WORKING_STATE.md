@@ -1,9 +1,6 @@
 # Working State
 
-This is the single active working note for the repository.
-
-If you want to understand the current branch without reading historical plans,
-start here.
+This is the single active working note for the current worktree.
 
 ## Current Worktree
 
@@ -11,190 +8,80 @@ start here.
   - `/workspace/2026/feat_seq_bigru_residual_mdn_route`
 - active branch:
   - `feat/seq-bigru-residual-mdn-route`
+- sister worktree:
+  - `/workspace/2026/feat_seq_bigru_residual_cvae`
 - git worktree count:
   - `2`
 
-## Current Scientific Anchors
+## What This Branch Is For
 
-- stable Gaussian reference:
-  - `outputs/exp_20260324_023558`
-  - `10/12`
-- best MDN line so far:
-  - `outputs/exp_20260325_230938`
-  - `9/12`
-- current dedicated rerun on this branch:
+- isolate the `seq_bigru_residual + MDN` family from gray-box work
+- reproduce the strongest historical MDN line under the current stack
+- determine whether the immediate problem is scientific or operational
+
+## Branch Status
+
+- dedicated rerun completed:
   - `outputs/exp_20260328_041729`
-  - `4/12`
-
-## What Was Already Explored
-
-- stronger old Gaussian loss:
-  - negative result
-- `sample-aware MMD`:
-  - negative result
-- aggressive MDN + hybrid loss:
-  - unstable / over-dispersed
-- conservative and exploratory MDN:
-  - best result so far: `9/12`
-- `conditional flow decoder`:
-  - current implementation discarded
-- pure regime-weighted resampling:
-  - negative result
+  - result: `4/12`
+- historical anchors still better:
+  - `outputs/exp_20260325_230938`
+  - `outputs/exp_20260327_161311`
+  - both at `9/12`
 
 ## Current Reading
 
-The remaining gap is now narrow:
+- this branch did not reproduce the old MDN ceiling
+- therefore the next problem on this branch is reproducibility drift
+- this is not the moment for a broader MDN hyperparameter sweep
+- the branch should now be used to compare:
+  - environment behavior
+  - effective defaults
+  - ranking and evaluation path differences
 
-- the best MDN already passes `1.0 m` and `1.5 m`
-- the unresolved zone is `0.8 m`
-- the remaining problem is mostly `G5`
-- the next intervention should target marginal shape more directly
-  instead of reopening broad weighting or new decoder families
+## Most Relevant Runs
 
-## Current Direction
+- historical MDN anchor:
+  - `outputs/exp_20260325_230938`
+  - `9/12`
+- previous-branch MDN benchmark:
+  - `outputs/exp_20260327_161311`
+  - `9/12`
+- dedicated rerun on this branch:
+  - `outputs/exp_20260328_041729`
+  - `4/12`
 
-Use the best MDN as the anchor and try only interventions that are local to the
-remaining gap:
+## Immediate Next Actions
 
-- per-axis shape control
-- quantile / tail-aware regularization
-- other direct `G5`-oriented corrections
+1. explain why the old MDN line no longer reproduces `9/12`
+2. only after that, reopen local G5/G6 tuning on `seq_bigru_residual + MDN`
+3. keep the gray-box + MDN branch available as a separate implemented route,
+   but do not mix that code path into this reproducibility lane
 
-2026-03-28 dedicated branch reading:
+## Do Not Reopen Blindly
 
-- this branch exists to isolate the `seq_bigru_residual + MDN` route from the
-  gray-box work
-- rerunning `seq_mdn_v2_overnight_5090safe_quick` on this branch produced:
-  - run: `outputs/exp_20260328_041729`
-  - champion: `S25 ... cov0.06 / t0.025 / W7 / h64 / lat4`
-  - protocol result: `4/12`
-- this does not reproduce the historical `9/12` MDN anchor
-- practical reading:
-  - the immediate problem on this branch is reproducibility / environment drift
-  - the next useful task is not a broader sweep
-  - the next useful task is to explain why the historical MDN line is not
-    reproducing under the current stack
-
-The current implementation branch now includes an `MDN v2` path:
-
-- `lambda_coverage` for direct marginal coverage / tail calibration
-- `mini_protocol_v1` ranking for grid champion selection
-- finite `decoder_sensitivity` for seq Gaussian / seq MDN
-- `latent_summary` kept as audit-only telemetry, not a search criterion
-- an opt-in throughput compare preset:
-  - `seq_mdn_v2_perf_compare_quick`
-  - control path keeps `seq_gru_unroll=True`
-  - faster path tries `batch_size=8192`, `batch_infer=16384`
-  - experimental GRU path tries `seq_gru_unroll=False`
-  - keep the conservative default when moving to another GPU stack, especially the RTX 5090 machine
-- the latest throughput compare selected the faster operational baseline:
-  - `batch_size=8192`
-  - `batch_infer=16384`
-  - `seq_gru_unroll=False`
-  - continuity preset for the next scientific quicks:
-    - `seq_mdn_v2_fastbase_quick`
-- the first scientific quick on top of that faster baseline improved the line:
-  - run: `outputs/exp_20260327_021632`
-  - champion: `S22 ... cov0.05 / t=0.03 ...`
-  - protocol result: `5/12`
-  - main gain: `G6` recovery compared with the fastbase anchor
-  - remaining gap: `G5` still concentrated at `0.8 m`
-- local follow-up preset:
-  - `seq_mdn_v2_g5_followup_quick`
-- the local follow-up improved the line again:
-  - run: `outputs/exp_20260327_032019`
-  - champion: `S23 ... cov0.06 / t=0.03 ...`
-  - protocol result: `6/12`
-  - main gain: `0.8m / 700mA` moved to pass
-  - overnight decision preset:
-    - `seq_mdn_v2_overnight_decision_quick`
-    - mixes S23-local refinement and small exploratory probes
-  - 5090-safe overnight preset:
-    - `seq_mdn_v2_overnight_5090safe_quick`
-    - keeps `seq_gru_unroll=False` only on the validated `W7 / h64` branch
-    - forces `seq_gru_unroll=True` on structural probes (`h96`, `W11`, combined probes)
-  - A600 complementary exploratory preset:
-    - `seq_mdn_v2_a600_tail_explore_quick`
-    - opens a dedicated `tail_levels` sweep
-    - keeps structural probes on the faster `gruroll0` path
-    - meant to run in parallel with the 5090-safe overnight, not instead of it
-  - A600 tail exploration result:
-    - run: `outputs/exp_20260327_050422`
-    - champion: `S26 ... lat6 ... tail02-98 ...`
-    - protocol result: `5/12`
-    - reading: negative for the hypothesis that a separate `tail_levels` sweep
-      alone unlocks the remaining `0.8 m` gap
-  - 5090-safe overnight result:
-    - run: `outputs/exp_20260327_050158`
-    - train-side winner: `S25 ... h96 / lat6 / gruroll1 ...`
-    - protocol result is not scientifically valid yet
-    - reason: evaluation environment was missing `matplotlib`, so every regime
-      finished with `eval_status=failed`
-    - useful signal that remains:
-      - the strongest candidate came from a structural probe
-      - `gate_g6` signal was the strongest seen so far in this MDN v2 branch
-    - correct next action:
-      - re-evaluate the trained model from `exp_20260327_050158/train`
-      - do not open another 5090 grid before that re-evaluation
-
-Current branch reading after these two runs:
-
-- `S23` remains the best valid MDN v2 result: `6/12`
-- the A600 tail-specific branch did not improve on it
-- the 5090 structural branch may still have headroom, but that claim is blocked
-  on environment parity, not on training quality
-- the branch now includes a permanent runtime fix for this class of issue:
-  - seq candidates that hit the cuDNN GRU runtime failure retry automatically
-    on a compatibility backend
-  - this removes the need to hand-curate grids just to dodge the RTX 5090 GRU
-    failure mode
-- the evaluation path also no longer invalidates a whole protocol just because
-  `matplotlib` is missing; plots are skipped and the metrics still count
-
-## Operational Attention Point
-
-For `seq_bigru_residual`, any branch that uses per-experiment caps must be
-checked for the post-cap `df_split` fix.
-
-- affected configuration:
-  - `max_samples_per_exp`
-  - `max_val_samples_per_exp`
-  - train-side sequence windowing
-  - protocol-side sequence quick evaluation
-- failure mode:
-  - window center stays correct
-  - left/right context can cross experiment boundaries
-- safe configurations:
-  - full runs without per-experiment caps
-  - point-wise models without sequence windowing
-
-When resuming or cherry-picking to another branch, verify that the equivalent of
-commit `a1660e2` is present before trusting a quick sequential run.
-
-Also verify environment parity before trusting a completed protocol:
-
-- `matplotlib` must be installed in the evaluation environment
-- otherwise the run can train successfully, write reanalysis JSONs, and still
-  end with `eval_status=failed`, which invalidates `G1-G3`
-
-Do not reopen:
-
+- another broad `seq_bigru_residual + MDN` sweep before explaining the rerun gap
 - `sample-aware MMD`
 - the current `sinh-arcsinh` flow line
 - pure regime-resampling as the main intervention
 
+## Where The Full Matrix Lives
+
+For the consolidated list of:
+
+- branches
+- worktrees
+- tested route families
+- recent results
+- current queue
+
+read:
+
+- [ROUTES_AND_RESULTS.md](/workspace/2026/feat_seq_bigru_residual_mdn_route/docs/active/ROUTES_AND_RESULTS.md)
+
 ## Minimal Read Order
 
-1. [README.md](/workspace/2026/feat_seq_bigru_residual_cvae/README.md)
-2. [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_cvae/PROJECT_STATUS.md)
-3. [reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/PROTOCOL.md)
-4. [reference/EXPERIMENT_WORKFLOW.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/EXPERIMENT_WORKFLOW.md)
-
-## Archived Sources For This Working State
-
-If you need the older detailed notes, they were archived here:
-
-- [archive/active/ACTIVE_CONTEXT_legacy.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/archive/active/ACTIVE_CONTEXT_legacy.md)
-- [archive/active/MDN_G5_RECOVERY_PLAN.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/archive/active/MDN_G5_RECOVERY_PLAN.md)
-- [archive/active/TRAINING_PLAN_legacy.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/archive/active/TRAINING_PLAN_legacy.md)
-- [archive/research/NOISE_DISTRIBUTION_AUDIT.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/archive/research/NOISE_DISTRIBUTION_AUDIT.md)
+1. [README.md](/workspace/2026/feat_seq_bigru_residual_mdn_route/README.md)
+2. [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_mdn_route/PROJECT_STATUS.md)
+3. [ROUTES_AND_RESULTS.md](/workspace/2026/feat_seq_bigru_residual_mdn_route/docs/active/ROUTES_AND_RESULTS.md)
+4. [PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_mdn_route/docs/reference/PROTOCOL.md)

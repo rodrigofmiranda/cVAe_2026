@@ -8,19 +8,22 @@ Autoencoder (cVAE) with heteroscedastic decoding and conditional prior.
 
 This folder is:
 
-- `/workspace/2026/feat_seq_bigru_residual_cvae`
+- `/workspace/2026/feat_seq_bigru_residual_mdn_route`
 
 Meaning of the name:
 
-- `feat_seq_bigru_residual_cvae` comes from the Git branch name `feat/seq-bigru-residual-cvae`
-- the name is historical; this folder is now the main unified worktree
-- this folder contains the current code for all active architecture families
+- `feat_seq_bigru_residual_mdn_route` is a dedicated worktree created from the
+  main repository
+- this worktree exists to isolate the `seq_bigru_residual + MDN`
+  reproducibility lane from the `seq_imdd_graybox + MDN` implementation lane
+- the codebase is still the same repository, but this checkout has its own
+  branch and outputs directory
 
 Use this folder when:
 
-- you want the main day-to-day repository
-- you want to switch architecture by `arch_variant`
-- you want to compare `seq_bigru_residual` and `delta_residual`
+- you want the dedicated `seq_bigru_residual + MDN` rerun branch
+- you want to compare current reruns against the historical `9/12` MDN anchors
+- you do not want gray-box branch work to contaminate this lane
 
 Historical note:
 
@@ -34,6 +37,7 @@ Use these documents in this order:
 - [docs/README.md](docs/README.md) — canonical documentation map
 - [PROJECT_STATUS.md](PROJECT_STATUS.md) — current architecture and repo state
 - [docs/active/WORKING_STATE.md](docs/active/WORKING_STATE.md) — single active working note for the current branch
+- [docs/active/ROUTES_AND_RESULTS.md](docs/active/ROUTES_AND_RESULTS.md) — compact matrix of worktrees, branches, tested routes and recent outcomes
 - [docs/reference/EXPERIMENT_WORKFLOW.md](docs/reference/EXPERIMENT_WORKFLOW.md) — how to launch and analyze experiments
 - [docs/reference/PROTOCOL.md](docs/reference/PROTOCOL.md) — protocol runner, artifacts, CLI
 - [docs/reference/MODELING_ASSUMPTIONS.md](docs/reference/MODELING_ASSUMPTIONS.md) — modeling rationale
@@ -62,6 +66,40 @@ The worktree path remains:
 - `/workspace/2026/feat_seq_bigru_residual_mdn_route`
 
 The folder name is historical; the active Git branch may differ from the path.
+
+## Current Multi-Worktree Snapshot
+
+Current worktree registry:
+
+- dedicated rerun worktree:
+  - `/workspace/2026/feat_seq_bigru_residual_mdn_route`
+  - branch: `feat/seq-bigru-residual-mdn-route`
+  - current route result: `outputs/exp_20260328_041729`
+  - result: `4/12`
+- main implementation worktree:
+  - `/workspace/2026/feat_seq_bigru_residual_cvae`
+  - branch: `feat/seq-imdd-graybox-mdn`
+  - current route result: `outputs/exp_20260328_023302`
+  - result: `5/12`
+
+Key reference results:
+
+- stable Gaussian reference:
+  - `outputs/exp_20260324_023558`
+  - `10/12`
+- best historical MDN:
+  - `outputs/exp_20260325_230938`
+  - `9/12`
+- previous-branch MDN benchmark:
+  - `outputs/exp_20260327_161311`
+  - `9/12`
+
+Current reading:
+
+- this dedicated rerun branch did not reproduce the historical MDN ceiling
+- the immediate problem here is reproducibility drift
+- the gray-box + MDN branch remains available as a separate implemented route,
+  but it is not the main lane in this worktree
 
 ## Objective
 
@@ -281,7 +319,7 @@ bash scripts/ops/enter_tf25_gpu.sh
 Inside the container:
 
 ```bash
-cd /workspace/2026/feat_seq_bigru_residual_cvae
+cd /workspace/2026/feat_seq_bigru_residual_mdn_route
 
 # safest first check: validates config + dataset discovery, no training
 python -m src.protocol.run \
