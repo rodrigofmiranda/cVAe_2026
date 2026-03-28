@@ -2991,6 +2991,99 @@ def _preset_seq_coverage_tail_sweep() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_kurt_loss_sweep() -> List[Dict[str, Any]]:
+    """S28 — Explicit kurtosis loss sweep on top of S27 champion.
+
+    S27 champion (lc=0.25, tail95, t=0.03) reached 10/12 full protocol.
+    Remaining failures: 0.8m/100mA and 0.8m/300mA fail only G5 (JBrel=3.59
+    and 0.36 respectively) due to leptokurtic shape mismatch — the model
+    produces smoother bell-shaped output vs the real peaky/heavy-tailed
+    residual distribution.
+
+    lambda_axis already exists but uses weighted std+skew+kurt (axis_kurt_weight
+    =0.10) and was 0.01 in the S27 champion — kurtosis signal is diluted.
+    lambda_kurt isolates the 4th-moment MSE so the gradient budget is fully
+    dedicated to matching kurtosis.
+
+    Sweep lambda_kurt ∈ {0.05, 0.10, 0.20} on top of the S27 A2 winner base.
+    CTRL = exact S27 A2 winner (lambda_kurt=0.0) for a clean before/after.
+    """
+    analysis_quick_overrides = {
+        "train_regime_diagnostics_enabled": False,
+        "mini_reanalysis_enabled": True,
+        "mini_reanalysis_scope": "all12",
+        "mini_reanalysis_max_samples_per_regime": 4096,
+        "grid_ranking_mode": "mini_protocol_v1",
+        "batch_infer": 16384,
+    }
+
+    _base = dict(
+        arch_variant="seq_bigru_residual",
+        layer_sizes=[128, 256, 512],
+        latent_dim=8,
+        beta=0.002,
+        free_bits=0.10,
+        lr=2e-4,
+        batch_size=6144,
+        kl_anneal_epochs=80,
+        window_size=7,
+        window_stride=1,
+        window_pad_mode="edge",
+        seq_hidden_size=64,
+        seq_num_layers=1,
+        seq_bidirectional=True,
+        seq_gru_unroll=True,
+        lambda_mmd=0.25,
+        mmd_mode="mean_residual",
+        lambda_axis=0.01,
+        lambda_psd=0.0,
+        lambda_coverage=0.25,
+        coverage_levels=[0.50, 0.80, 0.95],
+        tail_levels=[0.05, 0.95],
+        coverage_temperature=0.03,
+        lambda_kurt=0.0,
+        decoder_distribution="mdn",
+        mdn_components=3,
+        shuffle_train_batches=True,
+    )
+
+    def _variant(overrides):
+        cfg = dict(_base)
+        cfg.update(overrides)
+        return _cfg(**cfg)
+
+    return [
+        # CTRL — exact S27 A2 winner (no kurtosis loss)
+        dict(
+            group="S28_kurt_loss_sweep",
+            tag="S28kurt_ctrl_lk0p0",
+            cfg=_variant({}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        # A1 — Mild kurtosis pressure
+        dict(
+            group="S28_kurt_loss_sweep",
+            tag="S28kurt_lk0p05",
+            cfg=_variant({"lambda_kurt": 0.05}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        # A2 — Moderate kurtosis pressure
+        dict(
+            group="S28_kurt_loss_sweep",
+            tag="S28kurt_lk0p10",
+            cfg=_variant({"lambda_kurt": 0.10}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        # A3 — Strong kurtosis pressure
+        dict(
+            group="S28_kurt_loss_sweep",
+            tag="S28kurt_lk0p20",
+            cfg=_variant({"lambda_kurt": 0.20}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+    ]
+
+
 def _preset_seq_mdn_v2_0p8m_isolation() -> List[Dict[str, Any]]:
     """Diagnostic: MDN v2 lat8 trained ONLY on 0.8m data.
 
@@ -3500,6 +3593,8 @@ def select_grid(
             grid = _preset_seq_mdn_v2_ceiling_full()
         elif preset_name == "seq_coverage_tail_sweep":
             grid = _preset_seq_coverage_tail_sweep()
+        elif preset_name == "seq_kurt_loss_sweep":
+            grid = _preset_seq_kurt_loss_sweep()
         elif preset_name == "seq_mdn_v2_0p8m_isolation":
             grid = _preset_seq_mdn_v2_0p8m_isolation()
         elif preset_name == "seq_gaussian_reference_full":

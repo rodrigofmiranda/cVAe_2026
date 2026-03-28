@@ -499,6 +499,7 @@ def build_seq_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
     lambda_axis = float(cfg.get("lambda_axis", 0.0))
     lambda_psd = float(cfg.get("lambda_psd", 0.0))
     lambda_coverage = float(cfg.get("lambda_coverage", 0.0))
+    lambda_kurt = float(cfg.get("lambda_kurt", 0.0))
     axis_std_weight = float(cfg.get("axis_std_weight", 1.0))
     axis_skew_weight = float(cfg.get("axis_skew_weight", 0.25))
     axis_kurt_weight = float(cfg.get("axis_kurt_weight", 0.10))
@@ -514,6 +515,7 @@ def build_seq_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
         lambda_axis=lambda_axis,
         lambda_psd=lambda_psd,
         lambda_coverage=lambda_coverage,
+        lambda_kurt=lambda_kurt,
         axis_std_weight=axis_std_weight,
         axis_skew_weight=axis_skew_weight,
         axis_kurt_weight=axis_kurt_weight,
@@ -526,7 +528,7 @@ def build_seq_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
         name="condprior_loss",
     )
     loss_inputs = [y_in, out_params, z_mean_q, z_log_var_q, z_mean_p, z_log_var_p]
-    if any(v > 0.0 for v in (lambda_mmd, lambda_axis, lambda_psd, lambda_coverage)):
+    if any(v > 0.0 for v in (lambda_mmd, lambda_axis, lambda_psd, lambda_coverage, lambda_kurt)):
         loss_inputs.append(x_center)
     y_mean_out = loss_layer(loss_inputs)
 

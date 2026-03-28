@@ -81,6 +81,7 @@ class TrainConfig:
     lambda_axis: float = MODEL_DEFAULTS["lambda_axis"]
     lambda_psd: float = MODEL_DEFAULTS["lambda_psd"]
     lambda_coverage: float = MODEL_DEFAULTS["lambda_coverage"]
+    lambda_kurt: float = MODEL_DEFAULTS["lambda_kurt"]
     axis_std_weight: float = MODEL_DEFAULTS["axis_std_weight"]
     axis_skew_weight: float = MODEL_DEFAULTS["axis_skew_weight"]
     axis_kurt_weight: float = MODEL_DEFAULTS["axis_kurt_weight"]
@@ -132,6 +133,7 @@ class TrainConfig:
             lambda_axis=float(_get(d, "lambda_axis", MODEL_DEFAULTS["lambda_axis"], float)),
             lambda_psd=float(_get(d, "lambda_psd", MODEL_DEFAULTS["lambda_psd"], float)),
             lambda_coverage=float(_get(d, "lambda_coverage", MODEL_DEFAULTS["lambda_coverage"], float)),
+            lambda_kurt=float(_get(d, "lambda_kurt", MODEL_DEFAULTS["lambda_kurt"], float)),
             axis_std_weight=float(_get(d, "axis_std_weight", MODEL_DEFAULTS["axis_std_weight"], float)),
             axis_skew_weight=float(_get(d, "axis_skew_weight", MODEL_DEFAULTS["axis_skew_weight"], float)),
             axis_kurt_weight=float(_get(d, "axis_kurt_weight", MODEL_DEFAULTS["axis_kurt_weight"], float)),

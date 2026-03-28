@@ -43,6 +43,7 @@ K_MMD_MODE = "mmd_mode"
 K_LAMBDA_AXIS = "lambda_axis"
 K_LAMBDA_PSD = "lambda_psd"
 K_LAMBDA_COVERAGE = "lambda_coverage"
+K_LAMBDA_KURT = "lambda_kurt"
 K_AXIS_STD_WEIGHT = "axis_std_weight"
 K_AXIS_SKEW_WEIGHT = "axis_skew_weight"
 K_AXIS_KURT_WEIGHT = "axis_kurt_weight"
@@ -134,6 +135,7 @@ MODEL_DEFAULTS: dict = {
     K_LAMBDA_AXIS: 0.0,
     K_LAMBDA_PSD: 0.0,
     K_LAMBDA_COVERAGE: 0.0,
+    K_LAMBDA_KURT: 0.0,
     K_AXIS_STD_WEIGHT: 1.0,
     K_AXIS_SKEW_WEIGHT: 0.25,
     K_AXIS_KURT_WEIGHT: 0.10,

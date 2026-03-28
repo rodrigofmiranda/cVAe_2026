@@ -350,6 +350,18 @@ def axis_moment_loss_tf(
     )
 
 
+def kurt_only_loss_tf(r_real: tf.Tensor, r_gen: tf.Tensor) -> tf.Tensor:
+    """Kurtosis-only MSE loss between real and generated residuals.
+
+    Computes excess kurtosis for each output channel and returns the mean
+    squared difference.  Isolates the 4th-moment signal without std/skew
+    interference so ``lambda_kurt`` can be tuned independently.
+    """
+    _, _, kurt_real = _batch_axis_stats(tf.stop_gradient(r_real))
+    _, _, kurt_gen = _batch_axis_stats(r_gen)
+    return tf.reduce_mean(tf.square(kurt_gen - kurt_real))
+
+
 def _quantile_axis0(x: tf.Tensor, q: float) -> tf.Tensor:
     """Approximate per-axis quantile along the batch dimension."""
     x = tf.cast(x, tf.float32)
@@ -459,6 +471,7 @@ class CondPriorVAELoss(layers.Layer):
         lambda_axis: float = 0.0,
         lambda_psd: float = 0.0,
         lambda_coverage: float = 0.0,
+        lambda_kurt: float = 0.0,
         axis_std_weight: float = 1.0,
         axis_skew_weight: float = 0.25,
         axis_kurt_weight: float = 0.10,
@@ -478,6 +491,7 @@ class CondPriorVAELoss(layers.Layer):
         self.lambda_axis = float(lambda_axis)
         self.lambda_psd = float(lambda_psd)
         self.lambda_coverage = float(lambda_coverage)
+        self.lambda_kurt = float(lambda_kurt)
         self.axis_std_weight = float(axis_std_weight)
         self.axis_skew_weight = float(axis_skew_weight)
         self.axis_kurt_weight = float(axis_kurt_weight)
@@ -501,6 +515,8 @@ class CondPriorVAELoss(layers.Layer):
             self.psd_loss_tracker = tf.keras.metrics.Mean(name="psd_loss")
         if self.lambda_coverage > 0.0:
             self.coverage_loss_tracker = tf.keras.metrics.Mean(name="coverage_loss")
+        if self.lambda_kurt > 0.0:
+            self.kurt_loss_tracker = tf.keras.metrics.Mean(name="kurt_loss")
 
     def call(self, inputs):
         if len(inputs) == 7:
@@ -555,6 +571,7 @@ class CondPriorVAELoss(layers.Layer):
             self.lambda_axis > 0.0
             or self.lambda_psd > 0.0
             or self.lambda_coverage > 0.0
+            or self.lambda_kurt > 0.0
         ) and x_center is not None:
             r_real = tf.stop_gradient(y_true - x_center)
             r_gen_sample = _ensure_sample() - x_center
@@ -586,6 +603,11 @@ class CondPriorVAELoss(layers.Layer):
                 self.coverage_loss_tracker.update_state(coverage_loss)
                 total = total + self.lambda_coverage * coverage_loss
 
+            if self.lambda_kurt > 0.0:
+                kurt_loss = kurt_only_loss_tf(r_real, r_gen_sample)
+                self.kurt_loss_tracker.update_state(kurt_loss)
+                total = total + self.lambda_kurt * kurt_loss
+
         self.add_loss(total)
         self.recon_loss_tracker.update_state(recon)
         self.kl_loss_tracker.update_state(tf.reduce_mean(kl_per_sample))
@@ -602,6 +624,8 @@ class CondPriorVAELoss(layers.Layer):
             m.append(self.psd_loss_tracker)
         if self.lambda_coverage > 0.0:
             m.append(self.coverage_loss_tracker)
+        if self.lambda_kurt > 0.0:
+            m.append(self.kurt_loss_tracker)
         return m
 
     def get_config(self):
@@ -613,6 +637,7 @@ class CondPriorVAELoss(layers.Layer):
             "lambda_axis": self.lambda_axis,
             "lambda_psd": self.lambda_psd,
             "lambda_coverage": self.lambda_coverage,
+            "lambda_kurt": self.lambda_kurt,
             "axis_std_weight": self.axis_std_weight,
             "axis_skew_weight": self.axis_skew_weight,
             "axis_kurt_weight": self.axis_kurt_weight,
