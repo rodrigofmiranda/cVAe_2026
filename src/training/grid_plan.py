@@ -3173,6 +3173,93 @@ def _preset_seq_mdn_components_sweep() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_cond_embed_sweep() -> List[Dict[str, Any]]:
+    """S30 — Decoder regime conditioning embedding sweep on S27 A2 base.
+
+    S29 showed that increasing MDN components (k=5, 8) does not fix G5 at
+    0.8m/300mA. The root cause hypothesis is that the decoder receives d and c
+    as raw scalars (2 / (latent+4) of its input), whereas prior and encoder
+    broadcast d,c into a BiGRU time path — giving the encoder/prior a far
+    richer nonlinear representation of the regime.
+
+    This sweep adds a small 2-layer MLP (cond_embed_dim units) that embeds
+    (d, c) before concatenation with z and x_center in the decoder:
+      CTRL: cond_embed_dim=0 (exact S27 A2 winner — measures training variance)
+      A1:   cond_embed_dim=16
+      A2:   cond_embed_dim=32
+
+    All runs: mdn_components=3, S27-A2 base config, full data (8.6M).
+    """
+    analysis_quick_overrides = {
+        "train_regime_diagnostics_enabled": False,
+        "mini_reanalysis_enabled": True,
+        "mini_reanalysis_scope": "all12",
+        "mini_reanalysis_max_samples_per_regime": 4096,
+        "grid_ranking_mode": "mini_protocol_v1",
+        "batch_infer": 16384,
+    }
+
+    _base = dict(
+        arch_variant="seq_bigru_residual",
+        layer_sizes=[128, 256, 512],
+        latent_dim=8,
+        beta=0.002,
+        free_bits=0.10,
+        lr=2e-4,
+        batch_size=6144,
+        kl_anneal_epochs=80,
+        window_size=7,
+        window_stride=1,
+        window_pad_mode="edge",
+        seq_hidden_size=64,
+        seq_num_layers=1,
+        seq_bidirectional=True,
+        seq_gru_unroll=True,
+        lambda_mmd=0.25,
+        mmd_mode="mean_residual",
+        lambda_axis=0.01,
+        lambda_psd=0.0,
+        lambda_coverage=0.25,
+        coverage_levels=[0.50, 0.80, 0.95],
+        tail_levels=[0.05, 0.95],
+        coverage_temperature=0.03,
+        lambda_kurt=0.0,
+        decoder_distribution="mdn",
+        mdn_components=3,
+        cond_embed_dim=0,
+        shuffle_train_batches=True,
+    )
+
+    def _variant(overrides):
+        cfg = dict(_base)
+        cfg.update(overrides)
+        return _cfg(**cfg)
+
+    return [
+        # CTRL — exact S27 A2 winner (embed=0, third seed for variance estimate)
+        dict(
+            group="S30_cond_embed_sweep",
+            tag="S30ce_ctrl_embed0",
+            cfg=_variant({}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        # A1 — 16-unit conditioning embedding
+        dict(
+            group="S30_cond_embed_sweep",
+            tag="S30ce_embed16",
+            cfg=_variant({"cond_embed_dim": 16}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        # A2 — 32-unit conditioning embedding
+        dict(
+            group="S30_cond_embed_sweep",
+            tag="S30ce_embed32",
+            cfg=_variant({"cond_embed_dim": 32}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+    ]
+
+
 def _preset_seq_mdn_v2_0p8m_isolation() -> List[Dict[str, Any]]:
     """Diagnostic: MDN v2 lat8 trained ONLY on 0.8m data.
 
@@ -3686,6 +3773,8 @@ def select_grid(
             grid = _preset_seq_kurt_loss_sweep()
         elif preset_name == "seq_mdn_components_sweep":
             grid = _preset_seq_mdn_components_sweep()
+        elif preset_name == "seq_cond_embed_sweep":
+            grid = _preset_seq_cond_embed_sweep()
         elif preset_name == "seq_mdn_v2_0p8m_isolation":
             grid = _preset_seq_mdn_v2_0p8m_isolation()
         elif preset_name == "seq_gaussian_reference_full":

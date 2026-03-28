@@ -403,13 +403,21 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
         cfg.get("decoder_distribution", "gaussian")
     ).strip().lower()
     mdn_components = int(cfg.get("mdn_components", 1))
+    cond_embed_dim = int(cfg.get("cond_embed_dim", 0))
 
     z_in      = layers.Input(shape=(latent,), name="z_input")
     x_cent_in = layers.Input(shape=(2,),      name="x_center_input")
     d_in      = layers.Input(shape=(1,),      name="d_input")
     c_in      = layers.Input(shape=(1,),      name="c_input")
 
-    h = layers.Concatenate(name="dec_concat")([z_in, x_cent_in, d_in, c_in])
+    if cond_embed_dim > 0:
+        # Nonlinear regime embedding: (d, c) → 2-layer MLP → cond_embed_dim
+        cond_raw = layers.Concatenate(name="dec_cond_raw")([d_in, c_in])
+        cond_h = layers.Dense(cond_embed_dim, activation=act, name="dec_cond_emb_0")(cond_raw)
+        cond_h = layers.Dense(cond_embed_dim, activation=act, name="dec_cond_emb_1")(cond_h)
+        h = layers.Concatenate(name="dec_concat")([z_in, x_cent_in, cond_h])
+    else:
+        h = layers.Concatenate(name="dec_concat")([z_in, x_cent_in, d_in, c_in])
 
     h = _mlp_head(h, mlp_sizes, act, dropout, name_prefix="dec")
 

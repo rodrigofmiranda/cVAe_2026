@@ -52,6 +52,7 @@ K_TAIL_LEVELS = "tail_levels"
 K_COVERAGE_TEMPERATURE = "coverage_temperature"
 K_DECODER_DISTRIBUTION = "decoder_distribution"
 K_MDN_COMPONENTS = "mdn_components"
+K_COND_EMBED_DIM = "cond_embed_dim"
 
 # --- Sequence model (seq_bigru_residual) ---
 K_WINDOW_SIZE = "window_size"
@@ -144,6 +145,7 @@ MODEL_DEFAULTS: dict = {
     K_COVERAGE_TEMPERATURE: 0.05,
     K_DECODER_DISTRIBUTION: "gaussian",
     K_MDN_COMPONENTS: 1,
+    K_COND_EMBED_DIM: 0,
     # Sequence model defaults (ignored by point-wise variants)
     K_WINDOW_SIZE: 33,
     K_WINDOW_STRIDE: 1,

@@ -29,6 +29,7 @@ from src.config.defaults import (
     K_SEQ_NUM_LAYERS,
     K_SEQ_BIDIRECTIONAL,
     K_SEQ_GRU_UNROLL,
+    K_COND_EMBED_DIM,
 )
 
 
@@ -90,6 +91,7 @@ class TrainConfig:
     coverage_temperature: float = MODEL_DEFAULTS["coverage_temperature"]
     decoder_distribution: str = MODEL_DEFAULTS["decoder_distribution"]
     mdn_components: int = MODEL_DEFAULTS["mdn_components"]
+    cond_embed_dim: int = MODEL_DEFAULTS["cond_embed_dim"]
     kl_anneal_epochs: int = MODEL_DEFAULTS["kl_anneal_epochs"]
 
     # optimiser / schedule
@@ -146,6 +148,7 @@ class TrainConfig:
                 d, "decoder_distribution", MODEL_DEFAULTS["decoder_distribution"]
             )),
             mdn_components=int(_get(d, "mdn_components", MODEL_DEFAULTS["mdn_components"], int)),
+            cond_embed_dim=int(_get(d, "cond_embed_dim", MODEL_DEFAULTS["cond_embed_dim"], int)),
             kl_anneal_epochs=int(_get(d, "kl_anneal_epochs", MODEL_DEFAULTS["kl_anneal_epochs"], int)),
             lr=float(_get(d, "lr", MODEL_DEFAULTS["lr"], float)),
             batch_size=int(_get(d, "batch_size", MODEL_DEFAULTS["batch_size"], int)),
