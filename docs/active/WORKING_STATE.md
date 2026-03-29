@@ -8,11 +8,11 @@ start here.
 ## Current Worktree
 
 - active worktree:
-  - `/workspace/2026/feat_seq_bigru_residual_cvae`
+  - `/workspace/2026/feat_mdn_g5_recovery`
 - active branch:
-  - `feat/mdn-g5-recovery`
+  - `feat/mdn-g5-recovery-run`
 - git worktree count:
-  - `1`
+  - `4`
 
 ## Current Scientific Anchors
 
@@ -33,6 +33,14 @@ start here.
   - fails: `0.8m/100mA` (JBrel=3.59), `0.8m/300mA` (JBrel=0.36) — G5 only
   - G3 now passes on all 12 regimes; G6 now passes on all 12 regimes
   - `gate_g5_pass=10`, `gate_g6_pass=12`, `mean_stat_mmd_qval=0.37`
+- latest regime-conditioning probe (full protocol + G6, 8.6M train):
+  - `outputs/exp_20260328_233844`
+  - `5/12` champion: `S30ce_embed16` (`cond_embed_dim=16`)
+  - passes: all `1.5m`, `1.0m/700mA`
+  - fails: all `0.8m`, `1.0m/100mA`, `1.0m/300mA`, `1.0m/500mA`
+  - reading: decoder-side regime embedding avoided the worst control collapse,
+    but regressed sharply against the S27 anchor and did not fix the two
+    remaining low-current `0.8m` G5 failures
 - Gaussian reference (full protocol + G6, 8.6M train):
   - `outputs/exp_20260328_023430`
   - `4/12` champion: `S26gauss_lat8`
@@ -100,6 +108,15 @@ start here.
     this regime's leptokurtic shape does not yield to any MDN capacity increase tested
   - **conclusion: more MDN components do NOT fix G5**; k=5 hurts, k=8 is marginal;
     the shape constraint at 0.8m low-current is architecture-agnostic within MDN family
+- **decoder regime-conditioning embedding sweep (S30, 3 candidates: embed=0/16/32)**:
+  - run: `outputs/exp_20260328_233844`
+  - base: exact S27 A2 config (`lambda_coverage=0.25`, lat8, MDN3)
+  - CTRL `embed=0`: collapsed to `1/12` mini / severe full-protocol regression —
+    another strong sign of high training variance in this family
+  - `embed=16`: selected champion, but only `5/12` full protocol
+  - `embed=32`: no scientific gain over `embed=16`; mini stays at `4/12`
+  - **conclusion: a small shared decoder conditioning embedding does NOT fix G5
+    at `0.8m/100mA` and `0.8m/300mA`; it broadens regression into `1.0m`**
 
 ## Current Reading
 
@@ -144,7 +161,7 @@ The 0.8m problem has two independent layers:
   becomes a large relative JB error; `lambda_coverage=0.25` is insufficient
   to fix 100mA and 300mA; tested MDN k=3/5/8 — none fixes it (S29)
 
-Current branch reading (2026-03-28, after S27 + S28 + S29):
+Current branch reading (2026-03-29, after S27 + S28 + S29 + S30):
 
 - `S27cov_lc0p25_tail95_t0p03` (`exp_20260328_153611`) is the best known result:
   **`10/12`** full protocol
@@ -157,6 +174,13 @@ Current branch reading (2026-03-28, after S27 + S28 + S29):
 - G5 failure at 0.8m/300mA is extreme (JBrel=3–10 across seeds) and persistent
 - the residual constellation overlay gap is **systematic and not resolved**;
   even in passing regimes the model point cloud is too uniform relative to real data
+- S30 `cond_embed_dim` was the first decoder-side regime-specific conditioning
+  probe and regressed to `5/12`; the best candidate (`embed=16`) still fails
+  all `0.8m` regimes and also loses `1.0m/100mA`, `300mA`, `500mA`
+- the current evidence says a **small shared regime embedding is too weak** to
+  address the low-current leptokurtic shape gap; if this axis is revisited, it
+  likely needs a stronger regime-specific head/expert instead of a shallow
+  shared embedding
 
 ## Current Direction
 
@@ -172,17 +196,20 @@ with all available loss-side and architecture-side interventions:
 | lambda_kurt (S28) | negative; lk=0.10 catastrophic |
 | MDN k=5 (S29) | regresses to 5/12 — worse |
 | MDN k=8 (S29) | marginal (6/12), 0.8m fails persist |
+| cond_embed_dim 16/32 (S30) | negative; best full result 5/12, regresses into 1.0m |
 
 **The 0.8m/100mA and 300mA G5 failure appears to be a hard constraint of the
 leptokurtic shape at short distance and low current, not addressable within the
-current seq_bigru_residual + MDN + coverage-loss family.**
+current seq_bigru_residual + MDN + coverage-loss family, including a small
+shared decoder-side regime embedding.**
 
 Open questions:
 - **accept the current ceiling** (~7–8/12 expected, 10/12 best known) and move
   to the next scientific milestone
-- investigate whether 0.8m/100mA and 300mA can be fixed by a **regime-specific
-  conditioning** approach (e.g. separate MDN head or regime embedding) rather
-  than global architecture changes — not yet tried
+- investigate whether 0.8m/100mA and 300mA can be fixed by a **stronger
+  regime-specific specialization** approach (e.g. separate MDN head / expert)
+  rather than global architecture changes — the shallow shared embedding path
+  has now been tried and was negative
 
 Do not reopen:
 - `tail_levels=[0.01,0.99]` — tested negative in S27
@@ -191,6 +218,8 @@ Do not reopen:
 - **`lambda_kurt`** — S28 negative; catastrophic at lk=0.10; not the right lever
 - **`mdn_components` global sweep** — S29 negative; k=5 hurts, k=8 marginal;
   more components globally do not fix 0.8m G5
+- **small decoder `cond_embed_dim` sweep** — S30 negative; `embed=16/32` do not
+  recover the remaining two 0.8m G5 regimes and regress 1.0m coverage
 
 The current implementation branch now includes an `MDN v2` path:
 

@@ -48,7 +48,11 @@ Historical refactor planning has been archived under:
 
 Current experimental branch in this worktree:
 
-- `feat/mdn-g5-recovery`
+- `feat/mdn-g5-recovery-run`
+
+Tracking:
+
+- `origin/feat/mdn-g5-recovery`
 
 Purpose of this branch:
 
@@ -60,7 +64,7 @@ Purpose of this branch:
 
 The worktree path remains:
 
-- `/workspace/2026/feat_seq_bigru_residual_cvae`
+- `/workspace/2026/feat_mdn_g5_recovery`
 
 The folder name is historical; the active Git branch may differ from the path.
 

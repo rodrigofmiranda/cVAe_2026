@@ -1,23 +1,30 @@
 # PROJECT_STATUS
 
-> Atualizado em 2026-03-27.
+> Atualizado em 2026-03-29.
 > Este arquivo e o inventario oficial das worktrees e do estado ativo do repositorio.
 
 ## Worktrees
 
 Worktrees git registradas neste repositorio:
 
-1. `/workspace/2026/feat_seq_bigru_residual_cvae`
-   - branch: `feat/mdn-g5-recovery`
-   - status: worktree ativa atual
-   - foco: recuperar as falhas residuais de `G5` perto de `0.8 m` partindo da
-     melhor linha MDN estavel
-
-No momento nao ha worktree secundaria registrada por `git worktree list`.
+1. `/workspace/2026/feat_mdn_g5_recovery`
+   - branch: `feat/mdn-g5-recovery-run`
+   - status: worktree ativa atual para a leitura/execucao do `S30`
+   - foco: validar se embedding raso de regime no decoder destrava os dois
+     regimes restantes de `0.8 m`
+2. `/workspace/2026/feat_seq_bigru_residual_cvae`
+   - branch: `feat/seq-imdd-graybox-mdn`
+   - status: worktree principal historica
+3. `/workspace/2026/feat_seq_bigru_residual_mdn_route`
+   - branch: `feat/seq-bigru-residual-mdn-route`
+   - status: rota dedicada de reruns MDN anteriores
+4. `/workspace/2026/feat_seq_bigru_residual_flow_route`
+   - branch: `feat/seq-bigru-residual-spline-flow`
+   - status: rota de flow fechada como resultado negativo
 
 ## Branch Atual
 
-- branch ativa: `feat/mdn-g5-recovery`
+- branch ativa: `feat/mdn-g5-recovery-run`
 - entrypoint canonico:
   - `python -m src.protocol.run`
 
@@ -36,24 +43,29 @@ Referencias principais hoje:
   - run: `outputs/exp_20260324_023558`
   - resultado: `10/12`
 - melhor linha MDN v2 valida ate agora:
-  - run: `outputs/exp_20260327_161311`
-  - resultado: `9/12`
+  - run: `outputs/exp_20260328_153611`
+  - resultado: `10/12`
+  - campeao: `S27cov_lc0p25_tail95_t0p03`
   - gates: `gate_g5_pass=10`, `gate_g6_pass=12`
 - melhor linha MDN historica (empate em score final):
   - run: `outputs/exp_20260325_230938`
   - resultado: `9/12`
 - ultimo teste negativo da branch atual:
-  - run: `outputs/exp_20260326_050257`
-  - linha: `regime-weighted resampling`
-  - resultado: `3/12`
+  - run: `outputs/exp_20260328_233844`
+  - linha: `S30` decoder regime conditioning embedding
+  - resultado: `5/12`
 
 Leitura atual:
 
 - a familia `seq_bigru_residual` continua sendo a principal linha temporal
-- a melhor MDN ficou competitiva, mas ainda abaixo da referencia gaussiana
+- a melhor MDN da linha atual chegou a `10/12` e empata a referencia gaussiana
+  em contagem de regimes, mas por caminho estatistico diferente
 - `sample-aware MMD`, o flow `sinh-arcsinh` atual e o weighting puro por regime
   devem ser tratados como linhas negativas nesta iteracao
-- o gargalo restante segue concentrado em `0.8 m`, principalmente em `G5`
+- o gargalo restante segue concentrado em `0.8 m`, especificamente
+  `0.8m/100mA` e `0.8m/300mA`, ambos em `G5`
+- o `S30` mostrou que um embedding raso de regime no decoder nao resolve esse
+  gargalo e ainda regride `1.0m`
 - a linha ativa agora e `MDN v2`:
   - `coverage/tail loss` opcional via `lambda_coverage`
   - ranking do grid por `mini_protocol_v1`
