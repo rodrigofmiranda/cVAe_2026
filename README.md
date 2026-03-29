@@ -8,24 +8,27 @@ Autoencoder (cVAE) with heteroscedastic decoding and conditional prior.
 
 This folder is:
 
-- `/workspace/2026/feat_seq_bigru_residual_cvae`
+- `/workspace/2026/feat_seq_bigru_residual_diffusion`
 
 Meaning of the name:
 
-- `feat_seq_bigru_residual_cvae` comes from the Git branch name `feat/seq-bigru-residual-cvae`
-- the name is historical; this folder is now the main unified worktree
-- this folder contains the current code for all active architecture families
+- `feat_seq_bigru_residual_diffusion` is the dedicated worktree for the
+  conditional-diffusion route
+- this folder isolates the next global generative family from the MDN and flow
+  worktrees
+- this folder contains the current code and docs for the diffusion lane only
 
 Use this folder when:
 
-- you want the main day-to-day repository
-- you want to switch architecture by `arch_variant`
-- you want to compare `seq_bigru_residual` and `delta_residual`
+- you want to work on the dedicated `seq_bigru_residual + diffusion` route
+- you want to attack the global distribution-learning gap without disturbing the
+  MDN anchor lane
+- you want a branch-local record of the post-flow next step
 
 Historical note:
 
-- the old local folder for the adversarial line was removed to save disk space
-- the branch name `feat/delta-residual-adv` still exists only for traceability
+- this worktree was forked from `feat/mdn-g5-recovery-run`
+- the best current scientific anchor still lives in the MDN lane
 
 ## Current Docs
 
@@ -37,6 +40,7 @@ Use these documents in this order:
 - [docs/reference/EXPERIMENT_WORKFLOW.md](docs/reference/EXPERIMENT_WORKFLOW.md) — how to launch and analyze experiments
 - [docs/reference/PROTOCOL.md](docs/reference/PROTOCOL.md) — protocol runner, artifacts, CLI
 - [docs/reference/MODELING_ASSUMPTIONS.md](docs/reference/MODELING_ASSUMPTIONS.md) — modeling rationale
+- [docs/reference/CONDITIONAL_DIFFUSION_GUIDE.md](docs/reference/CONDITIONAL_DIFFUSION_GUIDE.md) — route-specific integration guide and implementation plan
 - [docs/agents/AI_AGENT_GUIDE.md](docs/agents/AI_AGENT_GUIDE.md) — shared guide for Codex, Claude, Gemini and other assistants
 - [docs/archive/ideas/FUTURE_ADVERSARIAL_STRATEGY.md](docs/archive/ideas/FUTURE_ADVERSARIAL_STRATEGY.md) — archived backlog note for a future adversarial comeback
 
@@ -48,25 +52,44 @@ Historical refactor planning has been archived under:
 
 Current experimental branch in this worktree:
 
-- `feat/mdn-g5-recovery-run`
+- `feat/seq-bigru-residual-diffusion`
 
 Tracking:
 
-- `origin/feat/mdn-g5-recovery`
+- no remote branch yet
 
 Purpose of this branch:
 
-- keep the strongest Gaussian seq reference and the strongest MDN quick line as baselines
-- formally discard the current `sinh-arcsinh` flow line as a negative result
-- return to the best stable MDN family
-- recover the remaining `G5` failures in `0.8 m` without reopening `G6`
-- avoid reopening decoder-family exploration unless the current MDN anchor is exhausted
+- keep the strongest MDN line as a scientific anchor
+- treat the flow retries as closed negative lines for now
+- open the next global generative family: conditional diffusion
+- attack the global residual-shape mismatch, not only the last two protocol
+  failures
+- preserve a clean worktree for diffusion-specific code and experiments
 
 The worktree path remains:
 
-- `/workspace/2026/feat_mdn_g5_recovery`
+- `/workspace/2026/feat_seq_bigru_residual_diffusion`
 
 The folder name is historical; the active Git branch may differ from the path.
+
+## Current Branch State
+
+This branch has just been opened. No diffusion experiment has been run yet.
+
+Current scientific reading:
+
+- `S27cov_lc0p25_tail95_t0p03` in `outputs/exp_20260328_153611` remains the
+  best known result for this architecture family: `10/12`
+- that result still leaves a **global** distribution-learning gap:
+  - even in passing regimes the synthetic constellation is more uniform than
+    the real one
+  - the model captures the bulk but not the full residual shape
+- three flow lines are now negative in this project:
+  - old `sinh-arcsinh`
+  - `coupling_2d`
+  - `spline_2d`
+- the next serious route is therefore conditional diffusion
 
 ## Objective
 
@@ -286,7 +309,7 @@ bash scripts/ops/enter_tf25_gpu.sh
 Inside the container:
 
 ```bash
-cd /workspace/2026/feat_seq_bigru_residual_cvae
+cd /workspace/2026/feat_seq_bigru_residual_diffusion
 
 # safest first check: validates config + dataset discovery, no training
 python -m src.protocol.run \

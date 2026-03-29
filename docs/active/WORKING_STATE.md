@@ -8,11 +8,33 @@ start here.
 ## Current Worktree
 
 - active worktree:
-  - `/workspace/2026/feat_mdn_g5_recovery`
+  - `/workspace/2026/feat_seq_bigru_residual_diffusion`
 - active branch:
-  - `feat/mdn-g5-recovery-run`
+  - `feat/seq-bigru-residual-diffusion`
 - git worktree count:
-  - `4`
+  - `6`
+
+## Current Route Launch
+
+- route purpose:
+  - open the next global generative family after the MDN and flow limits became
+    clear
+- base anchor inherited from the parent worktree:
+  - `outputs/exp_20260328_153611`
+  - `S27cov_lc0p25_tail95_t0p03`
+  - `10/12`
+- scientific reason for opening this route:
+  - the residual-shape mismatch is global, not only local to the last two
+    failing regimes
+  - even passing regimes still show a constellation that is too uniform
+  - three flow lines are now negative:
+    - `sinh-arcsinh`
+    - `coupling_2d`
+    - `spline_2d`
+- current branch status:
+  - no diffusion implementation committed yet
+  - no diffusion smoke or quick run yet
+  - this worktree is the staging lane for that integration
 
 ## Current Scientific Anchors
 
@@ -60,7 +82,9 @@ start here.
 - conservative and exploratory MDN:
   - best result: `9/12` (mini_protocol), `8/12` → `10/12` (full protocol with G6)
 - `conditional flow decoder`:
-  - current implementation discarded
+  - old `sinh-arcsinh`: negative
+  - `coupling_2d`: negative
+  - `spline_2d`: negative
 - pure regime-weighted resampling:
   - negative result
 - ceiling probe axes (mdn_components, deeper decoder, higher beta, higher lambda_axis):
@@ -182,34 +206,43 @@ Current branch reading (2026-03-29, after S27 + S28 + S29 + S30):
   likely needs a stronger regime-specific head/expert instead of a shallow
   shared embedding
 
+Global reading that motivates this branch:
+
+- the benchmark gap is still visible in `G5`, but the scientific gap is wider
+- no current family reproduces the full residual distribution shape globally
+- the next route should therefore change the generative family itself, not just
+  local MDN knobs
+
 ## Current Direction
 
 Anchor: `S27cov_lc0p25_tail95_t0p03` (`exp_20260328_153611`, `10/12` best known).
 
-The G5 shape gap at `0.8m/100mA` and `0.8m/300mA` has been systematically attacked
-with all available loss-side and architecture-side interventions:
+The next route is **conditional diffusion**, because the open problem is
+global: the current families do not reproduce the full residual distribution
+shape, even when they pass the protocol.
 
-| Intervention | Result |
-|---|---|
-| lambda_axis (S26) | marginal, not G5-specific |
-| lambda_coverage sweep (S27) | +2 regimes (G3 fix), not G5 at 100/300mA |
-| lambda_kurt (S28) | negative; lk=0.10 catastrophic |
-| MDN k=5 (S29) | regresses to 5/12 — worse |
-| MDN k=8 (S29) | marginal (6/12), 0.8m fails persist |
-| cond_embed_dim 16/32 (S30) | negative; best full result 5/12, regresses into 1.0m |
+Immediate branch goals:
 
-**The 0.8m/100mA and 300mA G5 failure appears to be a hard constraint of the
-leptokurtic shape at short distance and low current, not addressable within the
-current seq_bigru_residual + MDN + coverage-loss family, including a small
-shared decoder-side regime embedding.**
+- keep the current seq backbone and conditioning path as much as possible
+- replace the decoder-family logic with a conditional diffusion route
+- start with a minimal structural milestone:
+  - build
+  - train
+  - save/load
+  - deterministic and stochastic inference
+  - smoke run through `src.protocol.run`
+- only then open a guided quick against the `S27` anchor
 
-Open questions:
-- **accept the current ceiling** (~7–8/12 expected, 10/12 best known) and move
-  to the next scientific milestone
-- investigate whether 0.8m/100mA and 300mA can be fixed by a **stronger
-  regime-specific specialization** approach (e.g. separate MDN head / expert)
-  rather than global architecture changes — the shallow shared embedding path
-  has now been tried and was negative
+Implementation focus:
+
+- seq-only first; do not generalize to every architecture family immediately
+- residual-domain generation first (`y = x + residual_sample`)
+- deterministic path should use a reproducible sampler, not ad-hoc averaging
+- preserve protocol compatibility and the existing artifact layout
+
+Do not reopen:
+- local sweeps of the three negative flow lines
+- global MDN knob sweeps already exhausted in S28/S29/S30
 
 Do not reopen:
 - `tail_levels=[0.01,0.99]` — tested negative in S27
@@ -383,16 +416,16 @@ Do not reopen:
 
 ## Minimal Read Order
 
-1. [README.md](/workspace/2026/feat_seq_bigru_residual_cvae/README.md)
-2. [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_cvae/PROJECT_STATUS.md)
-3. [reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/PROTOCOL.md)
-4. [reference/EXPERIMENT_WORKFLOW.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/EXPERIMENT_WORKFLOW.md)
+1. [README.md](/workspace/2026/feat_seq_bigru_residual_diffusion/README.md)
+2. [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_diffusion/PROJECT_STATUS.md)
+3. [reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/reference/PROTOCOL.md)
+4. [reference/EXPERIMENT_WORKFLOW.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/reference/EXPERIMENT_WORKFLOW.md)
 
 ## Archived Sources For This Working State
 
 If you need the older detailed notes, they were archived here:
 
-- [archive/active/ACTIVE_CONTEXT_legacy.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/archive/active/ACTIVE_CONTEXT_legacy.md)
-- [archive/active/MDN_G5_RECOVERY_PLAN.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/archive/active/MDN_G5_RECOVERY_PLAN.md)
-- [archive/active/TRAINING_PLAN_legacy.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/archive/active/TRAINING_PLAN_legacy.md)
-- [archive/research/NOISE_DISTRIBUTION_AUDIT.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/archive/research/NOISE_DISTRIBUTION_AUDIT.md)
+- [archive/active/ACTIVE_CONTEXT_legacy.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/archive/active/ACTIVE_CONTEXT_legacy.md)
+- [archive/active/MDN_G5_RECOVERY_PLAN.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/archive/active/MDN_G5_RECOVERY_PLAN.md)
+- [archive/active/TRAINING_PLAN_legacy.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/archive/active/TRAINING_PLAN_legacy.md)
+- [archive/research/NOISE_DISTRIBUTION_AUDIT.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/archive/research/NOISE_DISTRIBUTION_AUDIT.md)

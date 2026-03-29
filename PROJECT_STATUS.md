@@ -7,24 +7,31 @@
 
 Worktrees git registradas neste repositorio:
 
-1. `/workspace/2026/feat_mdn_g5_recovery`
+1. `/workspace/2026/feat_seq_bigru_residual_diffusion`
+   - branch: `feat/seq-bigru-residual-diffusion`
+   - status: worktree ativa desta copia
+   - foco: abrir a rota de `conditional diffusion` a partir do anchor `S27`
+2. `/workspace/2026/feat_mdn_g5_recovery`
    - branch: `feat/mdn-g5-recovery-run`
-   - status: worktree ativa atual para a leitura/execucao do `S30`
+   - status: worktree MDN mais forte / origem da branch atual
    - foco: validar se embedding raso de regime no decoder destrava os dois
      regimes restantes de `0.8 m`
-2. `/workspace/2026/feat_seq_bigru_residual_cvae`
+3. `/workspace/2026/feat_seq_bigru_residual_cvae`
    - branch: `feat/seq-imdd-graybox-mdn`
    - status: worktree principal historica
-3. `/workspace/2026/feat_seq_bigru_residual_mdn_route`
+4. `/workspace/2026/feat_seq_bigru_residual_mdn_route`
    - branch: `feat/seq-bigru-residual-mdn-route`
    - status: rota dedicada de reruns MDN anteriores
-4. `/workspace/2026/feat_seq_bigru_residual_flow_route`
+5. `/workspace/2026/feat_seq_bigru_residual_flow_route`
    - branch: `feat/seq-bigru-residual-spline-flow`
-   - status: rota de flow fechada como resultado negativo
+   - status: rota de `coupling_2d` fechada como resultado negativo
+6. `/workspace/2026/feat_seq_bigru_residual_spline_flow_v2`
+   - branch: `feat/seq-bigru-residual-spline-flow-v2`
+   - status: rota de `spline_2d` fechada como resultado negativo
 
 ## Branch Atual
 
-- branch ativa: `feat/mdn-g5-recovery-run`
+- branch ativa: `feat/seq-bigru-residual-diffusion`
 - entrypoint canonico:
   - `python -m src.protocol.run`
 
@@ -36,6 +43,21 @@ O fluxo publico de experimentacao permanece:
   - `--reuse_model_run_dir`
 
 ## Estado Cientifico
+
+Decisao desta branch:
+
+- a linha MDN `S27` continua sendo o melhor anchor conhecido (`10/12`)
+- o problema restante deve ser tratado como **global**:
+  - mesmo regimes que passam ainda nao reproduzem o shape residual completo
+  - a constelacao sintetica continua mais uniforme que a real
+- as tres linhas de flow ja testadas ficam arquivadas como negativas nesta
+  iteracao:
+  - `sinh-arcsinh`
+  - `coupling_2d`
+  - `spline_2d`
+- a proxima aposta seria da linha generativa global:
+  - `conditional diffusion`
+  - nao outro sweep local dentro das familias ja esgotadas
 
 Referencias principais hoje:
 
@@ -54,23 +76,26 @@ Referencias principais hoje:
   - run: `outputs/exp_20260328_233844`
   - linha: `S30` decoder regime conditioning embedding
   - resultado: `5/12`
+- ultimo teste negativo de decoder-family:
+  - run: `outputs/exp_20260329_015815`
+  - linha: `spline_2d flow`
+  - resultado: `0/12`
 
 Leitura atual:
 
 - a familia `seq_bigru_residual` continua sendo a principal linha temporal
 - a melhor MDN da linha atual chegou a `10/12` e empata a referencia gaussiana
   em contagem de regimes, mas por caminho estatistico diferente
-- `sample-aware MMD`, o flow `sinh-arcsinh` atual e o weighting puro por regime
-  devem ser tratados como linhas negativas nesta iteracao
-- o gargalo restante segue concentrado em `0.8 m`, especificamente
-  `0.8m/100mA` e `0.8m/300mA`, ambos em `G5`
+- `sample-aware MMD`, o flow `sinh-arcsinh`, o flow `coupling_2d`, o flow
+  `spline_2d` e o weighting puro por regime devem ser tratados como linhas
+  negativas nesta iteracao
+- o gargalo de benchmark segue concentrado em `0.8 m`, especificamente
+  `0.8m/100mA` e `0.8m/300mA`, ambos em `G5`, mas o gargalo cientifico real e
+  mais amplo: nenhuma linha atual aprende o shape global completo do sinal
 - o `S30` mostrou que um embedding raso de regime no decoder nao resolve esse
   gargalo e ainda regride `1.0m`
-- a linha ativa agora e `MDN v2`:
-  - `coverage/tail loss` opcional via `lambda_coverage`
-  - ranking do grid por `mini_protocol_v1`
-  - `decoder_sensitivity` seq/MDN corrigido e finito
-  - `latent_summary` mantido apenas como telemetria de auditoria
+- a linha ativa agora nesta worktree e `conditional diffusion`, mas ainda sem
+  implementacao nem run cientifico nesta copia
 - tambem existe agora uma comparacao de throughput opt-in para a linha seq MDN:
   - preset: `seq_mdn_v2_perf_compare_quick`
   - controle atual: `batch_size=4096`, `batch_infer=8192`, `seq_gru_unroll=True`
@@ -221,29 +246,30 @@ Artefatos operacionais principais:
 
 Raiz:
 
-- [README.md](/workspace/2026/feat_seq_bigru_residual_cvae/README.md)
+- [README.md](/workspace/2026/feat_seq_bigru_residual_diffusion/README.md)
   - guia principal do repositorio para leitura no GitHub
-- [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_cvae/PROJECT_STATUS.md)
+- [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_diffusion/PROJECT_STATUS.md)
   - inventario oficial das worktrees e estado ativo
-- [CODEX.md](/workspace/2026/feat_seq_bigru_residual_cvae/CODEX.md)
+- [CODEX.md](/workspace/2026/feat_seq_bigru_residual_diffusion/CODEX.md)
   - stub de auto-discovery para Codex
-- [CLAUDE.md](/workspace/2026/feat_seq_bigru_residual_cvae/CLAUDE.md)
+- [CLAUDE.md](/workspace/2026/feat_seq_bigru_residual_diffusion/CLAUDE.md)
   - stub de auto-discovery para Claude
 
 Docs ativos:
 
-- [docs/README.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/README.md)
-- [docs/active/WORKING_STATE.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/active/WORKING_STATE.md)
-- [docs/reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/PROTOCOL.md)
-- [docs/reference/EXPERIMENT_WORKFLOW.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/EXPERIMENT_WORKFLOW.md)
-- [docs/reference/MODELING_ASSUMPTIONS.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/MODELING_ASSUMPTIONS.md)
-- [docs/agents/AI_AGENT_GUIDE.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/agents/AI_AGENT_GUIDE.md)
-- [docs/agents/REVIEW.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/agents/REVIEW.md)
+- [docs/README.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/README.md)
+- [docs/active/WORKING_STATE.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/active/WORKING_STATE.md)
+- [docs/reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/reference/PROTOCOL.md)
+- [docs/reference/EXPERIMENT_WORKFLOW.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/reference/EXPERIMENT_WORKFLOW.md)
+- [docs/reference/MODELING_ASSUMPTIONS.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/reference/MODELING_ASSUMPTIONS.md)
+- [docs/reference/CONDITIONAL_DIFFUSION_GUIDE.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/reference/CONDITIONAL_DIFFUSION_GUIDE.md)
+- [docs/agents/AI_AGENT_GUIDE.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/agents/AI_AGENT_GUIDE.md)
+- [docs/agents/REVIEW.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/agents/REVIEW.md)
 
 ## Como Retomar Rapidamente
 
 ```bash
-cd /workspace/2026/feat_seq_bigru_residual_cvae
+cd /workspace/2026/feat_seq_bigru_residual_diffusion
 git status -sb
 git worktree list
 python scripts/analysis/summarize_experiment.py "$(ls -td outputs/exp_* | head -1)"
@@ -251,13 +277,13 @@ python scripts/analysis/summarize_experiment.py "$(ls -td outputs/exp_* | head -
 
 Depois disso, leia:
 
-1. [README.md](/workspace/2026/feat_seq_bigru_residual_cvae/README.md)
-2. [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_cvae/PROJECT_STATUS.md)
-3. [docs/active/WORKING_STATE.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/active/WORKING_STATE.md)
-4. [docs/reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/PROTOCOL.md)
+1. [README.md](/workspace/2026/feat_seq_bigru_residual_diffusion/README.md)
+2. [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_diffusion/PROJECT_STATUS.md)
+3. [docs/active/WORKING_STATE.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/active/WORKING_STATE.md)
+4. [docs/reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/reference/PROTOCOL.md)
 
 ## Arquivo Historico
 
 Tudo que deixou de ser documento vivo foi movido para:
 
-- [docs/archive/README.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/archive/README.md)
+- [docs/archive/README.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/archive/README.md)

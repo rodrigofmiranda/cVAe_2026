@@ -5,27 +5,26 @@ assistant.
 
 Tool-specific root files still exist because some tools auto-discover them:
 
-- [CODEX.md](/workspace/2026/feat_seq_bigru_residual_cvae/CODEX.md)
-- [CLAUDE.md](/workspace/2026/feat_seq_bigru_residual_cvae/CLAUDE.md)
+- [CODEX.md](/workspace/2026/feat_seq_bigru_residual_diffusion/CODEX.md)
+- [CLAUDE.md](/workspace/2026/feat_seq_bigru_residual_diffusion/CLAUDE.md)
 
 Those root files should stay short and point here for common context.
 
 ## Current Focus
 
-- active branch: `feat/mdn-g5-recovery`
+- active branch: `feat/seq-bigru-residual-diffusion`
 - goal:
-  recover the remaining `G5` failures near `0.8 m` without destabilizing the
-  best MDN line
+  open the conditional-diffusion route for the global residual-shape problem
 
 ## Minimal Read Order
 
 Read only these first:
 
-1. [README.md](/workspace/2026/feat_seq_bigru_residual_cvae/README.md)
-2. [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_cvae/PROJECT_STATUS.md)
-3. [active/WORKING_STATE.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/active/WORKING_STATE.md)
-4. [reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/PROTOCOL.md)
-5. [reference/EXPERIMENT_WORKFLOW.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/EXPERIMENT_WORKFLOW.md)
+1. [README.md](/workspace/2026/feat_seq_bigru_residual_diffusion/README.md)
+2. [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_diffusion/PROJECT_STATUS.md)
+3. [active/WORKING_STATE.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/active/WORKING_STATE.md)
+4. [reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/reference/PROTOCOL.md)
+5. [reference/EXPERIMENT_WORKFLOW.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/reference/EXPERIMENT_WORKFLOW.md)
 
 Add a sixth file only if the task needs it.
 
@@ -35,11 +34,13 @@ Add a sixth file only if the task needs it.
   - `outputs/exp_20260324_023558`
   - `10/12`
 - best MDN line so far:
-  - `outputs/exp_20260325_230938`
-  - `9/12`
+  - `outputs/exp_20260328_153611`
+  - `10/12`
 - negative lines already tested:
   - `sample-aware MMD`
-  - current `sinh-arcsinh` flow line
+  - `sinh-arcsinh` flow line
+  - `coupling_2d` flow line
+  - `spline_2d` flow line
   - pure regime-weighted resampling
 
 ## Active Architecture Families
@@ -112,8 +113,8 @@ Then inspect the latest exp_* and summarize:
 ## Tool-Specific Additions
 
 - Codex-specific behavior:
-  [CODEX.md](/workspace/2026/feat_seq_bigru_residual_cvae/CODEX.md)
+  [CODEX.md](/workspace/2026/feat_seq_bigru_residual_diffusion/CODEX.md)
 - Claude-specific behavior:
-  [CLAUDE.md](/workspace/2026/feat_seq_bigru_residual_cvae/CLAUDE.md)
+  [CLAUDE.md](/workspace/2026/feat_seq_bigru_residual_diffusion/CLAUDE.md)
 - review-only criteria:
-  [docs/agents/REVIEW.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/agents/REVIEW.md)
+  [docs/agents/REVIEW.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/agents/REVIEW.md)

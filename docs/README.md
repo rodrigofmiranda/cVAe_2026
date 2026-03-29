@@ -8,30 +8,31 @@ level.
 These remain at repo root because they are the main entrypoints or are used by
 agent tooling conventions:
 
-- [README.md](/workspace/2026/feat_seq_bigru_residual_cvae/README.md)
-- [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_cvae/PROJECT_STATUS.md)
-- [CODEX.md](/workspace/2026/feat_seq_bigru_residual_cvae/CODEX.md)
-- [CLAUDE.md](/workspace/2026/feat_seq_bigru_residual_cvae/CLAUDE.md)
+- [README.md](/workspace/2026/feat_seq_bigru_residual_diffusion/README.md)
+- [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_diffusion/PROJECT_STATUS.md)
+- [CODEX.md](/workspace/2026/feat_seq_bigru_residual_diffusion/CODEX.md)
+- [CLAUDE.md](/workspace/2026/feat_seq_bigru_residual_diffusion/CLAUDE.md)
 
 ## Active Docs
 
-- [active/WORKING_STATE.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/active/WORKING_STATE.md)
+- [active/WORKING_STATE.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/active/WORKING_STATE.md)
 
 ## Reference Docs
 
-- [reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/PROTOCOL.md)
-- [reference/MODELING_ASSUMPTIONS.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/MODELING_ASSUMPTIONS.md)
-- [reference/EXPERIMENT_WORKFLOW.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/EXPERIMENT_WORKFLOW.md)
+- [reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/reference/PROTOCOL.md)
+- [reference/MODELING_ASSUMPTIONS.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/reference/MODELING_ASSUMPTIONS.md)
+- [reference/EXPERIMENT_WORKFLOW.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/reference/EXPERIMENT_WORKFLOW.md)
+- [reference/CONDITIONAL_DIFFUSION_GUIDE.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/reference/CONDITIONAL_DIFFUSION_GUIDE.md)
 
 ## Agent Docs
 
-- [agents/AI_AGENT_GUIDE.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/agents/AI_AGENT_GUIDE.md)
-- [agents/REVIEW.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/agents/REVIEW.md)
+- [agents/AI_AGENT_GUIDE.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/agents/AI_AGENT_GUIDE.md)
+- [agents/REVIEW.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/agents/REVIEW.md)
 
 ## Operations
 
-- [operations/HOST_GPU_IDLE_DIAGNOSTIC.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/operations/HOST_GPU_IDLE_DIAGNOSTIC.md)
+- [operations/HOST_GPU_IDLE_DIAGNOSTIC.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/operations/HOST_GPU_IDLE_DIAGNOSTIC.md)
 
 ## Archive
 
-- [archive/README.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/archive/README.md)
+- [archive/README.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/archive/README.md)
