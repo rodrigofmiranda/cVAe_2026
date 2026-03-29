@@ -146,6 +146,7 @@ MODEL_DEFAULTS: dict = {
     K_DECODER_DISTRIBUTION: "gaussian",
     K_MDN_COMPONENTS: 1,
     K_COND_EMBED_DIM: 0,
+    "cond_embed_residual": False,
     # Sequence model defaults (ignored by point-wise variants)
     K_WINDOW_SIZE: 33,
     K_WINDOW_STRIDE: 1,

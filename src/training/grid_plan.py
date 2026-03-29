@@ -3260,6 +3260,100 @@ def _preset_seq_cond_embed_sweep() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_cond_embed_tuned_sweep() -> List[Dict[str, Any]]:
+    """S31 — Decoder conditioning embedding: tuned LR, larger embed, residual skip.
+
+    S30 identified cond_embed_dim as the right direction (δJBrel 2990→0.375 for
+    embed16, 5 vs 8 G5 failures for embed32) but convergence was poor:
+    - embed16 never triggered early stopping (still improving at epoch 500)
+    - embed32 stopped at epoch 98 (undertrained, active_dims=7)
+
+    This sweep addresses convergence with four targeted variants:
+      CTRL: embed=16, lr=4e-4  (2× higher LR to accelerate embed16)
+      A1:   embed=32, lr=4e-4  (higher LR for embed32)
+      A2:   embed=64, lr=2e-4  (larger capacity, standard LR)
+      A3:   embed=32, lr=4e-4, residual=True  (raw (d,c) + embed skip connection)
+
+    All runs: mdn_components=3, S27-A2 base, full data (8.6M).
+    patience=80 (vs default 60) to give embed variants enough exploration time.
+    """
+    analysis_quick_overrides = {
+        "train_regime_diagnostics_enabled": False,
+        "mini_reanalysis_enabled": True,
+        "mini_reanalysis_scope": "all12",
+        "mini_reanalysis_max_samples_per_regime": 4096,
+        "grid_ranking_mode": "mini_protocol_v1",
+        "batch_infer": 16384,
+    }
+
+    _base = dict(
+        arch_variant="seq_bigru_residual",
+        layer_sizes=[128, 256, 512],
+        latent_dim=8,
+        beta=0.002,
+        free_bits=0.10,
+        batch_size=6144,
+        kl_anneal_epochs=80,
+        window_size=7,
+        window_stride=1,
+        window_pad_mode="edge",
+        seq_hidden_size=64,
+        seq_num_layers=1,
+        seq_bidirectional=True,
+        seq_gru_unroll=True,
+        lambda_mmd=0.25,
+        mmd_mode="mean_residual",
+        lambda_axis=0.01,
+        lambda_psd=0.0,
+        lambda_coverage=0.25,
+        coverage_levels=[0.50, 0.80, 0.95],
+        tail_levels=[0.05, 0.95],
+        coverage_temperature=0.03,
+        lambda_kurt=0.0,
+        decoder_distribution="mdn",
+        mdn_components=3,
+        cond_embed_residual=False,
+        shuffle_train_batches=True,
+        patience=80,
+    )
+
+    def _variant(overrides):
+        cfg = dict(_base)
+        cfg.update(overrides)
+        return _cfg(**cfg)
+
+    return [
+        # CTRL — embed=16 with higher LR (embed16 was still converging at epoch 500)
+        dict(
+            group="S31_cond_embed_tuned",
+            tag="S31ce_e16_lr4e4",
+            cfg=_variant({"cond_embed_dim": 16, "lr": 4e-4}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        # A1 — embed=32 with higher LR (embed32 was undertrained at epoch 98)
+        dict(
+            group="S31_cond_embed_tuned",
+            tag="S31ce_e32_lr4e4",
+            cfg=_variant({"cond_embed_dim": 32, "lr": 4e-4}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        # A2 — embed=64 with standard LR (larger capacity)
+        dict(
+            group="S31_cond_embed_tuned",
+            tag="S31ce_e64_lr2e4",
+            cfg=_variant({"cond_embed_dim": 64, "lr": 2e-4}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        # A3 — embed=32 + residual skip: raw (d,c) preserved alongside embedding
+        dict(
+            group="S31_cond_embed_tuned",
+            tag="S31ce_e32_resid_lr4e4",
+            cfg=_variant({"cond_embed_dim": 32, "lr": 4e-4, "cond_embed_residual": True}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+    ]
+
+
 def _preset_seq_mdn_v2_0p8m_isolation() -> List[Dict[str, Any]]:
     """Diagnostic: MDN v2 lat8 trained ONLY on 0.8m data.
 
@@ -3676,6 +3770,24 @@ def _preset_delta_residual_fast() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_delta_residual_adv_smoke() -> List[Dict[str, Any]]:
+    """Single-item smoke preset for the adversarial residual-target variant."""
+    base_cfg = dict(
+        layer_sizes=[128, 256, 512],
+        latent_dim=4,
+        arch_variant="delta_residual_adv",
+        lambda_adv=0.05,
+        disc_layer_sizes=(128, 128),
+    )
+    return [
+        dict(
+            group="A0_adv_smoke",
+            tag=f"A0adv_lat4_b{_tag_beta(0.001)}_fb0p10_lr{_tag_lr(3e-4)}_L{_tag_layers([128,256,512])}",
+            cfg=_cfg(beta=0.001, free_bits=0.10, **base_cfg),
+        ),
+    ]
+
+
 def select_grid(
     overrides: Optional[Mapping[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
@@ -3775,6 +3887,8 @@ def select_grid(
             grid = _preset_seq_mdn_components_sweep()
         elif preset_name == "seq_cond_embed_sweep":
             grid = _preset_seq_cond_embed_sweep()
+        elif preset_name == "seq_cond_embed_tuned_sweep":
+            grid = _preset_seq_cond_embed_tuned_sweep()
         elif preset_name == "seq_mdn_v2_0p8m_isolation":
             grid = _preset_seq_mdn_v2_0p8m_isolation()
         elif preset_name == "seq_gaussian_reference_full":

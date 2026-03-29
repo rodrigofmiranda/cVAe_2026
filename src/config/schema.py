@@ -92,6 +92,7 @@ class TrainConfig:
     decoder_distribution: str = MODEL_DEFAULTS["decoder_distribution"]
     mdn_components: int = MODEL_DEFAULTS["mdn_components"]
     cond_embed_dim: int = MODEL_DEFAULTS["cond_embed_dim"]
+    cond_embed_residual: bool = MODEL_DEFAULTS["cond_embed_residual"]
     kl_anneal_epochs: int = MODEL_DEFAULTS["kl_anneal_epochs"]
 
     # optimiser / schedule
@@ -149,6 +150,7 @@ class TrainConfig:
             )),
             mdn_components=int(_get(d, "mdn_components", MODEL_DEFAULTS["mdn_components"], int)),
             cond_embed_dim=int(_get(d, "cond_embed_dim", MODEL_DEFAULTS["cond_embed_dim"], int)),
+            cond_embed_residual=bool(_get(d, "cond_embed_residual", MODEL_DEFAULTS["cond_embed_residual"])),
             kl_anneal_epochs=int(_get(d, "kl_anneal_epochs", MODEL_DEFAULTS["kl_anneal_epochs"], int)),
             lr=float(_get(d, "lr", MODEL_DEFAULTS["lr"], float)),
             batch_size=int(_get(d, "batch_size", MODEL_DEFAULTS["batch_size"], int)),

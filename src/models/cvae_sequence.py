@@ -404,6 +404,7 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
     ).strip().lower()
     mdn_components = int(cfg.get("mdn_components", 1))
     cond_embed_dim = int(cfg.get("cond_embed_dim", 0))
+    cond_embed_residual = bool(cfg.get("cond_embed_residual", False))
 
     z_in      = layers.Input(shape=(latent,), name="z_input")
     x_cent_in = layers.Input(shape=(2,),      name="x_center_input")
@@ -415,7 +416,11 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
         cond_raw = layers.Concatenate(name="dec_cond_raw")([d_in, c_in])
         cond_h = layers.Dense(cond_embed_dim, activation=act, name="dec_cond_emb_0")(cond_raw)
         cond_h = layers.Dense(cond_embed_dim, activation=act, name="dec_cond_emb_1")(cond_h)
-        h = layers.Concatenate(name="dec_concat")([z_in, x_cent_in, cond_h])
+        if cond_embed_residual:
+            # Skip connection: keep raw (d,c) alongside embedding
+            h = layers.Concatenate(name="dec_concat")([z_in, x_cent_in, d_in, c_in, cond_h])
+        else:
+            h = layers.Concatenate(name="dec_concat")([z_in, x_cent_in, cond_h])
     else:
         h = layers.Concatenate(name="dec_concat")([z_in, x_cent_in, d_in, c_in])
 
