@@ -56,7 +56,7 @@ Current experimental branch in this worktree:
 
 Tracking:
 
-- no remote branch yet
+- `origin/feat/seq-bigru-residual-diffusion`
 
 Purpose of this branch:
 
@@ -75,7 +75,8 @@ The folder name is historical; the active Git branch may differ from the path.
 
 ## Current Branch State
 
-This branch has just been opened. No diffusion experiment has been run yet.
+This branch now has a first diffusion implementation and one completed smoke
+run.
 
 Current scientific reading:
 
@@ -90,6 +91,20 @@ Current scientific reading:
   - `coupling_2d`
   - `spline_2d`
 - the next serious route is therefore conditional diffusion
+- first diffusion smoke already completed:
+  - `outputs/exp_20260329_210444`
+  - preset: `seq_diffusion_smoke`
+  - result: `0/12`
+  - reading: structural milestone passed, but the first point collapsed
+    (`active_dim_ratio=0.0`)
+
+Current branch status:
+
+- `seq_bigru_residual + diffusion` is implemented in this worktree
+- build/train/save-load/stochastic protocol evaluation already worked end-to-end
+- the next run for this branch is the recalibrated:
+  - `seq_diffusion_guided_quick`
+  - tuned toward lower `latent_dim`, lower `beta`, and higher `free_bits`
 
 ## Objective
 

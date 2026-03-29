@@ -4,6 +4,7 @@ import tensorflow as tf
 from src.evaluation.report import decoder_sensitivity
 from src.models.cvae_sequence import create_seq_inference_model, load_seq_model
 from src.models.losses import (
+    CondPriorDiffusionVAELoss,
     CondPriorVAELoss,
     axis_coverage_tail_loss_tf,
     axis_moment_loss_tf,
@@ -83,6 +84,46 @@ def test_condprior_loss_tracks_axis_psd_and_coverage_metrics():
     assert cfg["tail_levels"] == [0.05, 0.95]
 
 
+def test_condprior_diffusion_loss_tracks_core_metrics():
+    layer = CondPriorDiffusionVAELoss(
+        beta=1.0,
+        free_bits=0.1,
+        diffusion_steps=4,
+        diffusion_beta_start=1e-4,
+        diffusion_beta_end=1e-2,
+    )
+    x_center = tf.zeros((4, 2), dtype=tf.float32)
+    residual_noisy = tf.ones((4, 2), dtype=tf.float32) * 0.1
+    noise_target = tf.zeros((4, 2), dtype=tf.float32)
+    sqrt_alpha_bar = tf.ones((4, 1), dtype=tf.float32) * 0.95
+    sqrt_one_minus_alpha_bar = tf.ones((4, 1), dtype=tf.float32) * 0.2
+    eps_pred = tf.zeros((4, 2), dtype=tf.float32)
+    z_mean_q = tf.zeros((4, 2), dtype=tf.float32)
+    z_log_var_q = tf.zeros((4, 2), dtype=tf.float32)
+    z_mean_p = tf.zeros((4, 2), dtype=tf.float32)
+    z_log_var_p = tf.zeros((4, 2), dtype=tf.float32)
+
+    y_hat = layer(
+        [
+            x_center,
+            residual_noisy,
+            noise_target,
+            sqrt_alpha_bar,
+            sqrt_one_minus_alpha_bar,
+            eps_pred,
+            z_mean_q,
+            z_log_var_q,
+            z_mean_p,
+            z_log_var_p,
+        ]
+    )
+    assert y_hat.shape == (4, 2)
+    metric_names = {metric.name for metric in layer.metrics}
+    assert metric_names == {"recon_loss", "kl_loss"}
+    cfg = layer.get_config()
+    assert cfg["diffusion_steps"] == 4
+
+
 def test_seq_mdn_model_builds_saves_loads_and_predicts(tmp_path):
     cfg = {
         "arch_variant": "seq_bigru_residual",
@@ -130,7 +171,59 @@ def test_seq_mdn_model_builds_saves_loads_and_predicts(tmp_path):
     assert y_sto.shape == (2, 2)
 
 
-def test_decoder_sensitivity_is_finite_for_seq_gaussian_and_seq_mdn():
+def test_seq_diffusion_model_builds_saves_loads_and_predicts(tmp_path):
+    cfg = {
+        "arch_variant": "seq_bigru_residual",
+        "layer_sizes": [16, 16],
+        "latent_dim": 2,
+        "beta": 0.003,
+        "free_bits": 0.10,
+        "lr": 3e-4,
+        "dropout": 0.0,
+        "kl_anneal_epochs": 4,
+        "activation": "leaky_relu",
+        "window_size": 7,
+        "window_stride": 1,
+        "window_pad_mode": "edge",
+        "seq_hidden_size": 4,
+        "seq_num_layers": 1,
+        "seq_bidirectional": True,
+        "decoder_distribution": "diffusion",
+        "diffusion_steps": 4,
+        "diffusion_hidden_size": 16,
+        "lambda_mmd": 0.0,
+        "lambda_axis": 0.0,
+        "lambda_psd": 0.0,
+        "lambda_coverage": 0.0,
+    }
+    model, _ = build_cvae(cfg)
+
+    x = np.zeros((2, 7, 2), dtype=np.float32)
+    d = np.zeros((2, 1), dtype=np.float32)
+    c = np.zeros((2, 1), dtype=np.float32)
+    y = np.zeros((2, 2), dtype=np.float32)
+
+    y_out = model.predict([x, d, c, y], verbose=0)
+    assert y_out.shape == (2, 2)
+    decoder = model.get_layer("decoder")
+    assert decoder.output_shape[-1] == 2
+    assert len(decoder.inputs) == 6
+
+    save_path = tmp_path / "seq_diffusion.keras"
+    model.save(save_path)
+    loaded = load_seq_model(save_path)
+
+    inf_det = create_seq_inference_model(loaded, deterministic=True)
+    inf_sto = create_seq_inference_model(loaded, deterministic=False)
+
+    y_det = inf_det.predict([x, d, c], verbose=0)
+    y_sto = inf_sto.predict([x, d, c], verbose=0)
+
+    assert y_det.shape == (2, 2)
+    assert y_sto.shape == (2, 2)
+
+
+def test_decoder_sensitivity_is_finite_for_seq_gaussian_mdn_and_diffusion():
     base_cfg = {
         "arch_variant": "seq_bigru_residual",
         "layer_sizes": [16, 16],
@@ -152,10 +245,21 @@ def test_decoder_sensitivity_is_finite_for_seq_gaussian_and_seq_mdn():
     d = np.zeros((4, 1), dtype=np.float32)
     c = np.zeros((4, 1), dtype=np.float32)
 
-    for decoder_distribution, mdn_components in (("gaussian", 1), ("mdn", 3)):
+    for decoder_distribution, mdn_components, diffusion_steps in (
+        ("gaussian", 1, None),
+        ("mdn", 3, None),
+        ("diffusion", 1, 4),
+    ):
         cfg = dict(base_cfg)
         cfg["decoder_distribution"] = decoder_distribution
         cfg["mdn_components"] = mdn_components
+        if diffusion_steps is not None:
+            cfg["diffusion_steps"] = diffusion_steps
+            cfg["diffusion_hidden_size"] = 16
+            cfg["lambda_mmd"] = 0.0
+            cfg["lambda_axis"] = 0.0
+            cfg["lambda_psd"] = 0.0
+            cfg["lambda_coverage"] = 0.0
         model, _ = build_cvae(cfg)
         sens = decoder_sensitivity(
             model.get_layer("prior_net"),

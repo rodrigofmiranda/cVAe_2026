@@ -15,6 +15,10 @@ Those root files should stay short and point here for common context.
 - active branch: `feat/seq-bigru-residual-diffusion`
 - goal:
   open the conditional-diffusion route for the global residual-shape problem
+- current route status:
+  - implementation exists locally
+  - first smoke `outputs/exp_20260329_210444` completed
+  - next run should be the recalibrated `seq_diffusion_guided_quick`
 
 ## Minimal Read Order
 
@@ -36,6 +40,10 @@ Add a sixth file only if the task needs it.
 - best MDN line so far:
   - `outputs/exp_20260328_153611`
   - `10/12`
+- first diffusion smoke:
+  - `outputs/exp_20260329_210444`
+  - `0/12`
+  - read it as a structural milestone plus collapse signal, not as a family verdict
 - negative lines already tested:
   - `sample-aware MMD`
   - `sinh-arcsinh` flow line

@@ -197,6 +197,33 @@ def test_select_grid_seq_mdn_smoke_builds_single_mdn_candidate():
     assert cfg["shuffle_train_batches"] is False
 
 
+def test_select_grid_seq_diffusion_smoke_builds_single_candidate():
+    grid = select_grid({"grid_preset": "seq_diffusion_smoke"})
+
+    assert len(grid) == 1
+    cfg = grid[0]["cfg"]
+    assert cfg["arch_variant"] == "seq_bigru_residual"
+    assert cfg["decoder_distribution"] == "diffusion"
+    assert cfg["diffusion_steps"] == 8
+    assert cfg["lambda_mmd"] == 0.0
+    assert cfg["lambda_axis"] == 0.0
+    assert cfg["lambda_coverage"] == 0.0
+
+
+def test_select_grid_seq_diffusion_guided_quick_builds_four_run_compare():
+    grid = select_grid({"grid_preset": "seq_diffusion_guided_quick"})
+
+    assert len(grid) == 4
+    assert {item["group"] for item in grid} == {"DIF1_seq_diffusion_quick"}
+    assert all(item["cfg"]["arch_variant"] == "seq_bigru_residual" for item in grid)
+    assert all(item["cfg"]["decoder_distribution"] == "diffusion" for item in grid)
+    assert {item["cfg"]["diffusion_steps"] for item in grid} == {8, 16}
+    assert {item["cfg"]["latent_dim"] for item in grid} == {2, 4}
+    assert {item["cfg"]["seq_hidden_size"] for item in grid} == {64, 96}
+    assert {item["cfg"]["beta"] for item in grid} == {0.0005, 0.001}
+    assert {item["cfg"]["free_bits"] for item in grid} == {0.2, 0.3}
+
+
 def test_select_grid_seq_mdn_proof_builds_two_component_sweep():
     grid = select_grid({"grid_preset": "seq_mdn_proof"})
 

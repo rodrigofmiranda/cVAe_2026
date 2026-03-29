@@ -80,6 +80,36 @@ These are the files the first implementation should touch.
    - compare against the `S27` anchor
    - read protocol first, not only train-side ranking
 
+## Current Status
+
+- structural milestone: completed
+  - implemented in:
+    - `src/models/cvae.py`
+    - `src/models/cvae_sequence.py`
+    - `src/models/losses.py`
+    - `src/evaluation/report.py`
+    - `src/training/grid_plan.py`
+  - covered by targeted tests in:
+    - `tests/test_seq_cvae_build.py`
+    - `tests/test_hybrid_loss_and_mdn.py`
+    - `tests/test_grid_plan.py`
+- first smoke run:
+  - `outputs/exp_20260329_210444`
+  - preset: `seq_diffusion_smoke`
+  - result: `0/12`
+  - interpretation:
+    - the route is structurally viable
+    - the first point collapsed (`flag_posterior_collapse=True`,
+      `active_dim_ratio=0.0`)
+    - the first follow-up must attack collapse, not decoder capacity
+- next preset already prepared:
+  - `seq_diffusion_guided_quick`
+  - bias of the grid:
+    - lower `latent_dim`
+    - lower `beta`
+    - higher `free_bits`
+    - one slightly larger hidden-size probe only after those collapse defenses
+
 ## Guardrails
 
 - Do not reopen the negative flow families in this branch.

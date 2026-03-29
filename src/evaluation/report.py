@@ -180,6 +180,7 @@ def decoder_sensitivity(
     std_p = np.exp(0.5 * lv_p)
     n_decoder_inputs = len(decoder_net.inputs)
     is_seq = n_decoder_inputs == 4
+    is_diffusion = n_decoder_inputs == 6
     if is_seq:
         if np.asarray(Xb).ndim != 3:
             return {
@@ -189,6 +190,17 @@ def decoder_sensitivity(
             }
         x_center = np.asarray(Xb)[:, np.asarray(Xb).shape[1] // 2, :]
         decoder_inputs = lambda z: [z, x_center, Db, Cb]
+    elif is_diffusion:
+        if np.asarray(Xb).ndim != 3:
+            return {
+                "decoder_output_variance_mean": float("nan"),
+                "decoder_output_rms_std": float("nan"),
+                "status": "unsupported_seq_input",
+            }
+        x_center = np.asarray(Xb)[:, np.asarray(Xb).shape[1] // 2, :]
+        residual_noisy = np.zeros_like(x_center, dtype=np.float32)
+        t_frac = np.zeros((len(x_center), 1), dtype=np.float32)
+        decoder_inputs = lambda z: [z, x_center, Db, Cb, residual_noisy, t_frac]
     elif n_decoder_inputs == 2:
         cond = np.concatenate([Xb, Db, Cb], axis=1)
         decoder_inputs = lambda z: [z, cond]
@@ -211,6 +223,13 @@ def decoder_sensitivity(
         out_dim = int(out_params.shape[-1])
         if out_dim == 4:
             y_mean = out_params[:, :2] + x_center if is_delta_residual else out_params[:, :2]
+        elif is_diffusion and out_dim == 2:
+            beta_start = float(getattr(decoder_net, "_diffusion_beta_start", 1e-4))
+            alpha_bar_0 = max(1.0 - beta_start, 1e-6)
+            residual_pred = (
+                -np.sqrt(max(1.0 - alpha_bar_0, 1e-6)) * out_params
+            ) / np.sqrt(alpha_bar_0)
+            y_mean = x_center + residual_pred
         elif out_dim > 4 and out_dim % 5 == 0:
             k = out_dim // 5
             logits = out_params[:, :k]

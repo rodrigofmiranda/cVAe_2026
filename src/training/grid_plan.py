@@ -3529,6 +3529,153 @@ def _preset_seq_mdn_v2_a600_tail_explore_quick() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_diffusion_smoke() -> List[Dict[str, Any]]:
+    """Single-candidate smoke for the seq conditional-diffusion route."""
+    return [
+        dict(
+            group="DIF0_seq_diffusion_smoke",
+            tag="DIF0seq_W7_h64_lat4_diff8_b0p002_fb0p10_lr0p0002_bs4096_L128-256-512",
+            cfg=_cfg(
+                arch_variant="seq_bigru_residual",
+                layer_sizes=[128, 256, 512],
+                latent_dim=4,
+                beta=0.002,
+                free_bits=0.10,
+                lr=2e-4,
+                batch_size=4096,
+                kl_anneal_epochs=40,
+                window_size=7,
+                window_stride=1,
+                window_pad_mode="edge",
+                seq_hidden_size=64,
+                seq_num_layers=1,
+                seq_bidirectional=True,
+                seq_gru_unroll=True,
+                decoder_distribution="diffusion",
+                diffusion_steps=8,
+                diffusion_beta_start=1e-4,
+                diffusion_beta_end=2e-2,
+                diffusion_hidden_size=64,
+                lambda_mmd=0.0,
+                lambda_axis=0.0,
+                lambda_psd=0.0,
+                lambda_coverage=0.0,
+                lambda_kurt=0.0,
+                shuffle_train_batches=True,
+            ),
+        ),
+    ]
+
+
+def _preset_seq_diffusion_guided_quick() -> List[Dict[str, Any]]:
+    """Small guided quick for the first scientific diffusion comparison."""
+    analysis_quick_overrides = {
+        "mini_reanalysis_enabled": True,
+        "mini_reanalysis_scope": "all12",
+        "mini_reanalysis_max_samples_per_regime": 4096,
+        "grid_ranking_mode": "mini_protocol_v1",
+        "batch_infer": 16384,
+    }
+
+    def _seq_cfg(
+        *,
+        latent_dim: int,
+        seq_hidden_size: int,
+        diffusion_steps: int,
+        diffusion_hidden_size: int,
+        batch_size: int,
+        beta: float,
+        free_bits: float,
+    ) -> Dict[str, Any]:
+        return _cfg(
+            arch_variant="seq_bigru_residual",
+            layer_sizes=[128, 256, 512],
+            latent_dim=latent_dim,
+            beta=beta,
+            free_bits=free_bits,
+            lr=2e-4,
+            batch_size=batch_size,
+            kl_anneal_epochs=80,
+            window_size=7,
+            window_stride=1,
+            window_pad_mode="edge",
+            seq_hidden_size=seq_hidden_size,
+            seq_num_layers=1,
+            seq_bidirectional=True,
+            seq_gru_unroll=True,
+            decoder_distribution="diffusion",
+            diffusion_steps=diffusion_steps,
+            diffusion_beta_start=1e-4,
+            diffusion_beta_end=2e-2,
+            diffusion_hidden_size=diffusion_hidden_size,
+            lambda_mmd=0.0,
+            lambda_axis=0.0,
+            lambda_psd=0.0,
+            lambda_coverage=0.0,
+            lambda_kurt=0.0,
+            shuffle_train_batches=True,
+        )
+
+    return [
+        dict(
+            group="DIF1_seq_diffusion_quick",
+            tag="DIF1seq_W7_h64_lat2_diff8_b0p001_fb0p20_lr0p0002_bs8192_L128-256-512",
+            cfg=_seq_cfg(
+                latent_dim=2,
+                seq_hidden_size=64,
+                diffusion_steps=8,
+                diffusion_hidden_size=64,
+                batch_size=8192,
+                beta=0.001,
+                free_bits=0.20,
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="DIF1_seq_diffusion_quick",
+            tag="DIF1seq_W7_h64_lat4_diff8_b0p001_fb0p20_lr0p0002_bs8192_L128-256-512",
+            cfg=_seq_cfg(
+                latent_dim=4,
+                seq_hidden_size=64,
+                diffusion_steps=8,
+                diffusion_hidden_size=64,
+                batch_size=8192,
+                beta=0.001,
+                free_bits=0.20,
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="DIF1_seq_diffusion_quick",
+            tag="DIF1seq_W7_h64_lat4_diff16_b0p0005_fb0p20_lr0p0002_bs6144_L128-256-512",
+            cfg=_seq_cfg(
+                latent_dim=4,
+                seq_hidden_size=64,
+                diffusion_steps=16,
+                diffusion_hidden_size=64,
+                batch_size=6144,
+                beta=0.0005,
+                free_bits=0.20,
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="DIF1_seq_diffusion_quick",
+            tag="DIF1seq_W7_h96_lat4_diff8_b0p001_fb0p30_lr0p0002_bs6144_L128-256-512",
+            cfg=_seq_cfg(
+                latent_dim=4,
+                seq_hidden_size=96,
+                diffusion_steps=8,
+                diffusion_hidden_size=96,
+                batch_size=6144,
+                beta=0.001,
+                free_bits=0.30,
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+    ]
+
+
 def _preset_best_compare_large() -> List[Dict[str, Any]]:
     """Comparative protocol-first grid using the strongest current candidates.
 
@@ -3781,6 +3928,10 @@ def select_grid(
             grid = _preset_seq_gaussian_reference_full()
         elif preset_name == "seq_mdn_v2_a600_tail_explore_quick":
             grid = _preset_seq_mdn_v2_a600_tail_explore_quick()
+        elif preset_name == "seq_diffusion_smoke":
+            grid = _preset_seq_diffusion_smoke()
+        elif preset_name == "seq_diffusion_guided_quick":
+            grid = _preset_seq_diffusion_guided_quick()
         elif preset_name == "best_compare_large":
             grid = _preset_best_compare_large()
         elif preset_name == "delta_residual_fast":

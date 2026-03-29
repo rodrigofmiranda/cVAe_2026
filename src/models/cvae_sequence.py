@@ -28,7 +28,7 @@ interface close to the existing point-wise decoder.
 Public API
 ----------
 build_seq_cvae                  Full seq cVAE (same signature as build_cvae).
-create_seq_inference_model      Inference graph from a saved seq cVAE (no Lambda layers).
+create_seq_inference_model      Inference graph from a saved seq cVAE.
 load_seq_model                  Load a saved .keras file with correct custom_objects.
 build_seq_prior_net             Prior sub-model only.
 build_seq_encoder               Encoder sub-model only.
@@ -57,9 +57,12 @@ from src.config.defaults import (
 )
 from src.models.callbacks import KLAnnealingCallback
 from src.models.losses import (
+    CondPriorDiffusionVAELoss,
     CondPriorDeltaVAELoss,
     CondPriorVAELoss,
     StdNormalHeteroscedasticVAELoss,
+    _diffusion_predict_x0,
+    _diffusion_schedule_arrays,
     _mdn_expected_mean,
     _sample_mdn,
 )
@@ -133,6 +136,59 @@ class SliceFeatures(tf.keras.layers.Layer):
 
     def get_config(self):
         return {**super().get_config(), "start": self.start, "end": self.end}
+
+
+@tf.keras.utils.register_keras_serializable(package="seq_cvae")
+class SampleDiffusionTrainingState(tf.keras.layers.Layer):
+    """Sample one DDPM training state from a clean residual target."""
+
+    def __init__(
+        self,
+        diffusion_steps: int = 8,
+        diffusion_beta_start: float = 1e-4,
+        diffusion_beta_end: float = 2e-2,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.diffusion_steps = int(diffusion_steps)
+        self.diffusion_beta_start = float(diffusion_beta_start)
+        self.diffusion_beta_end = float(diffusion_beta_end)
+        _, _, alpha_bars = _diffusion_schedule_arrays(
+            self.diffusion_steps,
+            self.diffusion_beta_start,
+            self.diffusion_beta_end,
+        )
+        self._alpha_bars = tf.constant(alpha_bars, dtype=tf.float32)
+
+    def call(self, residual_true):
+        residual_true = tf.cast(residual_true, tf.float32)
+        batch = tf.shape(residual_true)[0]
+        t = tf.random.uniform(
+            shape=(batch,),
+            minval=0,
+            maxval=max(self.diffusion_steps, 1),
+            dtype=tf.int32,
+        )
+        alpha_bar = tf.gather(self._alpha_bars, t)
+        sqrt_alpha_bar = tf.expand_dims(tf.sqrt(alpha_bar), axis=-1)
+        sqrt_one_minus_alpha_bar = tf.expand_dims(
+            tf.sqrt(tf.maximum(1.0 - alpha_bar, 1e-6)),
+            axis=-1,
+        )
+        eps = tf.random.normal(tf.shape(residual_true), dtype=residual_true.dtype)
+        residual_noisy = sqrt_alpha_bar * residual_true + sqrt_one_minus_alpha_bar * eps
+
+        denom = tf.maximum(float(self.diffusion_steps - 1), 1.0)
+        t_frac = tf.expand_dims(tf.cast(t, tf.float32) / tf.cast(denom, tf.float32), axis=-1)
+        return [residual_noisy, eps, t_frac, sqrt_alpha_bar, sqrt_one_minus_alpha_bar]
+
+    def get_config(self):
+        return {
+            **super().get_config(),
+            "diffusion_steps": self.diffusion_steps,
+            "diffusion_beta_start": self.diffusion_beta_start,
+            "diffusion_beta_end": self.diffusion_beta_end,
+        }
 
 
 # ======================================================================
@@ -263,6 +319,70 @@ def _mlp_head(
     return h
 
 
+def _diffusion_ddim_step_tf(
+    residual_t: tf.Tensor,
+    eps_pred: tf.Tensor,
+    alpha_bars,
+    step_idx: int,
+) -> tf.Tensor:
+    """Deterministic DDIM-like reverse step."""
+    dtype = residual_t.dtype
+    alpha_bar_t = tf.constant(alpha_bars[step_idx], dtype=dtype)
+    sqrt_alpha_bar_t = tf.sqrt(alpha_bar_t)
+    sqrt_one_minus_alpha_bar_t = tf.sqrt(tf.maximum(1.0 - alpha_bar_t, 1e-6))
+    residual_pred = _diffusion_predict_x0(
+        residual_t,
+        eps_pred,
+        sqrt_alpha_bar_t,
+        sqrt_one_minus_alpha_bar_t,
+    )
+    if step_idx == 0:
+        return residual_pred
+    alpha_bar_prev = tf.constant(alpha_bars[step_idx - 1], dtype=dtype)
+    return (
+        tf.sqrt(alpha_bar_prev) * residual_pred
+        + tf.sqrt(tf.maximum(1.0 - alpha_bar_prev, 0.0)) * eps_pred
+    )
+
+
+def _diffusion_ddpm_step_tf(
+    residual_t: tf.Tensor,
+    eps_pred: tf.Tensor,
+    betas,
+    alpha_bars,
+    step_idx: int,
+) -> tf.Tensor:
+    """Ancestral DDPM reverse step."""
+    dtype = residual_t.dtype
+    alpha_bar_t = tf.constant(alpha_bars[step_idx], dtype=dtype)
+    sqrt_alpha_bar_t = tf.sqrt(alpha_bar_t)
+    sqrt_one_minus_alpha_bar_t = tf.sqrt(tf.maximum(1.0 - alpha_bar_t, 1e-6))
+    residual_pred = _diffusion_predict_x0(
+        residual_t,
+        eps_pred,
+        sqrt_alpha_bar_t,
+        sqrt_one_minus_alpha_bar_t,
+    )
+    if step_idx == 0:
+        return residual_pred
+
+    beta_t = tf.constant(betas[step_idx], dtype=dtype)
+    alpha_t = tf.constant(1.0 - betas[step_idx], dtype=dtype)
+    alpha_bar_prev = tf.constant(alpha_bars[step_idx - 1], dtype=dtype)
+    mean = (
+        residual_t
+        - (beta_t / tf.sqrt(tf.maximum(1.0 - alpha_bar_t, 1e-6))) * eps_pred
+    ) / tf.sqrt(alpha_t)
+    sigma = tf.sqrt(
+        tf.maximum(
+            beta_t * (1.0 - alpha_bar_prev) / tf.maximum(1.0 - alpha_bar_t, 1e-6),
+            0.0,
+        )
+    )
+    noise = tf.random.normal(tf.shape(residual_t), dtype=dtype)
+    return mean + sigma * noise
+
+
 # ======================================================================
 # Sub-model builders
 # ======================================================================
@@ -382,9 +502,11 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
         delta_mean = MLP(z, x_center, d, c)[:, :2]
         y_mean     = x_center + delta_mean
 
-    Output is Gaussian or MDN depending on ``decoder_distribution``:
+    Output is Gaussian, MDN, or diffusion depending on
+    ``decoder_distribution``:
     - Gaussian: ``(mean_I, mean_Q, logvar_I, logvar_Q)``
     - MDN: flattened ``(logits[K], mean[K,2], logvar[K,2])``
+    - Diffusion: predicted noise ``eps_hat`` for one DDPM step
 
     Parameters
     ----------
@@ -404,6 +526,12 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
     ).strip().lower()
     mdn_components = int(cfg.get("mdn_components", 1))
     cond_embed_dim = int(cfg.get("cond_embed_dim", 0))
+    diffusion_steps = int(cfg.get("diffusion_steps", 8))
+    diffusion_beta_start = float(cfg.get("diffusion_beta_start", 1e-4))
+    diffusion_beta_end = float(cfg.get("diffusion_beta_end", 2e-2))
+    diffusion_hidden_size = int(
+        cfg.get("diffusion_hidden_size", mlp_sizes[-1] if mlp_sizes else 64)
+    )
 
     z_in      = layers.Input(shape=(latent,), name="z_input")
     x_cent_in = layers.Input(shape=(2,),      name="x_center_input")
@@ -421,6 +549,39 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
 
     h = _mlp_head(h, mlp_sizes, act, dropout, name_prefix="dec")
 
+    if decoder_distribution == "diffusion":
+        residual_noisy_in = layers.Input(
+            shape=(2,), name="diffusion_residual_noisy_input"
+        )
+        t_frac_in = layers.Input(shape=(1,), name="diffusion_timestep_input")
+
+        t_h = layers.Dense(
+            max(diffusion_hidden_size // 2, 8),
+            kernel_initializer="glorot_uniform",
+            name="diffusion_t_dense_0",
+        )(t_frac_in)
+        t_h = _activation_layer(act)(t_h)
+
+        diff_h = layers.Concatenate(name="diffusion_concat")(
+            [h, residual_noisy_in, t_frac_in, t_h]
+        )
+        diff_h = _mlp_head(
+            diff_h,
+            [diffusion_hidden_size, diffusion_hidden_size],
+            act,
+            dropout,
+            name_prefix="diffusion",
+        )
+        out = layers.Dense(2, name="output_params")(diff_h)
+        model = models.Model(
+            [z_in, x_cent_in, d_in, c_in, residual_noisy_in, t_frac_in],
+            out,
+            name="decoder",
+        )
+        model._diffusion_steps = diffusion_steps
+        model._diffusion_beta_start = diffusion_beta_start
+        model._diffusion_beta_end = diffusion_beta_end
+        return model
     if decoder_distribution == "mdn":
         k = int(mdn_components)
         raw_out = layers.Dense(5 * k, name="output_params_raw")(h)
@@ -500,7 +661,28 @@ def build_seq_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
     z = Sampling(name="sampling")([z_mean_q, z_log_var_q])
 
     # Decode: p(y | z, x_center, d, c)
-    out_params = decoder([z, x_center, d_in, c_in])
+    decoder_distribution = str(cfg.get("decoder_distribution", "gaussian")).strip().lower()
+    diffusion_steps = int(cfg.get("diffusion_steps", 8))
+    diffusion_beta_start = float(cfg.get("diffusion_beta_start", 1e-4))
+    diffusion_beta_end = float(cfg.get("diffusion_beta_end", 2e-2))
+
+    if decoder_distribution == "diffusion":
+        residual_true = layers.Subtract(name="residual_true")([y_in, x_center])
+        (
+            residual_noisy,
+            noise_target,
+            t_frac,
+            sqrt_alpha_bar,
+            sqrt_one_minus_alpha_bar,
+        ) = SampleDiffusionTrainingState(
+            diffusion_steps=diffusion_steps,
+            diffusion_beta_start=diffusion_beta_start,
+            diffusion_beta_end=diffusion_beta_end,
+            name="diffusion_state",
+        )(residual_true)
+        out_params = decoder([z, x_center, d_in, c_in, residual_noisy, t_frac])
+    else:
+        out_params = decoder([z, x_center, d_in, c_in])
 
     # KL + reconstruction loss (beta starts at 0 for annealing)
     lambda_mmd = float(cfg.get("lambda_mmd", 0.0))
@@ -515,30 +697,58 @@ def build_seq_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
     tail_levels = tuple(float(x) for x in cfg.get("tail_levels", [0.05, 0.95]))
     coverage_temperature = float(cfg.get("coverage_temperature", 0.05))
     mmd_mode = str(cfg.get("mmd_mode", "mean_residual"))
-    decoder_distribution = str(cfg.get("decoder_distribution", "gaussian"))
     mdn_components = int(cfg.get("mdn_components", 1))
-    loss_layer = CondPriorVAELoss(
-        beta=0.0, free_bits=free_bits,
-        lambda_mmd=lambda_mmd,
-        lambda_axis=lambda_axis,
-        lambda_psd=lambda_psd,
-        lambda_coverage=lambda_coverage,
-        lambda_kurt=lambda_kurt,
-        axis_std_weight=axis_std_weight,
-        axis_skew_weight=axis_skew_weight,
-        axis_kurt_weight=axis_kurt_weight,
-        coverage_levels=coverage_levels,
-        tail_levels=tail_levels,
-        coverage_temperature=coverage_temperature,
-        mmd_mode=mmd_mode,
-        decoder_distribution=decoder_distribution,
-        mdn_components=mdn_components,
-        name="condprior_loss",
-    )
-    loss_inputs = [y_in, out_params, z_mean_q, z_log_var_q, z_mean_p, z_log_var_p]
-    if any(v > 0.0 for v in (lambda_mmd, lambda_axis, lambda_psd, lambda_coverage, lambda_kurt)):
-        loss_inputs.append(x_center)
-    y_mean_out = loss_layer(loss_inputs)
+    if decoder_distribution == "diffusion":
+        if any(v > 0.0 for v in (lambda_mmd, lambda_axis, lambda_psd, lambda_coverage, lambda_kurt)):
+            raise ValueError(
+                "The first diffusion route currently supports only the core DDPM objective; "
+                "set lambda_mmd/lambda_axis/lambda_psd/lambda_coverage/lambda_kurt to 0."
+            )
+        loss_layer = CondPriorDiffusionVAELoss(
+            beta=0.0,
+            free_bits=free_bits,
+            diffusion_steps=diffusion_steps,
+            diffusion_beta_start=diffusion_beta_start,
+            diffusion_beta_end=diffusion_beta_end,
+            name="condprior_loss",
+        )
+        y_mean_out = loss_layer(
+            [
+                x_center,
+                residual_noisy,
+                noise_target,
+                sqrt_alpha_bar,
+                sqrt_one_minus_alpha_bar,
+                out_params,
+                z_mean_q,
+                z_log_var_q,
+                z_mean_p,
+                z_log_var_p,
+            ]
+        )
+    else:
+        loss_layer = CondPriorVAELoss(
+            beta=0.0, free_bits=free_bits,
+            lambda_mmd=lambda_mmd,
+            lambda_axis=lambda_axis,
+            lambda_psd=lambda_psd,
+            lambda_coverage=lambda_coverage,
+            lambda_kurt=lambda_kurt,
+            axis_std_weight=axis_std_weight,
+            axis_skew_weight=axis_skew_weight,
+            axis_kurt_weight=axis_kurt_weight,
+            coverage_levels=coverage_levels,
+            tail_levels=tail_levels,
+            coverage_temperature=coverage_temperature,
+            mmd_mode=mmd_mode,
+            decoder_distribution=decoder_distribution,
+            mdn_components=mdn_components,
+            name="condprior_loss",
+        )
+        loss_inputs = [y_in, out_params, z_mean_q, z_log_var_q, z_mean_p, z_log_var_p]
+        if any(v > 0.0 for v in (lambda_mmd, lambda_axis, lambda_psd, lambda_coverage, lambda_kurt)):
+            loss_inputs.append(x_center)
+        y_mean_out = loss_layer(loss_inputs)
 
     vae = models.Model(
         [x_win_in, d_in, c_in, y_in], y_mean_out,
@@ -564,8 +774,8 @@ def create_seq_inference_model(
 ) -> tf.keras.Model:
     """Create a sequence-aware inference graph from a trained seq cVAE.
 
-    No Lambda layers are used: all operations go through registered custom
-    layers (ExtractCenterFrame, ClipValues, SliceFeatures) or Sampling.
+    For Gaussian/MDN paths the graph stays close to the original implementation.
+    The diffusion path uses a small iterative sampler during inference.
 
     Parameters
     ----------
@@ -598,46 +808,89 @@ def create_seq_inference_model(
         z = Sampling(name="z_sample")([z_mean_p, z_log_var_p])
 
     x_center = ExtractCenterFrame(half, name="x_center_extract")(x_win_in)
-    out_params = dec([z, x_center, d_in, c_in])
-    out_dim = int(dec.output_shape[-1])
-    is_mdn = out_dim > 4 and out_dim % 5 == 0
-
-    if is_mdn:
-        k = out_dim // 5
-        logits = SliceFeatures(0, k, name="mixture_logits")(out_params)
-        y_mean_flat = SliceFeatures(k, k + 2 * k, name="y_mean_flat")(out_params)
-        y_log_var_flat = SliceFeatures(k + 2 * k, k + 4 * k, name="y_logvar_flat")(out_params)
-        y_mean_components = layers.Reshape((k, 2), name="y_mean_components")(y_mean_flat)
-        y_log_var_components_raw = layers.Reshape(
-            (k, 2), name="y_logvar_components_raw"
-        )(y_log_var_flat)
-        y_log_var_components = ClipValues(
-            DECODER_LOGVAR_CLAMP_LO,
-            DECODER_LOGVAR_CLAMP_HI,
-            name="y_logvar_components",
-        )(y_log_var_components_raw)
+    is_diffusion = len(dec.inputs) == 6
+    if is_diffusion:
+        loss_layer = full_model.get_layer("condprior_loss")
+        diffusion_steps = int(getattr(loss_layer, "diffusion_steps", 8))
+        diffusion_beta_start = float(getattr(loss_layer, "diffusion_beta_start", 1e-4))
+        diffusion_beta_end = float(getattr(loss_layer, "diffusion_beta_end", 2e-2))
+        betas, _, alpha_bars = _diffusion_schedule_arrays(
+            diffusion_steps,
+            diffusion_beta_start,
+            diffusion_beta_end,
+        )
 
         if deterministic:
-            y = layers.Lambda(
-                lambda xs: _mdn_expected_mean(xs[0], xs[1]),
-                name="y_det",
-            )([logits, y_mean_components])
+            residual = layers.Lambda(
+                lambda t: tf.zeros_like(t),
+                name="diffusion_residual_init",
+            )(x_center)
         else:
-            y = layers.Lambda(
-                lambda xs: _sample_mdn(xs[0], xs[1], xs[2]),
-                name="y_sample",
-            )([logits, y_mean_components, y_log_var_components])
+            residual = layers.Lambda(
+                lambda t: tf.random.normal(tf.shape(t), dtype=t.dtype),
+                name="diffusion_residual_init",
+            )(x_center)
+
+        for step_idx in reversed(range(diffusion_steps)):
+            t_value = 0.0 if diffusion_steps <= 1 else float(step_idx) / float(diffusion_steps - 1)
+            t_frac = layers.Lambda(
+                lambda t, v=t_value: tf.ones((tf.shape(t)[0], 1), dtype=t.dtype) * tf.cast(v, t.dtype),
+                name=f"diffusion_timestep_{step_idx}",
+            )(d_in)
+            eps_pred = dec([z, x_center, d_in, c_in, residual, t_frac])
+            if deterministic:
+                residual = layers.Lambda(
+                    lambda xs, s=step_idx, ab=alpha_bars: _diffusion_ddim_step_tf(xs[0], xs[1], ab, s),
+                    name=f"diffusion_step_{step_idx}",
+                )([residual, eps_pred])
+            else:
+                residual = layers.Lambda(
+                    lambda xs, s=step_idx, bt=betas, ab=alpha_bars: _diffusion_ddpm_step_tf(xs[0], xs[1], bt, ab, s),
+                    name=f"diffusion_step_{step_idx}",
+                )([residual, eps_pred])
+
+        y = layers.Add(name="y_diffusion")([x_center, residual])
     else:
-        y_mean = SliceFeatures(0, 2, name="y_mean")(out_params)
-        y_log_var_raw = SliceFeatures(2, 4, name="y_logvar_slice")(out_params)
-        y_log_var = ClipValues(
-            DECODER_LOGVAR_CLAMP_LO, DECODER_LOGVAR_CLAMP_HI, name="y_logvar",
-        )(y_log_var_raw)
+        out_params = dec([z, x_center, d_in, c_in])
+        out_dim = int(dec.output_shape[-1])
+        is_mdn = out_dim > 4 and out_dim % 5 == 0
 
-        if deterministic:
-            y = y_mean  # MAP — direct tensor, no identity layer needed
+        if is_mdn:
+            k = out_dim // 5
+            logits = SliceFeatures(0, k, name="mixture_logits")(out_params)
+            y_mean_flat = SliceFeatures(k, k + 2 * k, name="y_mean_flat")(out_params)
+            y_log_var_flat = SliceFeatures(k + 2 * k, k + 4 * k, name="y_logvar_flat")(out_params)
+            y_mean_components = layers.Reshape((k, 2), name="y_mean_components")(y_mean_flat)
+            y_log_var_components_raw = layers.Reshape(
+                (k, 2), name="y_logvar_components_raw"
+            )(y_log_var_flat)
+            y_log_var_components = ClipValues(
+                DECODER_LOGVAR_CLAMP_LO,
+                DECODER_LOGVAR_CLAMP_HI,
+                name="y_logvar_components",
+            )(y_log_var_components_raw)
+
+            if deterministic:
+                y = layers.Lambda(
+                    lambda xs: _mdn_expected_mean(xs[0], xs[1]),
+                    name="y_det",
+                )([logits, y_mean_components])
+            else:
+                y = layers.Lambda(
+                    lambda xs: _sample_mdn(xs[0], xs[1], xs[2]),
+                    name="y_sample",
+                )([logits, y_mean_components, y_log_var_components])
         else:
-            y = Sampling(name="y_sample")([y_mean, y_log_var])
+            y_mean = SliceFeatures(0, 2, name="y_mean")(out_params)
+            y_log_var_raw = SliceFeatures(2, 4, name="y_logvar_slice")(out_params)
+            y_log_var = ClipValues(
+                DECODER_LOGVAR_CLAMP_LO, DECODER_LOGVAR_CLAMP_HI, name="y_logvar",
+            )(y_log_var_raw)
+
+            if deterministic:
+                y = y_mean  # MAP — direct tensor, no identity layer needed
+            else:
+                y = Sampling(name="y_sample")([y_mean, y_log_var])
 
     name = "inference_seq_condprior_det" if deterministic else "inference_seq_condprior"
     return models.Model([x_win_in, d_in, c_in], y, name=name)
@@ -669,11 +922,13 @@ def load_seq_model(path: str) -> tf.keras.Model:
         custom_objects={
             "Sampling": Sampling,
             "CondPriorDeltaVAELoss": CondPriorDeltaVAELoss,
+            "CondPriorDiffusionVAELoss": CondPriorDiffusionVAELoss,
             "CondPriorVAELoss": CondPriorVAELoss,
             "StdNormalHeteroscedasticVAELoss": StdNormalHeteroscedasticVAELoss,
             "ExtractCenterFrame": ExtractCenterFrame,
             "ClipValues": ClipValues,
             "SliceFeatures": SliceFeatures,
+            "SampleDiffusionTrainingState": SampleDiffusionTrainingState,
         },
         compile=False,
     )

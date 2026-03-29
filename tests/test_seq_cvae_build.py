@@ -75,6 +75,10 @@ class TestSubModelBuild:
         dec = build_seq_decoder(_min_cfg())
         assert dec is not None
 
+    def test_diffusion_decoder_builds(self):
+        dec = build_seq_decoder(_min_cfg(decoder_distribution="diffusion", diffusion_steps=4))
+        assert dec is not None
+
     def test_seq_gru_layers_are_explicitly_unrolled(self):
         prior = build_seq_prior_net(_min_cfg(seq_bidirectional=True))
         bigru = prior.get_layer("prior_net_bigru_0")
@@ -131,6 +135,10 @@ class TestSubModelBuild:
         dec = build_seq_decoder(_min_cfg(latent_dim=4))
         assert len(dec.inputs) == 4
 
+    def test_diffusion_decoder_has_six_inputs(self):
+        dec = build_seq_decoder(_min_cfg(decoder_distribution="diffusion", diffusion_steps=4))
+        assert len(dec.inputs) == 6
+
     def test_decoder_z_shape(self):
         dec = build_seq_decoder(_min_cfg(latent_dim=6))
         assert dec.inputs[0].shape[1:] == (6,)
@@ -158,6 +166,10 @@ class TestSubModelBuild:
         dec = build_seq_decoder(_min_cfg())
         # (mean_I, mean_Q, logvar_I, logvar_Q)
         assert dec.outputs[0].shape[1:] == (4,)
+
+    def test_diffusion_decoder_output_shape(self):
+        dec = build_seq_decoder(_min_cfg(decoder_distribution="diffusion", diffusion_steps=4))
+        assert dec.outputs[0].shape[1:] == (2,)
 
 
 # ===========================================================================

@@ -241,13 +241,42 @@ def _resolve_decoder_distribution(mode: str | None) -> str:
         "mdn": "mdn",
         "mixture": "mdn",
         "mixture_density": "mdn",
+        "diffusion": "diffusion",
+        "ddpm": "diffusion",
+        "score": "diffusion",
+        "score_model": "diffusion",
     }
     if mode_norm not in aliases:
         raise ValueError(
-            "decoder_distribution must be one of {'gaussian', 'mdn'}; "
+            "decoder_distribution must be one of {'gaussian', 'mdn', 'diffusion'}; "
             f"got {mode!r}"
         )
     return aliases[mode_norm]
+
+
+def _diffusion_schedule_arrays(
+    num_steps: int,
+    beta_start: float,
+    beta_end: float,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return (betas, alphas, alpha_bars) for a simple linear DDPM schedule."""
+    steps = max(int(num_steps), 1)
+    betas = np.linspace(float(beta_start), float(beta_end), steps, dtype=np.float32)
+    betas = np.clip(betas, 1e-6, 0.999)
+    alphas = 1.0 - betas
+    alpha_bars = np.cumprod(alphas, dtype=np.float32)
+    return betas.astype(np.float32), alphas.astype(np.float32), alpha_bars.astype(np.float32)
+
+
+def _diffusion_predict_x0(
+    noisy_residual: tf.Tensor,
+    eps_pred: tf.Tensor,
+    sqrt_alpha_bar: tf.Tensor,
+    sqrt_one_minus_alpha_bar: tf.Tensor,
+) -> tf.Tensor:
+    """Recover x0 estimate from noisy residual and predicted epsilon."""
+    denom = tf.maximum(tf.cast(sqrt_alpha_bar, tf.float32), tf.constant(1e-6, tf.float32))
+    return (tf.cast(noisy_residual, tf.float32) - tf.cast(sqrt_one_minus_alpha_bar, tf.float32) * tf.cast(eps_pred, tf.float32)) / denom
 
 
 def _unpack_gaussian_params(out_params: tf.Tensor) -> tuple[tf.Tensor, tf.Tensor]:
@@ -648,6 +677,95 @@ class CondPriorVAELoss(layers.Layer):
             "decoder_distribution": self.decoder_distribution,
             "mdn_components": self.mdn_components,
             "mmd_bandwidth": self.mmd_bandwidth,
+        })
+        return cfg
+
+
+@tf.keras.utils.register_keras_serializable(package="VLC")
+class CondPriorDiffusionVAELoss(layers.Layer):
+    """Diffusion residual objective + KL(q‖p) with beta annealing and free-bits.
+
+    Inputs (call):
+        (x_center, residual_noisy, noise_target, sqrt_alpha_bar,
+         sqrt_one_minus_alpha_bar, eps_pred,
+         z_mean_q, z_log_var_q, z_mean_p, z_log_var_p)
+
+    This first diffusion iteration intentionally keeps the objective minimal:
+    epsilon-prediction MSE on the residual plus KL regularization from the VAE.
+    """
+
+    def __init__(
+        self,
+        beta: float = 1.0,
+        free_bits: float = 0.0,
+        diffusion_steps: int = 8,
+        diffusion_beta_start: float = 1e-4,
+        diffusion_beta_end: float = 2e-2,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.beta_init = float(beta)
+        self.free_bits = float(free_bits)
+        self.diffusion_steps = int(diffusion_steps)
+        self.diffusion_beta_start = float(diffusion_beta_start)
+        self.diffusion_beta_end = float(diffusion_beta_end)
+        self.beta = tf.Variable(
+            self.beta_init, trainable=False, dtype=tf.float32, name="beta",
+        )
+        self.recon_loss_tracker = tf.keras.metrics.Mean(name="recon_loss")
+        self.kl_loss_tracker = tf.keras.metrics.Mean(name="kl_loss")
+
+    def call(self, inputs):
+        (
+            x_center,
+            residual_noisy,
+            noise_target,
+            sqrt_alpha_bar,
+            sqrt_one_minus_alpha_bar,
+            eps_pred,
+            z_mean_q,
+            z_log_var_q,
+            z_mean_p,
+            z_log_var_p,
+        ) = inputs
+
+        eps_pred = tf.cast(eps_pred, tf.float32)
+        noise_target = tf.cast(noise_target, tf.float32)
+        recon = tf.reduce_mean(tf.reduce_sum(tf.square(noise_target - eps_pred), axis=-1))
+
+        kl_per_sample = kl_divergence(
+            z_mean_q, z_log_var_q, z_mean_p, z_log_var_p,
+        )
+        kl_fb = kl_with_freebits(kl_per_sample, self.free_bits)
+        kl = tf.reduce_mean(kl_fb)
+
+        total = compute_total_loss(recon, kl, self.beta)
+
+        residual_pred = _diffusion_predict_x0(
+            residual_noisy,
+            eps_pred,
+            sqrt_alpha_bar,
+            sqrt_one_minus_alpha_bar,
+        )
+        y_mean = tf.cast(x_center, tf.float32) + residual_pred
+
+        self.add_loss(total)
+        self.recon_loss_tracker.update_state(recon)
+        self.kl_loss_tracker.update_state(tf.reduce_mean(kl_per_sample))
+        return y_mean
+
+    @property
+    def metrics(self):
+        return [self.recon_loss_tracker, self.kl_loss_tracker]
+
+    def get_config(self):
+        cfg = super().get_config()
+        cfg.update({
+            "beta": self.beta_init,
+            "free_bits": self.free_bits,
+            "diffusion_steps": self.diffusion_steps,
+            "diffusion_beta_start": self.diffusion_beta_start,
+            "diffusion_beta_end": self.diffusion_beta_end,
         })
         return cfg
 

@@ -94,8 +94,15 @@ Leitura atual:
   mais amplo: nenhuma linha atual aprende o shape global completo do sinal
 - o `S30` mostrou que um embedding raso de regime no decoder nao resolve esse
   gargalo e ainda regride `1.0m`
-- a linha ativa agora nesta worktree e `conditional diffusion`, mas ainda sem
-  implementacao nem run cientifico nesta copia
+- a linha ativa agora nesta worktree e `conditional diffusion`
+- a primeira implementacao estrutural ja existe e o smoke inicial ja rodou:
+  - run: `outputs/exp_20260329_210444`
+  - preset: `seq_diffusion_smoke`
+  - resultado: `0/12`
+  - leitura:
+    - marco estrutural aprovado
+    - colapso latente no primeiro ponto (`active_dim_ratio=0.0`)
+    - o proximo passo deve atacar `beta/free_bits/latent_dim`, nao capacidade
 - tambem existe agora uma comparacao de throughput opt-in para a linha seq MDN:
   - preset: `seq_mdn_v2_perf_compare_quick`
   - controle atual: `batch_size=4096`, `batch_infer=8192`, `seq_gru_unroll=True`
@@ -219,6 +226,7 @@ Outro ponto de atencao operacional confirmado nesta iteracao:
   - residual-target point-wise
 - `seq_bigru_residual`
   - linha temporal principal
+  - inclui agora a rota experimental `decoder_distribution="diffusion"`
 - `legacy_2025_zero_y`
   - comparacao historica controlada
 

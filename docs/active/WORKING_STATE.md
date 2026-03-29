@@ -32,9 +32,9 @@ start here.
     - `coupling_2d`
     - `spline_2d`
 - current branch status:
-  - no diffusion implementation committed yet
-  - no diffusion smoke or quick run yet
-  - this worktree is the staging lane for that integration
+  - diffusion implementation exists locally in this worktree
+  - first structural smoke completed
+  - guided quick preset already recalibrated from the smoke diagnostics
 
 ## Current Scientific Anchors
 
@@ -70,6 +70,19 @@ start here.
 - 0.8m isolation diagnostic:
   - `outputs/exp_20260328_042412`
   - `0/4` pass — confirms 0.8m failure is partly intrinsic, not only inter-distance conflict
+- first conditional diffusion smoke:
+  - `outputs/exp_20260329_210444`
+  - `0/12` champion:
+    `DIF0seq_W7_h64_lat4_diff8_b0p002_fb0p10_lr0p0002_bs4096_L128-256-512`
+  - gate summary: `G1=0`, `G2=0`, `G3=0`, `G4=0`, `G5=0`, `G6=0`
+  - training diagnostics:
+    - `flag_posterior_collapse=True`
+    - `flag_unstable=True`
+    - `active_dim_ratio=0.0`
+  - reading:
+    - structural integration succeeded
+    - the first scientific point collapsed and should not be treated as a
+      verdict on the diffusion family
 
 ## What Was Already Explored
 
@@ -225,13 +238,20 @@ Immediate branch goals:
 
 - keep the current seq backbone and conditioning path as much as possible
 - replace the decoder-family logic with a conditional diffusion route
-- start with a minimal structural milestone:
-  - build
-  - train
-  - save/load
-  - deterministic and stochastic inference
-  - smoke run through `src.protocol.run`
-- only then open a guided quick against the `S27` anchor
+- structural milestone status:
+  - build: done
+  - train: done
+  - save/load: done
+  - deterministic inference: done
+  - stochastic inference: done
+  - smoke run through `src.protocol.run`: done
+- next scientific step:
+  - run `seq_diffusion_guided_quick`
+  - start from the smoke diagnosis:
+    - lower `latent_dim`
+    - lower `beta`
+    - higher `free_bits`
+    - avoid capacity-first probes before collapse is fixed
 
 Implementation focus:
 
