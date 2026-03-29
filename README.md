@@ -8,23 +8,25 @@ Autoencoder (cVAE) with heteroscedastic decoding and conditional prior.
 
 This folder is:
 
-- `/workspace/2026/feat_seq_bigru_residual_flow_route`
+- `/workspace/2026/feat_seq_bigru_residual_spline_flow_v2`
 
 Meaning of the name:
 
-- `feat_seq_bigru_residual_flow_route` is a dedicated worktree for the flow lane
+- `feat_seq_bigru_residual_spline_flow_v2` is a dedicated worktree for the
+  second flow lane
 - this folder isolates decoder-family exploration from the main MDN worktrees
-- this folder contains the current code for the conditional-flow route only
+- this folder contains the current code for the `spline_2d` flow route only
 
 Use this folder when:
 
-- you want to work on the dedicated `seq_bigru_residual + flow` route
+- you want to work on the dedicated `seq_bigru_residual + spline flow` route
 - you want to validate a decoder-family experiment without disturbing the MDN lane
 - you want a clean branch-local record of the flow result
 
 Historical note:
 
-- this worktree was forked from `feat/mdn-g5-recovery`
+- this worktree was forked from the first dedicated flow branch
+  `feat/seq-bigru-residual-spline-flow`
 - the best active scientific anchor still lives in the MDN lane, not here
 
 ## Current Docs
@@ -48,43 +50,47 @@ Historical refactor planning has been archived under:
 
 Current experimental branch in this worktree:
 
-- `feat/seq-bigru-residual-spline-flow`
+- `feat/seq-bigru-residual-spline-flow-v2`
 
 Purpose of this branch:
 
-- test a richer conditional-flow decoder family for `seq_bigru_residual`
-- move beyond the old axis-separable `sinh-arcsinh` flow
-- decide quickly whether the current `coupling_2d` formulation deserves more time
+- test a materially different conditional-flow decoder family for
+  `seq_bigru_residual`
+- move beyond both the old axis-separable `sinh-arcsinh` flow and the first
+  `coupling_2d` flow branch
+- decide quickly whether the current `spline_2d` formulation deserves more time
 - record the result formally so the main branch does not need to rediscover it
 
 The worktree path remains:
 
-- `/workspace/2026/feat_seq_bigru_residual_flow_route`
+- `/workspace/2026/feat_seq_bigru_residual_spline_flow_v2`
 
 ## Current Branch Conclusion
 
 This branch has already produced two decisive runs:
 
 - structural smoke:
-  - `outputs/exp_20260328_204607`
+  - `outputs/exp_20260329_015508`
   - `0/12`
   - useful only to prove end-to-end integration
 - guided quick:
-  - `outputs/exp_20260328_210003`
+  - `outputs/exp_20260329_015815`
   - `0/12`
   - all four grid candidates also `0/12` on the mini protocol
 
 Current scientific reading:
 
-- the present `flow_family="coupling_2d"` formulation is a **negative result**
+- the present `flow_family="spline_2d"` formulation is a **negative result**
   for this iteration
 - this is not a simple undertraining story:
   - the guided quick candidates did **not** flag `undertrained`
   - they did **not** flag posterior collapse
-  - they did flag instability and failed all protocol gates
-- do not open another hyperparameter sweep on the current `coupling_2d` line
+  - they did flag instability and still failed the protocol globally
+  - `G5` stayed at `0/12`
+- do not open another hyperparameter sweep on the current `spline_2d` line
 - if flow is revisited later, it should be with a materially different family,
   not another local variation of the same decoder
+- the next serious global route is conditional diffusion
 
 ## Objective
 

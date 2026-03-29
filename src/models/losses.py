@@ -267,10 +267,16 @@ def _resolve_flow_family(mode: str | None) -> str:
         "sas": "sinh_arcsinh",
         "axis_sas": "sinh_arcsinh",
         "legacy_sas": "sinh_arcsinh",
+        "spline": "spline_2d",
+        "spline_2d": "spline_2d",
+        "rq_spline": "spline_2d",
+        "rqs": "spline_2d",
+        "neural_spline": "spline_2d",
+        "conditional_neural_spline": "spline_2d",
     }
     if mode_norm not in aliases:
         raise ValueError(
-            "flow_family must be one of {'coupling_2d', 'sinh_arcsinh'}; "
+            "flow_family must be one of {'coupling_2d', 'sinh_arcsinh', 'spline_2d'}; "
             f"got {mode!r}"
         )
     return aliases[mode_norm]
@@ -349,11 +355,17 @@ FLOW_COUPLING_SHIFT_PARAM_CLAMP = 3.0
 FLOW_COUPLING_SHIFT_EFFECT_CLAMP = 6.0
 FLOW_COUPLING_LOG_SCALE_PARAM_CLAMP = 2.0
 FLOW_COUPLING_LOG_SCALE_EFFECT_CLAMP = 2.5
+FLOW_SPLINE_DEFAULT_BOUND = 3.5
+FLOW_SPLINE_MIN_BIN_WIDTH = 1e-2
+FLOW_SPLINE_MIN_BIN_HEIGHT = 1e-2
+FLOW_SPLINE_MIN_DERIVATIVE = 1e-2
 
 
 def _flow_layer_family_from_names(layer_names) -> str:
     """Infer the flow family from decoder layer names."""
     names = {str(name) for name in (layer_names or [])}
+    if any("flow_spline_" in name for name in names):
+        return "spline_2d"
     if any("flow_coupling_" in name for name in names):
         return "coupling_2d"
     if "flow_skew" in names or "flow_log_tail" in names:
@@ -369,9 +381,25 @@ def _unpack_flow_params(
     """Split conditional flow output into family-specific parameter blocks."""
     family = _resolve_flow_family(flow_family)
     y_loc = out_params[:, :2]
-    p1 = out_params[:, 2:4]
-    p2 = out_params[:, 4:6]
-    p3 = out_params[:, 6:8]
+    if family == "spline_2d":
+        total_dim = out_params.shape[-1]
+        if total_dim is None:
+            raise ValueError("spline_2d flow requires a static decoder output dimension")
+        if total_dim < 12 or total_dim % 6 != 0:
+            raise ValueError(
+                "spline_2d flow output dimension must be divisible by 6 and >= 12; "
+                f"got {total_dim}"
+            )
+        n_bins = total_dim // 6
+        widths_end = 2 + 2 * n_bins
+        heights_end = widths_end + 2 * n_bins
+        p1 = out_params[:, 2:widths_end]
+        p2 = out_params[:, widths_end:heights_end]
+        p3 = out_params[:, heights_end:]
+    else:
+        p1 = out_params[:, 2:4]
+        p2 = out_params[:, 4:6]
+        p3 = out_params[:, 6:8]
     return y_loc, p1, p2, p3
 
 
@@ -525,6 +553,228 @@ def _flow_inverse_coupling_2d(
     return base, tf.squeeze(log_abs_det, axis=-1)
 
 
+def _prepare_spline_params(
+    raw_widths: tf.Tensor,
+    raw_heights: tf.Tensor,
+    raw_derivatives: tf.Tensor,
+    *,
+    tail_bound: float = FLOW_SPLINE_DEFAULT_BOUND,
+    min_bin_width: float = FLOW_SPLINE_MIN_BIN_WIDTH,
+    min_bin_height: float = FLOW_SPLINE_MIN_BIN_HEIGHT,
+    min_derivative: float = FLOW_SPLINE_MIN_DERIVATIVE,
+) -> tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
+    """Convert raw per-axis spline parameters into normalized knot statistics."""
+    n_bins = raw_widths.shape[-1]
+    if n_bins is None:
+        raise ValueError("spline flow requires a static bin count")
+    n_bins = int(n_bins)
+    if n_bins < 2:
+        raise ValueError(f"spline flow requires at least 2 bins; got {n_bins}")
+
+    total_width = 2.0 * float(tail_bound)
+    total_height = 2.0 * float(tail_bound)
+    min_total_width = float(min_bin_width) * n_bins
+    min_total_height = float(min_bin_height) * n_bins
+    if min_total_width >= total_width or min_total_height >= total_height:
+        raise ValueError("spline min bin sizes exceed the configured tail bound")
+
+    widths = tf.nn.softmax(raw_widths, axis=-1)
+    widths = float(min_bin_width) + (total_width - min_total_width) * widths
+    heights = tf.nn.softmax(raw_heights, axis=-1)
+    heights = float(min_bin_height) + (total_height - min_total_height) * heights
+
+    inner_derivatives = float(min_derivative) + tf.nn.softplus(raw_derivatives)
+    boundary = tf.ones((tf.shape(inner_derivatives)[0], 1), dtype=inner_derivatives.dtype)
+    derivatives = tf.concat([boundary, inner_derivatives, boundary], axis=-1)
+
+    cumwidths = tf.pad(
+        tf.cumsum(widths, axis=-1),
+        paddings=[[0, 0], [1, 0]],
+        constant_values=0.0,
+    )
+    cumwidths = cumwidths + (-float(tail_bound))
+    cumheights = tf.pad(
+        tf.cumsum(heights, axis=-1),
+        paddings=[[0, 0], [1, 0]],
+        constant_values=0.0,
+    )
+    cumheights = cumheights + (-float(tail_bound))
+    return widths, heights, derivatives, cumwidths, cumheights
+
+
+def _search_spline_bin(cumknot_inner: tf.Tensor, values: tf.Tensor) -> tf.Tensor:
+    """Return the per-row spline bin index for ``values``."""
+    return tf.squeeze(
+        tf.searchsorted(cumknot_inner, tf.expand_dims(values, axis=-1), side="right"),
+        axis=-1,
+    )
+
+
+def _rational_quadratic_spline_forward_flat(
+    x: tf.Tensor,
+    *,
+    widths: tf.Tensor,
+    heights: tf.Tensor,
+    derivatives: tf.Tensor,
+    cumwidths: tf.Tensor,
+    cumheights: tf.Tensor,
+    tail_bound: float = FLOW_SPLINE_DEFAULT_BOUND,
+) -> tuple[tf.Tensor, tf.Tensor]:
+    """Apply an element-wise monotonic rational-quadratic spline."""
+    x = tf.cast(x, widths.dtype)
+    inside = tf.logical_and(x > -float(tail_bound), x < float(tail_bound))
+    x_safe = tf.where(inside, x, tf.zeros_like(x))
+    bin_idx = _search_spline_bin(cumwidths[:, 1:-1], x_safe)
+
+    x0 = tf.gather(cumwidths[:, :-1], bin_idx, batch_dims=1)
+    y0 = tf.gather(cumheights[:, :-1], bin_idx, batch_dims=1)
+    w = tf.gather(widths, bin_idx, batch_dims=1)
+    h = tf.gather(heights, bin_idx, batch_dims=1)
+    d0 = tf.gather(derivatives[:, :-1], bin_idx, batch_dims=1)
+    d1 = tf.gather(derivatives[:, 1:], bin_idx, batch_dims=1)
+
+    theta = (x_safe - x0) / (w + 1e-6)
+    one_minus_theta = 1.0 - theta
+    delta = h / (w + 1e-6)
+    curvature = d0 + d1 - 2.0 * delta
+    denominator = delta + curvature * theta * one_minus_theta
+    numerator = h * (
+        delta * tf.square(theta) + d0 * theta * one_minus_theta
+    )
+    y_inside = y0 + numerator / (denominator + 1e-6)
+
+    derivative_numer = tf.square(delta) * (
+        d1 * tf.square(theta)
+        + 2.0 * delta * theta * one_minus_theta
+        + d0 * tf.square(one_minus_theta)
+    )
+    logabsdet_inside = tf.math.log(derivative_numer + 1e-6) - 2.0 * tf.math.log(
+        denominator + 1e-6
+    )
+
+    y = tf.where(inside, y_inside, x)
+    logabsdet = tf.where(inside, logabsdet_inside, tf.zeros_like(x))
+    return y, logabsdet
+
+
+def _rational_quadratic_spline_inverse_flat(
+    y: tf.Tensor,
+    *,
+    widths: tf.Tensor,
+    heights: tf.Tensor,
+    derivatives: tf.Tensor,
+    cumwidths: tf.Tensor,
+    cumheights: tf.Tensor,
+    tail_bound: float = FLOW_SPLINE_DEFAULT_BOUND,
+) -> tuple[tf.Tensor, tf.Tensor]:
+    """Invert an element-wise monotonic rational-quadratic spline."""
+    y = tf.cast(y, widths.dtype)
+    inside = tf.logical_and(y > -float(tail_bound), y < float(tail_bound))
+    y_safe = tf.where(inside, y, tf.zeros_like(y))
+    bin_idx = _search_spline_bin(cumheights[:, 1:-1], y_safe)
+
+    x0 = tf.gather(cumwidths[:, :-1], bin_idx, batch_dims=1)
+    y0 = tf.gather(cumheights[:, :-1], bin_idx, batch_dims=1)
+    w = tf.gather(widths, bin_idx, batch_dims=1)
+    h = tf.gather(heights, bin_idx, batch_dims=1)
+    d0 = tf.gather(derivatives[:, :-1], bin_idx, batch_dims=1)
+    d1 = tf.gather(derivatives[:, 1:], bin_idx, batch_dims=1)
+
+    delta = h / (w + 1e-6)
+    delta_y = y_safe - y0
+    curvature = d0 + d1 - 2.0 * delta
+    a = delta_y * curvature + h * (delta - d0)
+    b = h * d0 - delta_y * curvature
+    c = -delta * delta_y
+    discriminant = tf.maximum(tf.square(b) - 4.0 * a * c, 0.0)
+    sqrt_discriminant = tf.sqrt(discriminant + 1e-12)
+    theta_quadratic = (2.0 * c) / (-b - sqrt_discriminant + 1e-6)
+    theta_linear = -c / (b + 1e-6)
+    theta = tf.where(tf.abs(a) > 1e-6, theta_quadratic, theta_linear)
+    theta = tf.clip_by_value(theta, 0.0, 1.0)
+
+    x_inside = x0 + theta * w
+    one_minus_theta = 1.0 - theta
+    denominator = delta + curvature * theta * one_minus_theta
+    derivative_numer = tf.square(delta) * (
+        d1 * tf.square(theta)
+        + 2.0 * delta * theta * one_minus_theta
+        + d0 * tf.square(one_minus_theta)
+    )
+    logabsdet_inside = -(
+        tf.math.log(derivative_numer + 1e-6)
+        - 2.0 * tf.math.log(denominator + 1e-6)
+    )
+
+    x = tf.where(inside, x_inside, y)
+    logabsdet = tf.where(inside, logabsdet_inside, tf.zeros_like(y))
+    return x, logabsdet
+
+
+def _flow_forward_spline_2d(
+    eps: tf.Tensor,
+    *,
+    y_loc: tf.Tensor,
+    raw_widths: tf.Tensor,
+    raw_heights: tf.Tensor,
+    raw_derivatives: tf.Tensor,
+) -> tf.Tensor:
+    """Transform base Gaussian samples through an independent 2-D RQ spline."""
+    n_bins = raw_widths.shape[-1]
+    if n_bins is None:
+        raise ValueError("spline_2d flow requires a static raw_widths shape")
+    n_bins = int(n_bins) // 2
+    eps_flat = tf.reshape(eps, (-1,))
+    widths, heights, derivatives, cumwidths, cumheights = _prepare_spline_params(
+        tf.reshape(raw_widths, (-1, n_bins)),
+        tf.reshape(raw_heights, (-1, n_bins)),
+        tf.reshape(raw_derivatives, (-1, n_bins - 1)),
+    )
+    y_flat, _ = _rational_quadratic_spline_forward_flat(
+        eps_flat,
+        widths=widths,
+        heights=heights,
+        derivatives=derivatives,
+        cumwidths=cumwidths,
+        cumheights=cumheights,
+    )
+    y_rel = tf.reshape(y_flat, tf.shape(eps))
+    return y_loc + y_rel
+
+
+def _flow_inverse_spline_2d(
+    y: tf.Tensor,
+    *,
+    y_loc: tf.Tensor,
+    raw_widths: tf.Tensor,
+    raw_heights: tf.Tensor,
+    raw_derivatives: tf.Tensor,
+) -> tuple[tf.Tensor, tf.Tensor]:
+    """Map spline-decoder observations back to the standard-normal base."""
+    n_bins = raw_widths.shape[-1]
+    if n_bins is None:
+        raise ValueError("spline_2d flow requires a static raw_widths shape")
+    n_bins = int(n_bins) // 2
+    centered = y - y_loc
+    centered_flat = tf.reshape(centered, (-1,))
+    widths, heights, derivatives, cumwidths, cumheights = _prepare_spline_params(
+        tf.reshape(raw_widths, (-1, n_bins)),
+        tf.reshape(raw_heights, (-1, n_bins)),
+        tf.reshape(raw_derivatives, (-1, n_bins - 1)),
+    )
+    base_flat, logabsdet_flat = _rational_quadratic_spline_inverse_flat(
+        centered_flat,
+        widths=widths,
+        heights=heights,
+        derivatives=derivatives,
+        cumwidths=cumwidths,
+        cumheights=cumheights,
+    )
+    base = tf.reshape(base_flat, tf.shape(centered))
+    logabsdet = tf.reshape(logabsdet_flat, tf.shape(centered))
+    return base, tf.reduce_sum(logabsdet, axis=-1)
+
+
 def flow_reconstruction_loss(
     y_true: tf.Tensor,
     out_params: tf.Tensor,
@@ -541,6 +791,14 @@ def flow_reconstruction_loss(
             log_scale=p1,
             skew=p2,
             log_tail=p3,
+        )
+    elif family == "spline_2d":
+        base, log_abs_det = _flow_inverse_spline_2d(
+            y_true,
+            y_loc=y_loc,
+            raw_widths=p1,
+            raw_heights=p2,
+            raw_derivatives=p3,
         )
     else:
         base, log_abs_det = _flow_inverse_coupling_2d(
@@ -574,6 +832,14 @@ def _flow_deterministic_point(
             skew=p2,
             log_tail=p3,
         )
+    if family == "spline_2d":
+        return _flow_forward_spline_2d(
+            zeros,
+            y_loc=y_loc,
+            raw_widths=p1,
+            raw_heights=p2,
+            raw_derivatives=p3,
+        )
     return _flow_forward_coupling_2d(
         zeros,
         y_loc=y_loc,
@@ -599,6 +865,14 @@ def _sample_flow(
             log_scale=p1,
             skew=p2,
             log_tail=p3,
+        )
+    if family == "spline_2d":
+        return _flow_forward_spline_2d(
+            eps,
+            y_loc=y_loc,
+            raw_widths=p1,
+            raw_heights=p2,
+            raw_derivatives=p3,
         )
     return _flow_forward_coupling_2d(
         eps,

@@ -17,23 +17,26 @@ flow worktree.
 ## What This Worktree Adds
 
 - dedicated branch:
-  - `feat/seq-bigru-residual-spline-flow`
+  - `feat/seq-bigru-residual-spline-flow-v2`
 - dedicated worktree:
-  - `/workspace/2026/feat_seq_bigru_residual_flow_route`
+  - `/workspace/2026/feat_seq_bigru_residual_spline_flow_v2`
 - active seq decoder families in this lane:
-  - `flow_family="coupling_2d"`:
+  - `flow_family="spline_2d"`:
     - new default here
-    - joint 2-D affine coupling flow
-    - intended to move beyond the old axis-separable flow
+    - decoder-conditioned rational-quadratic spline flow per residual axis
+    - intended to move beyond both the old axis-separable flow and the first
+      coupling-flow retry
+  - `flow_family="coupling_2d"`:
+    - kept only as compatibility / reference from flow v1
   - `flow_family="sinh_arcsinh"`:
     - kept only as legacy compatibility / control
 
 ## Presets
 
-- `seq_flow_coupling_smoke`
+- `seq_flow_spline_smoke`
   - single-candidate structural smoke
   - proves build, training, save/load, inference, and protocol wiring
-- `seq_flow_coupling_guided_quick`
+- `seq_flow_spline_guided_quick`
   - small guided quick grid
   - starts from the strongest seq residual region we know
   - changes decoder family first, not the whole architecture
@@ -41,9 +44,9 @@ flow worktree.
 ## Results In This Lane
 
 - run:
-  - `outputs/exp_20260328_204607`
+  - `outputs/exp_20260329_015508`
 - preset:
-  - `seq_flow_coupling_smoke`
+  - `seq_flow_spline_smoke`
 - result:
   - `0/12`
 - reading:
@@ -56,25 +59,26 @@ flow worktree.
     - `active_dim_ratio=0.0`
 
 - run:
-  - `outputs/exp_20260328_210003`
+  - `outputs/exp_20260329_015815`
 - preset:
-  - `seq_flow_coupling_guided_quick`
+  - `seq_flow_spline_guided_quick`
 - result:
   - `0/12`
 - reading:
   - this is the decisive result for the current family
   - all four grid candidates also stayed at `0/12` in the mini protocol
+  - `gate_g5_pass=0`
   - diagnostics no longer support the idea that the failure is just budget:
     - `flag_undertrained=False`
     - `flag_posterior_collapse=False`
     - `active_dim_ratio=1.0`
     - `flag_unstable=True`
-  - the present `flow_family="coupling_2d"` is therefore a branch-local
+  - the present `flow_family="spline_2d"` is therefore a branch-local
     negative result
 
 ## Practical Next Step
 
-- Do **not** open another sweep of the current `coupling_2d` line.
+- Do **not** open another sweep of the current `spline_2d` line.
 - Keep this branch as the formal record that:
   - the route was implemented correctly
   - the route was tested beyond smoke

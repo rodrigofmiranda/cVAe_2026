@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-> Atualizado em 2026-03-28.
+> Atualizado em 2026-03-29.
 > Este arquivo e o inventario oficial das worktrees e do estado ativo do repositorio nesta worktree dedicada ao flow.
 
 ## Worktrees
@@ -17,12 +17,20 @@ Worktrees git registradas neste repositorio:
    - foco: reruns dedicados da linha `seq_bigru_residual + MDN`
 3. `/workspace/2026/feat_seq_bigru_residual_flow_route`
    - branch: `feat/seq-bigru-residual-spline-flow`
+   - status: worktree flow v1 preservada como resultado negativo formal
+   - foco: rota dedicada `seq_bigru_residual + coupling flow`
+4. `/workspace/2026/feat_seq_bigru_residual_spline_flow_v2`
+   - branch: `feat/seq-bigru-residual-spline-flow-v2`
    - status: worktree ativa desta copia
-   - foco: rota dedicada `seq_bigru_residual + flow`
+   - foco: rota dedicada `seq_bigru_residual + spline flow`
+5. `/workspace/2026/feat_mdn_g5_recovery`
+   - branch: `feat/mdn-g5-recovery-run`
+   - status: linha MDN mais forte e origem do anchor `S27 10/12`
+   - foco: base cientifica atual e documentacao do gargalo global
 
 ## Branch Atual
 
-- branch ativa: `feat/seq-bigru-residual-spline-flow`
+- branch ativa: `feat/seq-bigru-residual-spline-flow-v2`
 - entrypoint canonico:
   - `python -m src.protocol.run`
 
@@ -37,26 +45,28 @@ O fluxo publico de experimentacao permanece:
 
 Decisao desta branch:
 
-- o `flow_family="coupling_2d"` foi implementado, testado e formalmente
+- o `flow_family="spline_2d"` foi implementado, testado e formalmente
   marcado como linha negativa nesta iteracao
 - runs de referencia desta branch:
-  - `outputs/exp_20260328_204607`
-    - `seq_flow_coupling_smoke`
+  - `outputs/exp_20260329_015508`
+    - `seq_flow_spline_smoke`
     - `0/12`
     - valor: prova estrutural do pipeline
-  - `outputs/exp_20260328_210003`
-    - `seq_flow_coupling_guided_quick`
+  - `outputs/exp_20260329_015815`
+    - `seq_flow_spline_guided_quick`
     - `0/12`
     - valor: resultado cientifico negativo, nao apenas smoke
 - leitura:
   - os 4 candidatos do quick ficaram `0/12` tambem no mini-protocol
+  - `gate_g5_pass=0`
   - nao houve `flag_undertrained`
   - nao houve `flag_posterior_collapse`
   - houve `flag_unstable`
   - portanto o gargalo nao e ajuste fino de hiperparametro
 - decisao operacional:
-  - nao abrir outro sweep da formulacao atual `coupling_2d`
+  - nao abrir outro sweep da formulacao atual `spline_2d`
   - se flow voltar mais tarde, deve ser outra familia estrutural
+  - a proxima aposta seria da linha generativa global: `conditional diffusion`
   - o anchor de verdade continua sendo a linha MDN `10/12`
 
 Referencias principais hoje:
@@ -80,8 +90,8 @@ Leitura atual:
 
 - a familia `seq_bigru_residual` continua sendo a principal linha temporal
 - a melhor MDN ficou competitiva, mas ainda abaixo da referencia gaussiana
-- `sample-aware MMD`, o flow `sinh-arcsinh` antigo, o novo flow `coupling_2d`
-  e o weighting puro por regime
+- `sample-aware MMD`, o flow `sinh-arcsinh` antigo, o flow `coupling_2d`,
+  o flow `spline_2d` e o weighting puro por regime
   devem ser tratados como linhas negativas nesta iteracao
 - o gargalo restante segue concentrado em `0.8 m`, principalmente em `G5`
 - a linha ativa agora e `MDN v2`:
@@ -239,29 +249,29 @@ Artefatos operacionais principais:
 
 Raiz:
 
-- [README.md](/workspace/2026/feat_seq_bigru_residual_flow_route/README.md)
+- [README.md](/workspace/2026/feat_seq_bigru_residual_spline_flow_v2/README.md)
   - guia principal do repositorio para leitura no GitHub
-- [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_flow_route/PROJECT_STATUS.md)
+- [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_spline_flow_v2/PROJECT_STATUS.md)
   - inventario oficial das worktrees e estado ativo
-- [CODEX.md](/workspace/2026/feat_seq_bigru_residual_flow_route/CODEX.md)
+- [CODEX.md](/workspace/2026/feat_seq_bigru_residual_spline_flow_v2/CODEX.md)
   - stub de auto-discovery para Codex
-- [CLAUDE.md](/workspace/2026/feat_seq_bigru_residual_flow_route/CLAUDE.md)
+- [CLAUDE.md](/workspace/2026/feat_seq_bigru_residual_spline_flow_v2/CLAUDE.md)
   - stub de auto-discovery para Claude
 
 Docs ativos:
 
-- [docs/README.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/README.md)
-- [docs/active/WORKING_STATE.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/active/WORKING_STATE.md)
-- [docs/reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/PROTOCOL.md)
-- [docs/reference/EXPERIMENT_WORKFLOW.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/EXPERIMENT_WORKFLOW.md)
-- [docs/reference/MODELING_ASSUMPTIONS.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/MODELING_ASSUMPTIONS.md)
-- [docs/agents/AI_AGENT_GUIDE.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/agents/AI_AGENT_GUIDE.md)
-- [docs/agents/REVIEW.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/agents/REVIEW.md)
+- [docs/README.md](/workspace/2026/feat_seq_bigru_residual_spline_flow_v2/docs/README.md)
+- [docs/active/WORKING_STATE.md](/workspace/2026/feat_seq_bigru_residual_spline_flow_v2/docs/active/WORKING_STATE.md)
+- [docs/reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_spline_flow_v2/docs/reference/PROTOCOL.md)
+- [docs/reference/EXPERIMENT_WORKFLOW.md](/workspace/2026/feat_seq_bigru_residual_spline_flow_v2/docs/reference/EXPERIMENT_WORKFLOW.md)
+- [docs/reference/MODELING_ASSUMPTIONS.md](/workspace/2026/feat_seq_bigru_residual_spline_flow_v2/docs/reference/MODELING_ASSUMPTIONS.md)
+- [docs/agents/AI_AGENT_GUIDE.md](/workspace/2026/feat_seq_bigru_residual_spline_flow_v2/docs/agents/AI_AGENT_GUIDE.md)
+- [docs/agents/REVIEW.md](/workspace/2026/feat_seq_bigru_residual_spline_flow_v2/docs/agents/REVIEW.md)
 
 ## Como Retomar Rapidamente
 
 ```bash
-cd /workspace/2026/feat_seq_bigru_residual_cvae
+cd /workspace/2026/feat_seq_bigru_residual_spline_flow_v2
 git status -sb
 git worktree list
 python scripts/analysis/summarize_experiment.py "$(ls -td outputs/exp_* | head -1)"
@@ -269,13 +279,13 @@ python scripts/analysis/summarize_experiment.py "$(ls -td outputs/exp_* | head -
 
 Depois disso, leia:
 
-1. [README.md](/workspace/2026/feat_seq_bigru_residual_cvae/README.md)
-2. [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_cvae/PROJECT_STATUS.md)
-3. [docs/active/WORKING_STATE.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/active/WORKING_STATE.md)
-4. [docs/reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/PROTOCOL.md)
+1. [README.md](/workspace/2026/feat_seq_bigru_residual_spline_flow_v2/README.md)
+2. [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_spline_flow_v2/PROJECT_STATUS.md)
+3. [docs/active/WORKING_STATE.md](/workspace/2026/feat_seq_bigru_residual_spline_flow_v2/docs/active/WORKING_STATE.md)
+4. [docs/reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_spline_flow_v2/docs/reference/PROTOCOL.md)
 
 ## Arquivo Historico
 
 Tudo que deixou de ser documento vivo foi movido para:
 
-- [docs/archive/README.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/archive/README.md)
+- [docs/archive/README.md](/workspace/2026/feat_seq_bigru_residual_spline_flow_v2/docs/archive/README.md)

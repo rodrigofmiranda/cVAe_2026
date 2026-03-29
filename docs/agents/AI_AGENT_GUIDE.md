@@ -5,26 +5,27 @@ assistant.
 
 Tool-specific root files still exist because some tools auto-discover them:
 
-- [CODEX.md](/workspace/2026/feat_seq_bigru_residual_flow_route/CODEX.md)
-- [CLAUDE.md](/workspace/2026/feat_seq_bigru_residual_flow_route/CLAUDE.md)
+- [CODEX.md](/workspace/2026/feat_seq_bigru_residual_spline_flow_v2/CODEX.md)
+- [CLAUDE.md](/workspace/2026/feat_seq_bigru_residual_spline_flow_v2/CLAUDE.md)
 
 Those root files should stay short and point here for common context.
 
 ## Current Focus
 
-- active branch: `feat/seq-bigru-residual-spline-flow`
+- active branch: `feat/seq-bigru-residual-spline-flow-v2`
 - goal:
-  preserve the dedicated flow route and its result as a formal negative line
+  preserve the dedicated spline-flow route and its result as a formal negative
+  line, then hand off the global problem to conditional diffusion
 
 ## Minimal Read Order
 
 Read only these first:
 
-1. [README.md](/workspace/2026/feat_seq_bigru_residual_flow_route/README.md)
-2. [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_flow_route/PROJECT_STATUS.md)
-3. [active/WORKING_STATE.md](/workspace/2026/feat_seq_bigru_residual_flow_route/docs/active/WORKING_STATE.md)
-4. [reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_flow_route/docs/reference/PROTOCOL.md)
-5. [reference/EXPERIMENT_WORKFLOW.md](/workspace/2026/feat_seq_bigru_residual_flow_route/docs/reference/EXPERIMENT_WORKFLOW.md)
+1. [README.md](/workspace/2026/feat_seq_bigru_residual_spline_flow_v2/README.md)
+2. [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_spline_flow_v2/PROJECT_STATUS.md)
+3. [active/WORKING_STATE.md](/workspace/2026/feat_seq_bigru_residual_spline_flow_v2/docs/active/WORKING_STATE.md)
+4. [reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_spline_flow_v2/docs/reference/PROTOCOL.md)
+5. [reference/EXPERIMENT_WORKFLOW.md](/workspace/2026/feat_seq_bigru_residual_spline_flow_v2/docs/reference/EXPERIMENT_WORKFLOW.md)
 
 Add a sixth file only if the task needs it.
 
@@ -37,12 +38,13 @@ Add a sixth file only if the task needs it.
   - `outputs/exp_20260328_153611`
   - `10/12`
 - current branch-local flow result:
-  - `outputs/exp_20260328_210003`
+  - `outputs/exp_20260329_015815`
   - `0/12`
 - negative lines already tested:
   - `sample-aware MMD`
   - old `sinh-arcsinh` flow line
-  - current `coupling_2d` flow line
+  - `coupling_2d` flow line
+  - `spline_2d` flow line
   - pure regime-weighted resampling
 
 ## Active Architecture Families
@@ -115,8 +117,8 @@ Then inspect the latest exp_* and summarize:
 ## Tool-Specific Additions
 
 - Codex-specific behavior:
-  [CODEX.md](/workspace/2026/feat_seq_bigru_residual_flow_route/CODEX.md)
+  [CODEX.md](/workspace/2026/feat_seq_bigru_residual_spline_flow_v2/CODEX.md)
 - Claude-specific behavior:
-  [CLAUDE.md](/workspace/2026/feat_seq_bigru_residual_flow_route/CLAUDE.md)
+  [CLAUDE.md](/workspace/2026/feat_seq_bigru_residual_spline_flow_v2/CLAUDE.md)
 - review-only criteria:
-  [docs/agents/REVIEW.md](/workspace/2026/feat_seq_bigru_residual_flow_route/docs/agents/REVIEW.md)
+  [docs/agents/REVIEW.md](/workspace/2026/feat_seq_bigru_residual_spline_flow_v2/docs/agents/REVIEW.md)

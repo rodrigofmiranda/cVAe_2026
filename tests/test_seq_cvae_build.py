@@ -171,6 +171,16 @@ class TestSubModelBuild:
         )
         assert dec.outputs[0].shape[1:] == (8,)
 
+    def test_flow_spline_decoder_output_shape(self):
+        dec = build_seq_decoder(
+            _min_cfg(
+                decoder_distribution="flow",
+                flow_family="spline_2d",
+                flow_spline_bins=8,
+            )
+        )
+        assert dec.outputs[0].shape[1:] == (48,)
+
 
 # ===========================================================================
 # 1 — Full model build
@@ -291,6 +301,23 @@ class TestForwardPass:
         c = rng.uniform(0, 1, size=(N, 1)).astype(np.float32)
         out = dec([z, x_cent, d, c], training=False)
         assert out.shape == (N, 8)
+        assert not np.any(np.isnan(out.numpy()))
+
+    def test_flow_spline_decoder_forward_shapes(self):
+        cfg = _min_cfg(
+            decoder_distribution="flow",
+            flow_family="spline_2d",
+            flow_spline_bins=8,
+        )
+        dec = build_seq_decoder(cfg)
+        N = 16
+        rng = np.random.default_rng(17)
+        z = rng.normal(size=(N, cfg["latent_dim"])).astype(np.float32)
+        x_cent = rng.normal(size=(N, 2)).astype(np.float32)
+        d = rng.uniform(0, 1, size=(N, 1)).astype(np.float32)
+        c = rng.uniform(0, 1, size=(N, 1)).astype(np.float32)
+        out = dec([z, x_cent, d, c], training=False)
+        assert out.shape == (N, 48)
         assert not np.any(np.isnan(out.numpy()))
 
     def test_full_model_forward_shape(self):

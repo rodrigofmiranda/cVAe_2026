@@ -8,27 +8,31 @@ start here.
 ## Current Worktree
 
 - active worktree:
-  - `/workspace/2026/feat_seq_bigru_residual_flow_route`
+  - `/workspace/2026/feat_seq_bigru_residual_spline_flow_v2`
 - active branch:
-  - `feat/seq-bigru-residual-spline-flow`
+  - `feat/seq-bigru-residual-spline-flow-v2`
 - git worktree count:
-  - `3`
+  - `5`
 
 ## Current Flow Route Snapshot
 
 - route purpose:
-  - isolate the next conditional-density line on its own branch/worktree
+  - isolate the next materially different conditional-density line on its own
+    branch/worktree
 - decoder families currently wired in this lane:
-  - `flow_family="coupling_2d"`:
+  - `flow_family="spline_2d"`:
     - new default here
-    - joint 2-D affine coupling flow
+    - per-axis rational-quadratic spline flow with decoder-conditioned
+      parameters
+  - `flow_family="coupling_2d"`:
+    - legacy compatibility / carry-over from flow v1
   - `flow_family="sinh_arcsinh"`:
     - legacy control / compatibility only
 - new presets:
-  - `seq_flow_coupling_smoke`
-  - `seq_flow_coupling_guided_quick`
+  - `seq_flow_spline_smoke`
+  - `seq_flow_spline_guided_quick`
 - first structural smoke in this lane:
-  - `outputs/exp_20260328_204607`
+  - `outputs/exp_20260329_015508`
   - result: `0/12`
   - reading:
     - integration success
@@ -36,18 +40,20 @@ start here.
     - diagnostics: `flag_undertrained=True`, `flag_posterior_collapse=True`,
       `active_dim_ratio=0.0`
 - first meaningful quick in this lane:
-  - `outputs/exp_20260328_210003`
-  - preset: `seq_flow_coupling_guided_quick`
+  - `outputs/exp_20260329_015815`
+  - preset: `seq_flow_spline_guided_quick`
   - result: `0/12`
   - reading:
     - not just a smoke failure
     - all 4 grid candidates also ended `0/12` on the mini protocol
+    - `gate_g5_pass=0`
     - diagnostics no longer point to undertraining or collapse
-    - the present `coupling_2d` formulation is a formal negative result
+    - the present `spline_2d` formulation is a formal negative result
 - branch-local decision:
-  - stop sweeping the current `flow_family="coupling_2d"`
+  - stop sweeping the current `flow_family="spline_2d"`
   - preserve this branch as a documented negative route
   - if flow returns later, use a materially different family
+  - next serious global route: conditional diffusion
 
 ## Current Scientific Anchors
 
@@ -87,7 +93,9 @@ start here.
 - conservative and exploratory MDN:
   - best result: `9/12` (mini_protocol), `8/12` → `10/12` (full protocol with G6)
 - `conditional flow decoder`:
-  - current implementation discarded
+  - old `sinh-arcsinh`: negative
+  - `coupling_2d`: negative
+  - `spline_2d`: negative
 - pure regime-weighted resampling:
   - negative result
 - ceiling probe axes (mdn_components, deeper decoder, higher beta, higher lambda_axis):
@@ -155,6 +163,15 @@ Current branch reading (2026-03-28, after S27):
 - the residual constellation overlay gap is **systematic and not resolved** by
   the current approach; even in passing regimes the model point cloud is too
   uniform relative to real data
+
+Current global reading after the dedicated flow lanes:
+
+- changing the flow family alone has not solved the universal shape gap
+- the negative flow lines are now:
+  - old `sinh-arcsinh`
+  - `coupling_2d`
+  - `spline_2d`
+- the next serious global generative line is conditional diffusion
 
 ## Current Direction
 

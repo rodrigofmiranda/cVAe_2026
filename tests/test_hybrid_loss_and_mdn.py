@@ -179,6 +179,53 @@ def test_seq_flow_coupling_model_builds_saves_loads_and_predicts(tmp_path):
     assert y_sto.shape == (2, 2)
 
 
+def test_seq_flow_spline_model_builds_saves_loads_and_predicts(tmp_path):
+    cfg = {
+        "arch_variant": "seq_bigru_residual",
+        "layer_sizes": [16, 16],
+        "latent_dim": 2,
+        "beta": 0.003,
+        "free_bits": 0.10,
+        "lr": 3e-4,
+        "dropout": 0.0,
+        "kl_anneal_epochs": 4,
+        "activation": "leaky_relu",
+        "window_size": 7,
+        "window_stride": 1,
+        "window_pad_mode": "edge",
+        "seq_hidden_size": 4,
+        "seq_num_layers": 1,
+        "seq_bidirectional": True,
+        "decoder_distribution": "flow",
+        "flow_family": "spline_2d",
+        "flow_identity_init": True,
+        "flow_spline_bins": 8,
+    }
+    model, _ = build_cvae(cfg)
+
+    x = np.zeros((2, 7, 2), dtype=np.float32)
+    d = np.zeros((2, 1), dtype=np.float32)
+    c = np.zeros((2, 1), dtype=np.float32)
+    y = np.zeros((2, 2), dtype=np.float32)
+
+    y_out = model.predict([x, d, c, y], verbose=0)
+    assert y_out.shape == (2, 2)
+    assert model.get_layer("decoder").output_shape[-1] == 48
+
+    save_path = tmp_path / "seq_flow_spline.keras"
+    model.save(save_path)
+    loaded = load_seq_model(save_path)
+
+    inf_det = create_seq_inference_model(loaded, deterministic=True)
+    inf_sto = create_seq_inference_model(loaded, deterministic=False)
+
+    y_det = inf_det.predict([x, d, c], verbose=0)
+    y_sto = inf_sto.predict([x, d, c], verbose=0)
+
+    assert y_det.shape == (2, 2)
+    assert y_sto.shape == (2, 2)
+
+
 def test_decoder_sensitivity_is_finite_for_seq_gaussian_mdn_and_flow():
     base_cfg = {
         "arch_variant": "seq_bigru_residual",
@@ -205,6 +252,7 @@ def test_decoder_sensitivity_is_finite_for_seq_gaussian_mdn_and_flow():
         ("gaussian", 1, None),
         ("mdn", 3, None),
         ("flow", 1, "coupling_2d"),
+        ("flow", 1, "spline_2d"),
     ):
         cfg = dict(base_cfg)
         cfg["decoder_distribution"] = decoder_distribution
@@ -212,6 +260,8 @@ def test_decoder_sensitivity_is_finite_for_seq_gaussian_mdn_and_flow():
         if flow_family is not None:
             cfg["flow_family"] = flow_family
             cfg["flow_identity_init"] = True
+        if flow_family == "spline_2d":
+            cfg["flow_spline_bins"] = 8
         model, _ = build_cvae(cfg)
         sens = decoder_sensitivity(
             model.get_layer("prior_net"),

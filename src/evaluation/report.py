@@ -220,7 +220,7 @@ def decoder_sensitivity(
             logits = out_params[:, :k]
             comp_mean = out_params[:, k : k + 2 * k].reshape((-1, k, 2))
             y_mean = _mdn_expected_mean(logits, comp_mean).numpy()
-        elif out_dim == 8:
+        elif any(layer.name.startswith("flow_") for layer in getattr(decoder_net, "layers", [])):
             flow_family = _flow_layer_family_from_names(
                 layer.name for layer in getattr(decoder_net, "layers", [])
             )

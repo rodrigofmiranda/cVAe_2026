@@ -46,6 +46,7 @@ the existing evaluation engine and protocol runner can locate them via
 
 from __future__ import annotations
 
+import math
 from typing import Dict, Tuple
 
 import tensorflow as tf
@@ -283,6 +284,32 @@ def _mlp_head(
     return h
 
 
+def _softplus_inverse_scalar(x: float) -> float:
+    """Return the scalar inverse of softplus for a positive target."""
+    x = float(x)
+    if x <= 0.0:
+        raise ValueError(f"softplus inverse requires x > 0; got {x}")
+    return math.log(math.expm1(x))
+
+
+def _spline_identity_bias(
+    *,
+    n_bins: int,
+    min_derivative: float = 1e-2,
+) -> list[float]:
+    """Bias vector that initializes a spline decoder close to identity."""
+    n_bins = int(n_bins)
+    if n_bins < 2:
+        raise ValueError(f"spline flow requires at least 2 bins; got {n_bins}")
+    total_dim = 6 * n_bins
+    bias = [0.0] * total_dim
+    deriv_bias = _softplus_inverse_scalar(max(1.0 - float(min_derivative), 1e-3))
+    deriv_start = 2 + 4 * n_bins
+    for i in range(2 * (n_bins - 1)):
+        bias[deriv_start + i] = deriv_bias
+    return bias
+
+
 # ======================================================================
 # Sub-model builders
 # ======================================================================
@@ -433,6 +460,8 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
     flow_coupling_log_scale_gain = float(
         cfg.get("flow_coupling_log_scale_gain", 0.75)
     )
+    flow_spline_bins = int(cfg.get("flow_spline_bins", 8))
+    flow_spline_min_derivative = float(cfg.get("flow_spline_min_derivative", 1e-2))
 
     z_in      = layers.Input(shape=(latent,), name="z_input")
     x_cent_in = layers.Input(shape=(2,),      name="x_center_input")
@@ -455,11 +484,21 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
         y_mean_flat = layers.Reshape((2 * k,), name="y_mean_flat")(y_mean)
         out = layers.Concatenate(name="output_params")([logits, y_mean_flat, delta_lv_flat])
     elif decoder_distribution == "flow":
+        raw_dim = 8
+        bias_initializer = "zeros"
+        if flow_family == "spline_2d":
+            raw_dim = 6 * flow_spline_bins
+            bias_initializer = tf.keras.initializers.Constant(
+                _spline_identity_bias(
+                    n_bins=flow_spline_bins,
+                    min_derivative=flow_spline_min_derivative,
+                )
+            )
         raw_out = layers.Dense(
-            8,
+            raw_dim,
             name="output_params_raw",
             kernel_initializer="zeros" if flow_identity_init else "glorot_uniform",
-            bias_initializer="zeros",
+            bias_initializer=bias_initializer if flow_identity_init else "zeros",
         )(h)
         delta_loc = SliceFeatures(0, 2, name="delta_loc")(raw_out)
         y_loc = layers.Add(name="y_loc_residual")([x_cent_in, delta_loc])
@@ -472,6 +511,23 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
             log_tail = ScaleTanh(flow_log_tail_gain, name="flow_log_tail")(log_tail_raw)
             out = layers.Concatenate(name="output_params")(
                 [y_loc, log_scale, skew, log_tail]
+            )
+        elif flow_family == "spline_2d":
+            widths_end = 2 + 2 * flow_spline_bins
+            heights_end = widths_end + 2 * flow_spline_bins
+            spline_widths_raw = SliceFeatures(
+                2, widths_end, name="flow_spline_widths_raw"
+            )(raw_out)
+            spline_heights_raw = SliceFeatures(
+                widths_end, heights_end, name="flow_spline_heights_raw"
+            )(raw_out)
+            spline_derivatives_raw = SliceFeatures(
+                heights_end,
+                heights_end + 2 * (flow_spline_bins - 1),
+                name="flow_spline_derivatives_raw",
+            )(raw_out)
+            out = layers.Concatenate(name="output_params")(
+                [y_loc, spline_widths_raw, spline_heights_raw, spline_derivatives_raw]
             )
         else:
             base_log_scale_raw = SliceFeatures(
@@ -683,7 +739,7 @@ def create_seq_inference_model(
         if out_dim > 4 and out_dim % 5 == 0:
             decoder_distribution = "mdn"
             flow_family = "coupling_2d"
-        elif out_dim == 8 and any(name.startswith("flow_") for name in decoder_layer_names):
+        elif any(name.startswith("flow_") for name in decoder_layer_names):
             decoder_distribution = "flow"
             flow_family = _flow_layer_family_from_names(decoder_layer_names)
         else:
