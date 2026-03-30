@@ -58,7 +58,7 @@ Current experimental branch in this worktree:
 
 Tracking:
 
-- no remote branch yet
+- `origin/feat/seq-bigru-residual-diffusion-v2`
 
 Purpose of this branch:
 
@@ -78,8 +78,8 @@ The folder name is historical; the active Git branch may differ from the path.
 
 ## Current Branch State
 
-This branch has just been opened for the second diffusion formulation. No
-diffusion-v2 experiment has run yet.
+This branch already contains the first `diffusion v2` implementation and its
+first large protocol-first grid.
 
 Current scientific reading:
 
@@ -98,15 +98,36 @@ Current scientific reading:
   - `outputs/exp_20260329_211418`
   - the first run collapsed, the second no longer collapsed, but both ended
     `0/12`
-- the next serious route is therefore `conditional diffusion v2`
+- `diffusion v2` has now been implemented and tested in a direct formulation:
+  - `outputs/exp_20260330_114643`
+  - champion:
+    `DIF2seq_W7_h64_lat12_v_diff16_hd96_lr0p0002_bs6144_L128-256-512`
+  - result: `1/12`
+  - best `v-pred` beat the best `x0-pred`, but both stayed scientifically weak
+  - the run removed collapse and undertraining as the main explanations, but
+    the family still failed globally
+- the current branch now preserves the first explicit `diffusion v2` verdict:
+  - direct conditional diffusion is structurally integrated
+  - the current `v2` formulation is still negative as a scientific route
 
 Current branch status:
 
-- this worktree is the staging lane for `diffusion v2`
-- the next formulation change is explicit:
-  - remove or sharply weaken the redundant latent-KL path
-  - test a direct conditional residual diffusion objective
-  - use `v-pred` as the default first target, with `x0-pred` as fallback ablation
+- this worktree is now the preserved lane for the first direct `diffusion v2`
+  formulation
+- what was implemented here:
+  - `decoder_distribution=\"diffusion_direct\"`
+  - direct conditional residual diffusion objective
+  - `v-pred` as the main target
+  - `x0-pred` as the first fallback ablation
+  - large guided grid: `seq_diffusion_v2_large` (`16` candidates)
+- what the first large grid established:
+  - no posterior collapse
+  - no undertraining
+  - persistent instability and poor global protocol fidelity
+- practical note:
+  - the experiment artifacts for `exp_20260330_114643` are complete
+  - the `tee` launch log was not persisted because `_launch_logs/` did not
+    exist when the run started
 
 ## Objective
 

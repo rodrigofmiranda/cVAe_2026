@@ -17,8 +17,8 @@ Those root files should stay short and point here for common context.
   open the second diffusion formulation for the global residual-shape problem
 - current route status:
   - `diffusion v1` is already recorded as negative
-  - this branch is the clean follow-up lane for `diffusion v2`
-  - no `diffusion v2` experiment has run yet
+  - this branch now contains the first direct `diffusion v2` implementation
+  - the first large `diffusion v2` grid has already run and is negative
 
 ## Minimal Read Order
 
@@ -48,10 +48,14 @@ Add a sixth file only if the task needs it.
   - `outputs/exp_20260329_211418`
   - `0/12`
   - read it as the closing verdict for `diffusion v1`
+- direct diffusion v2 large grid:
+  - `outputs/exp_20260330_114643`
+  - `1/12`
+  - read it as the first verdict for `diffusion v2`, not as an open baseline
 - current branch target:
-  - `diffusion v2`
-  - first formulation change: direct conditional residual diffusion
-  - remove or sharply weaken the latent-KL path
+  - preserve the first `diffusion v2` verdict clearly
+  - avoid retuning the same direct formulation locally
+  - use this branch as the handoff point for the next formulation change
 - negative lines already tested:
   - `sample-aware MMD`
   - `sinh-arcsinh` flow line
@@ -78,6 +82,7 @@ Add a sixth file only if the task needs it.
   - `decoder`
 - serious experimentation should go through `src.protocol.run`
 - do not reopen local sweeps of the exact `diffusion v1` formulation here
+- do not reopen local sweeps of the exact `diffusion v2` formulation here
 
 Critical seq note:
 

@@ -10,7 +10,8 @@ Worktrees git registradas neste repositorio:
 1. `/workspace/2026/feat_seq_bigru_residual_diffusion_v2`
    - branch: `feat/seq-bigru-residual-diffusion-v2`
    - status: worktree ativa desta copia
-   - foco: abrir a segunda formulacao de `conditional diffusion`
+   - foco: preservar a segunda formulacao de `conditional diffusion` apos o
+     primeiro grid grande
 2. `/workspace/2026/feat_seq_bigru_residual_diffusion`
    - branch: `feat/seq-bigru-residual-diffusion`
    - status: worktree diffusion v1 fechada como negativa
@@ -62,7 +63,14 @@ Decisao desta branch:
 - `diffusion v1` foi implementada e fechada como negativa:
   - smoke `outputs/exp_20260329_210444`: `0/12`
   - guided quick `outputs/exp_20260329_211418`: `0/12`
-- esta worktree existe para a **proxima formulacao**, nao para retunar a v1
+- `diffusion v2` direta tambem ja teve o primeiro teste grande:
+  - run: `outputs/exp_20260330_114643`
+  - campeao: `DIF2seq_W7_h64_lat12_v_diff16_hd96_lr0p0002_bs6144_L128-256-512`
+  - resultado: `1/12`
+  - melhor `v-pred`: `6/12` no mini, `1/12` no full
+  - melhor `x0-pred`: `5/12` no mini, pior que `v-pred`
+- esta worktree agora existe para preservar o veredito da `diffusion v2`
+  atual e servir de base para a proxima formulacao, nao para retunar a v1
 
 Referencias principais hoje:
 
@@ -85,6 +93,12 @@ Referencias principais hoje:
   - run: `outputs/exp_20260329_015815`
   - linha: `spline_2d flow`
   - resultado: `0/12`
+- ultimo teste grande da branch atual:
+  - run: `outputs/exp_20260330_114643`
+  - linha: `diffusion_direct v2`
+  - resultado: `1/12`
+  - unico regime que passou: `1.5m / 100mA`
+  - todos os `0.8m` falharam
 
 Leitura atual:
 
@@ -106,6 +120,17 @@ Leitura atual:
   - testar uma diffusion condicional mais direta
   - remover ou enfraquecer fortemente a trilha latente com KL
   - tratar a diffusion como o modelo generativo principal, nao como decoder dentro da v1
+- leitura apos o primeiro grid grande da `v2`:
+  - a integracao estrutural foi bem-sucedida
+  - o problema principal nao e mais colapso nem falta de treino
+  - os `16` candidatos terminaram com `active_dim_ratio=1.0`
+  - nenhum terminou `flag_undertrained=True`
+  - todos terminaram `flag_unstable=True`
+  - portanto a formulacao atual da `v2` tambem deve ser tratada como negativa
+- observacao operacional desta rodada:
+  - os artefatos do experimento ficaram completos
+  - o launch log nao foi persistido porque `outputs/_launch_logs` nao existia
+    no momento inicial do `tee`
 - tambem existe agora uma comparacao de throughput opt-in para a linha seq MDN:
   - preset: `seq_mdn_v2_perf_compare_quick`
   - controle atual: `batch_size=4096`, `batch_infer=8192`, `seq_gru_unroll=True`

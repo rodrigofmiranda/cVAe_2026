@@ -34,9 +34,9 @@ start here.
     - smoke `outputs/exp_20260329_210444`
     - guided quick `outputs/exp_20260329_211418`
 - current branch status:
-  - no diffusion-v2 code exists yet
-  - no diffusion-v2 run exists yet
-  - this worktree is the clean staging lane for the next formulation
+  - diffusion-v2 code now exists
+  - the first large diffusion-v2 grid has completed
+  - this worktree now preserves the first direct diffusion-v2 verdict
 
 ## Current Scientific Anchors
 
@@ -101,6 +101,38 @@ start here.
   - conclusion:
     - collapse mitigation alone did not rescue the family
     - `diffusion v1` should be treated as a negative result
+- direct conditional diffusion v2 large grid:
+  - `outputs/exp_20260330_114643`
+  - `1/12` champion:
+    `DIF2seq_W7_h64_lat12_v_diff16_hd96_lr0p0002_bs6144_L128-256-512`
+  - grid shape:
+    - `16` candidates
+    - `12` on `v-pred`
+    - `4` on `x0-pred`
+  - train-side reading:
+    - best `v-pred` candidate: `6/12` in `mini_protocol_v1`
+    - best `x0-pred` candidate: `5/12` in `mini_protocol_v1`
+    - all `16` candidates reached `active_dim_ratio=1.0`
+    - all `16` candidates finished with `flag_posterior_collapse=False`
+    - all `16` candidates finished with `flag_undertrained=False`
+    - all `16` candidates finished with `flag_unstable=True`
+  - protocol reading:
+    - only `1.5m / 100mA` passed
+    - all `0.8m` regimes failed
+    - all `1.0m` regimes failed
+    - `1.5m / 500mA` and `1.5m / 700mA` recovered `G5` but still failed `G6`
+    - champion summary:
+      - `gate_g5_pass=3`
+      - `gate_g6_pass=2`
+      - final result stayed far below the MDN anchor
+  - conclusion:
+    - direct diffusion v2 is structurally integrated
+    - `v-pred` is better than `x0-pred` in the current formulation
+    - the current diffusion-v2 formulation is still negative as a scientific route
+  - operational note:
+    - experiment artifacts are complete
+    - the launch log was not persisted because `_launch_logs/` did not exist
+      at the start of the run
 
 ## Diffusion V2 Thesis
 
@@ -263,17 +295,17 @@ Global reading that motivates this branch:
 
 Anchor: `S27cov_lc0p25_tail95_t0p03` (`exp_20260328_153611`, `10/12` best known).
 
-The next route is **conditional diffusion**, because the open problem is
-global: the current families do not reproduce the full residual distribution
-shape, even when they pass the protocol.
+The open problem is still **global residual-shape fidelity**, but the current
+`diffusion v2` formulation has now been tested and should not be treated as an
+open baseline anymore.
 
 Immediate branch goals:
 
-- keep the current seq conditioning backbone where it is still useful
-- design the first `diffusion v2` implementation around a direct conditional
-  denoiser
+- preserve the first direct `diffusion v2` verdict explicitly
+- keep the current seq conditioning backbone findings available for the next
+  formulation
 - preserve protocol compatibility, artifact layout, and save/load discipline
-- start with a small structural milestone before any broad sweep
+- make the next route a real formulation change, not another local retune
 
 Implementation focus:
 
@@ -285,6 +317,7 @@ Implementation focus:
 Do not reopen:
 - local sweeps of the three negative flow lines
 - global MDN knob sweeps already exhausted in S28/S29/S30
+- local hyperparameter retunes of the current `diffusion_direct v2` formulation
 
 Do not reopen:
 - `tail_levels=[0.01,0.99]` — tested negative in S27
@@ -295,6 +328,9 @@ Do not reopen:
   more components globally do not fix 0.8m G5
 - **small decoder `cond_embed_dim` sweep** — S30 negative; `embed=16/32` do not
   recover the remaining two 0.8m G5 regimes and regress 1.0m coverage
+- **current `diffusion_direct v2` grid** — `exp_20260330_114643` negative;
+  `v-pred` beats `x0-pred`, but the formulation still collapses scientifically
+  to `1/12` full protocol
 
 The current implementation branch now includes an `MDN v2` path:
 

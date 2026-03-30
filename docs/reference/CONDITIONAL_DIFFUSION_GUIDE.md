@@ -98,6 +98,14 @@ These are the files the first `diffusion v2` implementation should touch.
    - compare against the `diffusion v1` verdict
    - read protocol first, not only train-side ranking
 
+3. First large guided verdict
+   - open the direct conditional route enough to separate:
+     - collapse
+     - undertraining
+     - true family mismatch
+   - compare `v-pred` against `x0-pred`
+   - only keep the family alive if it improves materially over `diffusion v1`
+
 ## Current Status
 
 - diffusion v1 verdict:
@@ -107,15 +115,34 @@ These are the files the first `diffusion v2` implementation should touch.
     - the family is structurally integrable
     - but the current `cVAE + diffusion + KL` formulation is negative
 - diffusion v2 status:
-  - no code yet
-  - no smoke yet
-  - this branch exists to make the formulation change explicit before coding
+  - code exists
+  - direct route exists under `decoder_distribution="diffusion_direct"`
+  - supported targets:
+    - `v-pred`
+    - `x0-pred`
+  - scientific run:
+    - `outputs/exp_20260330_114643`
+    - `16` candidates
+    - champion:
+      `DIF2seq_W7_h64_lat12_v_diff16_hd96_lr0p0002_bs6144_L128-256-512`
+    - full protocol result: `1/12`
+  - train-side reading:
+    - best `v-pred`: `6/12` mini
+    - best `x0-pred`: `5/12` mini
+    - no posterior collapse
+    - no undertraining
+    - persistent instability across the whole grid
+  - interpretation:
+    - the formulation change was real and technically successful
+    - but the current `diffusion v2` family is still negative scientifically
+    - the next diffusion attempt must be another formulation change, not a local sweep
 
 ## Guardrails
 
 - Do not reopen the negative flow families in this branch.
-- Do not start with a large sweep.
 - Do not reopen another local hyperparameter sweep of `diffusion v1`.
+- Do not reopen another local hyperparameter sweep of the current
+  `diffusion_direct v2` formulation.
 - Do not generalize diffusion to every architecture family before the seq route
   proves structural viability.
 - Preserve the current protocol, artifact layout, and model-reuse workflow.
