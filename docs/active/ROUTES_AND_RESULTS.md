@@ -3,6 +3,11 @@
 This document is the compact registry of the branches, worktrees, routes, and
 recent experimental outcomes that matter right now.
 
+For beginner onboarding and branch-by-branch strategy review, use the Excel
+matrix too:
+
+- [DIGITAL_TWIN_BRANCH_STRATEGY_MATRIX.xlsx](/workspace/2026/feat_seq_bigru_residual_cvae/docs/active/DIGITAL_TWIN_BRANCH_STRATEGY_MATRIX.xlsx)
+
 ## Worktree Inventory
 
 | Worktree | Branch | Role | Current status |

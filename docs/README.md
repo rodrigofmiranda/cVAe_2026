@@ -17,6 +17,7 @@ agent tooling conventions:
 
 - [active/WORKING_STATE.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/active/WORKING_STATE.md)
 - [active/ROUTES_AND_RESULTS.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/active/ROUTES_AND_RESULTS.md)
+- [active/DIGITAL_TWIN_BRANCH_STRATEGY_MATRIX.xlsx](/workspace/2026/feat_seq_bigru_residual_cvae/docs/active/DIGITAL_TWIN_BRANCH_STRATEGY_MATRIX.xlsx)
 
 ## Reference Docs
 
