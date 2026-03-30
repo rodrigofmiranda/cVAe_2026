@@ -404,6 +404,7 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
     ).strip().lower()
     mdn_components = int(cfg.get("mdn_components", 1))
     cond_embed_dim = int(cfg.get("cond_embed_dim", 0))
+    cond_embed_layers = max(1, int(cfg.get("cond_embed_layers", 2)))
     cond_embed_residual = bool(cfg.get("cond_embed_residual", False))
 
     z_in      = layers.Input(shape=(latent,), name="z_input")
@@ -412,10 +413,11 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
     c_in      = layers.Input(shape=(1,),      name="c_input")
 
     if cond_embed_dim > 0:
-        # Nonlinear regime embedding: (d, c) → 2-layer MLP → cond_embed_dim
+        # Nonlinear regime embedding: (d, c) → cond_embed_layers-layer MLP → cond_embed_dim
         cond_raw = layers.Concatenate(name="dec_cond_raw")([d_in, c_in])
         cond_h = layers.Dense(cond_embed_dim, activation=act, name="dec_cond_emb_0")(cond_raw)
-        cond_h = layers.Dense(cond_embed_dim, activation=act, name="dec_cond_emb_1")(cond_h)
+        for _i in range(1, cond_embed_layers):
+            cond_h = layers.Dense(cond_embed_dim, activation=act, name=f"dec_cond_emb_{_i}")(cond_h)
         if cond_embed_residual:
             # Skip connection: keep raw (d,c) alongside embedding
             h = layers.Concatenate(name="dec_concat")([z_in, x_cent_in, d_in, c_in, cond_h])

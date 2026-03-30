@@ -3354,6 +3354,120 @@ def _preset_seq_cond_embed_tuned_sweep() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_cond_embed_large_sweep() -> List[Dict[str, Any]]:
+    """S32 — Large decoder conditioning sweep: 6 variants covering unexplored axes.
+
+    S30/S31 findings:
+    - cond_embed_dim is the right direction: δJBrel 2990→0.375 for embed16/64
+    - LR=4e-4 too high (crashes embed32 at epoch 11, embed16 at epoch 40)
+    - embed=32 undertrained (S30, epoch 98, active_dims=7) had 5 G5 failures —
+      best ever; 7D effective latent may be key
+    - embed=64 lr=2e-4 converges well but still 8 G5 failures (gate too tight)
+    - residual at lr=4e-4 stabilises training but sacrifices shape matching
+    - MDN+embed and deeper embed are unexplored
+
+    Six variants on S27-A2 base (patience=80):
+      A: embed=64, lr=3e-4       — intermediate LR for e64
+      B: embed=32 residual, lr=2e-4  — residual at safe LR (unexplored)
+      C: embed=64 residual, lr=2e-4  — largest residual at safe LR (unexplored)
+      D: embed=32, 3-layer MLP, lr=2e-4  — deeper embedding
+      E: embed=64 + mdn=5, lr=2e-4  — best shape-match embed + more MDN
+      F: embed=32, latent_dim=7, lr=2e-4  — replicate S30 7D effective latent
+    """
+    analysis_quick_overrides = {
+        "train_regime_diagnostics_enabled": False,
+        "mini_reanalysis_enabled": True,
+        "mini_reanalysis_scope": "all12",
+        "mini_reanalysis_max_samples_per_regime": 4096,
+        "grid_ranking_mode": "mini_protocol_v1",
+        "batch_infer": 16384,
+    }
+
+    _base = dict(
+        arch_variant="seq_bigru_residual",
+        layer_sizes=[128, 256, 512],
+        latent_dim=8,
+        beta=0.002,
+        free_bits=0.10,
+        lr=2e-4,
+        batch_size=6144,
+        kl_anneal_epochs=80,
+        window_size=7,
+        window_stride=1,
+        window_pad_mode="edge",
+        seq_hidden_size=64,
+        seq_num_layers=1,
+        seq_bidirectional=True,
+        seq_gru_unroll=True,
+        lambda_mmd=0.25,
+        mmd_mode="mean_residual",
+        lambda_axis=0.01,
+        lambda_psd=0.0,
+        lambda_coverage=0.25,
+        coverage_levels=[0.50, 0.80, 0.95],
+        tail_levels=[0.05, 0.95],
+        coverage_temperature=0.03,
+        lambda_kurt=0.0,
+        decoder_distribution="mdn",
+        mdn_components=3,
+        cond_embed_dim=0,
+        cond_embed_layers=2,
+        cond_embed_residual=False,
+        shuffle_train_batches=True,
+        patience=80,
+    )
+
+    def _variant(overrides):
+        cfg = dict(_base)
+        cfg.update(overrides)
+        return _cfg(**cfg)
+
+    return [
+        # A — embed=64, lr=3e-4 (intermediate LR; lr=2e-4 converged ok, lr=4e-4 crashes)
+        dict(
+            group="S32_cond_embed_large",
+            tag="S32A_e64_lr3e4",
+            cfg=_variant({"cond_embed_dim": 64, "lr": 3e-4}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        # B — embed=32 + residual, lr=2e-4 (residual at safe LR, unexplored)
+        dict(
+            group="S32_cond_embed_large",
+            tag="S32B_e32_resid_lr2e4",
+            cfg=_variant({"cond_embed_dim": 32, "cond_embed_residual": True}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        # C — embed=64 + residual, lr=2e-4 (largest residual at safe LR)
+        dict(
+            group="S32_cond_embed_large",
+            tag="S32C_e64_resid_lr2e4",
+            cfg=_variant({"cond_embed_dim": 64, "cond_embed_residual": True}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        # D — embed=32, 3-layer MLP, lr=2e-4 (deeper embedding)
+        dict(
+            group="S32_cond_embed_large",
+            tag="S32D_e32_3layer_lr2e4",
+            cfg=_variant({"cond_embed_dim": 32, "cond_embed_layers": 3}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        # E — embed=64 + mdn=5, lr=2e-4 (combine best shape-match embed with more MDN)
+        dict(
+            group="S32_cond_embed_large",
+            tag="S32E_e64_mdn5_lr2e4",
+            cfg=_variant({"cond_embed_dim": 64, "mdn_components": 5}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        # F — embed=32, latent_dim=7, lr=2e-4 (S30 embed32 had active_dims=7 and 5 G5 fails)
+        dict(
+            group="S32_cond_embed_large",
+            tag="S32F_e32_lat7_lr2e4",
+            cfg=_variant({"cond_embed_dim": 32, "latent_dim": 7}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+    ]
+
+
 def _preset_seq_mdn_v2_0p8m_isolation() -> List[Dict[str, Any]]:
     """Diagnostic: MDN v2 lat8 trained ONLY on 0.8m data.
 
@@ -3889,6 +4003,8 @@ def select_grid(
             grid = _preset_seq_cond_embed_sweep()
         elif preset_name == "seq_cond_embed_tuned_sweep":
             grid = _preset_seq_cond_embed_tuned_sweep()
+        elif preset_name == "seq_cond_embed_large_sweep":
+            grid = _preset_seq_cond_embed_large_sweep()
         elif preset_name == "seq_mdn_v2_0p8m_isolation":
             grid = _preset_seq_mdn_v2_0p8m_isolation()
         elif preset_name == "seq_gaussian_reference_full":
