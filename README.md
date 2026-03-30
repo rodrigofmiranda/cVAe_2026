@@ -75,8 +75,8 @@ The folder name is historical; the active Git branch may differ from the path.
 
 ## Current Branch State
 
-This branch now has a first diffusion implementation and one completed smoke
-run.
+This branch now has a first diffusion implementation, one completed smoke run,
+and one completed guided quick.
 
 Current scientific reading:
 
@@ -97,14 +97,20 @@ Current scientific reading:
   - result: `0/12`
   - reading: structural milestone passed, but the first point collapsed
     (`active_dim_ratio=0.0`)
+- diffusion guided quick also completed:
+  - `outputs/exp_20260329_211418`
+  - preset: `seq_diffusion_guided_quick`
+  - result: `0/12`
+  - reading:
+    - collapse mitigation improved
+    - the current `cVAE + diffusion + KL` formulation remains globally wrong
 
 Current branch status:
 
 - `seq_bigru_residual + diffusion` is implemented in this worktree
 - build/train/save-load/stochastic protocol evaluation already worked end-to-end
-- the next run for this branch is the recalibrated:
-  - `seq_diffusion_guided_quick`
-  - tuned toward lower `latent_dim`, lower `beta`, and higher `free_bits`
+- this worktree should now be treated as the closed `diffusion v1` lane
+- the next diffusion attempt should move to a separate follow-up branch/worktree
 
 ## Objective
 

@@ -32,9 +32,9 @@ start here.
     - `coupling_2d`
     - `spline_2d`
 - current branch status:
-  - diffusion implementation exists locally in this worktree
+  - diffusion implementation exists in this worktree
   - first structural smoke completed
-  - guided quick preset already recalibrated from the smoke diagnostics
+  - guided quick completed and closed the current formulation as negative
 
 ## Current Scientific Anchors
 
@@ -83,6 +83,22 @@ start here.
     - structural integration succeeded
     - the first scientific point collapsed and should not be treated as a
       verdict on the diffusion family
+- conditional diffusion guided quick:
+  - `outputs/exp_20260329_211418`
+  - `0/12` champion:
+    `DIF1seq_W7_h64_lat4_diff16_b0p0005_fb0p20_lr0p0002_bs6144_L128-256-512`
+  - train-side reading:
+    - all `4` grid candidates finished `0/12` in `mini_protocol_v1`
+    - the champion reached `active_dim_ratio=1.0`
+    - `flag_posterior_collapse=False`
+    - `flag_unstable=True`
+  - protocol reading:
+    - `gate_g5_pass=1`
+    - `gate_g6_pass=0`
+    - final result stayed `0/12`
+  - conclusion:
+    - collapse mitigation alone did not rescue the family
+    - `diffusion v1` should be treated as a negative result
 
 ## What Was Already Explored
 
@@ -236,22 +252,12 @@ shape, even when they pass the protocol.
 
 Immediate branch goals:
 
-- keep the current seq backbone and conditioning path as much as possible
-- replace the decoder-family logic with a conditional diffusion route
-- structural milestone status:
-  - build: done
-  - train: done
-  - save/load: done
-  - deterministic inference: done
-  - stochastic inference: done
-  - smoke run through `src.protocol.run`: done
-- next scientific step:
-  - run `seq_diffusion_guided_quick`
-  - start from the smoke diagnosis:
-    - lower `latent_dim`
-    - lower `beta`
-    - higher `free_bits`
-    - avoid capacity-first probes before collapse is fixed
+- preserve this worktree as the recorded `diffusion v1` lane
+- do not reopen local hyperparameter sweeps inside this exact formulation
+- move the next attempt to a separate diffusion follow-up worktree
+- make the formulation change explicit:
+  - remove or sharply weaken the redundant latent-KL path
+  - test a more direct conditional diffusion objective
 
 Implementation focus:
 

@@ -109,6 +109,13 @@ These are the files the first implementation should touch.
     - lower `beta`
     - higher `free_bits`
     - one slightly larger hidden-size probe only after those collapse defenses
+- guided quick result:
+  - `outputs/exp_20260329_211418`
+  - result: `0/12`
+  - interpretation:
+    - collapse mitigation worked better than in the smoke
+    - but the current formulation remained structurally wrong
+    - treat this branch as **diffusion v1 negative**
 
 ## Guardrails
 

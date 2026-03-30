@@ -16,9 +16,10 @@ Those root files should stay short and point here for common context.
 - goal:
   open the conditional-diffusion route for the global residual-shape problem
 - current route status:
-  - implementation exists locally
-  - first smoke `outputs/exp_20260329_210444` completed
-  - next run should be the recalibrated `seq_diffusion_guided_quick`
+  - implementation exists and is recorded
+  - smoke `outputs/exp_20260329_210444` completed
+  - guided quick `outputs/exp_20260329_211418` completed
+  - this branch should now be treated as `diffusion v1` negative
 
 ## Minimal Read Order
 
@@ -44,6 +45,10 @@ Add a sixth file only if the task needs it.
   - `outputs/exp_20260329_210444`
   - `0/12`
   - read it as a structural milestone plus collapse signal, not as a family verdict
+- diffusion guided quick:
+  - `outputs/exp_20260329_211418`
+  - `0/12`
+  - read it as the closing verdict for the current formulation
 - negative lines already tested:
   - `sample-aware MMD`
   - `sinh-arcsinh` flow line

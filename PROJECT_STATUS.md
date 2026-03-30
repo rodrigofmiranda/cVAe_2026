@@ -102,7 +102,15 @@ Leitura atual:
   - leitura:
     - marco estrutural aprovado
     - colapso latente no primeiro ponto (`active_dim_ratio=0.0`)
-    - o proximo passo deve atacar `beta/free_bits/latent_dim`, nao capacidade
+    - o passo seguinte foi atacar `beta/free_bits/latent_dim`, nao capacidade
+- o guided quick recalibrado ja fechou:
+  - run: `outputs/exp_20260329_211418`
+  - preset: `seq_diffusion_guided_quick`
+  - resultado: `0/12`
+  - leitura:
+    - `active_dim_ratio=1.0`
+    - o colapso deixou de ser o gargalo principal
+    - a formulacao `cVAE + diffusion + KL` fica arquivada como negativa nesta iteracao
 - tambem existe agora uma comparacao de throughput opt-in para a linha seq MDN:
   - preset: `seq_mdn_v2_perf_compare_quick`
   - controle atual: `batch_size=4096`, `batch_infer=8192`, `seq_gru_unroll=True`
