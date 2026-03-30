@@ -79,6 +79,17 @@ class TestSubModelBuild:
         dec = build_seq_decoder(_min_cfg(decoder_distribution="diffusion", diffusion_steps=4))
         assert dec is not None
 
+    def test_diffusion_direct_decoder_builds(self):
+        dec = build_seq_decoder(
+            _min_cfg(
+                decoder_distribution="diffusion_direct",
+                diffusion_target="v",
+                diffusion_steps=4,
+                diffusion_hidden_size=16,
+            )
+        )
+        assert dec is not None
+
     def test_seq_gru_layers_are_explicitly_unrolled(self):
         prior = build_seq_prior_net(_min_cfg(seq_bidirectional=True))
         bigru = prior.get_layer("prior_net_bigru_0")
@@ -139,6 +150,17 @@ class TestSubModelBuild:
         dec = build_seq_decoder(_min_cfg(decoder_distribution="diffusion", diffusion_steps=4))
         assert len(dec.inputs) == 6
 
+    def test_diffusion_direct_decoder_has_six_inputs(self):
+        dec = build_seq_decoder(
+            _min_cfg(
+                decoder_distribution="diffusion_direct",
+                diffusion_target="v",
+                diffusion_steps=4,
+                diffusion_hidden_size=16,
+            )
+        )
+        assert len(dec.inputs) == 6
+
     def test_decoder_z_shape(self):
         dec = build_seq_decoder(_min_cfg(latent_dim=6))
         assert dec.inputs[0].shape[1:] == (6,)
@@ -169,6 +191,17 @@ class TestSubModelBuild:
 
     def test_diffusion_decoder_output_shape(self):
         dec = build_seq_decoder(_min_cfg(decoder_distribution="diffusion", diffusion_steps=4))
+        assert dec.outputs[0].shape[1:] == (2,)
+
+    def test_diffusion_direct_decoder_output_shape(self):
+        dec = build_seq_decoder(
+            _min_cfg(
+                decoder_distribution="diffusion_direct",
+                diffusion_target="v",
+                diffusion_steps=4,
+                diffusion_hidden_size=16,
+            )
+        )
         assert dec.outputs[0].shape[1:] == (2,)
 
 
@@ -243,6 +276,23 @@ class TestFullModelBuild:
         vae, _ = build_seq_cvae(_min_cfg(seq_num_layers=2))
         assert vae is not None
 
+    def test_direct_diffusion_builds_without_encoder_layer(self):
+        vae, kl_cb = build_seq_cvae(
+            _min_cfg(
+                decoder_distribution="diffusion_direct",
+                diffusion_target="v",
+                diffusion_steps=4,
+                diffusion_hidden_size=16,
+                beta=0.0,
+                free_bits=0.0,
+            )
+        )
+        with pytest.raises(ValueError):
+            vae.get_layer("encoder")
+        assert vae.get_layer("prior_net") is not None
+        assert vae.get_layer("decoder") is not None
+        assert kl_cb.beta_end == 0.0
+
 
 # ===========================================================================
 # 5 — Forward pass (no training, shape + NaN checks)
@@ -279,6 +329,26 @@ class TestForwardPass:
         c      = rng.uniform(0, 1, size=(N, 1)).astype(np.float32)
         out = dec([z, x_cent, d, c], training=False)
         assert out.shape == (N, 4)
+
+    def test_direct_diffusion_decoder_forward_shapes(self):
+        cfg = _min_cfg(
+            decoder_distribution="diffusion_direct",
+            diffusion_target="v",
+            diffusion_steps=4,
+            diffusion_hidden_size=16,
+            latent_dim=6,
+        )
+        dec = build_seq_decoder(cfg)
+        N = 16
+        rng = np.random.default_rng(3)
+        z = rng.normal(size=(N, cfg["latent_dim"])).astype(np.float32)
+        x_cent = rng.normal(size=(N, 2)).astype(np.float32)
+        d = rng.uniform(0, 1, size=(N, 1)).astype(np.float32)
+        c = rng.uniform(0, 1, size=(N, 1)).astype(np.float32)
+        residual = rng.normal(size=(N, 2)).astype(np.float32)
+        t_frac = rng.uniform(0, 1, size=(N, 1)).astype(np.float32)
+        out = dec([z, x_cent, d, c, residual, t_frac], training=False)
+        assert out.shape == (N, 2)
 
     def test_full_model_forward_shape(self):
         cfg = _min_cfg()
@@ -341,6 +411,22 @@ class TestInferenceModel:
         vae, _ = build_seq_cvae(_min_cfg())
         inf = create_seq_inference_model(vae, deterministic=False)
         assert inf.name == "inference_seq_condprior"
+
+    def test_direct_diffusion_inference_builds(self):
+        vae, _ = build_seq_cvae(
+            _min_cfg(
+                decoder_distribution="diffusion_direct",
+                diffusion_target="v",
+                diffusion_steps=4,
+                diffusion_hidden_size=16,
+                beta=0.0,
+                free_bits=0.0,
+            )
+        )
+        inf_det = create_seq_inference_model(vae, deterministic=True)
+        inf_sto = create_seq_inference_model(vae, deterministic=False)
+        assert inf_det.name == "inference_seq_condprior_det"
+        assert inf_sto.name == "inference_seq_condprior"
 
     def test_inference_input_count(self):
         vae, _ = build_seq_cvae(_min_cfg())

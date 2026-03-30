@@ -173,7 +173,7 @@ def decoder_sensitivity(
 
     Returns ``{"decoder_output_variance_mean": …, "decoder_output_rms_std": …}``.
     """
-    from src.models.losses import _mdn_expected_mean
+    from src.models.losses import _diffusion_prediction_to_eps_x0, _mdn_expected_mean
 
     mu_p, lv_p = prior_net.predict([Xb, Db, Cb], batch_size=batch_size, verbose=0)
     lv_p = np.clip(lv_p, -10, 10)
@@ -181,6 +181,8 @@ def decoder_sensitivity(
     n_decoder_inputs = len(decoder_net.inputs)
     is_seq = n_decoder_inputs == 4
     is_diffusion = n_decoder_inputs == 6
+    direct_diffusion = bool(getattr(decoder_net, "_diffusion_direct", False))
+    diffusion_target = str(getattr(decoder_net, "_diffusion_target", "eps"))
     if is_seq:
         if np.asarray(Xb).ndim != 3:
             return {
@@ -218,7 +220,7 @@ def decoder_sensitivity(
     )
     for _ in range(int(n_mc_z)):
         eps = np.random.randn(*mu_p.shape).astype(np.float32)
-        z = mu_p + std_p * eps
+        z = mu_p if direct_diffusion else (mu_p + std_p * eps)
         out_params = decoder_net.predict(decoder_inputs(z), batch_size=batch_size, verbose=0)
         out_dim = int(out_params.shape[-1])
         if out_dim == 4:
@@ -226,9 +228,18 @@ def decoder_sensitivity(
         elif is_diffusion and out_dim == 2:
             beta_start = float(getattr(decoder_net, "_diffusion_beta_start", 1e-4))
             alpha_bar_0 = max(1.0 - beta_start, 1e-6)
-            residual_pred = (
-                -np.sqrt(max(1.0 - alpha_bar_0, 1e-6)) * out_params
-            ) / np.sqrt(alpha_bar_0)
+            sqrt_alpha_bar = np.ones((len(x_center), 1), dtype=np.float32) * np.sqrt(alpha_bar_0)
+            sqrt_one_minus_alpha_bar = np.ones((len(x_center), 1), dtype=np.float32) * np.sqrt(
+                max(1.0 - alpha_bar_0, 1e-6)
+            )
+            _, residual_pred = _diffusion_prediction_to_eps_x0(
+                residual_noisy,
+                out_params,
+                sqrt_alpha_bar,
+                sqrt_one_minus_alpha_bar,
+                diffusion_target,
+            )
+            residual_pred = np.asarray(residual_pred)
             y_mean = x_center + residual_pred
         elif out_dim > 4 and out_dim % 5 == 0:
             k = out_dim // 5

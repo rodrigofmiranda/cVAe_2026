@@ -3676,6 +3676,148 @@ def _preset_seq_diffusion_guided_quick() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_diffusion_v2_smoke() -> List[Dict[str, Any]]:
+    """Single-candidate smoke for the direct conditional diffusion-v2 route."""
+    return [
+        dict(
+            group="DIF2_seq_diffusion_v2_smoke",
+            tag="DIF2seq_W7_h64_lat8_v_diff16_hd96_lr0p0002_bs4096_L128-256-512",
+            cfg=_cfg(
+                arch_variant="seq_bigru_residual",
+                layer_sizes=[128, 256, 512],
+                latent_dim=8,
+                beta=0.0,
+                free_bits=0.0,
+                lr=2e-4,
+                batch_size=4096,
+                kl_anneal_epochs=1,
+                window_size=7,
+                window_stride=1,
+                window_pad_mode="edge",
+                seq_hidden_size=64,
+                seq_num_layers=1,
+                seq_bidirectional=True,
+                seq_gru_unroll=True,
+                decoder_distribution="diffusion_direct",
+                diffusion_target="v",
+                diffusion_steps=16,
+                diffusion_beta_start=1e-4,
+                diffusion_beta_end=2e-2,
+                diffusion_hidden_size=96,
+                lambda_mmd=0.0,
+                lambda_axis=0.0,
+                lambda_psd=0.0,
+                lambda_coverage=0.0,
+                lambda_kurt=0.0,
+                shuffle_train_batches=True,
+            ),
+        ),
+    ]
+
+
+def _preset_seq_diffusion_v2_large() -> List[Dict[str, Any]]:
+    """Large guided grid for the direct conditional diffusion-v2 lane.
+
+    Design:
+      - treat diffusion as the primary generator, not a VAE decoder regularized by KL
+      - keep most of the search on ``v-pred``
+      - reserve a small ``x0-pred`` band as the first ablation fallback
+      - open context (W7/W11), conditioning width (latent_dim), and sampler capacity
+    """
+    analysis_quick_overrides = {
+        "mini_reanalysis_enabled": True,
+        "mini_reanalysis_scope": "all12",
+        "mini_reanalysis_max_samples_per_regime": 4096,
+        "grid_ranking_mode": "mini_protocol_v1",
+        "batch_infer": 16384,
+    }
+
+    def _seq_cfg(
+        *,
+        window_size: int,
+        latent_dim: int,
+        seq_hidden_size: int,
+        diffusion_steps: int,
+        diffusion_hidden_size: int,
+        batch_size: int,
+        diffusion_target: str,
+    ) -> Dict[str, Any]:
+        return _cfg(
+            arch_variant="seq_bigru_residual",
+            layer_sizes=[128, 256, 512],
+            latent_dim=latent_dim,
+            beta=0.0,
+            free_bits=0.0,
+            lr=2e-4,
+            batch_size=batch_size,
+            kl_anneal_epochs=1,
+            window_size=window_size,
+            window_stride=1,
+            window_pad_mode="edge",
+            seq_hidden_size=seq_hidden_size,
+            seq_num_layers=1,
+            seq_bidirectional=True,
+            seq_gru_unroll=True,
+            decoder_distribution="diffusion_direct",
+            diffusion_target=diffusion_target,
+            diffusion_steps=diffusion_steps,
+            diffusion_beta_start=1e-4,
+            diffusion_beta_end=2e-2,
+            diffusion_hidden_size=diffusion_hidden_size,
+            lambda_mmd=0.0,
+            lambda_axis=0.0,
+            lambda_psd=0.0,
+            lambda_coverage=0.0,
+            lambda_kurt=0.0,
+            shuffle_train_batches=True,
+        )
+
+    def _tag(
+        *,
+        window_size: int,
+        seq_hidden_size: int,
+        latent_dim: int,
+        diffusion_target: str,
+        diffusion_steps: int,
+        diffusion_hidden_size: int,
+        batch_size: int,
+    ) -> str:
+        return (
+            f"DIF2seq_W{window_size}_h{seq_hidden_size}_lat{latent_dim}_"
+            f"{diffusion_target}_diff{diffusion_steps}_hd{diffusion_hidden_size}_"
+            f"lr{_tag_lr(2e-4)}_bs{batch_size}_L{_tag_layers([128,256,512])}"
+        )
+
+    candidates = [
+        dict(window_size=7, seq_hidden_size=64, latent_dim=8, diffusion_target="v", diffusion_steps=16, diffusion_hidden_size=96, batch_size=6144),
+        dict(window_size=7, seq_hidden_size=64, latent_dim=12, diffusion_target="v", diffusion_steps=16, diffusion_hidden_size=96, batch_size=6144),
+        dict(window_size=7, seq_hidden_size=64, latent_dim=8, diffusion_target="v", diffusion_steps=24, diffusion_hidden_size=96, batch_size=6144),
+        dict(window_size=7, seq_hidden_size=64, latent_dim=12, diffusion_target="v", diffusion_steps=24, diffusion_hidden_size=96, batch_size=6144),
+        dict(window_size=7, seq_hidden_size=96, latent_dim=8, diffusion_target="v", diffusion_steps=16, diffusion_hidden_size=128, batch_size=4096),
+        dict(window_size=7, seq_hidden_size=96, latent_dim=12, diffusion_target="v", diffusion_steps=16, diffusion_hidden_size=128, batch_size=4096),
+        dict(window_size=7, seq_hidden_size=96, latent_dim=8, diffusion_target="v", diffusion_steps=24, diffusion_hidden_size=128, batch_size=4096),
+        dict(window_size=7, seq_hidden_size=96, latent_dim=12, diffusion_target="v", diffusion_steps=24, diffusion_hidden_size=128, batch_size=4096),
+        dict(window_size=11, seq_hidden_size=96, latent_dim=8, diffusion_target="v", diffusion_steps=24, diffusion_hidden_size=128, batch_size=4096),
+        dict(window_size=11, seq_hidden_size=96, latent_dim=12, diffusion_target="v", diffusion_steps=24, diffusion_hidden_size=128, batch_size=4096),
+        dict(window_size=11, seq_hidden_size=96, latent_dim=8, diffusion_target="v", diffusion_steps=32, diffusion_hidden_size=128, batch_size=3072),
+        dict(window_size=11, seq_hidden_size=96, latent_dim=12, diffusion_target="v", diffusion_steps=32, diffusion_hidden_size=128, batch_size=3072),
+        dict(window_size=7, seq_hidden_size=64, latent_dim=8, diffusion_target="x0", diffusion_steps=16, diffusion_hidden_size=96, batch_size=6144),
+        dict(window_size=7, seq_hidden_size=96, latent_dim=8, diffusion_target="x0", diffusion_steps=24, diffusion_hidden_size=128, batch_size=4096),
+        dict(window_size=11, seq_hidden_size=96, latent_dim=8, diffusion_target="x0", diffusion_steps=24, diffusion_hidden_size=128, batch_size=4096),
+        dict(window_size=11, seq_hidden_size=96, latent_dim=12, diffusion_target="x0", diffusion_steps=32, diffusion_hidden_size=128, batch_size=3072),
+    ]
+
+    return [
+        dict(
+            group="DIF2_seq_diffusion_v2_large",
+            tag=_tag(**candidate),
+            cfg=_seq_cfg(**candidate),
+            analysis_quick_overrides=analysis_quick_overrides,
+        )
+        for candidate in candidates
+    ]
+
+
 def _preset_best_compare_large() -> List[Dict[str, Any]]:
     """Comparative protocol-first grid using the strongest current candidates.
 
@@ -3932,6 +4074,10 @@ def select_grid(
             grid = _preset_seq_diffusion_smoke()
         elif preset_name == "seq_diffusion_guided_quick":
             grid = _preset_seq_diffusion_guided_quick()
+        elif preset_name == "seq_diffusion_v2_smoke":
+            grid = _preset_seq_diffusion_v2_smoke()
+        elif preset_name == "seq_diffusion_v2_large":
+            grid = _preset_seq_diffusion_v2_large()
         elif preset_name == "best_compare_large":
             grid = _preset_best_compare_large()
         elif preset_name == "delta_residual_fast":

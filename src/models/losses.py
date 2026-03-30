@@ -242,13 +242,42 @@ def _resolve_decoder_distribution(mode: str | None) -> str:
         "mixture": "mdn",
         "mixture_density": "mdn",
         "diffusion": "diffusion",
+        "diffusion_direct": "diffusion_direct",
+        "diffusion_v2": "diffusion_direct",
+        "direct_diffusion": "diffusion_direct",
         "ddpm": "diffusion",
         "score": "diffusion",
         "score_model": "diffusion",
     }
     if mode_norm not in aliases:
         raise ValueError(
-            "decoder_distribution must be one of {'gaussian', 'mdn', 'diffusion'}; "
+            "decoder_distribution must be one of "
+            "{'gaussian', 'mdn', 'diffusion', 'diffusion_direct'}; "
+            f"got {mode!r}"
+        )
+    return aliases[mode_norm]
+
+
+def _resolve_diffusion_target(mode: str | None) -> str:
+    """Return the canonical diffusion prediction target family."""
+    mode_norm = str(mode or "eps").strip().lower()
+    aliases = {
+        "eps": "eps",
+        "epsilon": "eps",
+        "noise": "eps",
+        "v": "v",
+        "v_pred": "v",
+        "v-pred": "v",
+        "velocity": "v",
+        "x0": "x0",
+        "x_start": "x0",
+        "xstart": "x0",
+        "x0_pred": "x0",
+        "x0-pred": "x0",
+    }
+    if mode_norm not in aliases:
+        raise ValueError(
+            "diffusion_target must be one of {'eps', 'v', 'x0'}; "
             f"got {mode!r}"
         )
     return aliases[mode_norm]
@@ -277,6 +306,63 @@ def _diffusion_predict_x0(
     """Recover x0 estimate from noisy residual and predicted epsilon."""
     denom = tf.maximum(tf.cast(sqrt_alpha_bar, tf.float32), tf.constant(1e-6, tf.float32))
     return (tf.cast(noisy_residual, tf.float32) - tf.cast(sqrt_one_minus_alpha_bar, tf.float32) * tf.cast(eps_pred, tf.float32)) / denom
+
+
+def _diffusion_target_from_clean(
+    residual_true: tf.Tensor,
+    eps: tf.Tensor,
+    sqrt_alpha_bar: tf.Tensor,
+    sqrt_one_minus_alpha_bar: tf.Tensor,
+    target_mode: str,
+) -> tf.Tensor:
+    """Build the requested training target from clean/noise pairs."""
+    mode = _resolve_diffusion_target(target_mode)
+    residual_true = tf.cast(residual_true, tf.float32)
+    eps = tf.cast(eps, tf.float32)
+    sqrt_alpha_bar = tf.cast(sqrt_alpha_bar, tf.float32)
+    sqrt_one_minus_alpha_bar = tf.cast(sqrt_one_minus_alpha_bar, tf.float32)
+
+    if mode == "eps":
+        return eps
+    if mode == "x0":
+        return residual_true
+    return sqrt_alpha_bar * eps - sqrt_one_minus_alpha_bar * residual_true
+
+
+def _diffusion_prediction_to_eps_x0(
+    noisy_residual: tf.Tensor,
+    target_pred: tf.Tensor,
+    sqrt_alpha_bar: tf.Tensor,
+    sqrt_one_minus_alpha_bar: tf.Tensor,
+    target_mode: str,
+) -> tuple[tf.Tensor, tf.Tensor]:
+    """Recover both epsilon and x0 predictions from the chosen target family."""
+    mode = _resolve_diffusion_target(target_mode)
+    noisy_residual = tf.cast(noisy_residual, tf.float32)
+    target_pred = tf.cast(target_pred, tf.float32)
+    sqrt_alpha_bar = tf.cast(sqrt_alpha_bar, tf.float32)
+    sqrt_one_minus_alpha_bar = tf.cast(sqrt_one_minus_alpha_bar, tf.float32)
+
+    if mode == "eps":
+        eps_pred = target_pred
+        x0_pred = _diffusion_predict_x0(
+            noisy_residual,
+            eps_pred,
+            sqrt_alpha_bar,
+            sqrt_one_minus_alpha_bar,
+        )
+        return eps_pred, x0_pred
+    if mode == "x0":
+        x0_pred = target_pred
+        eps_pred = (
+            noisy_residual - sqrt_alpha_bar * x0_pred
+        ) / tf.maximum(sqrt_one_minus_alpha_bar, 1e-6)
+        return eps_pred, x0_pred
+
+    # v-pred
+    x0_pred = sqrt_alpha_bar * noisy_residual - sqrt_one_minus_alpha_bar * target_pred
+    eps_pred = sqrt_one_minus_alpha_bar * noisy_residual + sqrt_alpha_bar * target_pred
+    return eps_pred, x0_pred
 
 
 def _unpack_gaussian_params(out_params: tf.Tensor) -> tuple[tf.Tensor, tf.Tensor]:
@@ -701,6 +787,8 @@ class CondPriorDiffusionVAELoss(layers.Layer):
         diffusion_steps: int = 8,
         diffusion_beta_start: float = 1e-4,
         diffusion_beta_end: float = 2e-2,
+        diffusion_target: str = "eps",
+        use_kl: bool = True,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -709,6 +797,8 @@ class CondPriorDiffusionVAELoss(layers.Layer):
         self.diffusion_steps = int(diffusion_steps)
         self.diffusion_beta_start = float(diffusion_beta_start)
         self.diffusion_beta_end = float(diffusion_beta_end)
+        self.diffusion_target = _resolve_diffusion_target(diffusion_target)
+        self.use_kl = bool(use_kl)
         self.beta = tf.Variable(
             self.beta_init, trainable=False, dtype=tf.float32, name="beta",
         )
@@ -719,39 +809,45 @@ class CondPriorDiffusionVAELoss(layers.Layer):
         (
             x_center,
             residual_noisy,
-            noise_target,
+            target_tensor,
             sqrt_alpha_bar,
             sqrt_one_minus_alpha_bar,
-            eps_pred,
+            target_pred,
             z_mean_q,
             z_log_var_q,
             z_mean_p,
             z_log_var_p,
         ) = inputs
 
-        eps_pred = tf.cast(eps_pred, tf.float32)
-        noise_target = tf.cast(noise_target, tf.float32)
-        recon = tf.reduce_mean(tf.reduce_sum(tf.square(noise_target - eps_pred), axis=-1))
+        target_pred = tf.cast(target_pred, tf.float32)
+        target_tensor = tf.cast(target_tensor, tf.float32)
+        recon = tf.reduce_mean(tf.reduce_sum(tf.square(target_tensor - target_pred), axis=-1))
 
-        kl_per_sample = kl_divergence(
-            z_mean_q, z_log_var_q, z_mean_p, z_log_var_p,
-        )
-        kl_fb = kl_with_freebits(kl_per_sample, self.free_bits)
-        kl = tf.reduce_mean(kl_fb)
+        if self.use_kl:
+            kl_per_sample = kl_divergence(
+                z_mean_q, z_log_var_q, z_mean_p, z_log_var_p,
+            )
+            kl_fb = kl_with_freebits(kl_per_sample, self.free_bits)
+            kl = tf.reduce_mean(kl_fb)
+            kl_metric = tf.reduce_mean(kl_per_sample)
+        else:
+            kl = tf.constant(0.0, dtype=tf.float32)
+            kl_metric = tf.constant(0.0, dtype=tf.float32)
 
         total = compute_total_loss(recon, kl, self.beta)
 
-        residual_pred = _diffusion_predict_x0(
+        _, residual_pred = _diffusion_prediction_to_eps_x0(
             residual_noisy,
-            eps_pred,
+            target_pred,
             sqrt_alpha_bar,
             sqrt_one_minus_alpha_bar,
+            self.diffusion_target,
         )
         y_mean = tf.cast(x_center, tf.float32) + residual_pred
 
         self.add_loss(total)
         self.recon_loss_tracker.update_state(recon)
-        self.kl_loss_tracker.update_state(tf.reduce_mean(kl_per_sample))
+        self.kl_loss_tracker.update_state(kl_metric)
         return y_mean
 
     @property
@@ -766,6 +862,8 @@ class CondPriorDiffusionVAELoss(layers.Layer):
             "diffusion_steps": self.diffusion_steps,
             "diffusion_beta_start": self.diffusion_beta_start,
             "diffusion_beta_end": self.diffusion_beta_end,
+            "diffusion_target": self.diffusion_target,
+            "use_kl": self.use_kl,
         })
         return cfg
 

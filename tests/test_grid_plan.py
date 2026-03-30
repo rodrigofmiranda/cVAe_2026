@@ -224,6 +224,37 @@ def test_select_grid_seq_diffusion_guided_quick_builds_four_run_compare():
     assert {item["cfg"]["free_bits"] for item in grid} == {0.2, 0.3}
 
 
+def test_select_grid_seq_diffusion_v2_smoke_builds_direct_diffusion_candidate():
+    grid = select_grid({"grid_preset": "seq_diffusion_v2_smoke"})
+
+    assert len(grid) == 1
+    cfg = grid[0]["cfg"]
+    assert cfg["arch_variant"] == "seq_bigru_residual"
+    assert cfg["decoder_distribution"] == "diffusion_direct"
+    assert cfg["diffusion_target"] == "v"
+    assert cfg["diffusion_steps"] == 16
+    assert cfg["beta"] == 0.0
+    assert cfg["free_bits"] == 0.0
+
+
+def test_select_grid_seq_diffusion_v2_large_builds_large_direct_grid():
+    grid = select_grid({"grid_preset": "seq_diffusion_v2_large"})
+
+    assert len(grid) == 16
+    assert {item["group"] for item in grid} == {"DIF2_seq_diffusion_v2_large"}
+    assert all(item["cfg"]["arch_variant"] == "seq_bigru_residual" for item in grid)
+    assert all(item["cfg"]["decoder_distribution"] == "diffusion_direct" for item in grid)
+    assert {item["cfg"]["diffusion_target"] for item in grid} == {"v", "x0"}
+    assert {item["cfg"]["window_size"] for item in grid} == {7, 11}
+    assert {item["cfg"]["seq_hidden_size"] for item in grid} == {64, 96}
+    assert {item["cfg"]["latent_dim"] for item in grid} == {8, 12}
+    assert {item["cfg"]["diffusion_steps"] for item in grid} == {16, 24, 32}
+    assert {item["cfg"]["diffusion_hidden_size"] for item in grid} == {96, 128}
+    assert {item["cfg"]["batch_size"] for item in grid} == {3072, 4096, 6144}
+    assert all(item["cfg"]["beta"] == 0.0 for item in grid)
+    assert all(item["cfg"]["free_bits"] == 0.0 for item in grid)
+
+
 def test_select_grid_seq_mdn_proof_builds_two_component_sweep():
     grid = select_grid({"grid_preset": "seq_mdn_proof"})
 
