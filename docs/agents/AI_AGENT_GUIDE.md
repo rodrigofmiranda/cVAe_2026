@@ -5,31 +5,30 @@ assistant.
 
 Tool-specific root files still exist because some tools auto-discover them:
 
-- [CODEX.md](/workspace/2026/feat_seq_bigru_residual_diffusion/CODEX.md)
-- [CLAUDE.md](/workspace/2026/feat_seq_bigru_residual_diffusion/CLAUDE.md)
+- [CODEX.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/CODEX.md)
+- [CLAUDE.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/CLAUDE.md)
 
 Those root files should stay short and point here for common context.
 
 ## Current Focus
 
-- active branch: `feat/seq-bigru-residual-diffusion`
+- active branch: `feat/seq-bigru-residual-diffusion-v2`
 - goal:
-  open the conditional-diffusion route for the global residual-shape problem
+  open the second diffusion formulation for the global residual-shape problem
 - current route status:
-  - implementation exists and is recorded
-  - smoke `outputs/exp_20260329_210444` completed
-  - guided quick `outputs/exp_20260329_211418` completed
-  - this branch should now be treated as `diffusion v1` negative
+  - `diffusion v1` is already recorded as negative
+  - this branch is the clean follow-up lane for `diffusion v2`
+  - no `diffusion v2` experiment has run yet
 
 ## Minimal Read Order
 
 Read only these first:
 
-1. [README.md](/workspace/2026/feat_seq_bigru_residual_diffusion/README.md)
-2. [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_diffusion/PROJECT_STATUS.md)
-3. [active/WORKING_STATE.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/active/WORKING_STATE.md)
-4. [reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/reference/PROTOCOL.md)
-5. [reference/EXPERIMENT_WORKFLOW.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/reference/EXPERIMENT_WORKFLOW.md)
+1. [README.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/README.md)
+2. [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/PROJECT_STATUS.md)
+3. [active/WORKING_STATE.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/docs/active/WORKING_STATE.md)
+4. [reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/docs/reference/PROTOCOL.md)
+5. [reference/EXPERIMENT_WORKFLOW.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/docs/reference/EXPERIMENT_WORKFLOW.md)
 
 Add a sixth file only if the task needs it.
 
@@ -48,7 +47,11 @@ Add a sixth file only if the task needs it.
 - diffusion guided quick:
   - `outputs/exp_20260329_211418`
   - `0/12`
-  - read it as the closing verdict for the current formulation
+  - read it as the closing verdict for `diffusion v1`
+- current branch target:
+  - `diffusion v2`
+  - first formulation change: direct conditional residual diffusion
+  - remove or sharply weaken the latent-KL path
 - negative lines already tested:
   - `sample-aware MMD`
   - `sinh-arcsinh` flow line
@@ -74,6 +77,7 @@ Add a sixth file only if the task needs it.
   - `prior_net`
   - `decoder`
 - serious experimentation should go through `src.protocol.run`
+- do not reopen local sweeps of the exact `diffusion v1` formulation here
 
 Critical seq note:
 
@@ -126,8 +130,8 @@ Then inspect the latest exp_* and summarize:
 ## Tool-Specific Additions
 
 - Codex-specific behavior:
-  [CODEX.md](/workspace/2026/feat_seq_bigru_residual_diffusion/CODEX.md)
+  [CODEX.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/CODEX.md)
 - Claude-specific behavior:
-  [CLAUDE.md](/workspace/2026/feat_seq_bigru_residual_diffusion/CLAUDE.md)
+  [CLAUDE.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/CLAUDE.md)
 - review-only criteria:
-  [docs/agents/REVIEW.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/agents/REVIEW.md)
+  [docs/agents/REVIEW.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/docs/agents/REVIEW.md)

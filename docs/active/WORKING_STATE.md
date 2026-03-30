@@ -8,17 +8,16 @@ start here.
 ## Current Worktree
 
 - active worktree:
-  - `/workspace/2026/feat_seq_bigru_residual_diffusion`
+  - `/workspace/2026/feat_seq_bigru_residual_diffusion_v2`
 - active branch:
-  - `feat/seq-bigru-residual-diffusion`
+  - `feat/seq-bigru-residual-diffusion-v2`
 - git worktree count:
-  - `6`
+  - `7`
 
 ## Current Route Launch
 
 - route purpose:
-  - open the next global generative family after the MDN and flow limits became
-    clear
+  - open the second diffusion formulation after diffusion v1 failed
 - base anchor inherited from the parent worktree:
   - `outputs/exp_20260328_153611`
   - `S27cov_lc0p25_tail95_t0p03`
@@ -31,10 +30,13 @@ start here.
     - `sinh-arcsinh`
     - `coupling_2d`
     - `spline_2d`
+  - diffusion v1 is also now negative:
+    - smoke `outputs/exp_20260329_210444`
+    - guided quick `outputs/exp_20260329_211418`
 - current branch status:
-  - diffusion implementation exists in this worktree
-  - first structural smoke completed
-  - guided quick completed and closed the current formulation as negative
+  - no diffusion-v2 code exists yet
+  - no diffusion-v2 run exists yet
+  - this worktree is the clean staging lane for the next formulation
 
 ## Current Scientific Anchors
 
@@ -99,6 +101,21 @@ start here.
   - conclusion:
     - collapse mitigation alone did not rescue the family
     - `diffusion v1` should be treated as a negative result
+
+## Diffusion V2 Thesis
+
+- the next diffusion attempt should not be another local sweep of the same
+  `cVAE + diffusion + KL` stack
+- the formulation change should be explicit:
+  - use diffusion as the primary generator
+  - condition directly on `(x_window, d, c)`
+  - remove or sharply weaken the encoder/prior/KL path
+- first training target to try:
+  - `v-pred`
+- first fallback ablation if needed:
+  - `x0-pred`
+- the success criterion for v2 is not merely “avoid collapse”
+  - it must improve the global residual-shape fidelity against the v1 verdict
 
 ## What Was Already Explored
 
@@ -252,12 +269,11 @@ shape, even when they pass the protocol.
 
 Immediate branch goals:
 
-- preserve this worktree as the recorded `diffusion v1` lane
-- do not reopen local hyperparameter sweeps inside this exact formulation
-- move the next attempt to a separate diffusion follow-up worktree
-- make the formulation change explicit:
-  - remove or sharply weaken the redundant latent-KL path
-  - test a more direct conditional diffusion objective
+- keep the current seq conditioning backbone where it is still useful
+- design the first `diffusion v2` implementation around a direct conditional
+  denoiser
+- preserve protocol compatibility, artifact layout, and save/load discipline
+- start with a small structural milestone before any broad sweep
 
 Implementation focus:
 
@@ -442,16 +458,16 @@ Do not reopen:
 
 ## Minimal Read Order
 
-1. [README.md](/workspace/2026/feat_seq_bigru_residual_diffusion/README.md)
-2. [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_diffusion/PROJECT_STATUS.md)
-3. [reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/reference/PROTOCOL.md)
-4. [reference/EXPERIMENT_WORKFLOW.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/reference/EXPERIMENT_WORKFLOW.md)
+1. [README.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/README.md)
+2. [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/PROJECT_STATUS.md)
+3. [reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/docs/reference/PROTOCOL.md)
+4. [reference/EXPERIMENT_WORKFLOW.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/docs/reference/EXPERIMENT_WORKFLOW.md)
 
 ## Archived Sources For This Working State
 
 If you need the older detailed notes, they were archived here:
 
-- [archive/active/ACTIVE_CONTEXT_legacy.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/archive/active/ACTIVE_CONTEXT_legacy.md)
-- [archive/active/MDN_G5_RECOVERY_PLAN.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/archive/active/MDN_G5_RECOVERY_PLAN.md)
-- [archive/active/TRAINING_PLAN_legacy.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/archive/active/TRAINING_PLAN_legacy.md)
-- [archive/research/NOISE_DISTRIBUTION_AUDIT.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/archive/research/NOISE_DISTRIBUTION_AUDIT.md)
+- [archive/active/ACTIVE_CONTEXT_legacy.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/docs/archive/active/ACTIVE_CONTEXT_legacy.md)
+- [archive/active/MDN_G5_RECOVERY_PLAN.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/docs/archive/active/MDN_G5_RECOVERY_PLAN.md)
+- [archive/active/TRAINING_PLAN_legacy.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/docs/archive/active/TRAINING_PLAN_legacy.md)
+- [archive/research/NOISE_DISTRIBUTION_AUDIT.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/docs/archive/research/NOISE_DISTRIBUTION_AUDIT.md)

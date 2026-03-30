@@ -8,26 +8,28 @@ Autoencoder (cVAE) with heteroscedastic decoding and conditional prior.
 
 This folder is:
 
-- `/workspace/2026/feat_seq_bigru_residual_diffusion`
+- `/workspace/2026/feat_seq_bigru_residual_diffusion_v2`
 
 Meaning of the name:
 
-- `feat_seq_bigru_residual_diffusion` is the dedicated worktree for the
-  conditional-diffusion route
-- this folder isolates the next global generative family from the MDN and flow
-  worktrees
-- this folder contains the current code and docs for the diffusion lane only
+- `feat_seq_bigru_residual_diffusion_v2` is the dedicated follow-up worktree
+  for the second diffusion formulation
+- this folder isolates the next diffusion attempt from the closed `diffusion v1`
+  lane
+- this folder contains the current code and docs for the `diffusion v2` lane only
 
 Use this folder when:
 
-- you want to work on the dedicated `seq_bigru_residual + diffusion` route
-- you want to attack the global distribution-learning gap without disturbing the
-  MDN anchor lane
-- you want a branch-local record of the post-flow next step
+- you want to work on the dedicated `seq_bigru_residual + diffusion v2` route
+- you want to preserve the negative result of `diffusion v1` without mixing
+  states
+- you want the next diffusion attempt to start from an explicit formulation
+  change, not another local sweep
 
 Historical note:
 
-- this worktree was forked from `feat/mdn-g5-recovery-run`
+- this worktree was forked from `feat/seq-bigru-residual-diffusion`
+- `diffusion v1` is now closed as a negative result after `exp_20260329_211418`
 - the best current scientific anchor still lives in the MDN lane
 
 ## Current Docs
@@ -52,31 +54,32 @@ Historical refactor planning has been archived under:
 
 Current experimental branch in this worktree:
 
-- `feat/seq-bigru-residual-diffusion`
+- `feat/seq-bigru-residual-diffusion-v2`
 
 Tracking:
 
-- `origin/feat/seq-bigru-residual-diffusion`
+- no remote branch yet
 
 Purpose of this branch:
 
 - keep the strongest MDN line as a scientific anchor
-- treat the flow retries as closed negative lines for now
-- open the next global generative family: conditional diffusion
-- attack the global residual-shape mismatch, not only the last two protocol
-  failures
-- preserve a clean worktree for diffusion-specific code and experiments
+- keep `diffusion v1` preserved as a negative line
+- open the next diffusion formulation after the `cVAE + diffusion + KL` result
+  failed
+- attack the global residual-shape mismatch with a more direct conditional
+  diffusion objective
+- preserve a clean worktree for diffusion-v2 code and experiments
 
 The worktree path remains:
 
-- `/workspace/2026/feat_seq_bigru_residual_diffusion`
+- `/workspace/2026/feat_seq_bigru_residual_diffusion_v2`
 
 The folder name is historical; the active Git branch may differ from the path.
 
 ## Current Branch State
 
-This branch now has a first diffusion implementation, one completed smoke run,
-and one completed guided quick.
+This branch has just been opened for the second diffusion formulation. No
+diffusion-v2 experiment has run yet.
 
 Current scientific reading:
 
@@ -90,27 +93,20 @@ Current scientific reading:
   - old `sinh-arcsinh`
   - `coupling_2d`
   - `spline_2d`
-- the next serious route is therefore conditional diffusion
-- first diffusion smoke already completed:
+- `diffusion v1` is also now negative:
   - `outputs/exp_20260329_210444`
-  - preset: `seq_diffusion_smoke`
-  - result: `0/12`
-  - reading: structural milestone passed, but the first point collapsed
-    (`active_dim_ratio=0.0`)
-- diffusion guided quick also completed:
   - `outputs/exp_20260329_211418`
-  - preset: `seq_diffusion_guided_quick`
-  - result: `0/12`
-  - reading:
-    - collapse mitigation improved
-    - the current `cVAE + diffusion + KL` formulation remains globally wrong
+  - the first run collapsed, the second no longer collapsed, but both ended
+    `0/12`
+- the next serious route is therefore `conditional diffusion v2`
 
 Current branch status:
 
-- `seq_bigru_residual + diffusion` is implemented in this worktree
-- build/train/save-load/stochastic protocol evaluation already worked end-to-end
-- this worktree should now be treated as the closed `diffusion v1` lane
-- the next diffusion attempt should move to a separate follow-up branch/worktree
+- this worktree is the staging lane for `diffusion v2`
+- the next formulation change is explicit:
+  - remove or sharply weaken the redundant latent-KL path
+  - test a direct conditional residual diffusion objective
+  - use `v-pred` as the default first target, with `x0-pred` as fallback ablation
 
 ## Objective
 

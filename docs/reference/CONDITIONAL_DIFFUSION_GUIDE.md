@@ -1,6 +1,7 @@
 # Conditional Diffusion Guide
 
-This note is the short branch-local guide for the next global generative route.
+This note is the short branch-local guide for the second diffusion
+formulation.
 
 ## Why This Route Exists
 
@@ -17,8 +18,12 @@ This note is the short branch-local guide for the next global generative route.
   - old `sinh-arcsinh`
   - `coupling_2d`
   - `spline_2d`
+- The first diffusion formulation is also now closed:
+  - smoke `outputs/exp_20260329_210444`
+  - guided quick `outputs/exp_20260329_211418`
+  - both finished `0/12`
 
-## Scope Of The First Diffusion Iteration
+## Scope Of Diffusion V2
 
 - Architecture family:
   - `seq_bigru_residual` only
@@ -26,38 +31,50 @@ This note is the short branch-local guide for the next global generative route.
   - residual-domain generation first
   - sample `residual`, then reconstruct `y = x + residual`
 - Conditioning:
-  - keep the existing conditioning path:
+  - keep the existing observable conditioning path:
     - signal window
     - distance
     - current
-    - latent `z`
+  - do not depend on the old latent `z` path as the main stochastic carrier
 - Sampling:
   - stochastic path for protocol / distribution metrics
   - deterministic path via a reproducible sampler, not an ad-hoc mean hack
+- Training target:
+  - start with `v-pred`
+  - keep `x0-pred` as the first fallback ablation
+
+## Main Formulation Change
+
+- `diffusion v1` embedded diffusion inside the cVAE scaffold and kept:
+  - encoder
+  - conditional prior
+  - KL path
+- `diffusion v2` should move toward a **direct conditional residual diffusion**
+  formulation:
+  - diffusion is the primary generator
+  - conditioning comes from `(x_window, d, c)`
+  - the latent-KL path should be removed or sharply weakened
 
 ## Minimal Integration Points
 
-These are the files the first implementation should touch.
+These are the files the first `diffusion v2` implementation should touch.
 
 - `src/models/cvae.py`
-  - allow `decoder_distribution="diffusion"` for `arch_variant="seq_bigru_residual"`
-  - keep the guard in place for unsupported architecture families
+  - decide whether to keep `decoder_distribution="diffusion"` under the current
+    builder or expose a new direct route cleanly
 - `src/models/cvae_sequence.py`
-  - extend `build_seq_decoder(...)`
-  - extend `build_seq_cvae(...)`
-  - extend `create_seq_inference_model(...)`
-  - add any diffusion-specific decoder heads / timestep conditioning here
+  - add the direct conditional denoiser path
+  - keep save/load compatibility explicit
+  - keep deterministic and stochastic inference explicit
 - `src/models/losses.py`
-  - extend decoder distribution resolution beyond `gaussian` / `mdn`
-  - add diffusion training objective
-  - add deterministic point helper for report / EVM / SNR
-  - add stochastic sampler for protocol evaluation
+  - add `v-pred` training objective
+  - optionally add `x0-pred` ablation support
 - `src/evaluation/report.py`
   - keep `decoder_sensitivity` finite for the new decoder family
   - route deterministic evaluation through the diffusion-compatible path
 - `src/training/grid_plan.py`
-  - add one structural smoke preset
-  - add one small guided quick preset anchored near `S27`
+  - add one structural smoke preset for v2
+  - add one small guided quick preset for v2
 - `tests/test_seq_cvae_build.py`
   - model builds and output shape expectations
 - `tests/test_hybrid_loss_and_mdn.py`
@@ -78,49 +95,27 @@ These are the files the first implementation should touch.
 2. Scientific milestone
    - guided quick with a very small grid
    - compare against the `S27` anchor
+   - compare against the `diffusion v1` verdict
    - read protocol first, not only train-side ranking
 
 ## Current Status
 
-- structural milestone: completed
-  - implemented in:
-    - `src/models/cvae.py`
-    - `src/models/cvae_sequence.py`
-    - `src/models/losses.py`
-    - `src/evaluation/report.py`
-    - `src/training/grid_plan.py`
-  - covered by targeted tests in:
-    - `tests/test_seq_cvae_build.py`
-    - `tests/test_hybrid_loss_and_mdn.py`
-    - `tests/test_grid_plan.py`
-- first smoke run:
-  - `outputs/exp_20260329_210444`
-  - preset: `seq_diffusion_smoke`
-  - result: `0/12`
+- diffusion v1 verdict:
+  - `outputs/exp_20260329_210444`: `0/12`
+  - `outputs/exp_20260329_211418`: `0/12`
   - interpretation:
-    - the route is structurally viable
-    - the first point collapsed (`flag_posterior_collapse=True`,
-      `active_dim_ratio=0.0`)
-    - the first follow-up must attack collapse, not decoder capacity
-- next preset already prepared:
-  - `seq_diffusion_guided_quick`
-  - bias of the grid:
-    - lower `latent_dim`
-    - lower `beta`
-    - higher `free_bits`
-    - one slightly larger hidden-size probe only after those collapse defenses
-- guided quick result:
-  - `outputs/exp_20260329_211418`
-  - result: `0/12`
-  - interpretation:
-    - collapse mitigation worked better than in the smoke
-    - but the current formulation remained structurally wrong
-    - treat this branch as **diffusion v1 negative**
+    - the family is structurally integrable
+    - but the current `cVAE + diffusion + KL` formulation is negative
+- diffusion v2 status:
+  - no code yet
+  - no smoke yet
+  - this branch exists to make the formulation change explicit before coding
 
 ## Guardrails
 
 - Do not reopen the negative flow families in this branch.
 - Do not start with a large sweep.
+- Do not reopen another local hyperparameter sweep of `diffusion v1`.
 - Do not generalize diffusion to every architecture family before the seq route
   proves structural viability.
 - Preserve the current protocol, artifact layout, and model-reuse workflow.

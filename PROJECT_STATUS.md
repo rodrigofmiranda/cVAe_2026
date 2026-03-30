@@ -1,37 +1,41 @@
 # PROJECT_STATUS
 
-> Atualizado em 2026-03-29.
+> Atualizado em 2026-03-30.
 > Este arquivo e o inventario oficial das worktrees e do estado ativo do repositorio.
 
 ## Worktrees
 
 Worktrees git registradas neste repositorio:
 
-1. `/workspace/2026/feat_seq_bigru_residual_diffusion`
-   - branch: `feat/seq-bigru-residual-diffusion`
+1. `/workspace/2026/feat_seq_bigru_residual_diffusion_v2`
+   - branch: `feat/seq-bigru-residual-diffusion-v2`
    - status: worktree ativa desta copia
-   - foco: abrir a rota de `conditional diffusion` a partir do anchor `S27`
-2. `/workspace/2026/feat_mdn_g5_recovery`
+   - foco: abrir a segunda formulacao de `conditional diffusion`
+2. `/workspace/2026/feat_seq_bigru_residual_diffusion`
+   - branch: `feat/seq-bigru-residual-diffusion`
+   - status: worktree diffusion v1 fechada como negativa
+   - foco: preservar a primeira implementacao e seus resultados
+3. `/workspace/2026/feat_mdn_g5_recovery`
    - branch: `feat/mdn-g5-recovery-run`
    - status: worktree MDN mais forte / origem da branch atual
    - foco: validar se embedding raso de regime no decoder destrava os dois
      regimes restantes de `0.8 m`
-3. `/workspace/2026/feat_seq_bigru_residual_cvae`
+4. `/workspace/2026/feat_seq_bigru_residual_cvae`
    - branch: `feat/seq-imdd-graybox-mdn`
    - status: worktree principal historica
-4. `/workspace/2026/feat_seq_bigru_residual_mdn_route`
+5. `/workspace/2026/feat_seq_bigru_residual_mdn_route`
    - branch: `feat/seq-bigru-residual-mdn-route`
    - status: rota dedicada de reruns MDN anteriores
-5. `/workspace/2026/feat_seq_bigru_residual_flow_route`
+6. `/workspace/2026/feat_seq_bigru_residual_flow_route`
    - branch: `feat/seq-bigru-residual-spline-flow`
    - status: rota de `coupling_2d` fechada como resultado negativo
-6. `/workspace/2026/feat_seq_bigru_residual_spline_flow_v2`
+7. `/workspace/2026/feat_seq_bigru_residual_spline_flow_v2`
    - branch: `feat/seq-bigru-residual-spline-flow-v2`
    - status: rota de `spline_2d` fechada como resultado negativo
 
 ## Branch Atual
 
-- branch ativa: `feat/seq-bigru-residual-diffusion`
+- branch ativa: `feat/seq-bigru-residual-diffusion-v2`
 - entrypoint canonico:
   - `python -m src.protocol.run`
 
@@ -55,9 +59,10 @@ Decisao desta branch:
   - `sinh-arcsinh`
   - `coupling_2d`
   - `spline_2d`
-- a proxima aposta seria da linha generativa global:
-  - `conditional diffusion`
-  - nao outro sweep local dentro das familias ja esgotadas
+- `diffusion v1` foi implementada e fechada como negativa:
+  - smoke `outputs/exp_20260329_210444`: `0/12`
+  - guided quick `outputs/exp_20260329_211418`: `0/12`
+- esta worktree existe para a **proxima formulacao**, nao para retunar a v1
 
 Referencias principais hoje:
 
@@ -94,23 +99,13 @@ Leitura atual:
   mais amplo: nenhuma linha atual aprende o shape global completo do sinal
 - o `S30` mostrou que um embedding raso de regime no decoder nao resolve esse
   gargalo e ainda regride `1.0m`
-- a linha ativa agora nesta worktree e `conditional diffusion`
-- a primeira implementacao estrutural ja existe e o smoke inicial ja rodou:
-  - run: `outputs/exp_20260329_210444`
-  - preset: `seq_diffusion_smoke`
-  - resultado: `0/12`
-  - leitura:
-    - marco estrutural aprovado
-    - colapso latente no primeiro ponto (`active_dim_ratio=0.0`)
-    - o passo seguinte foi atacar `beta/free_bits/latent_dim`, nao capacidade
-- o guided quick recalibrado ja fechou:
-  - run: `outputs/exp_20260329_211418`
-  - preset: `seq_diffusion_guided_quick`
-  - resultado: `0/12`
-  - leitura:
-    - `active_dim_ratio=1.0`
-    - o colapso deixou de ser o gargalo principal
-    - a formulacao `cVAE + diffusion + KL` fica arquivada como negativa nesta iteracao
+- a linha ativa agora nesta worktree e `conditional diffusion v2`
+- formula da tentativa anterior a nao reabrir:
+  - `cVAE + diffusion + KL`
+- mudanca central desta worktree:
+  - testar uma diffusion condicional mais direta
+  - remover ou enfraquecer fortemente a trilha latente com KL
+  - tratar a diffusion como o modelo generativo principal, nao como decoder dentro da v1
 - tambem existe agora uma comparacao de throughput opt-in para a linha seq MDN:
   - preset: `seq_mdn_v2_perf_compare_quick`
   - controle atual: `batch_size=4096`, `batch_infer=8192`, `seq_gru_unroll=True`
@@ -262,30 +257,30 @@ Artefatos operacionais principais:
 
 Raiz:
 
-- [README.md](/workspace/2026/feat_seq_bigru_residual_diffusion/README.md)
+- [README.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/README.md)
   - guia principal do repositorio para leitura no GitHub
-- [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_diffusion/PROJECT_STATUS.md)
+- [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/PROJECT_STATUS.md)
   - inventario oficial das worktrees e estado ativo
-- [CODEX.md](/workspace/2026/feat_seq_bigru_residual_diffusion/CODEX.md)
+- [CODEX.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/CODEX.md)
   - stub de auto-discovery para Codex
-- [CLAUDE.md](/workspace/2026/feat_seq_bigru_residual_diffusion/CLAUDE.md)
+- [CLAUDE.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/CLAUDE.md)
   - stub de auto-discovery para Claude
 
 Docs ativos:
 
-- [docs/README.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/README.md)
-- [docs/active/WORKING_STATE.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/active/WORKING_STATE.md)
-- [docs/reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/reference/PROTOCOL.md)
-- [docs/reference/EXPERIMENT_WORKFLOW.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/reference/EXPERIMENT_WORKFLOW.md)
-- [docs/reference/MODELING_ASSUMPTIONS.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/reference/MODELING_ASSUMPTIONS.md)
-- [docs/reference/CONDITIONAL_DIFFUSION_GUIDE.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/reference/CONDITIONAL_DIFFUSION_GUIDE.md)
-- [docs/agents/AI_AGENT_GUIDE.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/agents/AI_AGENT_GUIDE.md)
-- [docs/agents/REVIEW.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/agents/REVIEW.md)
+- [docs/README.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/docs/README.md)
+- [docs/active/WORKING_STATE.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/docs/active/WORKING_STATE.md)
+- [docs/reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/docs/reference/PROTOCOL.md)
+- [docs/reference/EXPERIMENT_WORKFLOW.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/docs/reference/EXPERIMENT_WORKFLOW.md)
+- [docs/reference/MODELING_ASSUMPTIONS.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/docs/reference/MODELING_ASSUMPTIONS.md)
+- [docs/reference/CONDITIONAL_DIFFUSION_GUIDE.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/docs/reference/CONDITIONAL_DIFFUSION_GUIDE.md)
+- [docs/agents/AI_AGENT_GUIDE.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/docs/agents/AI_AGENT_GUIDE.md)
+- [docs/agents/REVIEW.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/docs/agents/REVIEW.md)
 
 ## Como Retomar Rapidamente
 
 ```bash
-cd /workspace/2026/feat_seq_bigru_residual_diffusion
+cd /workspace/2026/feat_seq_bigru_residual_diffusion_v2
 git status -sb
 git worktree list
 python scripts/analysis/summarize_experiment.py "$(ls -td outputs/exp_* | head -1)"
@@ -293,13 +288,13 @@ python scripts/analysis/summarize_experiment.py "$(ls -td outputs/exp_* | head -
 
 Depois disso, leia:
 
-1. [README.md](/workspace/2026/feat_seq_bigru_residual_diffusion/README.md)
-2. [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_diffusion/PROJECT_STATUS.md)
-3. [docs/active/WORKING_STATE.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/active/WORKING_STATE.md)
-4. [docs/reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/reference/PROTOCOL.md)
+1. [README.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/README.md)
+2. [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/PROJECT_STATUS.md)
+3. [docs/active/WORKING_STATE.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/docs/active/WORKING_STATE.md)
+4. [docs/reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/docs/reference/PROTOCOL.md)
 
 ## Arquivo Historico
 
 Tudo que deixou de ser documento vivo foi movido para:
 
-- [docs/archive/README.md](/workspace/2026/feat_seq_bigru_residual_diffusion/docs/archive/README.md)
+- [docs/archive/README.md](/workspace/2026/feat_seq_bigru_residual_diffusion_v2/docs/archive/README.md)
