@@ -85,6 +85,34 @@ start here.
   - **conclusion: lambda_kurt is not the right lever for G5**; the JB test failure
     at 0.8m is not addressable by isolated 4th-moment pressure; the gap is rooted in
     the MDN's inability to reproduce the leptokurtic structure at low current
+- **decoder regime conditioning embedding sweep (S30, 3 variants)**:
+  - run: `outputs/exp_20260328_234446`
+  - base: exact S27 A2 config (`lambda_coverage=0.25`, MDN3, lat8)
+  - CTRL embed=0: `4/12` mini, `mini_mean_δJB=2990` — another bad variance draw (expected ~7–8)
+  - **embed16: `4/12` mini, `mini_mean_δJB=0.375`** — δJB collapsed from 2990 to 0.375;
+    same 8 regime failures (all 0.8m + 1m/{100,300,500}mA) but distribution shape dramatically
+    improved in passing regimes; embed16 ran all 500 epochs (never triggered early stopping —
+    still converging); `flag_unstable=True`
+  - embed32: `4/12` mini, `δJB=0.439`, `active_dims=7`, stopped at epoch 158 (best epoch 98) —
+    undertrained; LR=2e-4 too slow for larger embed
+  - **conclusion: `cond_embed_dim` is the right axis** — JB shape dramatically better with embed16;
+    the bottleneck is convergence (embed16 needs higher LR or more epochs; embed32 undertrained);
+    G5 failures persist but the δJB signal is the strongest positive finding since S27
+  - G6 not computed (stat_fidelity_config disabled in this run)
+
+- **decoder conditioning embed tuned sweep (S31, 4 variants)**:
+  - run: `outputs/exp_20260329_222127`
+  - all 4 variants `flag_unstable=True`
+  - e16/lr4e4: crashed at epoch 100 (`active_dims=5`, partial posterior collapse), `δJB=0.438`
+  - e32/lr4e4: crashed at epoch 81 (`active_dims=8`, `0/12` mini), `δJB=83.6` — LR too high
+  - **e64/lr2e4: stable** (epoch 272), `δJB=0.387`, `4/12` mini — best G5 signal so far
+  - e32_resid/lr4e4 (champion by leaderboard): catastrophic posterior collapse
+    (`active_dims=3`), `δJB=19017`, ran all 500 epochs — residual + lr4e4 incompatible
+  - full protocol: **`0/12`**, G3=9/12, G5=5/12, G6 not computed (stat disabled)
+  - **conclusion: LR=4e-4 too high** for embed variants — crashes embed32 (epoch 11/81),
+    embed16 (epoch 40/100); residual skip + lr4e4 collapses posterior; e64/lr2e4 is the only
+    stable variant and still hits the same G5 floor at 8 failures
+
 - **MDN components sweep (S29, 3 candidates: k=3/5/8)**:
   - run: `outputs/exp_20260328_210953`
   - base: exact S27 A2 config (`lambda_coverage=0.25`, lat8)
@@ -144,19 +172,24 @@ The 0.8m problem has two independent layers:
   becomes a large relative JB error; `lambda_coverage=0.25` is insufficient
   to fix 100mA and 300mA; tested MDN k=3/5/8 — none fixes it (S29)
 
-Current branch reading (2026-03-28, after S27 + S28 + S29):
+Current branch reading (2026-03-30, after S27 + S28 + S29 + S30 + S31):
 
 - `S27cov_lc0p25_tail95_t0p03` (`exp_20260328_153611`) is the best known result:
   **`10/12`** full protocol
 - three independent seeds of S27-A2 config: `{10, 4, 8}` full protocol passes
   → E[pass] ≈ 7, high variance; the `10/12` is the optimistic tail
-- S29 CTRL k=3 = `8/12` full / `7/12` mini — better than S28 CTRL (`4/12`),
-  confirming S28 was an unlucky draw; typical expected value is ~7–8/12
+- S29 CTRL k=3 = `8/12` full / `7/12` mini — typical expected value ~7–8/12
 - remaining `2/12` gap is `0.8m/100mA` and `0.8m/300mA`, failing only G5;
-  tested lambda_axis, lambda_kurt, lambda_coverage, k=3/5/8 MDN — none fixes it
-- G5 failure at 0.8m/300mA is extreme (JBrel=3–10 across seeds) and persistent
-- the residual constellation overlay gap is **systematic and not resolved**;
-  even in passing regimes the model point cloud is too uniform relative to real data
+  all loss-side and architecture-side interventions tested — none fixes it
+- **new finding (S30/S31): `cond_embed_dim` dramatically reduces δJB** (2990→0.375
+  with embed16, 0.387 with e64/lr2e4) — strongest positive signal since S27;
+  however the 8 G5 failures in the mini-protocol persist unchanged
+- **stability issue**: LR=4e-4 crashes embed variants; residual+lr4e4 collapses
+  posterior; e64/lr2e4 is the only stable config found so far
+- S32 (`seq_cond_embed_large_sweep`, currently running) explores 6 variants:
+  embed64/lr3e4, embed32+residual/lr2e4, embed64+residual/lr2e4,
+  embed32+3-layer/lr2e4, embed64+mdn5/lr2e4, embed32/lat7/lr2e4
+- G6 not computed in S30/S31 (stat_fidelity disabled); S32 also has stat disabled
 
 ## Current Direction
 
@@ -172,17 +205,19 @@ with all available loss-side and architecture-side interventions:
 | lambda_kurt (S28) | negative; lk=0.10 catastrophic |
 | MDN k=5 (S29) | regresses to 5/12 — worse |
 | MDN k=8 (S29) | marginal (6/12), 0.8m fails persist |
+| cond_embed_dim sweep (S30) | direction confirmed: δJB 2990→0.375 with embed16; convergence bottleneck |
+| cond_embed_dim tuned (S31) | LR=4e-4 too high; e64/lr2e4 stable (δJB=0.387), 8 G5 failures persist |
 
 **The 0.8m/100mA and 300mA G5 failure appears to be a hard constraint of the
 leptokurtic shape at short distance and low current, not addressable within the
 current seq_bigru_residual + MDN + coverage-loss family.**
 
 Open questions:
+- **`cond_embed_dim` with stable LR**: S30/S31 confirm the direction but expose
+  a convergence/stability problem; e64/lr2e4 is the only stable variant (δJB=0.387,
+  same 8 G5 failures); S32 sweeps this axis more broadly with safer LR configs
 - **accept the current ceiling** (~7–8/12 expected, 10/12 best known) and move
-  to the next scientific milestone
-- investigate whether 0.8m/100mA and 300mA can be fixed by a **regime-specific
-  conditioning** approach (e.g. separate MDN head or regime embedding) rather
-  than global architecture changes — not yet tried
+  to the next scientific milestone if S32 confirms the embed ceiling
 
 Do not reopen:
 - `tail_levels=[0.01,0.99]` — tested negative in S27
@@ -191,6 +226,8 @@ Do not reopen:
 - **`lambda_kurt`** — S28 negative; catastrophic at lk=0.10; not the right lever
 - **`mdn_components` global sweep** — S29 negative; k=5 hurts, k=8 marginal;
   more components globally do not fix 0.8m G5
+- **`cond_embed_residual=True` + LR=4e-4** — S31 collapses posterior (active_dims=3)
+- **LR=4e-4 for embed variants** — S31 negative; crashes or destabilises all variants
 
 The current implementation branch now includes an `MDN v2` path:
 
