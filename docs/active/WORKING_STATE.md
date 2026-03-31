@@ -113,6 +113,25 @@ start here.
     embed16 (epoch 40/100); residual skip + lr4e4 collapses posterior; e64/lr2e4 is the only
     stable variant and still hits the same G5 floor at 8 failures
 
+- **large decoder embed sweep (S32, 6 variants)**:
+  - run: `outputs/exp_20260330_114803`
+  - base: exact S27 A2 config (`lambda_coverage=0.25`, MDN3, lat8)
+  - 6 candidates: e64/lr3e4 (A), e32+resid/lr2e4 (B), e64+resid/lr2e4 (C),
+    e32+3layer/lr2e4 (D), e64+mdn5/lr2e4 (E), e32/lat7/lr2e4 (F)
+  - champion by leaderboard: `S32C_e64_resid_lr2e4`
+  - full protocol: **`0/12`** pass, 5 partial, 7 fail
+  - G1=10, G2=12, G3=9, G4=12, **G5=5**, **G6=0** (stat_fidelity disabled)
+  - per-regime breakdown:
+    - 0.8m: all 4 fail (G1 fails at 100/300mA, G3 fails at 100/300/500mA, G5=0/4)
+    - 1.0m: 3 fail + 1 partial (700mA); G5 fails at 100/300/500mA
+    - 1.5m: all 4 partial (G5 passes but G6 not computed)
+  - `mean_delta_jb=0.334`, `score_v1=0.536`
+  - **conclusion: embed + residual at safe LR does NOT recover the S27 anchor**;
+    `0/12` full pass is worse than any previous S27-family seed (`{10, 4, 8}`);
+    the embed axis is exhausted — embed16/32/64, with and without residual,
+    across LR=2e-4 to 4e-4, none reaches or improves the S27 baseline;
+    G6 was not computed (stat disabled), so all regimes are partial at best
+
 - **MDN components sweep (S29, 3 candidates: k=3/5/8)**:
   - run: `outputs/exp_20260328_210953`
   - base: exact S27 A2 config (`lambda_coverage=0.25`, lat8)
@@ -172,7 +191,7 @@ The 0.8m problem has two independent layers:
   becomes a large relative JB error; `lambda_coverage=0.25` is insufficient
   to fix 100mA and 300mA; tested MDN k=3/5/8 — none fixes it (S29)
 
-Current branch reading (2026-03-30, after S27 + S28 + S29 + S30 + S31):
+Current branch reading (2026-03-31, after S27 + S28 + S29 + S30 + S31 + S32):
 
 - `S27cov_lc0p25_tail95_t0p03` (`exp_20260328_153611`) is the best known result:
   **`10/12`** full protocol
@@ -186,10 +205,10 @@ Current branch reading (2026-03-30, after S27 + S28 + S29 + S30 + S31):
   however the 8 G5 failures in the mini-protocol persist unchanged
 - **stability issue**: LR=4e-4 crashes embed variants; residual+lr4e4 collapses
   posterior; e64/lr2e4 is the only stable config found so far
-- S32 (`seq_cond_embed_large_sweep`, currently running) explores 6 variants:
-  embed64/lr3e4, embed32+residual/lr2e4, embed64+residual/lr2e4,
-  embed32+3-layer/lr2e4, embed64+mdn5/lr2e4, embed32/lat7/lr2e4
-- G6 not computed in S30/S31 (stat_fidelity disabled); S32 also has stat disabled
+- **S32 completed** (`seq_cond_embed_large_sweep`, 6 variants): champion
+  `S32C_e64_resid_lr2e4` scored `0/12` full pass (5 partial, 7 fail) —
+  **worst S27-family result so far**; embed axis is now exhausted
+- G6 not computed in S30/S31/S32 (stat_fidelity disabled)
 
 ## Current Direction
 
@@ -207,6 +226,7 @@ with all available loss-side and architecture-side interventions:
 | MDN k=8 (S29) | marginal (6/12), 0.8m fails persist |
 | cond_embed_dim sweep (S30) | direction confirmed: δJB 2990→0.375 with embed16; convergence bottleneck |
 | cond_embed_dim tuned (S31) | LR=4e-4 too high; e64/lr2e4 stable (δJB=0.387), 8 G5 failures persist |
+| cond_embed large sweep (S32) | 0/12 full pass; embed axis exhausted across 6 variants |
 
 **The 0.8m/100mA and 300mA G5 failure appears to be a hard constraint of the
 leptokurtic shape at short distance and low current, not addressable within the
@@ -228,6 +248,8 @@ Do not reopen:
   more components globally do not fix 0.8m G5
 - **`cond_embed_residual=True` + LR=4e-4** — S31 collapses posterior (active_dims=3)
 - **LR=4e-4 for embed variants** — S31 negative; crashes or destabilises all variants
+- **`cond_embed_dim` axis broadly** — S30/S31/S32 exhausted; embed16/32/64, ±residual,
+  ±3-layer, ±mdn5, ±lat7 across LR=2e-4–4e-4 — none reaches S27 baseline
 
 The current implementation branch now includes an `MDN v2` path:
 
