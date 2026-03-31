@@ -11,6 +11,8 @@ Commit: refactor(step1).
 
 from __future__ import annotations
 
+import os
+
 # =====================================================================
 # Key-name constants (avoid typos in string literals)
 # =====================================================================
@@ -216,7 +218,18 @@ REDUCTION_TARGET = DATA_REDUCTION_DEFAULTS[K_TARGET_SAMPLES]
 N_EVAL_SAMPLES_STRATIFIED = ANALYSIS_DEFAULTS[K_N_EVAL_SAMPLES]
 SEED = TRAINING_DEFAULTS[K_SEED]
 
+
+def _env_float(name: str, default: float) -> float:
+    """Allow controlled scalar overrides from the process environment."""
+    raw = os.getenv(name)
+    if raw is None or raw == "":
+        return default
+    try:
+        return float(raw)
+    except ValueError as exc:
+        raise ValueError(f"Environment variable {name} must be a float, got {raw!r}") from exc
+
 # Decoder log-variance clamp calibrated from dataset residual statistics:
 # q1%(log(var_real_delta)) - 1 nat / q99%(log(var_real_delta)) + 1 nat.
-DECODER_LOGVAR_CLAMP_LO = -5.82
-DECODER_LOGVAR_CLAMP_HI = -0.69
+DECODER_LOGVAR_CLAMP_LO = _env_float("CVAE_DECODER_LOGVAR_CLAMP_LO", -5.82)
+DECODER_LOGVAR_CLAMP_HI = _env_float("CVAE_DECODER_LOGVAR_CLAMP_HI", -0.69)

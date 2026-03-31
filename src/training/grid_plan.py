@@ -3468,6 +3468,151 @@ def _preset_seq_cond_embed_large_sweep() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_cond_embed_clamp_large_sweep() -> List[Dict[str, Any]]:
+    """S33 — Broad continuation on the best MDN branch under widened decoder clamp.
+
+    This sweep resumes from the best known valid full-protocol anchor
+    (`S27cov_lc0p25_tail95_t0p03`, 10/12) and only reopens axes that remain
+    scientifically alive after S30/S31/S32:
+
+    - `cond_embed_dim` is the strongest post-S27 positive signal
+    - `lr=4e-4` is discarded; only `2e-4/3e-4` remain
+    - `lambda_kurt`, broad tail sweeps, and global MDN-capacity sweeps stay closed
+    - a wider decoder log-variance clamp is now part of the continuation
+      hypothesis and must be supplied at runtime through:
+        `CVAE_DECODER_LOGVAR_CLAMP_LO`
+        `CVAE_DECODER_LOGVAR_CLAMP_HI`
+
+    Recommended runtime clamp for this preset:
+      `CVAE_DECODER_LOGVAR_CLAMP_LO=-6.82`
+      `CVAE_DECODER_LOGVAR_CLAMP_HI=0.31`
+
+    Full data (8.6M), patience=80, mini-protocol ranking over all 12 regimes.
+    """
+    analysis_quick_overrides = {
+        "train_regime_diagnostics_enabled": False,
+        "mini_reanalysis_enabled": True,
+        "mini_reanalysis_scope": "all12",
+        "mini_reanalysis_max_samples_per_regime": 4096,
+        "grid_ranking_mode": "mini_protocol_v1",
+        "batch_infer": 16384,
+    }
+
+    _base = dict(
+        arch_variant="seq_bigru_residual",
+        layer_sizes=[128, 256, 512],
+        latent_dim=8,
+        beta=0.002,
+        free_bits=0.10,
+        lr=2e-4,
+        batch_size=6144,
+        kl_anneal_epochs=80,
+        window_size=7,
+        window_stride=1,
+        window_pad_mode="edge",
+        seq_hidden_size=64,
+        seq_num_layers=1,
+        seq_bidirectional=True,
+        seq_gru_unroll=True,
+        lambda_mmd=0.25,
+        mmd_mode="mean_residual",
+        lambda_axis=0.01,
+        lambda_psd=0.0,
+        lambda_coverage=0.25,
+        coverage_levels=[0.50, 0.80, 0.95],
+        tail_levels=[0.05, 0.95],
+        coverage_temperature=0.03,
+        lambda_kurt=0.0,
+        decoder_distribution="mdn",
+        mdn_components=3,
+        cond_embed_dim=0,
+        cond_embed_layers=2,
+        cond_embed_residual=False,
+        shuffle_train_batches=True,
+        patience=80,
+    )
+
+    def _variant(overrides):
+        cfg = dict(_base)
+        cfg.update(overrides)
+        return _cfg(**cfg)
+
+    return [
+        dict(
+            group="S33_cond_embed_clamp_large",
+            tag="S33A_wc_ctrl_e0_lr2e4",
+            cfg=_variant({}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S33_cond_embed_clamp_large",
+            tag="S33B_wc_e16_lr2e4",
+            cfg=_variant({"cond_embed_dim": 16}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S33_cond_embed_clamp_large",
+            tag="S33C_wc_e16_lr3e4",
+            cfg=_variant({"cond_embed_dim": 16, "lr": 3e-4}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S33_cond_embed_clamp_large",
+            tag="S33D_wc_e32_lr2e4",
+            cfg=_variant({"cond_embed_dim": 32}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S33_cond_embed_clamp_large",
+            tag="S33E_wc_e32_lr3e4",
+            cfg=_variant({"cond_embed_dim": 32, "lr": 3e-4}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S33_cond_embed_clamp_large",
+            tag="S33F_wc_e64_lr2e4",
+            cfg=_variant({"cond_embed_dim": 64}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S33_cond_embed_clamp_large",
+            tag="S33G_wc_e64_lr3e4",
+            cfg=_variant({"cond_embed_dim": 64, "lr": 3e-4}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S33_cond_embed_clamp_large",
+            tag="S33H_wc_e32_resid_lr2e4",
+            cfg=_variant({"cond_embed_dim": 32, "cond_embed_residual": True}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S33_cond_embed_clamp_large",
+            tag="S33I_wc_e64_resid_lr2e4",
+            cfg=_variant({"cond_embed_dim": 64, "cond_embed_residual": True}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S33_cond_embed_clamp_large",
+            tag="S33J_wc_e32_3layer_lr2e4",
+            cfg=_variant({"cond_embed_dim": 32, "cond_embed_layers": 3}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S33_cond_embed_clamp_large",
+            tag="S33K_wc_e64_mdn5_lr2e4",
+            cfg=_variant({"cond_embed_dim": 64, "mdn_components": 5}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S33_cond_embed_clamp_large",
+            tag="S33L_wc_e32_lat7_lr2e4",
+            cfg=_variant({"cond_embed_dim": 32, "latent_dim": 7}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+    ]
+
+
 def _preset_seq_mdn_v2_0p8m_isolation() -> List[Dict[str, Any]]:
     """Diagnostic: MDN v2 lat8 trained ONLY on 0.8m data.
 
@@ -4005,6 +4150,8 @@ def select_grid(
             grid = _preset_seq_cond_embed_tuned_sweep()
         elif preset_name == "seq_cond_embed_large_sweep":
             grid = _preset_seq_cond_embed_large_sweep()
+        elif preset_name == "seq_cond_embed_clamp_large_sweep":
+            grid = _preset_seq_cond_embed_clamp_large_sweep()
         elif preset_name == "seq_mdn_v2_0p8m_isolation":
             grid = _preset_seq_mdn_v2_0p8m_isolation()
         elif preset_name == "seq_gaussian_reference_full":
