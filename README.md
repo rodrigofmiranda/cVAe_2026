@@ -26,6 +26,7 @@ start, use this order:
 2. [PROJECT_STATUS.md](PROJECT_STATUS.md) - current scientific and codebase status
 3. [docs/README.md](docs/README.md) - documentation map
 4. [docs/PROTOCOL.md](docs/PROTOCOL.md) - canonical experiment runner
+5. [docs/reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt](docs/reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt) - end-to-end acquisition-to-training data path
 
 Internal team members using the shared server should also read:
 
@@ -104,6 +105,7 @@ In day-to-day research, architecture selection is usually done by
 - [docs/README.md](docs/README.md) - documentation index
 - [PROJECT_STATUS.md](PROJECT_STATUS.md) - current codebase and science status
 - [docs/PROTOCOL.md](docs/PROTOCOL.md) - protocol runner and artifacts
+- [docs/reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt](docs/reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt) - acquisition-to-training data path
 - [docs/MODELING_ASSUMPTIONS.md](docs/MODELING_ASSUMPTIONS.md) - modeling rationale
 - [docs/DIAGNOSTIC_CHECKLIST.md](docs/DIAGNOSTIC_CHECKLIST.md) - diagnostic workflow
 - [docs/active/INFRA_GUIDE.md](docs/active/INFRA_GUIDE.md) - internal server onboarding and isolation guide
@@ -131,4 +133,5 @@ If your goal is to understand the program and copy the current work:
 3. Run `git lfs pull`
 4. Read [PROJECT_STATUS.md](PROJECT_STATUS.md)
 5. Read [docs/PROTOCOL.md](docs/PROTOCOL.md)
-6. If you are using the shared lab server, follow [docs/active/INFRA_GUIDE.md](docs/active/INFRA_GUIDE.md)
+6. Read [docs/reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt](docs/reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt)
+7. If you are using the shared lab server, follow [docs/active/INFRA_GUIDE.md](docs/active/INFRA_GUIDE.md)
