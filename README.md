@@ -25,7 +25,7 @@ start, use this order:
 1. [docs/BRANCH_GUIDE.md](docs/BRANCH_GUIDE.md) - what each public branch is for
 2. [PROJECT_STATUS.md](PROJECT_STATUS.md) - current scientific and codebase status
 3. [docs/README.md](docs/README.md) - documentation map
-4. [docs/reference/PROTOCOL.md](docs/reference/PROTOCOL.md) - canonical experiment runner
+4. [docs/PROTOCOL.md](docs/PROTOCOL.md) - canonical experiment runner
 
 Internal team members using the shared server should also read:
 
@@ -73,8 +73,7 @@ The canonical entrypoint is:
 python -m src.protocol.run \
   --dataset_root data/dataset_fullsquare_organized \
   --output_base outputs \
-  --protocol configs/all_regimes_sel4curr.json \
-  --train_once_eval_all
+  --protocol configs/protocol_default.json
 ```
 
 For the sequential family `seq_bigru_residual`, also use:
@@ -104,11 +103,9 @@ In day-to-day research, architecture selection is usually done by
 - [docs/BRANCH_GUIDE.md](docs/BRANCH_GUIDE.md) - public branch map
 - [docs/README.md](docs/README.md) - documentation index
 - [PROJECT_STATUS.md](PROJECT_STATUS.md) - current codebase and science status
-- [docs/reference/EXPERIMENT_WORKFLOW.md](docs/reference/EXPERIMENT_WORKFLOW.md) - how to launch and analyze experiments
-- [docs/reference/PROTOCOL.md](docs/reference/PROTOCOL.md) - protocol runner and artifacts
-- [docs/reference/MODELING_ASSUMPTIONS.md](docs/reference/MODELING_ASSUMPTIONS.md) - modeling rationale
-- [docs/agents/AI_AGENT_GUIDE.md](docs/agents/AI_AGENT_GUIDE.md) - shared guide for coding assistants
-- [docs/active/WORKING_STATE.md](docs/active/WORKING_STATE.md) - current branch working note
+- [docs/PROTOCOL.md](docs/PROTOCOL.md) - protocol runner and artifacts
+- [docs/MODELING_ASSUMPTIONS.md](docs/MODELING_ASSUMPTIONS.md) - modeling rationale
+- [docs/DIAGNOSTIC_CHECKLIST.md](docs/DIAGNOSTIC_CHECKLIST.md) - diagnostic workflow
 - [docs/active/INFRA_GUIDE.md](docs/active/INFRA_GUIDE.md) - internal server onboarding and isolation guide
 
 ## Repository Layout
@@ -133,5 +130,5 @@ If your goal is to understand the program and copy the current work:
 2. Clone the repository and switch to `feat/mdn-g5-recovery-explore-remote`
 3. Run `git lfs pull`
 4. Read [PROJECT_STATUS.md](PROJECT_STATUS.md)
-5. Read [docs/reference/PROTOCOL.md](docs/reference/PROTOCOL.md)
+5. Read [docs/PROTOCOL.md](docs/PROTOCOL.md)
 6. If you are using the shared lab server, follow [docs/active/INFRA_GUIDE.md](docs/active/INFRA_GUIDE.md)

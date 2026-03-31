@@ -67,7 +67,7 @@ If you want to understand the project first:
 1. stay on `main`
 2. read [../README.md](../README.md)
 3. read [../PROJECT_STATUS.md](../PROJECT_STATUS.md)
-4. read [reference/PROTOCOL.md](reference/PROTOCOL.md)
+4. read [PROTOCOL.md](PROTOCOL.md)
 
 If you want to copy the work that the team is actively extending:
 

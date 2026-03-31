@@ -16,21 +16,14 @@ Start with these if you are arriving from GitHub or onboarding into the repo:
 These are especially relevant for the shared lab server:
 
 - [active/INFRA_GUIDE.md](active/INFRA_GUIDE.md) - SSH, users, Docker, tmux, Git LFS
-- [active/WORKING_STATE.md](active/WORKING_STATE.md) - active branch working context
-- [operations/HOST_GPU_IDLE_DIAGNOSTIC.md](operations/HOST_GPU_IDLE_DIAGNOSTIC.md) - host/GPU troubleshooting
 
 ## Reference Docs
 
-- [reference/PROTOCOL.md](reference/PROTOCOL.md) - protocol runner, CLI, artifacts
-- [reference/MODELING_ASSUMPTIONS.md](reference/MODELING_ASSUMPTIONS.md) - modeling rationale
-- [reference/EXPERIMENT_WORKFLOW.md](reference/EXPERIMENT_WORKFLOW.md) - experiment lifecycle
+- [PROTOCOL.md](PROTOCOL.md) - protocol runner, CLI, artifacts
+- [MODELING_ASSUMPTIONS.md](MODELING_ASSUMPTIONS.md) - modeling rationale
+- [DIAGNOSTIC_CHECKLIST.md](DIAGNOSTIC_CHECKLIST.md) - diagnostic workflow
 - [reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt](reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt) - acquisition-to-training path
-
-## Agent Docs
-
-- [agents/AI_AGENT_GUIDE.md](agents/AI_AGENT_GUIDE.md)
-- [agents/REVIEW.md](agents/REVIEW.md)
 
 ## Archive
 
-- [archive/README.md](archive/README.md) - historical plans, retired notes, and older research context
+- [archive/REFACTOR_PLAN_legacy.md](archive/REFACTOR_PLAN_legacy.md) - historical refactor context
