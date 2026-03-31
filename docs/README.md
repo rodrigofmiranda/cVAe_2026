@@ -25,6 +25,8 @@ agent tooling conventions:
 - [reference/EXPERIMENT_WORKFLOW.md](/workspace/2026/feat_seq_bigru_residual_mdn_route/docs/reference/EXPERIMENT_WORKFLOW.md)
 - [reference/CONDITIONAL_DENSITY_DECODER_GUIDE.md](/workspace/2026/feat_seq_bigru_residual_mdn_route/docs/reference/CONDITIONAL_DENSITY_DECODER_GUIDE.md)
 
+- [reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt](reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt)
+
 ## Agent Docs
 
 - [agents/AI_AGENT_GUIDE.md](/workspace/2026/feat_seq_bigru_residual_mdn_route/docs/agents/AI_AGENT_GUIDE.md)
