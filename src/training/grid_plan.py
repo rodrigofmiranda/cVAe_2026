@@ -3613,6 +3613,139 @@ def _preset_seq_cond_embed_clamp_large_sweep() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_cond_embed_clamp_klcov_sweep() -> List[Dict[str, Any]]:
+    """S34 — Complementary wide-clamp sweep over KL/coverage pressure.
+
+    This preset is designed to run in parallel with S33 on another machine.
+    S33 explores structural decoder choices under the widened clamp; S34 keeps
+    structure mostly fixed and tests whether the remaining gain is in the loss
+    pressure:
+
+    - softer KL via `beta=0.0015`
+    - looser latent floor via `free_bits=0.05`
+    - slightly softer coverage pressure via `lambda_coverage=0.20` and
+      `coverage_temperature=0.02`
+
+    Run with the same widened clamp used by S33:
+      `CVAE_DECODER_LOGVAR_CLAMP_LO=-6.82`
+      `CVAE_DECODER_LOGVAR_CLAMP_HI=0.31`
+    """
+    analysis_quick_overrides = {
+        "train_regime_diagnostics_enabled": False,
+        "mini_reanalysis_enabled": True,
+        "mini_reanalysis_scope": "all12",
+        "mini_reanalysis_max_samples_per_regime": 4096,
+        "grid_ranking_mode": "mini_protocol_v1",
+        "batch_infer": 16384,
+    }
+
+    _base = dict(
+        arch_variant="seq_bigru_residual",
+        layer_sizes=[128, 256, 512],
+        latent_dim=8,
+        beta=0.002,
+        free_bits=0.10,
+        lr=2e-4,
+        batch_size=6144,
+        kl_anneal_epochs=80,
+        window_size=7,
+        window_stride=1,
+        window_pad_mode="edge",
+        seq_hidden_size=64,
+        seq_num_layers=1,
+        seq_bidirectional=True,
+        seq_gru_unroll=True,
+        lambda_mmd=0.25,
+        mmd_mode="mean_residual",
+        lambda_axis=0.01,
+        lambda_psd=0.0,
+        lambda_coverage=0.25,
+        coverage_levels=[0.50, 0.80, 0.95],
+        tail_levels=[0.05, 0.95],
+        coverage_temperature=0.03,
+        lambda_kurt=0.0,
+        decoder_distribution="mdn",
+        mdn_components=3,
+        cond_embed_dim=32,
+        cond_embed_layers=2,
+        cond_embed_residual=False,
+        shuffle_train_batches=True,
+        patience=80,
+    )
+
+    def _variant(overrides):
+        cfg = dict(_base)
+        cfg.update(overrides)
+        return _cfg(**cfg)
+
+    return [
+        dict(
+            group="S34_cond_embed_clamp_klcov",
+            tag="S34A_wc_e16_b15_fb10_cov25_t03",
+            cfg=_variant({"cond_embed_dim": 16, "beta": 0.0015}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S34_cond_embed_clamp_klcov",
+            tag="S34B_wc_e16_b20_fb05_cov25_t03",
+            cfg=_variant({"cond_embed_dim": 16, "free_bits": 0.05}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S34_cond_embed_clamp_klcov",
+            tag="S34C_wc_e32_b15_fb10_cov25_t03",
+            cfg=_variant({"cond_embed_dim": 32, "beta": 0.0015}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S34_cond_embed_clamp_klcov",
+            tag="S34D_wc_e32_b20_fb05_cov25_t03",
+            cfg=_variant({"cond_embed_dim": 32, "free_bits": 0.05}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S34_cond_embed_clamp_klcov",
+            tag="S34E_wc_e64_b15_fb10_cov25_t03",
+            cfg=_variant({"cond_embed_dim": 64, "beta": 0.0015}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S34_cond_embed_clamp_klcov",
+            tag="S34F_wc_e64_b20_fb05_cov25_t03",
+            cfg=_variant({"cond_embed_dim": 64, "free_bits": 0.05}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S34_cond_embed_clamp_klcov",
+            tag="S34G_wc_e32_lat7_b15_cov20_t02",
+            cfg=_variant(
+                {
+                    "cond_embed_dim": 32,
+                    "latent_dim": 7,
+                    "beta": 0.0015,
+                    "lambda_coverage": 0.20,
+                    "coverage_temperature": 0.02,
+                }
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S34_cond_embed_clamp_klcov",
+            tag="S34H_wc_e32_lat7_fb05_cov20_t02",
+            cfg=_variant(
+                {
+                    "cond_embed_dim": 32,
+                    "latent_dim": 7,
+                    "free_bits": 0.05,
+                    "lambda_coverage": 0.20,
+                    "coverage_temperature": 0.02,
+                }
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+    ]
+
+
 def _preset_seq_mdn_v2_0p8m_isolation() -> List[Dict[str, Any]]:
     """Diagnostic: MDN v2 lat8 trained ONLY on 0.8m data.
 
@@ -4152,6 +4285,8 @@ def select_grid(
             grid = _preset_seq_cond_embed_large_sweep()
         elif preset_name == "seq_cond_embed_clamp_large_sweep":
             grid = _preset_seq_cond_embed_clamp_large_sweep()
+        elif preset_name == "seq_cond_embed_clamp_klcov_sweep":
+            grid = _preset_seq_cond_embed_clamp_klcov_sweep()
         elif preset_name == "seq_mdn_v2_0p8m_isolation":
             grid = _preset_seq_mdn_v2_0p8m_isolation()
         elif preset_name == "seq_gaussian_reference_full":
