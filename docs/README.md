@@ -23,6 +23,8 @@ agent tooling conventions:
 - [reference/MODELING_ASSUMPTIONS.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/MODELING_ASSUMPTIONS.md)
 - [reference/EXPERIMENT_WORKFLOW.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/EXPERIMENT_WORKFLOW.md)
 
+- [reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt](reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt)
+
 ## Agent Docs
 
 - [agents/AI_AGENT_GUIDE.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/agents/AI_AGENT_GUIDE.md)
