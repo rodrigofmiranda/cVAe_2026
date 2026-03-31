@@ -292,6 +292,23 @@ Logado como Eduardo:
 git clone git@github.com:rodrigofmiranda/cVAe_2026.git /home/eduardo/cVAe_2026
 ```
 
+Depois do clone, baixe os arquivos grandes do dataset com Git LFS:
+
+```bash
+git -C /home/gabriele/cVAe_2026 lfs install --local
+git -C /home/gabriele/cVAe_2026 lfs pull
+
+git -C /home/eduardo/cVAe_2026 lfs install --local
+git -C /home/eduardo/cVAe_2026 lfs pull
+```
+
+Sem esse passo, a estrutura de `data/` aparece no clone, mas os arquivos grandes
+nao sao baixados de verdade. O sintoma tipico no treino e:
+
+```bash
+ValueError: Nenhum dataset carregado com sucesso.
+```
+
 ### 6.4. Configurar identidade Git
 
 Logado como Gabriele:
