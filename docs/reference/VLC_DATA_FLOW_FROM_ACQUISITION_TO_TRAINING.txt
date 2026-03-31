@@ -1,0 +1,356 @@
+================================================================================
+  VLC DATA FLOW — FROM PHYSICAL ACQUISITION TO MODEL TRAINING
+================================================================================
+
+Purpose
+-------
+
+This note explains, end to end, how the numbers used by the digital twin are
+generated, transformed, normalized, saved, and finally loaded into training.
+
+It is meant to answer:
+
+  1) Where do the numbers come from?
+  2) Which files are physical diagnostics and which files are model input?
+  3) What are the numeric ranges before and after normalization?
+  4) What shapes and dtypes do the arrays have by the time they reach training?
+
+
+1) Two acquisition worlds: oscilloscope vs GNU Radio
+----------------------------------------------------
+
+There are two distinct artifact families in the lab workflow.
+
+  A. Oscilloscope / practical bench measurements
+
+     Example:
+       Auditoria/Aquisições/100mA_000.csv
+
+     Typical header:
+       Model=MSO56B
+       Waveform Type=ANALOG
+       Horizontal Units=s
+       Sample Interval=8.0e-10 s
+       Record Length=1,250,000
+       Vertical Units=V
+
+     Meaning:
+       - analog voltage trace versus time
+       - useful for practical diagnosis and teaching the physical experiment
+       - not the direct input to the cVAE
+
+  B. GNU Radio IQ acquisition
+
+     Per experiment:
+       *_sent.c64
+       *_recv.c64
+       *_meta.json
+       run.log
+
+     Meaning:
+       - binary complex64 IQ streams
+       - this is the path that becomes the training dataset
+
+Short version:
+  the oscilloscope CSV explains the physical bench;
+  the model dataset comes from the GNU Radio .c64 files.
+
+
+2) How channel_dataset.py generates the numbers
+-----------------------------------------------
+
+The GNU Radio flow in channel_dataset.py is:
+
+  TRANSMIT
+    random int16 in [-32767, +32767]
+      -> interleaved_short_to_complex(scale=1/32767)
+      -> complex "sent" symbols
+      -> root-raised-cosine interpolator
+      -> USRP TX
+
+  CHANNEL
+    USRP TX -> Bias-T -> LED -> free-space optical path
+             -> photodetector + TIA -> USRP RX
+
+  RECEIVE
+    USRP RX
+      -> multiply_const_cc(1000)
+      -> pfb_clock_sync_ccf
+      -> head(1,000,000)
+      -> *_recv.c64
+
+Key parameters:
+
+  samp_rate   = 200,000 Hz
+  sps         = 4
+  symbol_rate = 50,000 symbols/s
+  nfilts      = 45
+  excess_bw   = 0.35
+  tuning      = 1,000,000 Hz
+  samples     = 1,000,000
+  short_scale = 1/32767 = 3.051850947599719e-05
+  rx_multiply = 1000
+
+Interpretation:
+
+  - The source creates random shorts.
+  - The 1/32767 scale maps them to complex symbols roughly in [-1, +1].
+  - *_sent.c64 is saved before the RRC filter.
+  - *_recv.c64 is saved after the receive x1000 gain and after clock recovery.
+
+Critical consequence:
+
+  The x1000 receive multiplier is already baked into *_recv.c64.
+  Post-processing must therefore use:
+
+    FIXED_HARDWARE_MULTIPLIER = None
+
+  There is no extra divide-by-1000 step later.
+
+
+3) Sample rate: what is 200 kHz and what is 50 kHz
+--------------------------------------------------
+
+Students usually mix these two.
+
+  Inside the radio chain:
+    - USRP sampling rate = 200 kHz
+    - RRC interpolation uses sps=4
+
+  In the saved files:
+    - *_sent.c64 is conceptually at 1 complex sample per symbol
+    - *_recv.c64 is also at 1 complex sample per symbol after PFB timing recovery
+    - effective saved symbolic rate = 50 kHz
+
+So:
+  the acquisition hardware runs at 200 kHz,
+  but the files that feed the dataset represent the symbol stream at 50 kHz.
+
+
+4) Stage 1: dataraw_report.py
+-----------------------------
+
+Before conversion, dataraw_report.py runs a diagnostic pass:
+
+  a) reads x = *_sent.c64 and y = *_recv.c64
+  b) removes startup transient:
+       skip_frac = 0.10
+       1,000,000 -> about 900,000 remaining samples
+  c) estimates lag by FFT cross-correlation
+  d) corrects global phase
+  e) computes the anchor normalization factor
+  f) computes residual statistics on:
+       r = y_norm - x
+
+Typical aligned lengths after skip + lag correction:
+  N ~ 899,500 samples per experiment
+
+Typical lag values seen in the audit:
+  about 470 to 490 samples
+
+This stage also outputs:
+  - EVM
+  - SNR
+  - log-variance of residual
+  - skew / kurtosis
+  - Jarque-Bera and D'Agostino tests
+
+
+5) Anchor normalization and factor_ref
+--------------------------------------
+
+Normalization is global, not per-experiment.
+
+Anchor regime:
+  0.8 m / 300 mA
+
+Audited value:
+  factor_ref = 4.337988696672259
+
+Definition:
+  factor_ref = sqrt(P_tx_anchor / P_rx_sync_anchor)
+
+Application:
+  y_norm = y_sync * factor_ref
+
+Why this matters:
+  - RX is moved into a scale comparable to TX
+  - physical attenuation differences across regimes are preserved
+  - the dataset does not erase regime difficulty by renormalizing each file
+
+
+6) Numeric ranges after conversion
+----------------------------------
+
+Measured over the 27 experiments currently used by training:
+
+  X       : min=-1.0000000000   max= 0.9999694824
+  y_recv  : min=-0.3770073652   max= 0.3719044924
+  y_sync  : min=-0.3192788064   max= 0.3126198649
+  Y       : min=-1.3850280046   max= 1.3561416864
+
+Meaning:
+
+  X
+    transmitted symbols
+    nearly contained in [-1, 1]
+
+  y_recv
+    received signal after startup skip
+    still not aligned in delay/phase
+
+  y_sync
+    received signal after delay and phase correction
+
+  Y = y_recv_norm
+    received signal after global anchor normalization
+    final saved training target
+
+Why can Y exceed 1.0?
+  Because anchor scaling is global.
+  That is expected and correct.
+
+
+7) .npy formats and shapes
+--------------------------
+
+Each converted experiment contains:
+
+  IQ_data/
+    x_sent.npy
+    y_recv.npy
+    y_recv_sync.npy
+    y_recv_norm.npy
+    X.npy
+    Y.npy
+
+All of them use:
+
+  dtype = float32
+  shape = [N, 2]
+
+Axis meaning:
+
+  axis 0 = time / symbol index
+  axis 1 = [I, Q]
+
+Complex-to-array mapping:
+
+  z = a + j*b   ->   [a, b]
+
+Therefore:
+
+  X[:,0] = transmitted I
+  X[:,1] = transmitted Q
+  Y[:,0] = normalized received I
+  Y[:,1] = normalized received Q
+
+To rebuild complex values:
+
+  z = arr[:,0] + 1j * arr[:,1]
+
+
+8) Example real experiment
+--------------------------
+
+Example:
+  full_square_0.8m_100mA_001_20260211_153055
+
+Saved arrays:
+
+  X      shape=(899511, 2), float32, range=[-1.0000,  0.99997]
+  y_recv shape=(899511, 2), float32, range=[-0.3380,  0.3274]
+  y_sync shape=(899511, 2), float32, range=[-0.2954,  0.2993]
+  Y      shape=(899511, 2), float32, range=[-1.2815,  1.2984]
+
+
+9) What reaches training
+------------------------
+
+Training does not consume the oscilloscope CSV and does not read the .c64
+files directly. It consumes:
+
+  X.npy
+  Y.npy
+
+Distance and current are read from the directory structure, for example:
+
+  dist_0.8m/curr_300mA/...
+
+and injected as conditioning variables.
+
+Two common training modes exist:
+
+  A. Point-wise
+     X shape = [N, 2]
+     Y shape = [N, 2]
+
+  B. Sequential
+     X is converted into sliding windows:
+       [N, 2] -> [N-W+1, W, 2]
+
+Real example:
+  X original = (899503, 2)
+  W = 7
+  X_windowed = (899497, 7, 2)
+  Y_target   = (899497, 2)
+
+Interpretation:
+  each training sample becomes a window of W complex symbols,
+  still stored in float32 with 2 channels (I,Q).
+
+
+10) Where the later statistics come from
+----------------------------------------
+
+The statistics used by the modeling side are computed on:
+
+  r = Y - X = y_norm - x
+
+This is the residual channel effect after:
+  - startup skip
+  - lag correction
+  - phase correction
+  - anchor normalization
+
+That is why later analysis talks about:
+  - EVM
+  - SNR
+  - residual log-variance
+  - skew
+  - kurtosis
+  - normality tests
+
+
+11) Decoder clamp calibrated from real data
+-------------------------------------------
+
+The audit found:
+
+  q01_I/q99_I = -4.813681 / -1.695481
+  q01_Q/q99_Q = -4.815309 / -1.694823
+
+Recommended clamp:
+
+  I: [-5.813681, -0.695481]
+  Q: [-5.815309, -0.694823]
+
+Equivalent variance scale:
+
+  sigma^2_min ~ 0.00298
+  sigma^2_max ~ 0.499
+
+Interpretation:
+  this is the empirically plausible range for log(sigma^2) of the decoder,
+  derived from the real residual channel distribution.
+
+
+12) One-sentence summary
+------------------------
+
+The correct classroom explanation is:
+
+  bench CSV/plots describe the physical analog experiment,
+  but the digital-twin dataset is born from GNU Radio IQ files (*.c64),
+  passes through startup skip + sync + phase + anchor normalization,
+  and is finally saved as float32 arrays [N,2] or [N,W,2] for the model.
