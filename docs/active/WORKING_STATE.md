@@ -47,6 +47,15 @@ start here.
   - G3 and G6 pass on all 12 regimes
   - reading: the wide clamp plus softer free-bits pressure shifts one failure
     from `0.8m/100mA` to `0.8m/500mA`, but does not yet exceed the `10/12` ceiling
+- **latest radial SDN probe (quick, capped data)**:
+  - `outputs/exp_20260401_172117`
+  - champion recorded by protocol: `S37A_baseline_no_radial`
+  - **`10/12`** under caps, with failures at `0.8m/100mA` and `0.8m/300mA`
+  - the two radial candidates (`S37B`, `S37C`) are **not scientifically valid negatives**
+  - they failed because the training-time quick predict path still called the
+    seq prior without the extra radial input
+  - that interface bug has now been fixed in code and covered by tests; the
+    radial hypothesis still needs a clean rerun
 - Gaussian reference (full protocol + G6, 8.6M train):
   - `outputs/exp_20260328_023430`
   - `4/12` champion: `S26gauss_lat8`
@@ -210,6 +219,13 @@ Current branch reading (2026-03-30, after S27 + S28 + S29 + S30 + S31):
   recovered `10/12` with `S36F_full_e32_fb05`
 - compared with S27, S36 improves `0.8m/100mA` but regresses `0.8m/500mA`;
   the ceiling remains `10/12`, but the failure topology changed
+- S37 (`radial_sdn_test`) was the first implementation pass of the radial
+  signal-dependent-noise hypothesis:
+  - `S37A` reproduced the baseline at `10/12`
+  - `S37B/S37C` failed due to a seq prior input-mismatch bug in the quick
+    prediction path, not because radial conditioning was shown ineffective
+  - the branch now contains the fix plus tests; the next radial run should be
+    treated as the first valid scientific readout of that hypothesis
 
 ## Current Direction
 
@@ -236,6 +252,9 @@ Open questions:
 - **S36 vs S27 tradeoff**: decide whether passing `0.8m/100mA` is more valuable
   than losing `0.8m/500mA`, or whether the next sweep should explicitly target
   `0.8m/300mA` + `0.8m/500mA`
+- **radial SDN hypothesis**: now that the extra radial input is wired through
+  train + inference + save/load + quick predict, does explicit `R = ||x||`
+  let the MDN learn the border variance gradient and improve `G5` at `0.8m`?
 - **`cond_embed_dim` with stable LR**: S30/S31 confirm the direction but expose
   a convergence/stability problem; e64/lr2e4 is the only stable variant (δJB=0.387,
   same 8 G5 failures); S32 sweeps this axis more broadly with safer LR configs

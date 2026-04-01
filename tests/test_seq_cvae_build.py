@@ -159,6 +159,21 @@ class TestSubModelBuild:
         # (mean_I, mean_Q, logvar_I, logvar_Q)
         assert dec.outputs[0].shape[1:] == (4,)
 
+    def test_radial_feature_adds_internal_inputs_to_submodels(self):
+        cfg = _min_cfg(radial_feature=True)
+        prior = build_seq_prior_net(cfg)
+        enc = build_seq_encoder(cfg)
+        dec = build_seq_decoder(cfg)
+
+        assert len(prior.inputs) == 4
+        assert prior.inputs[3].shape[1:] == (1,)
+
+        assert len(enc.inputs) == 5
+        assert enc.inputs[4].shape[1:] == (1,)
+
+        assert len(dec.inputs) == 5
+        assert dec.inputs[4].shape[1:] == (1,)
+
 
 # ===========================================================================
 # 1 — Full model build
@@ -230,6 +245,14 @@ class TestFullModelBuild:
     def test_multi_layer_gru_builds(self):
         vae, _ = build_seq_cvae(_min_cfg(seq_num_layers=2))
         assert vae is not None
+
+    def test_radial_feature_keeps_external_full_model_signature(self):
+        vae, _ = build_seq_cvae(_min_cfg(radial_feature=True))
+        assert len(vae.inputs) == 4
+        assert vae.inputs[0].shape[1:] == (7, 2)
+        assert vae.inputs[1].shape[1:] == (1,)
+        assert vae.inputs[2].shape[1:] == (1,)
+        assert vae.inputs[3].shape[1:] == (2,)
 
 
 # ===========================================================================
@@ -376,6 +399,14 @@ class TestInferenceModel:
             vae, _ = build_seq_cvae(_min_cfg(window_size=W))
             inf = create_seq_inference_model(vae, deterministic=True)
             assert inf.inputs[0].shape[1] == W
+
+    def test_radial_feature_keeps_external_inference_signature(self):
+        vae, _ = build_seq_cvae(_min_cfg(window_size=9, radial_feature=True))
+        inf = create_seq_inference_model(vae, deterministic=True)
+        assert len(inf.inputs) == 3
+        assert inf.inputs[0].shape[1:] == (9, 2)
+        assert inf.inputs[1].shape[1:] == (1,)
+        assert inf.inputs[2].shape[1:] == (1,)
 
 
 # ===========================================================================

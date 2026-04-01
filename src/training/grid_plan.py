@@ -3970,6 +3970,99 @@ def _preset_seq_cond_embed_fast_stage2() -> List[Dict[str, Any]]:
             analysis_quick_overrides=analysis_quick_overrides,
         ),
     ]
+
+
+def _preset_radial_sdn_test() -> List[Dict[str, Any]]:
+    """S37 — Radial SDN (Signal-Dependent Noise) test.
+
+    A/B comparison: the S36E champion config (best from stage 2) run with
+    and without ``radial_feature=True``.  The radial feature gives the
+    decoder an explicit R=||x|| shortcut so that the heteroscedastic
+    log-variance head can learn the radial noise gradient
+    (border σ >> center σ) caused by LED non-linear clipping.
+
+    The logvar clamp has been relaxed in defaults.py (lo=-7.0, hi=1.0)
+    so the decoder can represent the full variance range observed in
+    the dataset.
+
+    Quick run — 3 configs:
+      A) Baseline: S36E config without radial (reference)
+      B) Radial: same config + radial_feature=True
+      C) Radial + wider decoder: radial + extra capacity for variance head
+    """
+    analysis_quick_overrides = {
+        "train_regime_diagnostics_enabled": False,
+        "mini_reanalysis_enabled": True,
+        "mini_reanalysis_scope": "all12",
+        "mini_reanalysis_max_samples_per_regime": 4096,
+        "grid_ranking_mode": "mini_protocol_v1",
+        "batch_infer": 16384,
+    }
+
+    _base = dict(
+        arch_variant="seq_bigru_residual",
+        layer_sizes=[128, 256, 512],
+        latent_dim=8,
+        beta=0.0015,
+        free_bits=0.10,
+        lr=2e-4,
+        batch_size=8192,
+        kl_anneal_epochs=80,
+        window_size=7,
+        window_stride=1,
+        window_pad_mode="edge",
+        seq_hidden_size=64,
+        seq_num_layers=1,
+        seq_bidirectional=True,
+        seq_gru_unroll=False,
+        lambda_mmd=0.25,
+        mmd_mode="mean_residual",
+        lambda_axis=0.01,
+        lambda_psd=0.0,
+        lambda_coverage=0.25,
+        coverage_levels=[0.50, 0.80, 0.95],
+        tail_levels=[0.05, 0.95],
+        coverage_temperature=0.03,
+        lambda_kurt=0.0,
+        decoder_distribution="mdn",
+        mdn_components=3,
+        cond_embed_dim=32,
+        cond_embed_layers=2,
+        cond_embed_residual=False,
+        shuffle_train_batches=True,
+        patience=80,
+    )
+
+    def _variant(overrides):
+        cfg = dict(_base)
+        cfg.update(overrides)
+        return _cfg(**cfg)
+
+    return [
+        dict(
+            group="S37_radial_sdn",
+            tag="S37A_baseline_no_radial",
+            cfg=_variant({"radial_feature": False}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S37_radial_sdn",
+            tag="S37B_radial",
+            cfg=_variant({"radial_feature": True}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S37_radial_sdn",
+            tag="S37C_radial_wide",
+            cfg=_variant({
+                "radial_feature": True,
+                "layer_sizes": [256, 512, 512],
+            }),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+    ]
+
+
 def _preset_seq_mdn_v2_0p8m_isolation() -> List[Dict[str, Any]]:
     """Diagnostic: MDN v2 lat8 trained ONLY on 0.8m data.
 
@@ -4515,6 +4608,8 @@ def select_grid(
             grid = _preset_seq_cond_embed_fast_stage1()
         elif preset_name == "seq_cond_embed_fast_stage2":
             grid = _preset_seq_cond_embed_fast_stage2()
+        elif preset_name == "radial_sdn_test":
+            grid = _preset_radial_sdn_test()
         elif preset_name == "seq_mdn_v2_0p8m_isolation":
             grid = _preset_seq_mdn_v2_0p8m_isolation()
         elif preset_name == "seq_gaussian_reference_full":

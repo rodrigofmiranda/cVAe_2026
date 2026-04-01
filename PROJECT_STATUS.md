@@ -60,6 +60,12 @@ Referencias principais hoje:
   - campeao: `S36F_full_e32_fb05`
   - resultado: `10/12`
   - falhas: `0.8m/300mA`, `0.8m/500mA`
+- ultimo probe radial SDN:
+  - run: `outputs/exp_20260401_172117`
+  - campeao registrado: `S37A_baseline_no_radial`
+  - resultado: `10/12` sob caps
+  - observacao: os candidatos radiais `S37B/S37C` falharam por bug de
+    interface no path sequencial rapido e precisam de rerun apos a correcao
 - melhor linha MDN historica (empate em score final):
   - run: `outputs/exp_20260325_230938`
   - resultado: `9/12`
@@ -80,6 +86,10 @@ Leitura atual:
   - `S27` passa `0.8m/500mA` e falha `0.8m/100mA`
   - `S36` passa `0.8m/100mA` e falha `0.8m/500mA`
 - `0.8m/300mA` continua sendo a falha persistente entre as melhores variantes
+- o probe `S37` nao mudou a leitura cientifica ainda:
+  - o baseline sem radial reproduziu `10/12`
+  - os bracos com `radial_feature=True` nao sao negativos validos
+  - a branch agora ja contem a correcao de interface e os testes para rerodar
 - a linha ativa agora e `MDN v2`:
   - `coverage/tail loss` opcional via `lambda_coverage`
   - ranking do grid por `mini_protocol_v1`
@@ -90,6 +100,8 @@ Leitura atual:
   - preset `seq_cond_embed_clamp_large_sweep` (`S33`)
   - preset `seq_cond_embed_fast_stage1` (`S35`)
   - preset `seq_cond_embed_fast_stage2` (`S36`)
+  - preset `radial_sdn_test` (`S37`)
+  - suporte a `radial_feature=True` no cVAE point-wise e sequencial
 - tambem existe agora uma comparacao de throughput opt-in para a linha seq MDN:
   - preset: `seq_mdn_v2_perf_compare_quick`
   - controle atual: `batch_size=4096`, `batch_infer=8192`, `seq_gru_unroll=True`

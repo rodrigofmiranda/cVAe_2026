@@ -231,5 +231,8 @@ def _env_float(name: str, default: float) -> float:
 
 # Decoder log-variance clamp calibrated from dataset residual statistics:
 # q1%(log(var_real_delta)) - 1 nat / q99%(log(var_real_delta)) + 1 nat.
-DECODER_LOGVAR_CLAMP_LO = _env_float("CVAE_DECODER_LOGVAR_CLAMP_LO", -5.82)
-DECODER_LOGVAR_CLAMP_HI = _env_float("CVAE_DECODER_LOGVAR_CLAMP_HI", -0.69)
+# 2026-04-01: relaxed hi from -0.69 (σ_max≈0.71) to 1.0 (σ_max≈1.65) and
+#             lo from -5.82 to -7.0 (σ_min≈0.03) to let the decoder capture
+#             the radial signal-dependent noise gradient (border σ >> center σ).
+DECODER_LOGVAR_CLAMP_LO = _env_float("CVAE_DECODER_LOGVAR_CLAMP_LO", -7.0)
+DECODER_LOGVAR_CLAMP_HI = _env_float("CVAE_DECODER_LOGVAR_CLAMP_HI", 1.0)

@@ -108,14 +108,20 @@ def build_encoder(cfg: Dict) -> tf.keras.Model:
     Parameters
     ----------
     cfg : dict with keys ``layer_sizes, latent_dim, activation, dropout``.
+        Optional: ``radial_feature`` (bool) — append R=||x|| to inputs.
 
     Returns
     -------
-    keras.Model  inputs=[x(2), d(1), c(1), y(2)] → [z_mean, z_log_var]
+    keras.Model  inputs=[x(2), d(1), c(1), y(2)] or
+                        [x(2), d(1), c(1), y(2), r(1)] → [z_mean, z_log_var]
     """
+    radial = bool(cfg.get("radial_feature", False))
+    in_shapes = [(2,), (1,), (1,), (2,)]
+    if radial:
+        in_shapes.append((1,))
     return build_mlp(
         name="encoder",
-        in_shapes=[(2,), (1,), (1,), (2,)],
+        in_shapes=in_shapes,
         layer_sizes=cfg["layer_sizes"],
         activation=cfg.get("activation", "leaky_relu"),
         dropout=float(cfg.get("dropout", 0.0)),
@@ -130,14 +136,20 @@ def build_prior_net(cfg: Dict) -> tf.keras.Model:
     Parameters
     ----------
     cfg : dict with keys ``layer_sizes, latent_dim, activation, dropout``.
+        Optional: ``radial_feature`` (bool) — append R=||x|| to inputs.
 
     Returns
     -------
-    keras.Model  inputs=[x(2), d(1), c(1)] → [z_mean, z_log_var]
+    keras.Model  inputs=[x(2), d(1), c(1)] or
+                        [x(2), d(1), c(1), r(1)] → [z_mean, z_log_var]
     """
+    radial = bool(cfg.get("radial_feature", False))
+    in_shapes = [(2,), (1,), (1,)]
+    if radial:
+        in_shapes.append((1,))
     return build_mlp(
         name="prior_net",
-        in_shapes=[(2,), (1,), (1,)],
+        in_shapes=in_shapes,
         layer_sizes=cfg["layer_sizes"],
         activation=cfg.get("activation", "leaky_relu"),
         dropout=float(cfg.get("dropout", 0.0)),
@@ -154,8 +166,9 @@ def build_decoder(
     arch_variant: str = "concat",
     decoder_distribution: str = "gaussian",
     mdn_components: int = 1,
+    radial_feature: bool = False,
 ) -> tf.keras.Model:
-    """Build the heteroscedastic decoder p(y | z, x, d, c).
+    """Build the heteroscedastic decoder p(y | z, x, d, c[, r]).
 
     Output has 4 units for Gaussian decoders:
     ``(mean_I, mean_Q, logvar_I, logvar_Q)``.
@@ -173,6 +186,13 @@ def build_decoder(
         Predict residual parameters ``Δ = Y - X`` explicitly. The decoder
         output stays in residual space; the training loss and inference graph
         resolve the final signal as ``Y = X + Δ``.
+
+    Parameters
+    ----------
+    radial_feature : bool
+        If True, cond_in has shape (5,) = x(2)+d(1)+c(1)+r(1) where
+        r = ||x||.  The extra feature gives the MLP a shortcut to learn
+        signal-dependent (radial) noise variance.
     """
     arch_variant = _normalize_arch_variant(arch_variant)
     decoder_distribution = str(decoder_distribution or "gaussian").strip().lower()
@@ -190,8 +210,9 @@ def build_decoder(
             dropout=dropout,
         )
 
+    cond_dim = 5 if radial_feature else 4
     z_in = layers.Input(shape=(latent_dim,), name="z_input")
-    cond_in = layers.Input(shape=(4,), name="cond_input")    # x(2)+d(1)+c(1)
+    cond_in = layers.Input(shape=(cond_dim,), name="cond_input")    # x(2)+d(1)+c(1)[+r(1)]
     h = layers.Concatenate(name="dec_concat")([z_in, cond_in])
     for i, u in enumerate(layer_sizes):
         h = layers.Dense(
@@ -262,6 +283,8 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
         from src.models.cvae_legacy_2025 import build_legacy_2025_cvae
         return build_legacy_2025_cvae(cfg)
 
+    radial = bool(cfg.get("radial_feature", False))
+
     encoder = build_encoder(cfg)
     prior_net = build_prior_net(cfg)
     decoder = build_decoder(
@@ -270,6 +293,7 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
         arch_variant=arch_variant,
         decoder_distribution=str(cfg.get("decoder_distribution", "gaussian")),
         mdn_components=int(cfg.get("mdn_components", 1)),
+        radial_feature=radial,
     )
 
     # --- Graph wiring ---
@@ -278,8 +302,21 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
     c_in = layers.Input(shape=(1,), name="current_input")
     y_in = layers.Input(shape=(2,), name="y_true")
 
-    z_mean_q, z_log_var_q = encoder([x_in, d_in, c_in, y_in])
-    z_mean_p, z_log_var_p = prior_net([x_in, d_in, c_in])
+    # Radial feature: R = ||x|| — gives the MLP an explicit shortcut to
+    # learn signal-dependent noise variance (border σ >> center σ).
+    if radial:
+        r_feat = layers.Lambda(
+            lambda x: tf.sqrt(tf.reduce_sum(tf.square(x), axis=-1, keepdims=True) + 1e-8),
+            name="radial_feature",
+        )(x_in)
+        enc_inputs = [x_in, d_in, c_in, y_in, r_feat]
+        pri_inputs = [x_in, d_in, c_in, r_feat]
+    else:
+        enc_inputs = [x_in, d_in, c_in, y_in]
+        pri_inputs = [x_in, d_in, c_in]
+
+    z_mean_q, z_log_var_q = encoder(enc_inputs)
+    z_mean_p, z_log_var_p = prior_net(pri_inputs)
 
     # C4.2 FIX: clip prior log-var in training graph too
     z_log_var_p = layers.Lambda(
@@ -289,7 +326,10 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
 
     z = Sampling(name="sampling")([z_mean_q, z_log_var_q])
 
-    cond = layers.Concatenate(name="cond_concat")([x_in, d_in, c_in])  # (N,4)
+    if radial:
+        cond = layers.Concatenate(name="cond_concat")([x_in, d_in, c_in, r_feat])  # (N,5)
+    else:
+        cond = layers.Concatenate(name="cond_concat")([x_in, d_in, c_in])  # (N,4)
     out_params = decoder([z, cond])
 
     # Loss layer (β starts at 0 for annealing)
@@ -404,11 +444,28 @@ def create_inference_model_from_full(
         from src.models.cvae_sequence import create_seq_inference_model  # lazy import
         return create_seq_inference_model(full_model, deterministic=deterministic)
 
+    # Detect radial feature: point-wise decoder cond_input has shape (None, 5)
+    # when active. Sequence models are already handled above and do not expose
+    # a `cond_input` layer.
+    dec_cond_shape = dec.get_layer("cond_input").input_shape
+    if isinstance(dec_cond_shape, list):
+        dec_cond_shape = dec_cond_shape[0]
+    has_radial = dec_cond_shape[-1] == 5
+
     x_in = layers.Input(shape=(2,), name="x_input")
     d_in = layers.Input(shape=(1,), name="distance_input")
     c_in = layers.Input(shape=(1,), name="current_input")
 
-    z_mean_p, z_log_var_p = prior([x_in, d_in, c_in])
+    if has_radial:
+        r_feat = layers.Lambda(
+            lambda x: tf.sqrt(tf.reduce_sum(tf.square(x), axis=-1, keepdims=True) + 1e-8),
+            name="radial_feature",
+        )(x_in)
+        pri_inputs = [x_in, d_in, c_in, r_feat]
+    else:
+        pri_inputs = [x_in, d_in, c_in]
+
+    z_mean_p, z_log_var_p = prior(pri_inputs)
     z_log_var_p = layers.Lambda(
         lambda t: tf.clip_by_value(t, -10.0, 10.0), name="clip_zlogvar",
     )(z_log_var_p)
@@ -423,7 +480,10 @@ def create_inference_model_from_full(
             lambda a: a[0] + tf.exp(0.5 * a[1]) * a[2], name="sample_z",
         )([z_mean_p, z_log_var_p, eps_z])
 
-    cond = layers.Concatenate(name="cond_concat_inf")([x_in, d_in, c_in])
+    if has_radial:
+        cond = layers.Concatenate(name="cond_concat_inf")([x_in, d_in, c_in, r_feat])
+    else:
+        cond = layers.Concatenate(name="cond_concat_inf")([x_in, d_in, c_in])
     out_params = dec([z, cond])
 
     if is_delta_residual:

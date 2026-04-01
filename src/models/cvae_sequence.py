@@ -292,9 +292,16 @@ def build_seq_prior_net(cfg: Dict) -> tf.keras.Model:
     dropout   = float(cfg.get("dropout", 0.0))
     mlp_sizes = list(cfg["layer_sizes"])
 
+    radial = bool(cfg.get("radial_feature", False))
+
     x_win_in = layers.Input(shape=(W, 2), name="prior_net_x_window")
     d_in     = layers.Input(shape=(1,),   name="prior_net_d")
     c_in     = layers.Input(shape=(1,),   name="prior_net_c")
+
+    model_inputs = [x_win_in, d_in, c_in]
+    if radial:
+        r_in = layers.Input(shape=(1,), name="prior_net_r")
+        model_inputs.append(r_in)
 
     # Broadcast (d, c) along the time axis and concatenate with x_window → (W, 4)
     d_rep  = layers.RepeatVector(W, name="prior_net_d_rep")(d_in)
@@ -308,6 +315,10 @@ def build_seq_prior_net(cfg: Dict) -> tf.keras.Model:
         seq_in, hidden, n_layers, bidir, gru_unroll, gru_backend, dropout, name_prefix="prior_net"
     )
 
+    # Append radial feature to context before MLP head
+    if radial:
+        h = layers.Concatenate(name="prior_net_ctx_r")([h, r_in])
+
     # MLP head
     h = _mlp_head(h, mlp_sizes, act, dropout, name_prefix="prior_net")
 
@@ -315,7 +326,7 @@ def build_seq_prior_net(cfg: Dict) -> tf.keras.Model:
     z_log_var = layers.Dense(latent, name="p_z_log_var")(h)
 
     return models.Model(
-        [x_win_in, d_in, c_in], [z_mean, z_log_var], name="prior_net",
+        model_inputs, [z_mean, z_log_var], name="prior_net",
     )
 
 
@@ -343,10 +354,17 @@ def build_seq_encoder(cfg: Dict) -> tf.keras.Model:
     dropout   = float(cfg.get("dropout", 0.0))
     mlp_sizes = list(cfg["layer_sizes"])
 
+    radial = bool(cfg.get("radial_feature", False))
+
     x_win_in  = layers.Input(shape=(W, 2), name="encoder_x_window")
     d_in      = layers.Input(shape=(1,),   name="encoder_d")
     c_in      = layers.Input(shape=(1,),   name="encoder_c")
     y_cent_in = layers.Input(shape=(2,),   name="encoder_y_center")
+
+    model_inputs = [x_win_in, d_in, c_in, y_cent_in]
+    if radial:
+        r_in = layers.Input(shape=(1,), name="encoder_r")
+        model_inputs.append(r_in)
 
     # Broadcast (d, c) and concatenate with x_window → (W, 4)
     d_rep  = layers.RepeatVector(W, name="encoder_d_rep")(d_in)
@@ -360,8 +378,11 @@ def build_seq_encoder(cfg: Dict) -> tf.keras.Model:
         seq_in, hidden, n_layers, bidir, gru_unroll, gru_backend, dropout, name_prefix="encoder"
     )
 
-    # Append y_center to the context vector before the MLP head
-    h = layers.Concatenate(name="encoder_ctx_y")([h, y_cent_in])
+    # Append y_center (and radial feature if active) to context before MLP head
+    ctx_parts = [h, y_cent_in]
+    if radial:
+        ctx_parts.append(r_in)
+    h = layers.Concatenate(name="encoder_ctx_y")(ctx_parts)
 
     # MLP head
     h = _mlp_head(h, mlp_sizes, act, dropout, name_prefix="encoder")
@@ -370,7 +391,7 @@ def build_seq_encoder(cfg: Dict) -> tf.keras.Model:
     z_log_var = layers.Dense(latent, name="q_z_log_var")(h)
 
     return models.Model(
-        [x_win_in, d_in, c_in, y_cent_in], [z_mean, z_log_var], name="encoder",
+        model_inputs, [z_mean, z_log_var], name="encoder",
     )
 
 
@@ -407,10 +428,20 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
     cond_embed_layers = max(1, int(cfg.get("cond_embed_layers", 2)))
     cond_embed_residual = bool(cfg.get("cond_embed_residual", False))
 
+    radial = bool(cfg.get("radial_feature", False))
+
     z_in      = layers.Input(shape=(latent,), name="z_input")
     x_cent_in = layers.Input(shape=(2,),      name="x_center_input")
     d_in      = layers.Input(shape=(1,),      name="d_input")
     c_in      = layers.Input(shape=(1,),      name="c_input")
+
+    # Radial feature: R = ||x_center|| — shortcut for signal-dependent noise.
+    if radial:
+        r_in = layers.Input(shape=(1,), name="r_input")
+        model_inputs = [z_in, x_cent_in, d_in, c_in, r_in]
+    else:
+        r_in = None
+        model_inputs = [z_in, x_cent_in, d_in, c_in]
 
     if cond_embed_dim > 0:
         # Nonlinear regime embedding: (d, c) → cond_embed_layers-layer MLP → cond_embed_dim
@@ -418,13 +449,20 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
         cond_h = layers.Dense(cond_embed_dim, activation=act, name="dec_cond_emb_0")(cond_raw)
         for _i in range(1, cond_embed_layers):
             cond_h = layers.Dense(cond_embed_dim, activation=act, name=f"dec_cond_emb_{_i}")(cond_h)
+        concat_parts = [z_in, x_cent_in]
         if cond_embed_residual:
             # Skip connection: keep raw (d,c) alongside embedding
-            h = layers.Concatenate(name="dec_concat")([z_in, x_cent_in, d_in, c_in, cond_h])
+            concat_parts.extend([d_in, c_in, cond_h])
         else:
-            h = layers.Concatenate(name="dec_concat")([z_in, x_cent_in, cond_h])
+            concat_parts.append(cond_h)
+        if radial:
+            concat_parts.append(r_in)
+        h = layers.Concatenate(name="dec_concat")(concat_parts)
     else:
-        h = layers.Concatenate(name="dec_concat")([z_in, x_cent_in, d_in, c_in])
+        concat_parts = [z_in, x_cent_in, d_in, c_in]
+        if radial:
+            concat_parts.append(r_in)
+        h = layers.Concatenate(name="dec_concat")(concat_parts)
 
     h = _mlp_head(h, mlp_sizes, act, dropout, name_prefix="dec")
 
@@ -447,7 +485,7 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
         y_mean = layers.Add(name="y_mean_residual")([x_cent_in, delta_mean])
         out = layers.Concatenate(name="output_params")([y_mean, delta_lv])
 
-    return models.Model([z_in, x_cent_in, d_in, c_in], out, name="decoder")
+    return models.Model(model_inputs, out, name="decoder")
 
 
 # ======================================================================
@@ -481,6 +519,8 @@ def build_seq_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
     kl_anneal_epochs = int(cfg.get("kl_anneal_epochs", 50))
     half             = W // 2
 
+    radial = bool(cfg.get("radial_feature", False))
+
     encoder   = build_seq_encoder(cfg)
     prior_net = build_seq_prior_net(cfg)
     decoder   = build_seq_decoder(cfg)
@@ -494,11 +534,23 @@ def build_seq_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
     # Extract the center sample from the window (used by decoder and loss)
     x_center = ExtractCenterFrame(half, name="x_center_extract")(x_win_in)
 
-    # Posterior q(z | x_window, d, c, y_center)
-    z_mean_q, z_log_var_q = encoder([x_win_in, d_in, c_in, y_in])
+    # Radial feature: R = ||x_center|| — shortcut for signal-dependent noise.
+    if radial:
+        r_feat = layers.Lambda(
+            lambda x: tf.sqrt(tf.reduce_sum(tf.square(x), axis=-1, keepdims=True) + 1e-8),
+            name="radial_feature",
+        )(x_center)
+        enc_inputs = [x_win_in, d_in, c_in, y_in, r_feat]
+        pri_inputs = [x_win_in, d_in, c_in, r_feat]
+    else:
+        enc_inputs = [x_win_in, d_in, c_in, y_in]
+        pri_inputs = [x_win_in, d_in, c_in]
 
-    # Prior p(z | x_window, d, c)
-    z_mean_p, z_log_var_p = prior_net([x_win_in, d_in, c_in])
+    # Posterior q(z | x_window, d, c, y_center[, r])
+    z_mean_q, z_log_var_q = encoder(enc_inputs)
+
+    # Prior p(z | x_window, d, c[, r])
+    z_mean_p, z_log_var_p = prior_net(pri_inputs)
 
     # Clip prior log-var in the training graph (mirrors cvae.py)
     z_log_var_p = ClipValues(-10.0, 10.0, name="clip_p_logvar_train")(z_log_var_p)
@@ -506,8 +558,11 @@ def build_seq_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
     # Sample z from the posterior
     z = Sampling(name="sampling")([z_mean_q, z_log_var_q])
 
-    # Decode: p(y | z, x_center, d, c)
-    out_params = decoder([z, x_center, d_in, c_in])
+    # Decode: p(y | z, x_center, d, c[, r])
+    if radial:
+        out_params = decoder([z, x_center, d_in, c_in, r_feat])
+    else:
+        out_params = decoder([z, x_center, d_in, c_in])
 
     # KL + reconstruction loss (beta starts at 0 for annealing)
     lambda_mmd = float(cfg.get("lambda_mmd", 0.0))
@@ -588,6 +643,12 @@ def create_seq_inference_model(
     prior = full_model.get_layer("prior_net")
     dec   = full_model.get_layer("decoder")
 
+    # Detect radial feature structurally.
+    # Decoder inputs are:
+    #   non-radial: [z, x_center, d, c]
+    #   radial:     [z, x_center, d, c, r]
+    has_radial = len(dec.inputs) == 5
+
     # Infer window_size from the prior's first input (x_window shape=(None,W,2))
     W    = prior.inputs[0].shape[1]
     half = W // 2
@@ -596,7 +657,18 @@ def create_seq_inference_model(
     d_in     = layers.Input(shape=(1,),   name="distance_input")
     c_in     = layers.Input(shape=(1,),   name="current_input")
 
-    z_mean_p, z_log_var_p = prior([x_win_in, d_in, c_in])
+    x_center = ExtractCenterFrame(half, name="x_center_extract")(x_win_in)
+
+    if has_radial:
+        r_feat = layers.Lambda(
+            lambda x: tf.sqrt(tf.reduce_sum(tf.square(x), axis=-1, keepdims=True) + 1e-8),
+            name="radial_feature",
+        )(x_center)
+        pri_inputs = [x_win_in, d_in, c_in, r_feat]
+    else:
+        pri_inputs = [x_win_in, d_in, c_in]
+
+    z_mean_p, z_log_var_p = prior(pri_inputs)
     z_log_var_p = ClipValues(-10.0, 10.0, name="clip_zlogvar")(z_log_var_p)
 
     if deterministic:
@@ -604,8 +676,10 @@ def create_seq_inference_model(
     else:
         z = Sampling(name="z_sample")([z_mean_p, z_log_var_p])
 
-    x_center = ExtractCenterFrame(half, name="x_center_extract")(x_win_in)
-    out_params = dec([z, x_center, d_in, c_in])
+    if has_radial:
+        out_params = dec([z, x_center, d_in, c_in, r_feat])
+    else:
+        out_params = dec([z, x_center, d_in, c_in])
     out_dim = int(dec.output_shape[-1])
     is_mdn = out_dim > 4 and out_dim % 5 == 0
 
