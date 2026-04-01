@@ -8,7 +8,8 @@ events.out.tfevents.*
 
 # Datasets (large binary data) – only allow LFS-tracked content
 data/*
-!data/dataset_fullsquare_organized/
+!data/dataset_*_organized/
+!data/16qam/
 
 # Backups locais (não versionar)
 backup/

@@ -1,0 +1,48 @@
+{
+  "distance_m": 1.5,
+  "psu": {
+    "idn": "Siglent Technologies,SPD3303C,SPD3EGGC900104,1.02.01.02.02R3,V2.0",
+    "channel": "CH1",
+    "v_max_V": 18.0,
+    "i_set_A": 0.8,
+    "i_meas_A": 0.8,
+    "v_meas_V": 15.57
+  },
+  "environment": {
+    "temperature_C": null
+  },
+  "timing": {
+    "step_s": 120.0,
+    "note": "step_s usado para estabilização e aquisição"
+  },
+  "acquisition": {
+    "samples": 2000000.0,
+    "samp_rate": 200000.0,
+    "sps": 4
+  },
+  "timestamp": "20260210_192413",
+  "files": {
+    "sent": "16QAM_1.5m_800mA_001_20260210_192413_sent.c64",
+    "received": "16QAM_1.5m_800mA_001_20260210_192413_recv.c64"
+  },
+  "dist_m": 1.5,
+  "curr_mA": 800.0,
+  "regime_id": "dist_1p5m__curr_800mA",
+  "conversion": {
+    "fixed_hardware_multiplier": null,
+    "startup_skip_frac": 0.1,
+    "startup_skip_samples": 200000,
+    "estimated_lag_samples": 495,
+    "estimated_phase_rad": -1.7159963846206665,
+    "anchor": {
+      "dist_m": 0.8,
+      "curr_mA": 300.0
+    },
+    "factor_ref": 4.309891182022685,
+    "normalization": "y_norm = y_sync * factor_ref (global anchor scaling)",
+    "notes": [
+      "No per-experiment power normalization is applied (preserves attenuation across regimes).",
+      "Gaussianity is evaluated on residual r = y_norm - x (not on y)."
+    ]
+  }
+}
