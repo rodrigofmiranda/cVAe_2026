@@ -15,6 +15,8 @@ from typing import Any, Dict, Optional
 import numpy as np
 import pandas as pd
 
+from src.models.sampling import build_prior_predict_inputs
+
 
 # ---------------------------------------------------------------------------
 # Global metrics assembly
@@ -175,7 +177,11 @@ def decoder_sensitivity(
     """
     from src.models.losses import _mdn_expected_mean
 
-    mu_p, lv_p = prior_net.predict([Xb, Db, Cb], batch_size=batch_size, verbose=0)
+    mu_p, lv_p = prior_net.predict(
+        build_prior_predict_inputs(prior_net, Xb, Db, Cb),
+        batch_size=batch_size,
+        verbose=0,
+    )
     lv_p = np.clip(lv_p, -10, 10)
     std_p = np.exp(0.5 * lv_p)
     n_decoder_inputs = len(decoder_net.inputs)

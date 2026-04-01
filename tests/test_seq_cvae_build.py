@@ -22,6 +22,7 @@ from src.models.cvae_sequence import (
     build_seq_prior_net,
     create_seq_inference_model,
 )
+from src.models.sampling import build_prior_predict_inputs
 
 
 # ---------------------------------------------------------------------------
@@ -335,6 +336,17 @@ class TestForwardPass:
         layer_names = {l.name for l in dec.layers}
         assert "y_mean_residual" in layer_names, "Missing 'y_mean_residual' Add layer"
         assert "delta_mean" in layer_names, "Missing 'delta_mean' Lambda layer"
+
+    def test_radial_prior_predict_inputs_match_seq_signature(self):
+        cfg = _min_cfg(radial_feature=True)
+        prior = build_seq_prior_net(cfg)
+        X_win, D, C, _ = _toy_batch(8, cfg["window_size"])
+        inputs = build_prior_predict_inputs(prior, X_win, D, C)
+        assert len(inputs) == 4
+        assert inputs[0].shape == X_win.shape
+        assert inputs[1].shape == D.shape
+        assert inputs[2].shape == C.shape
+        assert inputs[3].shape == (8, 1)
 
 
 # ===========================================================================

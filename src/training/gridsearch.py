@@ -20,6 +20,8 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import pandas as pd
 
+from src.models.sampling import build_prior_predict_inputs
+
 # ---------------------------------------------------------------------------
 # Public helpers (moved from monolith inner scope)
 # ---------------------------------------------------------------------------
@@ -1265,7 +1267,7 @@ def run_gridsearch(
 
                 prior_net = vae.get_layer("prior_net")
                 mu_p, logvar_p = prior_net.predict(
-                    [Xv, Dv, Cv],
+                    build_prior_predict_inputs(prior_net, Xv, Dv, Cv),
                     batch_size=int(candidate_analysis_quick["batch_infer"]),
                     verbose=0,
                 )
