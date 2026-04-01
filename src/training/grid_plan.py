@@ -3973,6 +3973,275 @@ def _preset_seq_cond_embed_fast_stage2() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_cond_embed_fast_stage3_bigarch() -> List[Dict[str, Any]]:
+    """S37 — Exploratory complementary stage with larger-capacity hypotheses.
+
+    Designed to complement stage-2 promotions without repeating the same axis.
+    Main exploration moves:
+      - bigger decoder/MLP stacks (`layer_sizes` up to 1024)
+      - larger recurrent backbone (`seq_hidden_size=128`, `seq_num_layers=2`)
+      - larger batches (`12288` to `16384`)
+      - unseen embedding regimes (`cond_embed_dim=48/96`)
+
+    Run with wide clamp:
+      `CVAE_DECODER_LOGVAR_CLAMP_LO=-6.82`
+      `CVAE_DECODER_LOGVAR_CLAMP_HI=0.31`
+    """
+    analysis_quick_overrides = {
+        "train_regime_diagnostics_enabled": False,
+        "mini_reanalysis_enabled": True,
+        "mini_reanalysis_scope": "all12",
+        "mini_reanalysis_max_samples_per_regime": 4096,
+        "grid_ranking_mode": "mini_protocol_v1",
+        "batch_infer": 16384,
+    }
+
+    _base = dict(
+        arch_variant="seq_bigru_residual",
+        layer_sizes=[256, 512, 1024],
+        latent_dim=8,
+        beta=0.0015,
+        free_bits=0.10,
+        lr=1.5e-4,
+        batch_size=12288,
+        kl_anneal_epochs=80,
+        window_size=9,
+        window_stride=1,
+        window_pad_mode="edge",
+        seq_hidden_size=128,
+        seq_num_layers=2,
+        seq_bidirectional=True,
+        seq_gru_unroll=False,
+        lambda_mmd=0.25,
+        mmd_mode="mean_residual",
+        lambda_axis=0.01,
+        lambda_psd=0.0,
+        lambda_coverage=0.25,
+        coverage_levels=[0.50, 0.80, 0.95],
+        tail_levels=[0.05, 0.95],
+        coverage_temperature=0.03,
+        lambda_kurt=0.0,
+        decoder_distribution="mdn",
+        mdn_components=3,
+        cond_embed_dim=48,
+        cond_embed_layers=2,
+        cond_embed_residual=False,
+        shuffle_train_batches=True,
+        patience=80,
+    )
+
+    def _variant(overrides):
+        cfg = dict(_base)
+        cfg.update(overrides)
+        return _cfg(**cfg)
+
+    return [
+        dict(
+            group="S37_fast_stage3_bigarch",
+            tag="S37A_big_e48_l256-512-1024_h128x2_bs12288_b15",
+            cfg=_variant({}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S37_fast_stage3_bigarch",
+            tag="S37B_big_e48_lat10_mdn5_w11_h128x2_bs12288",
+            cfg=_variant(
+                {
+                    "latent_dim": 10,
+                    "mdn_components": 5,
+                    "window_size": 11,
+                }
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S37_fast_stage3_bigarch",
+            tag="S37C_big_e96_emb3_resid_fb08_mmd30_bs12288",
+            cfg=_variant(
+                {
+                    "cond_embed_dim": 96,
+                    "cond_embed_layers": 3,
+                    "cond_embed_residual": True,
+                    "free_bits": 0.08,
+                    "lambda_mmd": 0.30,
+                }
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S37_fast_stage3_bigarch",
+            tag="S37D_big_e48_l192-384-768_h128x2_bs16384_lr12e5",
+            cfg=_variant(
+                {
+                    "layer_sizes": [192, 384, 768],
+                    "batch_size": 16384,
+                    "lr": 1.2e-4,
+                }
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+    ]
+
+
+def _preset_seq_cond_embed_fast_stage4_edgegap() -> List[Dict[str, Any]]:
+    """S38 — Edge-gap focused continuation after S37.
+
+    Applies three targeted adjustments motivated by the center-to-edge
+    diagnostics:
+
+      1) Distribution matching on sampled residuals:
+         ``mmd_mode='sampled_residual'``
+      2) Stronger tail calibration pressure:
+         tighter ``tail_levels`` plus higher ``lambda_coverage`` and lower
+         ``coverage_temperature``
+      3) Better regime conditioning where mismatch is worst (0.8m):
+         larger conditional embedding and optional regime-weighted resampling
+         focused on ``dist_0p8m``.
+
+    Intended runtime clamp:
+      ``CVAE_DECODER_LOGVAR_CLAMP_LO=-6.82``
+      ``CVAE_DECODER_LOGVAR_CLAMP_HI=0.31``
+    """
+    analysis_quick_overrides = {
+        "train_regime_diagnostics_enabled": True,
+        "train_regime_diagnostics_every": 10,
+        "train_regime_diagnostics_mc_samples": 4,
+        "train_regime_diagnostics_max_samples_per_regime": 4096,
+        "train_regime_diagnostics_amplitude_bins": 4,
+        "train_regime_diagnostics_focus_only_0p8m": True,
+        "mini_reanalysis_enabled": True,
+        "mini_reanalysis_scope": "all12",
+        "mini_reanalysis_max_samples_per_regime": 4096,
+        "grid_ranking_mode": "mini_protocol_v1",
+        "batch_infer": 16384,
+    }
+
+    def _weights_0p8m(mult: float) -> Dict[str, float]:
+        return {
+            "dist_0p8m__curr_100mA": float(mult),
+            "dist_0p8m__curr_300mA": float(mult),
+            "dist_0p8m__curr_500mA": float(mult),
+            "dist_0p8m__curr_700mA": float(mult),
+        }
+
+    _base = dict(
+        arch_variant="seq_bigru_residual",
+        layer_sizes=[192, 384, 768],
+        latent_dim=8,
+        beta=0.0015,
+        free_bits=0.10,
+        lr=1.2e-4,
+        batch_size=16384,
+        kl_anneal_epochs=80,
+        window_size=9,
+        window_stride=1,
+        window_pad_mode="edge",
+        seq_hidden_size=128,
+        seq_num_layers=2,
+        seq_bidirectional=True,
+        seq_gru_unroll=False,
+        lambda_mmd=0.25,
+        mmd_mode="sampled_residual",
+        lambda_axis=0.01,
+        lambda_psd=0.0,
+        lambda_coverage=0.30,
+        coverage_levels=[0.50, 0.80, 0.95],
+        tail_levels=[0.02, 0.98],
+        coverage_temperature=0.02,
+        lambda_kurt=0.0,
+        decoder_distribution="mdn",
+        mdn_components=3,
+        cond_embed_dim=48,
+        cond_embed_layers=2,
+        cond_embed_residual=False,
+        shuffle_train_batches=True,
+        patience=80,
+    )
+
+    def _variant(overrides):
+        cfg = dict(_base)
+        cfg.update(overrides)
+        return _cfg(**cfg)
+
+    return [
+        dict(
+            group="S38_fast_stage4_edgegap",
+            tag="S38A_smplmmd_cov30_t02_tail02-98_e48_base",
+            cfg=_variant({}),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S38_fast_stage4_edgegap",
+            tag="S38B_smplmmd_cov35_t015_tail01-99_e48",
+            cfg=_variant(
+                {
+                    "lambda_coverage": 0.35,
+                    "coverage_temperature": 0.015,
+                    "tail_levels": [0.01, 0.99],
+                }
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S38_fast_stage4_edgegap",
+            tag="S38C_smplmmd_cov30_t02_tail02-98_e96_emb3_resid",
+            cfg=_variant(
+                {
+                    "cond_embed_dim": 96,
+                    "cond_embed_layers": 3,
+                    "cond_embed_residual": True,
+                }
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S38_fast_stage4_edgegap",
+            tag="S38D_smplmmd_cov30_t02_tail02-98_e96_emb3_resid_w08x18",
+            cfg=_variant(
+                {
+                    "cond_embed_dim": 96,
+                    "cond_embed_layers": 3,
+                    "cond_embed_residual": True,
+                    "train_regime_resample_weights": _weights_0p8m(1.8),
+                }
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S38_fast_stage4_edgegap",
+            tag="S38E_smplmmd_cov35_t015_tail01-99_e96_emb3_resid_w08x22",
+            cfg=_variant(
+                {
+                    "lambda_coverage": 0.35,
+                    "coverage_temperature": 0.015,
+                    "tail_levels": [0.01, 0.99],
+                    "cond_embed_dim": 96,
+                    "cond_embed_layers": 3,
+                    "cond_embed_residual": True,
+                    "train_regime_resample_weights": _weights_0p8m(2.2),
+                }
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="S38_fast_stage4_edgegap",
+            tag="S38F_smplmmd_cov30_t02_tail02-98_e96_mdn5_w08x18_fb08",
+            cfg=_variant(
+                {
+                    "cond_embed_dim": 96,
+                    "cond_embed_layers": 3,
+                    "cond_embed_residual": True,
+                    "mdn_components": 5,
+                    "free_bits": 0.08,
+                    "lambda_mmd": 0.30,
+                    "train_regime_resample_weights": _weights_0p8m(1.8),
+                }
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+    ]
+
+
 def _preset_seq_mdn_v2_0p8m_isolation() -> List[Dict[str, Any]]:
     """Diagnostic: MDN v2 lat8 trained ONLY on 0.8m data.
 
@@ -4518,6 +4787,10 @@ def select_grid(
             grid = _preset_seq_cond_embed_fast_stage1()
         elif preset_name == "seq_cond_embed_fast_stage2":
             grid = _preset_seq_cond_embed_fast_stage2()
+        elif preset_name == "seq_cond_embed_fast_stage3_bigarch":
+            grid = _preset_seq_cond_embed_fast_stage3_bigarch()
+        elif preset_name == "seq_cond_embed_fast_stage4_edgegap":
+            grid = _preset_seq_cond_embed_fast_stage4_edgegap()
         elif preset_name == "seq_mdn_v2_0p8m_isolation":
             grid = _preset_seq_mdn_v2_0p8m_isolation()
         elif preset_name == "seq_gaussian_reference_full":
