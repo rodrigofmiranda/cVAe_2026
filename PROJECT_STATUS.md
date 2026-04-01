@@ -1,23 +1,31 @@
 # PROJECT_STATUS
 
-> Atualizado em 2026-03-27.
+> Atualizado em 2026-04-01.
 > Este arquivo e o inventario oficial das worktrees e do estado ativo do repositorio.
 
 ## Worktrees
 
 Worktrees git registradas neste repositorio:
 
-1. `/workspace/2026/feat_seq_bigru_residual_cvae`
-   - branch: `feat/mdn-g5-recovery`
+1. `/workspace/2026/feat_mdn_g5_recovery_explore`
+   - branch: `feat/mdn-g5-recovery-explore-all`
    - status: worktree ativa atual
-   - foco: recuperar as falhas residuais de `G5` perto de `0.8 m` partindo da
-     melhor linha MDN estavel
+   - foco: continuacao `two-stage` da melhor linha MDN com clamp largo e
+     decoder-conditioning embedding
 
-No momento nao ha worktree secundaria registrada por `git worktree list`.
+2. `/workspace/2026/feat_mdn_g5_recovery_remote`
+   - branch: `feat/mdn-g5-recovery-explore-remote`
+   - status: worktree complementar preparada para execucao remota
+   - foco: sweep complementar de KL/coverage e presets fast two-stage
+
+3. worktrees adicionais registradas via `git worktree list`
+   - total atual: `9`
+   - incluem linhas de diffusion, flow, mdn_route, graybox e a branch base
+     `feat/mdn-g5-recovery-run`
 
 ## Branch Atual
 
-- branch ativa: `feat/mdn-g5-recovery`
+- branch ativa: `feat/mdn-g5-recovery-explore-all`
 - entrypoint canonico:
   - `python -m src.protocol.run`
 
@@ -39,6 +47,19 @@ Referencias principais hoje:
   - run: `outputs/exp_20260327_161311`
   - resultado: `9/12`
   - gates: `gate_g5_pass=10`, `gate_g6_pass=12`
+- melhor ancora historica de `10/12` na linha S27:
+  - run: `outputs/exp_20260328_153611`
+  - campeao: `S27cov_lc0p25_tail95_t0p03`
+  - falhas: `0.8m/100mA`, `0.8m/300mA`
+- ultimo quick de triagem da continuacao atual:
+  - run: `outputs/exp_20260331_155321`
+  - campeao: `S35F_fast_e32_b15`
+  - resultado: `9/12`
+- ultimo full protocol da continuacao atual:
+  - run: `outputs/exp_20260331_220659`
+  - campeao: `S36F_full_e32_fb05`
+  - resultado: `10/12`
+  - falhas: `0.8m/300mA`, `0.8m/500mA`
 - melhor linha MDN historica (empate em score final):
   - run: `outputs/exp_20260325_230938`
   - resultado: `9/12`
@@ -50,15 +71,25 @@ Referencias principais hoje:
 Leitura atual:
 
 - a familia `seq_bigru_residual` continua sendo a principal linha temporal
-- a melhor MDN ficou competitiva, mas ainda abaixo da referencia gaussiana
+- a melhor MDN ja igualou o teto de `10/12` em duas configuracoes distintas
+  (`S27` e `S36`)
 - `sample-aware MMD`, o flow `sinh-arcsinh` atual e o weighting puro por regime
   devem ser tratados como linhas negativas nesta iteracao
-- o gargalo restante segue concentrado em `0.8 m`, principalmente em `G5`
+- o gargalo restante segue concentrado em `0.8 m`, apenas em `G5`
+- a linha atual mostra um tradeoff claro:
+  - `S27` passa `0.8m/500mA` e falha `0.8m/100mA`
+  - `S36` passa `0.8m/100mA` e falha `0.8m/500mA`
+- `0.8m/300mA` continua sendo a falha persistente entre as melhores variantes
 - a linha ativa agora e `MDN v2`:
   - `coverage/tail loss` opcional via `lambda_coverage`
   - ranking do grid por `mini_protocol_v1`
   - `decoder_sensitivity` seq/MDN corrigido e finito
   - `latent_summary` mantido apenas como telemetria de auditoria
+- a continuacao local adicionou:
+  - clamp largo por ambiente (`CVAE_DECODER_LOGVAR_CLAMP_LO/HI`)
+  - preset `seq_cond_embed_clamp_large_sweep` (`S33`)
+  - preset `seq_cond_embed_fast_stage1` (`S35`)
+  - preset `seq_cond_embed_fast_stage2` (`S36`)
 - tambem existe agora uma comparacao de throughput opt-in para a linha seq MDN:
   - preset: `seq_mdn_v2_perf_compare_quick`
   - controle atual: `batch_size=4096`, `batch_infer=8192`, `seq_gru_unroll=True`
@@ -231,7 +262,7 @@ Docs ativos:
 ## Como Retomar Rapidamente
 
 ```bash
-cd /workspace/2026/feat_seq_bigru_residual_cvae
+cd /workspace/2026/feat_mdn_g5_recovery_explore
 git status -sb
 git worktree list
 python scripts/analysis/summarize_experiment.py "$(ls -td outputs/exp_* | head -1)"

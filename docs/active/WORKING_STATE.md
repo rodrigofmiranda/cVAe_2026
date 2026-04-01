@@ -8,11 +8,11 @@ start here.
 ## Current Worktree
 
 - active worktree:
-  - `/workspace/2026/feat_seq_bigru_residual_cvae`
+  - `/workspace/2026/feat_mdn_g5_recovery_explore`
 - active branch:
-  - `feat/mdn-g5-recovery`
+  - `feat/mdn-g5-recovery-explore-all`
 - git worktree count:
-  - `1`
+  - `9`
 
 ## Current Scientific Anchors
 
@@ -33,6 +33,20 @@ start here.
   - fails: `0.8m/100mA` (JBrel=3.59), `0.8m/300mA` (JBrel=0.36) — G5 only
   - G3 now passes on all 12 regimes; G6 now passes on all 12 regimes
   - `gate_g5_pass=10`, `gate_g6_pass=12`, `mean_stat_mmd_qval=0.37`
+- **latest fast stage-1 triage (wide clamp, capped data)**:
+  - `outputs/exp_20260331_155321`
+  - `9/12` champion: `S35F_fast_e32_b15`
+  - full protocol under caps confirmed that `cond_embed_dim=32` + `beta=0.0015`
+    is the strongest continuation of the S27 line on the fast path
+  - failures remained at `0.8m/100mA`, `0.8m/300mA`, `0.8m/500mA`
+- **latest valid full-data continuation (wide clamp + fast path)**:
+  - `outputs/exp_20260331_220659`
+  - **`10/12`** champion: `S36F_full_e32_fb05` (`cond_embed_dim=32`, `free_bits=0.05`)
+  - passes: `0.8m/100mA`, `0.8m/700mA`, all `1.0m`, all `1.5m`
+  - fails: `0.8m/300mA`, `0.8m/500mA` — G5 only
+  - G3 and G6 pass on all 12 regimes
+  - reading: the wide clamp plus softer free-bits pressure shifts one failure
+    from `0.8m/100mA` to `0.8m/500mA`, but does not yet exceed the `10/12` ceiling
 - Gaussian reference (full protocol + G6, 8.6M train):
   - `outputs/exp_20260328_023430`
   - `4/12` champion: `S26gauss_lat8`
@@ -190,6 +204,12 @@ Current branch reading (2026-03-30, after S27 + S28 + S29 + S30 + S31):
   embed64/lr3e4, embed32+residual/lr2e4, embed64+residual/lr2e4,
   embed32+3-layer/lr2e4, embed64+mdn5/lr2e4, embed32/lat7/lr2e4
 - G6 not computed in S30/S31 (stat_fidelity disabled); S32 also has stat disabled
+- S35 (`seq_cond_embed_fast_stage1`) validated the two-stage workflow:
+  `9/12` under caps, with `S35F_fast_e32_b15` as the best triage candidate
+- S36 (`seq_cond_embed_fast_stage2`) promoted 3 finalists on full data and
+  recovered `10/12` with `S36F_full_e32_fb05`
+- compared with S27, S36 improves `0.8m/100mA` but regresses `0.8m/500mA`;
+  the ceiling remains `10/12`, but the failure topology changed
 
 ## Current Direction
 
@@ -213,11 +233,15 @@ leptokurtic shape at short distance and low current, not addressable within the
 current seq_bigru_residual + MDN + coverage-loss family.**
 
 Open questions:
+- **S36 vs S27 tradeoff**: decide whether passing `0.8m/100mA` is more valuable
+  than losing `0.8m/500mA`, or whether the next sweep should explicitly target
+  `0.8m/300mA` + `0.8m/500mA`
 - **`cond_embed_dim` with stable LR**: S30/S31 confirm the direction but expose
   a convergence/stability problem; e64/lr2e4 is the only stable variant (δJB=0.387,
   same 8 G5 failures); S32 sweeps this axis more broadly with safer LR configs
-- **accept the current ceiling** (~7–8/12 expected, 10/12 best known) and move
-  to the next scientific milestone if S32 confirms the embed ceiling
+- **accept the current ceiling** (`10/12` now reproduced on two distinct
+  settings: S27 and S36) or open a narrower sweep focused on the remaining
+  `0.8m/300mA` and `0.8m/500mA` G5 failures
 
 Do not reopen:
 - `tail_levels=[0.01,0.99]` — tested negative in S27
