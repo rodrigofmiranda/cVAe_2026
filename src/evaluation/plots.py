@@ -109,6 +109,104 @@ def plot_residual_overlay(
     return _savefig(save_path)
 
 
+def plot_residual_fingerprint(
+    X: np.ndarray,
+    Y_real: np.ndarray,
+    Y_pred: np.ndarray,
+    save_path: Path,
+    *,
+    distm: Optional[dict] = None,
+    max_points: int = 80_000,
+    bins: int = 140,
+    title: str = "Residual fingerprint: real vs pred",
+) -> Path:
+    """Compact fingerprint view for residual shape and mismatch diagnostics."""
+    import matplotlib.pyplot as plt
+    from src.evaluation.metrics import _skew_kurt, residual_distribution_metrics
+
+    N = min(max_points, len(X), len(Y_real), len(Y_pred))
+    Xs = np.asarray(X[:N], dtype=np.float64)
+    Yr = np.asarray(Y_real[:N], dtype=np.float64)
+    Yp = np.asarray(Y_pred[:N], dtype=np.float64)
+
+    Dr = Yr - Xs
+    Dp = Yp - Xs
+    skew_r, kurt_r = _skew_kurt(Dr)
+    skew_p, kurt_p = _skew_kurt(Dp)
+    mean_r = np.mean(Dr, axis=0)
+    mean_p = np.mean(Dp, axis=0)
+    std_r = np.std(Dr, axis=0)
+    std_p = np.std(Dp, axis=0)
+
+    metrics = distm if isinstance(distm, dict) else residual_distribution_metrics(Xs, Yr, Yp)
+
+    fig, ax = plt.subplots(2, 2, figsize=(13, 10))
+    fig.suptitle(title)
+
+    ax[0, 0].hist2d(Dr[:, 0], Dr[:, 1], bins=bins)
+    ax[0, 0].set_title("Residual density (real)")
+    ax[0, 0].set_xlabel("ΔI")
+    ax[0, 0].set_ylabel("ΔQ")
+
+    ax[0, 1].hist2d(Dp[:, 0], Dp[:, 1], bins=bins)
+    ax[0, 1].set_title("Residual density (pred)")
+    ax[0, 1].set_xlabel("ΔI")
+    ax[0, 1].set_ylabel("ΔQ")
+
+    labels = [
+        "|Δmean I|", "|Δmean Q|", "|Δstd I|", "|Δstd Q|",
+        "|Δskew I|", "|Δskew Q|", "|Δkurt I|", "|Δkurt Q|",
+    ]
+    values = [
+        abs(float(metrics.get("delta_mean_I", float("nan")))),
+        abs(float(metrics.get("delta_mean_Q", float("nan")))),
+        abs(float(metrics.get("delta_std_I", float("nan")))),
+        abs(float(metrics.get("delta_std_Q", float("nan")))),
+        abs(float(metrics.get("delta_skew_I", float("nan")))),
+        abs(float(metrics.get("delta_skew_Q", float("nan")))),
+        abs(float(metrics.get("delta_kurt_I", float("nan")))),
+        abs(float(metrics.get("delta_kurt_Q", float("nan")))),
+    ]
+    ax[1, 0].bar(np.arange(len(labels)), values, color="#4C78A8")
+    ax[1, 0].set_xticks(np.arange(len(labels)))
+    ax[1, 0].set_xticklabels(labels, rotation=30, ha="right")
+    ax[1, 0].set_title("Axis fingerprint mismatch")
+    ax[1, 0].grid(True, alpha=0.2)
+
+    ax[1, 1].axis("off")
+    txt = [
+        f"N used: {N:,}",
+        "",
+        f"mean real    = ({mean_r[0]:+.3e}, {mean_r[1]:+.3e})",
+        f"mean pred    = ({mean_p[0]:+.3e}, {mean_p[1]:+.3e})",
+        f"std real     = ({std_r[0]:.3e}, {std_r[1]:.3e})",
+        f"std pred     = ({std_p[0]:.3e}, {std_p[1]:.3e})",
+        f"skew real    = ({skew_r[0]:+.3f}, {skew_r[1]:+.3f})",
+        f"skew pred    = ({skew_p[0]:+.3f}, {skew_p[1]:+.3f})",
+        f"kurt real    = ({kurt_r[0]:+.3f}, {kurt_r[1]:+.3f})",
+        f"kurt pred    = ({kurt_p[0]:+.3f}, {kurt_p[1]:+.3f})",
+        "",
+        f"Δmean L2     = {float(metrics.get('delta_mean_l2', float('nan'))):.4g}",
+        f"Δcov Fro     = {float(metrics.get('delta_cov_fro', float('nan'))):.4g}",
+        f"ΔPSD L2      = {float(metrics.get('delta_psd_l2', float('nan'))):.4g}",
+        f"ΔACF L2      = {float(metrics.get('delta_acf_l2', float('nan'))):.4g}",
+        f"Δskew L2     = {float(metrics.get('delta_skew_l2', float('nan'))):.4g}",
+        f"Δkurt L2     = {float(metrics.get('delta_kurt_l2', float('nan'))):.4g}",
+    ]
+    ax[1, 1].text(
+        0.02,
+        0.98,
+        "\n".join(txt),
+        va="top",
+        ha="left",
+        family="monospace",
+        fontsize=10,
+    )
+    ax[1, 1].set_title("Fingerprint summary")
+
+    return _savefig(save_path)
+
+
 def plot_histograms(
     Y: np.ndarray,
     save_path: Path,

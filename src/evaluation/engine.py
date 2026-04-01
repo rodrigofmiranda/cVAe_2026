@@ -22,6 +22,7 @@ from src.data.splits import (
     cap_val_samples_per_experiment,
 )
 from src.evaluation.metrics import calculate_evm, calculate_snr, residual_distribution_metrics
+from src.evaluation.plots import plot_overlay, plot_residual_fingerprint
 from src.evaluation.report import (
     build_global_metrics,
     build_summary_text,
@@ -707,7 +708,31 @@ def evaluate_run(
         arch_variant=arch_variant,
     )
     dashboard_path = ""
+    overlay_path = ""
+    fingerprint_path = ""
     try:
+        champion_dir = run_paths.plots_dir / "champion"
+        champion_dir.mkdir(parents=True, exist_ok=True)
+
+        overlay_path = str(
+            plot_overlay(
+                Yv,
+                Yp,
+                champion_dir / "overlay_constellation.png",
+                title=f"Constellation overlay | {output_dir.name}",
+            )
+        )
+        fingerprint_path = str(
+            plot_residual_fingerprint(
+                Xv_center,
+                Yv,
+                Yp,
+                champion_dir / "fingerprint_residual.png",
+                distm=distm,
+                title=f"Residual fingerprint | {output_dir.name}",
+            )
+        )
+
         dashboard_path = save_champion_analysis_dashboard(
             plots_dir=run_paths.plots_dir,
             Xv=Xv_center,
@@ -729,6 +754,8 @@ def evaluate_run(
 
     print("\n✅ Análise concluída.")
     print(f"📌 Figuras em: {run_paths.plots_dir}")
+    print(f"📌 Overlay: {overlay_path}")
+    print(f"📌 Fingerprint: {fingerprint_path}")
     print(f"📌 Dashboard: {dashboard_path}")
     print(f"📌 Tabelas em: {run_paths.tables_dir}")
     print(f"📌 Logs em: {run_paths.logs_dir}")
@@ -742,4 +769,7 @@ def evaluate_run(
         "metrics_path": str(metrics_json),
         "metrics": global_metrics,
         "n_eval": int(n_eval),
+        "overlay_path": str(overlay_path),
+        "fingerprint_path": str(fingerprint_path),
+        "dashboard_path": str(dashboard_path),
     }
