@@ -32,6 +32,49 @@ def test_select_grid_legacy2025_smoke_returns_single_legacy_variant():
     assert grid[0]["tag"] == "L0legacy_lat4_b0p01_fb0p0_lr0p0003_bs1024_anneal3_L32-64"
 
 
+def test_select_grid_s38_pointwise_2025_smoke_returns_named_alias():
+    grid = select_grid({"grid_preset": "s38_pointwise_2025_smoke"})
+
+    assert len(grid) == 1
+    assert grid[0]["group"] == "S38_pointwise_smoke"
+    assert grid[0]["cfg"]["arch_variant"] == "legacy_2025_zero_y"
+    assert grid[0]["cfg"]["free_bits"] == 0.0
+    assert grid[0]["tag"] == "S38A_pw25_smoke_lat4_b0p01_fb0p0_lr0p0003_bs1024_anneal3_L32-64"
+
+
+def test_select_grid_s38_pointwise_2025_quick_builds_compact_legacy_screen():
+    grid = select_grid({"grid_preset": "s38_pointwise_2025_quick"})
+
+    assert len(grid) == 4
+    assert {item["group"] for item in grid} == {"S38_pointwise_quick"}
+    assert all(item["cfg"]["arch_variant"] == "legacy_2025_zero_y" for item in grid)
+    assert all(item["cfg"]["free_bits"] == 0.0 for item in grid)
+    assert {tuple(item["cfg"]["layer_sizes"]) for item in grid} == {
+        (32, 64, 128, 256),
+        (64, 128, 256, 512),
+    }
+    assert {item["cfg"]["latent_dim"] for item in grid} == {16, 24}
+    assert {item["cfg"]["beta"] for item in grid} == {0.03, 0.1}
+    assert {item["cfg"]["batch_size"] for item in grid} == {4096, 8192}
+    assert all(item["cfg"]["kl_anneal_epochs"] == 50 for item in grid)
+
+
+def test_select_grid_s38_pointwise_2025_full_promotes_two_conservative_full_candidates():
+    grid = select_grid({"grid_preset": "s38_pointwise_2025_full"})
+
+    assert len(grid) == 2
+    assert {item["group"] for item in grid} == {"S38_pointwise_full"}
+    assert all(item["cfg"]["arch_variant"] == "legacy_2025_zero_y" for item in grid)
+    assert all(item["cfg"]["free_bits"] == 0.0 for item in grid)
+    assert all(item["cfg"]["batch_size"] == 8192 for item in grid)
+    assert {tuple(item["cfg"]["layer_sizes"]) for item in grid} == {
+        (32, 64, 128, 256),
+        (64, 128, 256, 512),
+    }
+    assert {item["cfg"]["latent_dim"] for item in grid} == {16, 24}
+    assert {item["cfg"]["beta"] for item in grid} == {0.03, 0.1}
+
+
 def test_select_grid_delta_residual_smoke_returns_single_delta_variant():
     grid = select_grid({"grid_preset": "delta_residual_smoke"})
 

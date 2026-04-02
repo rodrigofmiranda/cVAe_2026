@@ -508,6 +508,119 @@ def _preset_legacy2025_large() -> List[Dict[str, Any]]:
     return grid
 
 
+def _preset_s38_pointwise_2025_smoke() -> List[Dict[str, Any]]:
+    """S38 smoke: minimal 2025-style point-wise sanity check."""
+    return [
+        dict(
+            group="S38_pointwise_smoke",
+            tag="S38A_pw25_smoke_lat4_b0p01_fb0p0_lr0p0003_bs1024_anneal3_L32-64",
+            cfg=dict(_preset_legacy2025_smoke()[0]["cfg"]),
+        )
+    ]
+
+
+def _preset_s38_pointwise_2025_quick() -> List[Dict[str, Any]]:
+    """S38 quick: compact point-wise sweep under the 2026 protocol.
+
+    This keeps the 2025 point-conditioned family intact while opening only the
+    few axes that matter for a first scientific screen:
+
+    - exact 2025-style reference
+    - operationally faster batch size
+    - larger point-wise MLP
+    - weaker KL on the larger model
+    """
+    base = dict(
+        arch_variant="legacy_2025_zero_y",
+        dropout=0.0,
+        free_bits=0.0,
+        activation="leaky_relu",
+        kl_anneal_epochs=50,
+        lr=1e-4,
+    )
+    return [
+        dict(
+            group="S38_pointwise_quick",
+            tag="S38A_pw25_ref_lat16_b0p1_fb0p0_lr0p0001_bs4096_anneal50_L32-64-128-256",
+            cfg=_cfg(
+                layer_sizes=[32, 64, 128, 256],
+                latent_dim=16,
+                beta=0.1,
+                batch_size=4096,
+                **base,
+            ),
+        ),
+        dict(
+            group="S38_pointwise_quick",
+            tag="S38B_pw25_ref_lat16_b0p1_fb0p0_lr0p0001_bs8192_anneal50_L32-64-128-256",
+            cfg=_cfg(
+                layer_sizes=[32, 64, 128, 256],
+                latent_dim=16,
+                beta=0.1,
+                batch_size=8192,
+                **base,
+            ),
+        ),
+        dict(
+            group="S38_pointwise_quick",
+            tag="S38C_pw25_big_lat16_b0p1_fb0p0_lr0p0001_bs8192_anneal50_L64-128-256-512",
+            cfg=_cfg(
+                layer_sizes=[64, 128, 256, 512],
+                latent_dim=16,
+                beta=0.1,
+                batch_size=8192,
+                **base,
+            ),
+        ),
+        dict(
+            group="S38_pointwise_quick",
+            tag="S38D_pw25_big_lat24_b0p03_fb0p0_lr0p0001_bs8192_anneal50_L64-128-256-512",
+            cfg=_cfg(
+                layer_sizes=[64, 128, 256, 512],
+                latent_dim=24,
+                beta=0.03,
+                batch_size=8192,
+                **base,
+            ),
+        ),
+    ]
+
+
+def _preset_s38_pointwise_2025_full() -> List[Dict[str, Any]]:
+    """S38 full: conservative full-data promotion candidates."""
+    base = dict(
+        arch_variant="legacy_2025_zero_y",
+        dropout=0.0,
+        free_bits=0.0,
+        activation="leaky_relu",
+        kl_anneal_epochs=50,
+        lr=1e-4,
+        batch_size=8192,
+    )
+    return [
+        dict(
+            group="S38_pointwise_full",
+            tag="S38F_pw25_full_ref_lat16_b0p1_fb0p0_lr0p0001_bs8192_anneal50_L32-64-128-256",
+            cfg=_cfg(
+                layer_sizes=[32, 64, 128, 256],
+                latent_dim=16,
+                beta=0.1,
+                **base,
+            ),
+        ),
+        dict(
+            group="S38_pointwise_full",
+            tag="S38G_pw25_full_big_lat24_b0p03_fb0p0_lr0p0001_bs8192_anneal50_L64-128-256-512",
+            cfg=_cfg(
+                layer_sizes=[64, 128, 256, 512],
+                latent_dim=24,
+                beta=0.03,
+                **base,
+            ),
+        ),
+    ]
+
+
 def _seq_bigru_residual_candidates() -> List[Dict[str, Any]]:
     """seq_bigru_residual grid items: smoke (S0) and small-sweep (S1) configs.
 
@@ -4530,6 +4643,12 @@ def select_grid(
             grid = _preset_legacy2025_batch_sweep()
         elif preset_name == "legacy2025_large":
             grid = _preset_legacy2025_large()
+        elif preset_name == "s38_pointwise_2025_smoke":
+            grid = _preset_s38_pointwise_2025_smoke()
+        elif preset_name == "s38_pointwise_2025_quick":
+            grid = _preset_s38_pointwise_2025_quick()
+        elif preset_name == "s38_pointwise_2025_full":
+            grid = _preset_s38_pointwise_2025_full()
         elif preset_name == "seq_residual_smoke":
             grid = _preset_seq_residual_smoke()
         elif preset_name == "seq_residual_small":

@@ -8,11 +8,20 @@ start here.
 ## Current Worktree
 
 - active worktree:
-  - `/workspace/2026/feat_mdn_g5_recovery_explore`
+  - `/workspace/2026/feat_pointwise_2025_revival`
 - active branch:
-  - `feat/mdn-g5-recovery-explore-all`
+  - `feat/pointwise-2025-revival`
 - git worktree count:
   - `9`
+- branch role:
+  - `S38` implementation lane for the 2025-style point-wise revival under the
+    stricter 2026 protocol
+- active implementation status:
+  - point-wise `legacy_2025_zero_y` architecture already exists in code
+  - `S38` presets are now the canonical entrypoints for this branch:
+    - `s38_pointwise_2025_smoke`
+    - `s38_pointwise_2025_quick`
+    - `s38_pointwise_2025_full`
 
 ## Current Scientific Anchors
 

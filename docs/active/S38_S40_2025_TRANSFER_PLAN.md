@@ -106,6 +106,13 @@ Keep it simple and close to 2025:
 - `pointwise_2025_revival_quick`
 - `pointwise_2025_revival_full`
 
+Current branch implementation status:
+
+- canonical preset names now available in code:
+  - `s38_pointwise_2025_smoke`
+  - `s38_pointwise_2025_quick`
+  - `s38_pointwise_2025_full`
+
 ### Success Criteria
 
 `S38` is useful if it does at least one of these:
