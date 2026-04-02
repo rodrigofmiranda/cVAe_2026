@@ -6,10 +6,11 @@ Extracted from ``cvae_components.py`` (refactor step 3).
 
 Public API
 ----------
-Sampling                   Keras layer (for model graphs)
-reparameterize             Functional NumPy / eager-TF form
-build_prior_predict_inputs Build caller-side inputs for prior_net.predict(...)
-sample_prior               Draw z from the conditional prior network
+Sampling                     Keras layer (for model graphs)
+reparameterize               Functional NumPy / eager-TF form
+build_prior_predict_inputs   Build caller-side inputs for prior_net.predict(...)
+build_encoder_predict_inputs Build caller-side inputs for encoder.predict(...)
+sample_prior                 Draw z from the conditional prior network
 """
 
 from __future__ import annotations
@@ -99,6 +100,48 @@ def build_prior_predict_inputs(
 
     r = np.sqrt(np.sum(np.square(x_center), axis=-1, keepdims=True) + 1e-8).astype(x_arr.dtype, copy=False)
     return [x, d, c, r]
+
+
+def build_encoder_predict_inputs(
+    encoder: tf.keras.Model,
+    x: np.ndarray,
+    d: np.ndarray,
+    c: np.ndarray,
+    y: np.ndarray,
+):
+    """Return the correct input list for ``encoder.predict``.
+
+    Supports both point-wise and sequence encoders, with or without the extra
+    radial feature ``r = ||x||``. External callers continue to pass just
+    ``(x, d, c, y)``; this helper expands the list when the model expects the
+    radial conditioning input.
+    """
+    encoder_inputs = getattr(encoder, "inputs", None)
+    if encoder_inputs is None:
+        return [x, d, c, y]
+
+    n_inputs = len(encoder_inputs)
+    if n_inputs == 4:
+        return [x, d, c, y]
+    if n_inputs != 5:
+        raise ValueError(
+            f"Unsupported encoder interface with {n_inputs} inputs; "
+            "expected 4 (base) or 5 (radial)."
+        )
+
+    x_arr = np.asarray(x)
+    if x_arr.ndim == 3:
+        x_center = x_arr[:, x_arr.shape[1] // 2, :]
+    elif x_arr.ndim == 2:
+        x_center = x_arr
+    else:
+        raise ValueError(
+            f"Unsupported x rank for radial encoder input: {x_arr.ndim}. "
+            "Expected point-wise (N,2) or sequence (N,W,2)."
+        )
+
+    r = np.sqrt(np.sum(np.square(x_center), axis=-1, keepdims=True) + 1e-8).astype(x_arr.dtype, copy=False)
+    return [x, d, c, y, r]
 
 
 def sample_prior(

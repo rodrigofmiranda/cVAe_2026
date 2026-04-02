@@ -30,7 +30,11 @@ from src.evaluation.report import (
 )
 from src.models.cvae import create_inference_model_from_full
 from src.models.cvae_sequence import load_seq_model
-from src.models.sampling import Sampling
+from src.models.sampling import (
+    Sampling,
+    build_encoder_predict_inputs,
+    build_prior_predict_inputs,
+)
 from src.protocol.split_strategies import apply_split
 from src.training.grid_plots import save_champion_analysis_dashboard
 from src.training.logging import RunPaths
@@ -649,11 +653,19 @@ def evaluate_run(
     metrics_json = run_paths.write_json("logs/metricas_globais_reanalysis.json", global_metrics)
     print(f"✓ metricas_globais_reanalysis.json salvo: {metrics_json}")
 
-    pri_out = prior.predict([Xv_in, Dv, Cv], batch_size=batch_infer, verbose=0)
+    pri_out = prior.predict(
+        build_prior_predict_inputs(prior, Xv_in, Dv, Cv),
+        batch_size=batch_infer,
+        verbose=0,
+    )
     z_mean_p, z_log_var_p = _first2(pri_out)
 
     if encoder is not None:
-        enc_out = encoder.predict([Xv_in, Dv, Cv, Yv], batch_size=batch_infer, verbose=0)
+        enc_out = encoder.predict(
+            build_encoder_predict_inputs(encoder, Xv_in, Dv, Cv, Yv),
+            batch_size=batch_infer,
+            verbose=0,
+        )
         z_mean_q, z_log_var_q = _first2(enc_out)
     else:
         # Adversarial wrapper saved as inference model: encoder not available.

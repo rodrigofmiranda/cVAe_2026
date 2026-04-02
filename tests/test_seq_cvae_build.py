@@ -22,7 +22,7 @@ from src.models.cvae_sequence import (
     build_seq_prior_net,
     create_seq_inference_model,
 )
-from src.models.sampling import build_prior_predict_inputs
+from src.models.sampling import build_encoder_predict_inputs, build_prior_predict_inputs
 
 
 # ---------------------------------------------------------------------------
@@ -347,6 +347,18 @@ class TestForwardPass:
         assert inputs[1].shape == D.shape
         assert inputs[2].shape == C.shape
         assert inputs[3].shape == (8, 1)
+
+    def test_radial_encoder_predict_inputs_match_seq_signature(self):
+        cfg = _min_cfg(radial_feature=True)
+        encoder = build_seq_encoder(cfg)
+        X_win, D, C, Y = _toy_batch(8, cfg["window_size"])
+        inputs = build_encoder_predict_inputs(encoder, X_win, D, C, Y)
+        assert len(inputs) == 5
+        assert inputs[0].shape == X_win.shape
+        assert inputs[1].shape == D.shape
+        assert inputs[2].shape == C.shape
+        assert inputs[3].shape == Y.shape
+        assert inputs[4].shape == (8, 1)
 
 
 # ===========================================================================
