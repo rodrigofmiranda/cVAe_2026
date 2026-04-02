@@ -757,14 +757,14 @@ def save_champion_analysis_dashboard(
     ax[12].legend(loc="best")
 
     ax[13].scatter(Yr[:, 0], Yr[:, 1], s=1, alpha=0.35, color="#2F7C4F")
-    ax[13].set_title("Real Channel Constellation")
+    ax[13].set_title("Real Samples (Eval Slice)")
 
     ax[14].scatter(Yc[:, 0], Yc[:, 1], s=1, alpha=0.35, color="#2C57FF")
-    ax[14].set_title(f"{model_label} Constellation")
+    ax[14].set_title(f"{model_label} Samples (Eval Slice)")
 
     ax[15].scatter(Yr[:, 0], Yr[:, 1], s=1, alpha=0.20, label="Real")
     ax[15].scatter(Yc[:, 0], Yc[:, 1], s=1, alpha=0.20, label=model_label)
-    ax[15].set_title("Constellation Overlay")
+    ax[15].set_title("Constellation Overlay (Eval Slice)")
     ax[15].legend(loc="best", markerscale=4)
 
     ax[16].bar(np.arange(len(std_mu_p)), std_mu_p, label="std(μ_p)")

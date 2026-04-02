@@ -22,7 +22,11 @@ from src.data.splits import (
     cap_val_samples_per_experiment,
 )
 from src.evaluation.metrics import calculate_evm, calculate_snr, residual_distribution_metrics
-from src.evaluation.plots import plot_overlay, plot_residual_fingerprint
+from src.evaluation.plots import (
+    plot_comparison_panel_6,
+    plot_overlay,
+    plot_residual_fingerprint,
+)
 from src.evaluation.report import (
     build_global_metrics,
     build_summary_text,
@@ -397,9 +401,14 @@ def evaluate_run(
 
     selected_experiments = ov.get("_selected_experiments")
     if selected_experiments:
-        selected = set(str(p) for p in selected_experiments)
+        selected_raw = set(str(p) for p in selected_experiments)
+        selected_resolved = {str(Path(p).resolve()) for p in selected_experiments}
         before = len(exps)
-        exps = [(X, Y, D, C, p) for X, Y, D, C, p in exps if str(p) in selected]
+        exps = [
+            (X, Y, D, C, p)
+            for X, Y, D, C, p in exps
+            if (str(p) in selected_raw) or (str(Path(p).resolve()) in selected_resolved)
+        ]
         print(f"⚡ selected_experiments filter: {before} → {len(exps)} experiment(s)")
 
     if ov.get("max_experiments") is not None:
@@ -570,6 +579,20 @@ def evaluate_run(
         Y_dist = np.tile(Yv, (int(mc_samples), 1))
         var_mc = float(np.mean(np.var(Ys, axis=0)))
 
+    # Visualization arrays: in MC mode, use one stochastic draw per sample so
+    # constellation visuals preserve natural spread without MC-mean smoothing.
+    if det_inf or mc_samples <= 1 or rank_mode == "det":
+        X_vis = Xv_center
+        Y_real_vis = Yv
+        Y_pred_vis = Yp
+    else:
+        rng_vis = np.random.default_rng(seed0 + 2026)
+        draw_idx = rng_vis.integers(0, int(mc_samples), size=len(Xv_center))
+        row_idx = np.arange(len(Xv_center), dtype=np.int64)
+        X_vis = Xv_center
+        Y_real_vis = Yv
+        Y_pred_vis = Ys[draw_idx, row_idx, :]
+
     evm_real, _ = calculate_evm(Xv_center, Yv)
     snr_real = calculate_snr(Xv_center, Yv)
     # For stochastic inference, compute EVM/SNR as the mean over individual MC
@@ -710,23 +733,33 @@ def evaluate_run(
     dashboard_path = ""
     overlay_path = ""
     fingerprint_path = ""
+    panel6_path = ""
     try:
         champion_dir = run_paths.plots_dir / "champion"
         champion_dir.mkdir(parents=True, exist_ok=True)
 
+        panel6_path = str(
+            plot_comparison_panel_6(
+                X_vis,
+                Y_real_vis,
+                Y_pred_vis,
+                champion_dir / "comparison_panel_6.png",
+                title=f"Comparison panel (X, Y, Ŷ) | {output_dir.name}",
+            )
+        )
         overlay_path = str(
             plot_overlay(
-                Yv,
-                Yp,
+                Y_real_vis,
+                Y_pred_vis,
                 champion_dir / "overlay_constellation.png",
                 title=f"Constellation overlay | {output_dir.name}",
             )
         )
         fingerprint_path = str(
             plot_residual_fingerprint(
-                Xv_center,
-                Yv,
-                Yp,
+                X_vis,
+                Y_real_vis,
+                Y_pred_vis,
                 champion_dir / "fingerprint_residual.png",
                 distm=distm,
                 title=f"Residual fingerprint | {output_dir.name}",
@@ -737,7 +770,7 @@ def evaluate_run(
             plots_dir=run_paths.plots_dir,
             Xv=Xv_center,
             Yv=Yv,
-            Yp=Yp,
+            Yp=Y_pred_vis,
             std_mu_p=z_std_p,
             kl_dim_mean=df_lat["kl_p_to_N0I_dim_mean"].values,
             summary_lines=summary_text.splitlines(),
@@ -754,6 +787,7 @@ def evaluate_run(
 
     print("\n✅ Análise concluída.")
     print(f"📌 Figuras em: {run_paths.plots_dir}")
+    print(f"📌 Panel6: {panel6_path}")
     print(f"📌 Overlay: {overlay_path}")
     print(f"📌 Fingerprint: {fingerprint_path}")
     print(f"📌 Dashboard: {dashboard_path}")
@@ -769,6 +803,7 @@ def evaluate_run(
         "metrics_path": str(metrics_json),
         "metrics": global_metrics,
         "n_eval": int(n_eval),
+        "panel6_path": str(panel6_path),
         "overlay_path": str(overlay_path),
         "fingerprint_path": str(fingerprint_path),
         "dashboard_path": str(dashboard_path),

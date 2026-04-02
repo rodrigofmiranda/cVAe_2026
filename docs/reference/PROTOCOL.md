@@ -281,6 +281,9 @@ outputs/exp_YYYYMMDD_HHMMSS/
   - `residual_signature_by_amplitude_bin.csv` stores the same residual diagnostics conditioned on `|X|`
   - `train_regime_diagnostics_history.csv` mirrors the periodic train callback when enabled
   - `plots/best_model/heatmap_gate_metrics_by_regime.png` is the canonical scientific visual summary
+    and is threshold-aware: green remains within gate, yellow approaches the
+    limit, and red indicates the regime crossed the gate threshold; the figure
+    also embeds the gate legend and color legend.
   - `plots/best_model/residual_signature_overview.png` is the compact residual-signature visual summary
   - `train/plots/champion/analysis_dashboard.png` is the full dashboard of the winning model
   - `train/plots/training/dashboard_analysis_complete.png` is the operational convergence dashboard for the full grid

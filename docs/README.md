@@ -16,6 +16,7 @@ Start with these if you are arriving from GitHub or onboarding into the repo:
 These are especially relevant for the shared lab server:
 
 - [active/INFRA_GUIDE.md](active/INFRA_GUIDE.md) - SSH, users, Docker, tmux, Git LFS
+- [operations/DATASET_LFS_UPLOAD.md](operations/DATASET_LFS_UPLOAD.md) - standardized dataset import and upload flow for Git LFS
 
 ## Reference Docs
 

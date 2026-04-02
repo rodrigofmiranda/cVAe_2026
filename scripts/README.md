@@ -24,12 +24,20 @@ the same level.
   Current wrapper for `src.protocol.run --train_once_eval_all`.
 - `ops/eval.sh`
   Current wrapper for `src.evaluation.evaluate`.
+- `ops/import_dataset_lfs.sh`
+  Current helper to import a new dataset into `data/` with structure checks and
+  Git LFS-ready workflow output.
 - `ops/run_tf25_gpu.sh`
-  Current persistent GPU container launcher.
+  Current persistent GPU container launcher. Bootstraps persistent Python plot
+  deps into repo-local `.pydeps` on container start (can disable with
+  `CVAE_BOOTSTRAP_PLOT_DEPS=0`).
 - `ops/enter_tf25_gpu.sh`
   Current tmux/container attach helper.
 - `ops/stop_tf25_gpu.sh`
   Current tmux/container stop helper.
+- `ops/container_bootstrap_python.sh`
+  Container-side Python bootstrap (sets `PYTHONNOUSERSITE=1`, writable
+  `MPLCONFIGDIR`, and persistent `.pydeps` with `numpy<2` + `matplotlib`).
 - `ops/prune_incomplete_experiments.py`
   Kept as an active maintenance utility for cleaning stale incomplete runs.
 - `analysis/summarize_experiment.py`

@@ -13,6 +13,9 @@ from src.evaluation.summary_plots import (
     _gate_heatmap_style,
     _pivot_for_heatmap,
     generate_all,
+    plot_eval_gate_difference_heatmaps,
+    plot_eval_gate_supplementary_heatmaps,
+    plot_eval_gate_threshold_heatmaps,
     plot_residual_signature_overview,
 )
 
@@ -62,6 +65,33 @@ def test_generate_all_creates_best_model_heatmap(out_dir):
     assert len(paths) == 1
     assert paths[0].name == "heatmap_gate_metrics_by_regime.png"
     assert paths[0].exists() and paths[0].stat().st_size > 500
+
+
+def test_eval_gate_difference_heatmap_creates_png(out_dir):
+    df = _make_summary_df()
+    df["delta_jb_stat_rel"] = np.random.RandomState(1).uniform(0.01, 1.0, len(df))
+    path = plot_eval_gate_difference_heatmaps(df, out_dir)
+    assert path is not None
+    assert path.name == "heatmap_gate_differences_by_regime.png"
+    assert path.exists() and path.stat().st_size > 500
+
+
+def test_eval_gate_supplementary_heatmap_creates_png(out_dir):
+    df = _make_summary_df()
+    df["delta_coverage_95"] = np.random.RandomState(2).uniform(-0.3, 0.3, len(df))
+    df["rho_hetero_abs_gap"] = np.random.RandomState(3).uniform(0.0, 0.2, len(df))
+    path = plot_eval_gate_supplementary_heatmaps(df, out_dir)
+    assert path is not None
+    assert path.name == "heatmap_gate_supplementary_by_regime.png"
+    assert path.exists() and path.stat().st_size > 500
+
+
+def test_eval_gate_threshold_heatmap_creates_png(out_dir):
+    df = _make_summary_df()
+    path = plot_eval_gate_threshold_heatmaps(df, out_dir)
+    assert path is not None
+    assert path.name == "heatmap_gate_threshold_aware_by_regime.png"
+    assert path.exists() and path.stat().st_size > 500
 
 
 def test_pivot_for_heatmap_preserves_canonical_regime_grid_for_single_regime():

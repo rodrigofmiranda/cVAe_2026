@@ -207,6 +207,70 @@ def plot_residual_fingerprint(
     return _savefig(save_path)
 
 
+def plot_comparison_panel_6(
+    X: np.ndarray,
+    Y_real: np.ndarray,
+    Y_pred: np.ndarray,
+    save_path: Path,
+    *,
+    max_points: int = 80_000,
+    title: str = "Constellation comparison panel",
+) -> Path:
+    """6-panel comparison in the same visual spirit as raw dataset plots."""
+    import matplotlib.pyplot as plt
+
+    N = min(max_points, len(X), len(Y_real), len(Y_pred))
+    Xs = np.asarray(X[:N], dtype=np.float64)
+    Yr = np.asarray(Y_real[:N], dtype=np.float64)
+    Yp = np.asarray(Y_pred[:N], dtype=np.float64)
+    Dr = Yr - Xs
+    Dp = Yp - Xs
+
+    lim_y = float(np.percentile(np.abs(np.concatenate([Yr, Yp], axis=0)), 99.8)) * 1.05
+    lim_d = float(np.percentile(np.abs(np.concatenate([Dr, Dp], axis=0)), 99.8)) * 1.05
+    lim_y = max(lim_y, 1e-3)
+    lim_d = max(lim_d, 1e-3)
+
+    fig, axes = plt.subplots(2, 3, figsize=(18, 11))
+    fig.suptitle(title)
+    ax = axes.ravel()
+
+    ax[0].scatter(Xs[:, 0], Xs[:, 1], s=1, alpha=0.30)
+    ax[0].set_title("X sent")
+    ax[1].scatter(Yr[:, 0], Yr[:, 1], s=1, alpha=0.30)
+    ax[1].set_title("Y real")
+    ax[2].scatter(Yp[:, 0], Yp[:, 1], s=1, alpha=0.30)
+    ax[2].set_title("Y pred")
+
+    ax[3].scatter(Yr[:, 0], Yr[:, 1], s=1, alpha=0.25, label="Y real")
+    ax[3].scatter(Yp[:, 0], Yp[:, 1], s=1, alpha=0.25, label="Y pred")
+    ax[3].set_title("Overlay (Y real vs Y pred)")
+    ax[3].legend(markerscale=6)
+
+    ax[4].scatter(Dr[:, 0], Dr[:, 1], s=1, alpha=0.30)
+    ax[4].set_title("Residual real (Y - X)")
+    ax[5].scatter(Dp[:, 0], Dp[:, 1], s=1, alpha=0.30)
+    ax[5].set_title("Residual pred (Ŷ - X)")
+
+    for idx in (0, 1, 2, 3):
+        ax[idx].set_xlim(-lim_y, lim_y)
+        ax[idx].set_ylim(-lim_y, lim_y)
+        ax[idx].set_xlabel("I")
+        ax[idx].set_ylabel("Q")
+        ax[idx].set_aspect("equal", adjustable="box")
+        ax[idx].grid(alpha=0.2)
+
+    for idx in (4, 5):
+        ax[idx].set_xlim(-lim_d, lim_d)
+        ax[idx].set_ylim(-lim_d, lim_d)
+        ax[idx].set_xlabel("ΔI")
+        ax[idx].set_ylabel("ΔQ")
+        ax[idx].set_aspect("equal", adjustable="box")
+        ax[idx].grid(alpha=0.2)
+
+    return _savefig(save_path)
+
+
 def plot_histograms(
     Y: np.ndarray,
     save_path: Path,

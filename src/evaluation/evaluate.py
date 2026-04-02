@@ -24,9 +24,12 @@ Usage
 """
 
 import argparse
+from pathlib import Path
+
 from src.config.gpu_guard import warn_if_no_gpu_and_confirm
 from src.config.overrides import RunOverrides
 from src.config.runtime_env import ensure_writable_mpl_config_dir
+from src.data.loading import discover_experiments, parse_dist_curr_from_path, read_metadata
 
 
 def parse_args():
@@ -58,7 +61,65 @@ def parse_args():
                         help="Skip residual-distribution metrics during evaluation")
     parser.add_argument("--dry_run", action="store_true",
                         help="Load+split+load model+build inference graph, then exit")
+    parser.add_argument("--distance_m", type=float, default=None,
+                        help="Optional regime filter: target distance (m)")
+    parser.add_argument("--current_mA", type=float, default=None,
+                        help="Optional regime filter: target current (mA)")
+    parser.add_argument("--dist_tol_m", type=float, default=None,
+                        help="Distance tolerance for regime filtering (default: 0.05 m)")
+    parser.add_argument("--curr_tol_mA", type=float, default=None,
+                        help="Current tolerance for regime filtering (default: 25 mA)")
     return parser.parse_args()
+
+
+def _select_experiments_by_regime(
+    dataset_root: Path,
+    *,
+    distance_m: float | None,
+    current_mA: float | None,
+    dist_tol_m: float,
+    curr_tol_mA: float,
+) -> list[str]:
+    exp_dirs = discover_experiments(dataset_root, verbose=False)
+    selected: list[str] = []
+
+    for exp_dir in exp_dirs:
+        dist, curr = parse_dist_curr_from_path(exp_dir)
+        if dist is None or curr is None:
+            meta = read_metadata(exp_dir)
+            if dist is None:
+                for key in ("distance_m", "distance", "dist_m", "dist"):
+                    if key in meta:
+                        try:
+                            dist = float(meta[key])
+                            break
+                        except Exception:
+                            pass
+            if curr is None:
+                for key in ("current_mA", "current", "curr_mA", "curr"):
+                    if key in meta:
+                        try:
+                            curr = float(meta[key])
+                            break
+                        except Exception:
+                            pass
+
+        if dist is None or curr is None:
+            continue
+
+        dist_ok = distance_m is None or abs(float(dist) - float(distance_m)) <= float(dist_tol_m)
+        curr_ok = current_mA is None or abs(float(curr) - float(current_mA)) <= float(curr_tol_mA)
+        if dist_ok and curr_ok:
+            selected.append(str(exp_dir))
+
+    selected.sort()
+    if not selected:
+        raise RuntimeError(
+            "No experiments matched the regime filter "
+            f"(distance_m={distance_m}, current_mA={current_mA}, "
+            f"dist_tol_m={dist_tol_m}, curr_tol_mA={curr_tol_mA})."
+        )
+    return selected
 
 
 def main():
@@ -68,6 +129,30 @@ def main():
     # Build typed overrides from CLI flags
     overrides_obj = RunOverrides.from_namespace(args)
     overrides = overrides_obj.to_dict()
+    if args.distance_m is not None or args.current_mA is not None:
+        if not args.dataset_root:
+            raise ValueError(
+                "--dataset_root is required when using --distance_m/--current_mA filtering."
+            )
+        dist_tol = float(args.dist_tol_m) if args.dist_tol_m is not None else 0.05
+        curr_tol = float(args.curr_tol_mA) if args.curr_tol_mA is not None else 25.0
+        selected_exps = _select_experiments_by_regime(
+            Path(args.dataset_root).resolve(),
+            distance_m=args.distance_m,
+            current_mA=args.current_mA,
+            dist_tol_m=dist_tol,
+            curr_tol_mA=curr_tol,
+        )
+        overrides["_selected_experiments"] = selected_exps
+        overrides["dist_tol_m"] = dist_tol
+        overrides["curr_tol_mA"] = curr_tol
+        print(
+            "🎯 Regime filter active | "
+            f"distance_m={args.distance_m} | current_mA={args.current_mA} | "
+            f"matches={len(selected_exps)}"
+        )
+        for exp_path in selected_exps:
+            print(f"   • {exp_path}")
 
     # Ensure MPLCONFIGDIR is writable before importing the evaluation module,
     # otherwise matplotlib may emit temp-dir warnings at import time.

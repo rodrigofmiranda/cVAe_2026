@@ -33,6 +33,8 @@ __pycache__/
 # Temporary / log files
 *.tmp
 *.log
+.tmp_*.py
+.bash_history
 
 # OS
 .DS_Store
@@ -46,3 +48,9 @@ knowledge/papers/parsed/*
 !knowledge/papers/parsed/README.md
 knowledge/index/chroma_db/
 knowledge/index/index_state.json
+
+# Local runtime/bootstrap artifacts
+.pydeps/
+.mplconfig/
+.cache/
+docs/active/.codex

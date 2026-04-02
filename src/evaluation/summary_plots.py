@@ -71,31 +71,42 @@ def _draw_heatmap(
     vmin: float | None = None,
     vmax: float | None = None,
     center: float | None = None,
+    norm=None,
+    annot_fontsize: float = 10.0,
+    tick_fontsize: float = 10.0,
+    title_fontsize: float = 12.0,
 ) -> None:
     annot_data = annot_piv if annot_piv is not None else piv
     mask = piv.isna()
     try:
         import seaborn as sns
 
-        sns.heatmap(
-            piv,
+        kwargs = dict(
             annot=annot_data,
             fmt=fmt,
             mask=mask,
             cmap=cmap,
-            vmin=vmin,
-            vmax=vmax,
-            center=center,
             linewidths=0.5,
             linecolor="white",
             ax=ax,
             cbar_kws={"label": cbar_label},
-            annot_kws={"color": "black", "fontsize": 10},
+            annot_kws={"color": "black", "fontsize": annot_fontsize},
         )
+        if norm is not None:
+            kwargs["norm"] = norm
+        else:
+            kwargs["vmin"] = vmin
+            kwargs["vmax"] = vmax
+            kwargs["center"] = center
+        sns.heatmap(piv, **kwargs)
     except ImportError:
-        im = ax.imshow(
-            piv.values, cmap=cmap, aspect="auto", vmin=vmin, vmax=vmax,
-        )
+        kwargs = dict(cmap=cmap, aspect="auto")
+        if norm is not None:
+            kwargs["norm"] = norm
+        else:
+            kwargs["vmin"] = vmin
+            kwargs["vmax"] = vmax
+        im = ax.imshow(piv.values, **kwargs)
         ax.set_xticks(range(len(piv.columns)))
         ax.set_xticklabels([f"{c:.0f}" for c in piv.columns])
         ax.set_yticks(range(len(piv.index)))
@@ -110,13 +121,15 @@ def _draw_heatmap(
                         f"{display_v:{fmt.lstrip('.')}}",
                         ha="center",
                         va="center",
-                        fontsize=10,
+                        fontsize=annot_fontsize,
                         color="black",
                     )
         ax.figure.colorbar(im, ax=ax, label=cbar_label)
+    ax.tick_params(axis="x", labelsize=tick_fontsize)
+    ax.tick_params(axis="y", labelsize=tick_fontsize)
     ax.set_ylabel("distance (m)")
     ax.set_xlabel("current (mA)")
-    ax.set_title(title)
+    ax.set_title(title, fontsize=title_fontsize)
 
 
 def _pick_column(df: pd.DataFrame, candidates: Sequence[str]) -> Optional[str]:
@@ -349,6 +362,352 @@ _GATE_METRIC_SPECS = [
     },
 ]
 
+_EVAL_GATE_DIFF_SPECS = [
+    {
+        "cols": ("delta_evm_%", "cvae_delta_evm_%"),
+        "title": "G1 — EVM error (pred - real) [pp]",
+        "fmt": ".2f",
+        "cmap": "RdYlGn_r",
+        "cbar": "|ΔEVM| (pp)",
+        "mode": "signed",
+    },
+    {
+        "cols": ("delta_snr_db", "cvae_delta_snr_db"),
+        "title": "G2 — SNR error (pred - real) [dB]",
+        "fmt": ".2f",
+        "cmap": "RdYlGn_r",
+        "cbar": "|ΔSNR| (dB)",
+        "mode": "signed",
+    },
+    {
+        "cols": ("delta_mean_l2", "cvae_delta_mean_l2"),
+        "title": "G3 — residual mean mismatch (L2)",
+        "fmt": ".3f",
+        "cmap": "RdYlGn_r",
+        "cbar": "L2",
+        "mode": "lower_better",
+    },
+    {
+        "cols": ("delta_cov_fro", "cvae_delta_cov_fro"),
+        "title": "G3 — residual covariance mismatch (Fro)",
+        "fmt": ".3f",
+        "cmap": "RdYlGn_r",
+        "cbar": "Fro",
+        "mode": "lower_better",
+    },
+    {
+        "cols": ("delta_psd_l2", "cvae_psd_l2"),
+        "title": "G4 — PSD mismatch (L2)",
+        "fmt": ".3f",
+        "cmap": "RdYlGn_r",
+        "cbar": "PSD L2",
+        "mode": "lower_better",
+    },
+    {
+        "cols": ("delta_skew_l2", "cvae_delta_skew_l2"),
+        "title": "G5 — skew mismatch (L2)",
+        "fmt": ".3f",
+        "cmap": "RdYlGn_r",
+        "cbar": "skew L2",
+        "mode": "lower_better",
+    },
+    {
+        "cols": ("delta_kurt_l2", "cvae_delta_kurt_l2"),
+        "title": "G5 — kurtosis mismatch (L2)",
+        "fmt": ".3f",
+        "cmap": "RdYlGn_r",
+        "cbar": "kurt L2",
+        "mode": "lower_better",
+    },
+    {
+        "cols": ("delta_jb_stat_rel",),
+        "title": "G5 — JB relative mismatch (worst I/Q)",
+        "fmt": ".3f",
+        "cmap": "RdYlGn_r",
+        "cbar": "JB rel",
+        "mode": "lower_better",
+    },
+]
+
+_EVAL_GATE_SUPPLEMENTARY_SPECS = [
+    {
+        "cols": ("delta_acf_l2", "cvae_delta_acf_l2"),
+        "title": "Supplementary — ACF mismatch (L2)",
+        "fmt": ".3f",
+        "cmap": "RdYlGn_r",
+        "cbar": "ACF L2",
+        "mode": "lower_better",
+    },
+    {
+        "cols": ("delta_coverage_95",),
+        "title": "Supplementary — coverage@95% gap",
+        "fmt": ".3f",
+        "cmap": "RdYlGn_r",
+        "cbar": "|Δcoverage95|",
+        "mode": "signed",
+    },
+    {
+        "cols": ("rho_hetero_abs_gap", "cvae_rho_hetero_abs_gap"),
+        "title": "Supplementary — heteroscedasticity gap |Δρ|",
+        "fmt": ".3f",
+        "cmap": "RdYlGn_r",
+        "cbar": "|Δρ|",
+        "mode": "lower_better",
+    },
+    {
+        "cols": ("stat_jsd", "cvae_stat_jsd"),
+        "title": "Supplementary — residual JSD",
+        "fmt": ".3f",
+        "cmap": "RdYlGn_r",
+        "cbar": "JSD (nats)",
+        "mode": "lower_better",
+    },
+]
+
+_EVAL_GATE_THRESHOLD_SPECS = [
+    {
+        "ratio_col": "gate_g1_ratio",
+        "title": "G1 — rel EVM error / gate limit (0.10)",
+        "fmt": "",
+    },
+    {
+        "ratio_col": "gate_g2_ratio",
+        "title": "G2 — rel SNR error / gate limit (0.10)",
+        "fmt": "",
+    },
+    {
+        "ratio_col": "gate_g3_mean_ratio",
+        "title": "G3 — mean_rel_sigma / gate limit (0.10)",
+        "fmt": "",
+    },
+    {
+        "ratio_col": "gate_g3_cov_ratio",
+        "title": "G3 — cov_rel_var / gate limit (0.20)",
+        "fmt": "",
+    },
+    {
+        "ratio_col": "gate_g4_ratio",
+        "title": "G4 — PSD mismatch / gate limit (0.25)",
+        "fmt": "",
+    },
+    {
+        "ratio_col": "gate_g5_skew_ratio",
+        "title": "G5 — skew mismatch / gate limit (0.30)",
+        "fmt": "",
+    },
+    {
+        "ratio_col": "gate_g5_kurt_ratio",
+        "title": "G5 — kurtosis mismatch / gate limit (1.25)",
+        "fmt": "",
+    },
+    {
+        "ratio_col": "gate_g5_jb_ratio",
+        "title": "G5 — JB relative mismatch / gate limit (0.20)",
+        "fmt": "",
+    },
+    {
+        "ratio_col": "gate_g6_mmd_ratio",
+        "title": "G6 — MMD q gate ratio (q > 0.05)",
+        "fmt": "",
+    },
+    {
+        "ratio_col": "gate_g6_energy_ratio",
+        "title": "G6 — Energy q gate ratio (q > 0.05)",
+        "fmt": "",
+    },
+]
+
+
+def _robust_gate_ratio_cap(values: np.ndarray) -> float:
+    finite = values[np.isfinite(values)]
+    if finite.size == 0:
+        return 2.0
+    q95 = float(np.nanpercentile(finite, 95))
+    return float(min(max(2.0, q95), 5.0))
+
+
+def _format_ratio_annotations(piv: pd.DataFrame, *, cap: float) -> pd.DataFrame:
+    annot = piv.copy().astype(object)
+    for idx in piv.index:
+        for col in piv.columns:
+            value = piv.loc[idx, col]
+            if pd.isna(value):
+                annot.loc[idx, col] = ""
+            elif float(value) > cap:
+                annot.loc[idx, col] = f">{cap:.1f}x"
+            else:
+                annot.loc[idx, col] = f"{float(value):.2f}x"
+    return annot
+
+
+def _numeric_series_or_nan(df: pd.DataFrame, col: str) -> pd.Series:
+    if col not in df.columns:
+        return pd.Series(np.nan, index=df.index, dtype=float)
+    return pd.to_numeric(df[col], errors="coerce")
+
+
+def _series_ratio(num: pd.Series, den: pd.Series | float) -> pd.Series:
+    if np.isscalar(num):
+        if np.isscalar(den):
+            index = pd.RangeIndex(1)
+        else:
+            den_series = pd.to_numeric(den, errors="coerce")
+            index = den_series.index
+        num_series = pd.Series(float(num), index=index, dtype=float)
+    else:
+        num_series = pd.to_numeric(num, errors="coerce")
+
+    if np.isscalar(den):
+        den_series = pd.Series(float(den), index=num_series.index, dtype=float)
+    else:
+        den_series = pd.to_numeric(den, errors="coerce")
+    return pd.Series(
+        np.where(den_series > 0, num_series / den_series, np.nan),
+        index=num_series.index,
+        dtype=float,
+    )
+
+
+def _ensure_gate_ratio_columns(df_summary: pd.DataFrame) -> pd.DataFrame:
+    from src.evaluation.validation_summary import TWIN_GATE_THRESHOLDS
+
+    df = df_summary.copy()
+
+    evm_rel = _numeric_series_or_nan(df, "cvae_rel_evm_error")
+    if evm_rel.isna().all():
+        evm_rel = _series_ratio(
+            _numeric_series_or_nan(df, "delta_evm_%").abs(),
+            _numeric_series_or_nan(df, "evm_real_%").abs(),
+        )
+
+    snr_rel = _numeric_series_or_nan(df, "cvae_rel_snr_error")
+    if snr_rel.isna().all():
+        snr_rel = _series_ratio(
+            _numeric_series_or_nan(df, "delta_snr_db").abs(),
+            _numeric_series_or_nan(df, "snr_real_db").abs(),
+        )
+
+    mean_rel_sigma = _numeric_series_or_nan(df, "cvae_mean_rel_sigma")
+    if mean_rel_sigma.isna().all():
+        mean_rel_sigma = _numeric_series_or_nan(df, "g3_mean_rel_sigma")
+    if mean_rel_sigma.isna().all():
+        sigma_real = np.sqrt(_numeric_series_or_nan(df, "var_real_delta"))
+        mean_rel_sigma = _series_ratio(_numeric_series_or_nan(df, "delta_mean_l2"), sigma_real)
+
+    cov_rel_var = _numeric_series_or_nan(df, "cvae_cov_rel_var")
+    if cov_rel_var.isna().all():
+        cov_rel_var = _numeric_series_or_nan(df, "g3_cov_rel_var")
+    if cov_rel_var.isna().all():
+        cov_rel_var = _series_ratio(
+            _numeric_series_or_nan(df, "delta_cov_fro"),
+            _numeric_series_or_nan(df, "var_real_delta"),
+        )
+
+    psd_metric = _numeric_series_or_nan(df, "cvae_psd_l2")
+    if psd_metric.isna().all():
+        psd_metric = _numeric_series_or_nan(df, "delta_psd_l2")
+
+    skew_metric = _numeric_series_or_nan(df, "cvae_delta_skew_l2")
+    if skew_metric.isna().all():
+        skew_metric = _numeric_series_or_nan(df, "delta_skew_l2")
+
+    kurt_metric = _numeric_series_or_nan(df, "cvae_delta_kurt_l2")
+    if kurt_metric.isna().all():
+        kurt_metric = _numeric_series_or_nan(df, "delta_kurt_l2")
+
+    jb_metric = _numeric_series_or_nan(df, "delta_jb_stat_rel")
+
+    mmd_q = _numeric_series_or_nan(df, "stat_mmd_qval")
+    energy_q = _numeric_series_or_nan(df, "stat_energy_qval")
+
+    derived = {
+        "gate_g1_ratio": _series_ratio(evm_rel, TWIN_GATE_THRESHOLDS["rel_evm_error"]),
+        "gate_g2_ratio": _series_ratio(snr_rel, TWIN_GATE_THRESHOLDS["rel_snr_error"]),
+        "gate_g3_mean_ratio": _series_ratio(mean_rel_sigma, TWIN_GATE_THRESHOLDS["mean_rel_sigma"]),
+        "gate_g3_cov_ratio": _series_ratio(cov_rel_var, TWIN_GATE_THRESHOLDS["cov_rel_var"]),
+        "gate_g4_ratio": _series_ratio(psd_metric, TWIN_GATE_THRESHOLDS["delta_psd_l2"]),
+        "gate_g5_skew_ratio": _series_ratio(skew_metric, TWIN_GATE_THRESHOLDS["delta_skew_l2"]),
+        "gate_g5_kurt_ratio": _series_ratio(kurt_metric, TWIN_GATE_THRESHOLDS["delta_kurt_l2"]),
+        "gate_g5_jb_ratio": _series_ratio(jb_metric, TWIN_GATE_THRESHOLDS["delta_jb_stat_rel"]),
+        "gate_g6_mmd_ratio": _series_ratio(TWIN_GATE_THRESHOLDS["stat_qval"], mmd_q),
+        "gate_g6_energy_ratio": _series_ratio(TWIN_GATE_THRESHOLDS["stat_qval"], energy_q),
+    }
+    for col, series in derived.items():
+        if col not in df.columns or pd.to_numeric(df[col], errors="coerce").isna().all():
+            df[col] = series
+    return df
+
+
+def _plot_metric_panel(
+    df_summary: pd.DataFrame,
+    out_dir: Path,
+    *,
+    specs: Sequence[dict],
+    fname: str,
+    panel_title: str,
+    ncols: int = 2,
+) -> Optional[Path]:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    df_summary = df_summary.copy()
+    resolved = []
+    for spec in specs:
+        col = _pick_column(df_summary, spec["cols"])
+        if col is None:
+            continue
+        piv = _pivot_for_heatmap(df_summary, col)
+        if piv is None:
+            continue
+        resolved.append((spec, piv))
+
+    if not resolved:
+        return None
+
+    max_cols = max(len(piv.columns) for _, piv in resolved)
+    max_rows = max(len(piv.index) for _, piv in resolved)
+    nrows = int(math.ceil(len(resolved) / ncols))
+    subplot_width = max(8.8, 0.95 * max_cols)
+    subplot_height = max(4.8, 1.25 * max_rows + 1.2)
+    fig, axes = plt.subplots(
+        nrows,
+        ncols,
+        figsize=(subplot_width * ncols, subplot_height * nrows),
+    )
+    axes = np.atleast_1d(axes).ravel()
+
+    for ax, (spec, piv) in zip(axes, resolved):
+        color_piv, annot_piv, vmin, vmax, center = _gate_heatmap_style(spec, piv)
+        vals = color_piv.to_numpy(dtype=float)
+        vals = vals[np.isfinite(vals)]
+        if vals.size == 0:
+            ax.axis("off")
+            continue
+
+        _draw_heatmap(
+            ax,
+            color_piv,
+            title=spec["title"],
+            cmap=spec["cmap"],
+            fmt=spec["fmt"],
+            annot_piv=annot_piv,
+            cbar_label=spec["cbar"],
+            vmin=vmin,
+            vmax=vmax,
+            center=center,
+            annot_fontsize=8.0,
+            tick_fontsize=9.0,
+            title_fontsize=12.0,
+        )
+
+    for ax in axes[len(resolved):]:
+        ax.axis("off")
+
+    fig.suptitle(panel_title, fontsize=15)
+    return _savefig(Path(out_dir) / fname)
+
 
 def plot_vae_vs_real_metric_diffs(
     df_summary: pd.DataFrame,
@@ -485,6 +844,161 @@ def plot_gate_metric_heatmaps(
         fontsize=15,
     )
     return _savefig(Path(out_dir) / fname)
+
+
+def plot_eval_gate_difference_heatmaps(
+    df_summary: pd.DataFrame,
+    out_dir: Path,
+    *,
+    fname: str = "heatmap_gate_differences_by_regime.png",
+) -> Optional[Path]:
+    """Render regime heatmaps for real-vs-model discrepancies in an eval batch."""
+    return _plot_metric_panel(
+        df_summary,
+        out_dir,
+        specs=_EVAL_GATE_DIFF_SPECS,
+        fname=fname,
+        panel_title="Gate-driving discrepancies by regime — real vs cVAE",
+        ncols=2,
+    )
+
+
+def plot_eval_gate_supplementary_heatmaps(
+    df_summary: pd.DataFrame,
+    out_dir: Path,
+    *,
+    fname: str = "heatmap_gate_supplementary_by_regime.png",
+) -> Optional[Path]:
+    """Render supplementary regime heatmaps for eval batches."""
+    return _plot_metric_panel(
+        df_summary,
+        out_dir,
+        specs=_EVAL_GATE_SUPPLEMENTARY_SPECS,
+        fname=fname,
+        panel_title="Supplementary discrepancies by regime — real vs cVAE",
+        ncols=2,
+    )
+
+
+def plot_eval_gate_threshold_heatmaps(
+    df_summary: pd.DataFrame,
+    out_dir: Path,
+    *,
+    fname: str = "heatmap_gate_threshold_aware_by_regime.png",
+) -> Optional[Path]:
+    """Render threshold-aware gate heatmaps where >1x gate limit turns red."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.colors as mcolors
+    import matplotlib.patches as mpatches
+    import matplotlib.pyplot as plt
+
+    df_summary = _ensure_gate_ratio_columns(df_summary)
+    resolved = []
+    for spec in _EVAL_GATE_THRESHOLD_SPECS:
+        ratio_col = spec["ratio_col"]
+        if ratio_col not in df_summary.columns:
+            continue
+        piv = _pivot_for_heatmap(df_summary, ratio_col)
+        if piv is None:
+            continue
+        resolved.append((spec, piv))
+
+    if not resolved:
+        return None
+
+    max_cols = max(len(piv.columns) for _, piv in resolved)
+    max_rows = max(len(piv.index) for _, piv in resolved)
+    ncols = 2
+    nrows = int(math.ceil(len(resolved) / ncols))
+    subplot_width = max(8.8, 0.95 * max_cols)
+    subplot_height = max(4.8, 1.25 * max_rows + 1.2)
+    fig, axes = plt.subplots(
+        nrows,
+        ncols,
+        figsize=(subplot_width * ncols, subplot_height * nrows),
+    )
+    axes = np.atleast_1d(axes).ravel()
+
+    cmap = mcolors.LinearSegmentedColormap.from_list(
+        "gate_threshold",
+        [
+            (0.0, "#0b8f3a"),
+            (0.55, "#b8e186"),
+            (0.75, "#fee08b"),
+            (0.9001, "#fdb863"),
+            (1.0, "#b2182b"),
+        ],
+    )
+
+    for ax, (spec, piv) in zip(axes, resolved):
+        vals = piv.to_numpy(dtype=float)
+        cap = _robust_gate_ratio_cap(vals)
+        color_piv = piv.clip(upper=cap)
+        annot_piv = _format_ratio_annotations(piv, cap=cap)
+        norm = mcolors.TwoSlopeNorm(vmin=0.0, vcenter=1.0, vmax=cap)
+        _draw_heatmap(
+            ax,
+            color_piv,
+            title=spec["title"],
+            cmap=cmap,
+            fmt=spec["fmt"],
+            annot_piv=annot_piv,
+            cbar_label="x gate limit",
+            norm=norm,
+            annot_fontsize=8.0,
+            tick_fontsize=9.0,
+            title_fontsize=12.0,
+        )
+
+    for ax in axes[len(resolved):]:
+        ax.axis("off")
+
+    available_ratio_cols = {spec["ratio_col"] for spec, _ in resolved}
+    gate_line_1 = (
+        "G1: rel EVM < 0.10 | G2: rel SNR < 0.10 | "
+        "G3: mean < 0.10 and cov < 0.20 | G4: PSD < 0.25"
+    )
+    gate_line_2 = "G5: skew < 0.30 and kurt < 1.25 and JB < 0.20"
+    if {"gate_g6_mmd_ratio", "gate_g6_energy_ratio"} & available_ratio_cols:
+        gate_line_2 += " | G6: q_MMD > 0.05 and q_Energy > 0.05"
+    else:
+        gate_line_2 += " | G6 omitted here: q-values unavailable"
+
+    legend_handles = [
+        mpatches.Patch(color="#0b8f3a", label="within gate (< 1x)"),
+        mpatches.Patch(color="#fee08b", label="near gate (~ 1x)"),
+        mpatches.Patch(color="#b2182b", label="beyond gate (> 1x)"),
+    ]
+    fig.legend(
+        handles=legend_handles,
+        loc="lower center",
+        bbox_to_anchor=(0.5, 0.055),
+        ncol=3,
+        frameon=False,
+        fontsize=10,
+    )
+    fig.text(
+        0.5,
+        0.018,
+        "Color scale: green < 1x gate limit, yellow ~= 1x, red > 1x. "
+        "Annotations show value/limit.\n"
+        f"{gate_line_1}\n{gate_line_2}",
+        ha="center",
+        va="bottom",
+        fontsize=9,
+        bbox={"boxstyle": "round,pad=0.35", "facecolor": "white", "alpha": 0.9, "edgecolor": "#cccccc"},
+    )
+    fig.suptitle(
+        "Threshold-aware gates by regime — green within limit, red beyond gate",
+        fontsize=15,
+    )
+    path = Path(out_dir) / fname
+    fig.tight_layout(rect=(0.0, 0.12, 1.0, 0.95))
+    fig.savefig(path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+    return path
 
 
 def plot_residual_signature_overview(
@@ -624,7 +1138,13 @@ def generate_all(df_summary: pd.DataFrame, out_dir: Path) -> List[Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     created: List[Path] = []
     try:
-        p = plot_gate_metric_heatmaps(df_summary, out_dir)
+        p = plot_eval_gate_threshold_heatmaps(
+            df_summary,
+            out_dir,
+            fname="heatmap_gate_metrics_by_regime.png",
+        )
+        if p is None:
+            p = plot_gate_metric_heatmaps(df_summary, out_dir)
         if p is not None:
             created.append(p)
             print(f"   📈 {p.name}")
