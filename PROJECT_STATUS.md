@@ -90,6 +90,15 @@ Leitura atual:
   - o baseline sem radial reproduziu `10/12`
   - os bracos com `radial_feature=True` nao sao negativos validos
   - a branch agora ja contem a correcao de interface e os testes para rerodar
+- proxima linha arquitetural planejada:
+  - aproveitar a licao util de 2025 como modelador local condicionado em
+    `x_center`
+  - plano fisico de retomada salvo em:
+    - `docs/active/S38_S40_2025_TRANSFER_PLAN.md`
+  - ordem proposta:
+    - `S38`: baseline point-wise estilo 2025 sob protocolo 2026
+    - `S39`: seq backbone + expert local heteroscedastico
+    - `S40`: seq backbone + expert local MDN
 - a linha ativa agora e `MDN v2`:
   - `coverage/tail loss` opcional via `lambda_coverage`
   - ranking do grid por `mini_protocol_v1`

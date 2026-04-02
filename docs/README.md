@@ -16,6 +16,7 @@ agent tooling conventions:
 ## Active Docs
 
 - [active/WORKING_STATE.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/active/WORKING_STATE.md)
+- [active/S38_S40_2025_TRANSFER_PLAN.md](active/S38_S40_2025_TRANSFER_PLAN.md)
 
 ## Reference Docs
 

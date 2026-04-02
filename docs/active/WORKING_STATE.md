@@ -258,6 +258,16 @@ Open questions:
 - **`cond_embed_dim` with stable LR**: S30/S31 confirm the direction but expose
   a convergence/stability problem; e64/lr2e4 is the only stable variant (δJB=0.387,
   same 8 G5 failures); S32 sweeps this axis more broadly with safer LR configs
+
+Next architecture-transfer plan:
+
+- the physical restart plan that converts the 2025 lesson into concrete 2026
+  work is in:
+  - [S38_S40_2025_TRANSFER_PLAN.md](/workspace/2026/feat_mdn_g5_recovery_explore/docs/active/S38_S40_2025_TRANSFER_PLAN.md)
+- execution order defined there:
+  - `S38`: 2025-style point-wise revival under 2026 protocol
+  - `S39`: seq backbone + local heteroscedastic expert
+  - `S40`: seq backbone + local MDN expert
 - **accept the current ceiling** (`10/12` now reproduced on two distinct
   settings: S27 and S36) or open a narrower sweep focused on the remaining
   `0.8m/300mA` and `0.8m/500mA` G5 failures
