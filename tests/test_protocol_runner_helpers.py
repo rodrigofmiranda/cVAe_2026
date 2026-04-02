@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -10,12 +11,15 @@ from src.protocol.run import (
     _effective_cvae_config,
     _effective_dist_metrics_config,
     _get_quick_pred_runtime_entry,
+    _git_branch_name,
     _effective_stat_max_n,
     _limit_protocol_regimes,
     _protocol_execution_mode,
     _resolve_reuse_model_run_dir,
     _should_run_cvae,
+    _write_protocol_running_manifest,
 )
+from src.training.logging import RunPaths
 
 
 def test_limit_protocol_regimes_preserves_order_and_studies():
@@ -210,3 +214,43 @@ def test_extract_training_operational_artifacts_reads_saved_paths(tmp_path: Path
 
     assert out["grid_training_diagnostics_csv"] == str(diag)
     assert out["training_dashboard_png"] == str(dash)
+
+
+def test_git_branch_name_returns_branch_when_available(monkeypatch):
+    class _Completed:
+        def __init__(self, stdout, returncode=0):
+            self.stdout = stdout
+            self.returncode = returncode
+
+    calls = {"n": 0}
+
+    def _fake_run(*_args, **_kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return _Completed("feat/test-branch\n")
+        raise AssertionError("Fallback command should not be needed when branch is available")
+
+    monkeypatch.setattr("src.protocol.run.subprocess.run", _fake_run)
+
+    assert _git_branch_name() == "feat/test-branch"
+
+
+def test_write_protocol_running_manifest_includes_git_branch(tmp_path: Path):
+    exp_paths = RunPaths("exp_001", tmp_path / "exp_001")
+
+    manifest_path = _write_protocol_running_manifest(
+        exp_paths,
+        ts_start=pd.Timestamp("2026-04-02T12:00:00").to_pydatetime(),
+        git_commit="abc123",
+        git_branch="feat/test-branch",
+        versions={"python": "3.12.0"},
+        args_payload={"dataset_root": "data/example"},
+        execution_mode="train_once_eval_all",
+        studies_meta=[{"name": "study_a", "split_strategy": "per_experiment", "regime_ids": ["r0"]}],
+        regimes=[{"regime_id": "r0"}],
+    )
+
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    assert payload["git_commit"] == "abc123"
+    assert payload["git_branch"] == "feat/test-branch"

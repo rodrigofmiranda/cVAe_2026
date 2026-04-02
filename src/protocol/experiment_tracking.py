@@ -154,6 +154,7 @@ def write_latest_completed_experiment_record(
 ) -> Path:
     outputs_dir = Path(outputs_dir).resolve()
     info = inspect_protocol_experiment(exp_dir)
+    manifest = info.get("manifest") if isinstance(info.get("manifest"), dict) else {}
     payload = {
         "run_type": RUN_TYPE_PROTOCOL,
         "run_status": info["status"],
@@ -171,6 +172,8 @@ def write_latest_completed_experiment_record(
         ),
         "missing_artifacts": list(info["missing_artifacts"]),
         "required_artifacts": list(info["required_artifacts"]),
+        "git_commit": manifest.get("git_commit"),
+        "git_branch": manifest.get("git_branch"),
     }
     return _write_json(outputs_dir / LATEST_COMPLETED_EXPERIMENT_JSON, payload)
 

@@ -10,6 +10,7 @@ from src.protocol.experiment_tracking import (
     inspect_protocol_experiment,
     latest_complete_protocol_experiment,
     prune_stale_incomplete_protocol_experiments,
+    write_latest_completed_experiment_record,
 )
 
 
@@ -107,3 +108,23 @@ def test_prune_stale_incomplete_protocol_experiments_removes_old_running_runs(tm
     assert len(actions) == 1
     assert actions[0]["deleted"] is True
     assert not stale.exists()
+
+
+def test_write_latest_completed_record_keeps_git_identity_fields(tmp_path: Path):
+    outputs = tmp_path / "outputs"
+    exp_dir = _make_complete_protocol_run(
+        outputs,
+        "exp_20260321_100000",
+        timestamp_end="2026-03-21T10:10:00",
+    )
+    manifest_path = exp_dir / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["git_commit"] = "abc123"
+    manifest["git_branch"] = "feat/test-branch"
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    out = write_latest_completed_experiment_record(outputs, exp_dir)
+    payload = json.loads(out.read_text(encoding="utf-8"))
+
+    assert payload["git_commit"] == "abc123"
+    assert payload["git_branch"] == "feat/test-branch"

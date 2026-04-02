@@ -36,6 +36,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import time
 import traceback
@@ -709,7 +710,6 @@ def _merge_overrides(protocol_globals: dict, cli_args: argparse.Namespace) -> Ru
 def _git_commit_hash() -> str:
     """Best-effort git rev-parse HEAD."""
     try:
-        import subprocess
         r = subprocess.run(
             ["git", "rev-parse", "HEAD"],
             capture_output=True, text=True, timeout=5,
@@ -717,6 +717,27 @@ def _git_commit_hash() -> str:
         return r.stdout.strip() if r.returncode == 0 else "unknown"
     except Exception:
         return "unknown"
+
+
+def _git_branch_name() -> str:
+    """Best-effort current git branch name."""
+    try:
+        for cmd in (
+            ["git", "branch", "--show-current"],
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        ):
+            r = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            branch = r.stdout.strip()
+            if r.returncode == 0 and branch and branch != "HEAD":
+                return branch
+    except Exception:
+        pass
+    return "unknown"
 
 
 def _runtime_versions() -> dict:
@@ -922,6 +943,7 @@ def _write_protocol_running_manifest(
     *,
     ts_start: datetime,
     git_commit: Optional[str],
+    git_branch: Optional[str],
     versions: Dict[str, Any],
     args_payload: Dict[str, Any],
     execution_mode: str,
@@ -935,6 +957,7 @@ def _write_protocol_running_manifest(
         "timestamp_end": None,
         "duration_seconds": None,
         "git_commit": git_commit,
+        "git_branch": git_branch,
         "versions": versions,
         "args": args_payload,
         "execution_mode": execution_mode,
@@ -1860,6 +1883,7 @@ def main():
     ts_start = datetime.now()
     ts_label = ts_start.strftime("%Y%m%d_%H%M%S")
     git_commit = _git_commit_hash()
+    git_branch = _git_branch_name()
     versions = _runtime_versions()
 
     # --- Commit 3M: resolve dataset_root to absolute path ---
@@ -1943,6 +1967,7 @@ def main():
         exp_paths,
         ts_start=ts_start,
         git_commit=git_commit,
+        git_branch=git_branch,
         versions=versions,
         args_payload=manifest_args,
         execution_mode=execution_mode,
@@ -2031,6 +2056,7 @@ def main():
                     "timestamp_end": datetime.now().isoformat(timespec="seconds"),
                     "duration_seconds": (datetime.now() - ts_start).total_seconds(),
                     "git_commit": git_commit,
+                    "git_branch": git_branch,
                     "versions": versions,
                     "args": manifest_args,
                     "execution_mode": execution_mode,
@@ -2197,6 +2223,7 @@ def main():
         "timestamp_end": ts_end.isoformat(timespec="seconds"),
         "duration_seconds": (ts_end - ts_start).total_seconds(),
         "git_commit": git_commit,
+        "git_branch": git_branch,
         "versions": versions,
         "args": manifest_args,
         "execution_mode": execution_mode,
