@@ -1,0 +1,174 @@
+2025 vs 2026: O QUE O MODELO "APRENDEU" EM CADA FASE
+====================================================
+
+Objetivo deste texto
+--------------------
+Este arquivo explica, em linguagem simples, a diferenca entre:
+
+1. memorizar/copiar;
+2. aprender localmente por interpolacao;
+3. generalizar como digital twin.
+
+Tambem posiciona o projeto de 2025 e o projeto de 2026 nessa escala.
+
+
+IDEIA CENTRAL
+-------------
+Nem todo modelo que "parece igual ao canal real" aprendeu a mesma coisa.
+
+Um modelo pode:
+
+- apenas copiar exemplos muito parecidos com o treino;
+- aprender um mapeamento local que funciona bem dentro da distribuicao observada;
+- ou aprender uma representacao mais geral, capaz de manter fidelidade sob
+  testes mais duros e auditoria estatistica.
+
+
+NIVEL 1: MEMORIZAR / COPIAR
+---------------------------
+Definicao:
+O modelo reproduz muito bem exemplos muito parecidos com os vistos no treino,
+mas sem mostrar que aprendeu uma regra robusta do canal.
+
+Sinais tipicos:
+- treino e validacao muito parecidos;
+- split fraco ou muito favoravel;
+- pouca separacao entre campanhas fisicas;
+- resultado visual bom, mas pouca evidencia de generalizacao;
+- quebra quando o protocolo fica mais rigoroso.
+
+Risco:
+O modelo parece "magico", mas pode estar apenas reproduzindo o que ja viu
+quase no mesmo contexto.
+
+
+NIVEL 2: INTERPOLAR / APRENDER LOCALMENTE
+-----------------------------------------
+Definicao:
+O modelo aprende um padrao real do canal, mas principalmente dentro da regiao
+de exemplos bem cobertos pelos dados.
+
+Sinais tipicos:
+- funciona bem nas mesmas condicoes ou em condicoes muito proximas;
+- aproveita pistas fortes do input, como a posicao IQ do simbolo;
+- consegue reproduzir bem o miolo e, as vezes, a borda, se essa borda foi
+  muito bem observada no treino;
+- ainda e fragil quando mudamos o criterio de avaliacao.
+
+Interpretacao:
+Aqui o modelo nao esta "só copiando", mas seu aprendizado ainda e local e
+dependente da distribuicao observada.
+
+
+NIVEL 3: GENERALIZAR COMO DIGITAL TWIN
+--------------------------------------
+Definicao:
+O modelo nao apenas reconstrui bem sinais parecidos com o treino. Ele sustenta
+fidelidade estatistica e fisica quando avaliado com separacao rigorosa entre
+treino e protocolo.
+
+Sinais tipicos:
+- avaliacao por regime/estudo, nao apenas por amostra embaralhada;
+- metricas de sinal e metricas de distribuicao coerentes;
+- reproduz nao so EVM/SNR, mas tambem ruido residual, PSD, heterocedasticidade,
+  forma das caudas e consistencia estatistica;
+- continua razoavel mesmo nos regimes mais dificeis.
+
+Interpretacao:
+Este e o nivel mais proximo do objetivo final de digital twin.
+
+
+ONDE FICA O MODELO DE 2025
+--------------------------
+Pasta analisada:
+/workspace/2025/vae-vlc-multicurrent
+
+Resumo:
+O modelo de 2025 aprendia, sim. Mas aprendia um problema mais facil.
+
+Caracteristicas principais:
+- arquitetura point-wise;
+- input direto do simbolo IQ transmitido: x = (I, Q);
+- condicoes explicitas: distancia e corrente;
+- decoder gaussiano heteroscedastico;
+- split aleatorio global de treino/validacao;
+- treino e validacao misturados entre as mesmas campanhas fisicas.
+
+O que isso permitia:
+- aprender muito bem a distribuicao local de y dado x, d e c;
+- reproduzir muito bem regioes da constelacao ja muito vistas no treino;
+- parecer "igual ao real" em visualizacoes locais, inclusive na borda.
+
+Conclusao:
+O modelo de 2025 fica principalmente no NIVEL 2:
+
+  "interpolar / aprender localmente"
+
+Ele nao era "só copia". Mas tambem nao era uma prova forte de generalizacao
+como digital twin.
+
+
+ONDE FICA O MODELO DE 2026
+--------------------------
+Pasta principal atual:
+/workspace/2026/feat_mdn_g5_recovery_explore
+
+Resumo:
+O projeto de 2026 esta tentando resolver um problema mais dificil e mais
+correto cientificamente.
+
+Caracteristicas principais:
+- avaliacao por protocolo e por regime;
+- gates multiplos (G1 a G6);
+- exigencia de fidelidade de distribuicao residual;
+- comparacao estatistica e nao apenas visual;
+- foco em generalizacao auditavel, nao so em reconstrucao local.
+
+O que isso implica:
+- um modelo pode parecer pior visualmente do que em 2025;
+- mas estar sendo avaliado de forma muito mais dura;
+- e, por isso, estar mais perto do objetivo real de digital twin.
+
+Conclusao:
+O projeto de 2026 esta tentando operar no NIVEL 3:
+
+  "generalizar como digital twin"
+
+Mesmo quando ainda falha, ele esta sendo cobrado de um jeito muito mais serio.
+
+
+COMPARACAO CURTA
+----------------
+2025:
+- problema mais facil;
+- split favoravel;
+- aprendizagem local forte;
+- boa reproducao visual do que ja estava muito bem representado;
+- menor exigencia de generalizacao.
+
+2026:
+- problema mais dificil;
+- protocolo mais rigoroso;
+- exigencia de fidelidade estatistica do ruido;
+- maior distancia entre "reconstruir bonito" e "ser digital twin".
+
+
+FRASE PARA AULA
+---------------
+O modelo de 2025 aprendia bem a distribuicao local observada do canal.
+O projeto de 2026 tenta aprender uma representacao mais geral, auditavel e
+estatisticamente fiel do canal. Por isso, o 2026 parece mais dificil: a meta
+dele e muito mais ambiciosa.
+
+
+REGRA PRATICA PARA ALUNOS
+-------------------------
+Quando um modelo parecer "muito bom", perguntem sempre:
+
+1. Ele foi testado em dados realmente separados do treino?
+2. O criterio de sucesso era so visual ou tambem estatistico?
+3. Ele aprendeu a media do canal, ou tambem a distribuicao do ruido?
+4. Ele continua bom nos regimes mais dificeis?
+
+Se a resposta for "nao sei", ainda nao da para chamar isso de digital twin
+robusto.

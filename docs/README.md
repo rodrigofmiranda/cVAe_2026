@@ -24,6 +24,7 @@ agent tooling conventions:
 - [reference/EXPERIMENT_WORKFLOW.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/EXPERIMENT_WORKFLOW.md)
 
 - [reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt](reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt)
+- [reference/LEARNING_LEVELS_2025_VS_2026.txt](reference/LEARNING_LEVELS_2025_VS_2026.txt)
 
 ## Agent Docs
 
