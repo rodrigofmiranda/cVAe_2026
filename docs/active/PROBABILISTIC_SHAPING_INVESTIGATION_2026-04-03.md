@@ -23,6 +23,10 @@ It is intended as a working bridge between:
 - digital twin modeling,
 - and future constellation learning with autoencoders.
 
+Related methodology document:
+
+- `knowledge/syntheses/vlc_shaping_experimental_methodology_2026-04-03.md`
+
 ## Current Understanding Of The Bench
 
 The active acquisition path is already documented in
