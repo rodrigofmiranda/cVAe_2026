@@ -15,6 +15,8 @@ from typing import Any, Dict, Optional
 import numpy as np
 import pandas as pd
 
+from src.data.support_geometry import support_feature_matrix
+
 
 # ---------------------------------------------------------------------------
 # Global metrics assembly
@@ -191,6 +193,29 @@ def decoder_sensitivity(
         decoder_inputs = lambda z: [z, x_center, Db, Cb]
     elif n_decoder_inputs == 2:
         cond = np.concatenate([Xb, Db, Cb], axis=1)
+        cond_dim = int(decoder_net.inputs[1].shape[-1])
+        if cond_dim == 7:
+            support_scale = None
+            for layer in decoder_net.layers:
+                if hasattr(layer, "a_train"):
+                    support_scale = float(layer.a_train)
+                    break
+            if support_scale is None or not np.isfinite(support_scale) or support_scale <= 0.0:
+                return {
+                    "decoder_output_variance_mean": float("nan"),
+                    "decoder_output_rms_std": float("nan"),
+                    "status": "unsupported_support_geom_scale",
+                }
+            cond = np.concatenate(
+                [cond, support_feature_matrix(np.asarray(Xb), a_train=support_scale)],
+                axis=1,
+            )
+        elif cond_dim != 4:
+            return {
+                "decoder_output_variance_mean": float("nan"),
+                "decoder_output_rms_std": float("nan"),
+                "status": "unsupported_decoder_condition_dim",
+            }
         decoder_inputs = lambda z: [z, cond]
         x_center = np.asarray(Xb)
     else:

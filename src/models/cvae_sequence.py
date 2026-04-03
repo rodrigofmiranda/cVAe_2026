@@ -64,6 +64,7 @@ from src.models.losses import (
     _sample_mdn,
 )
 from src.models.sampling import Sampling
+from src.models.support_layers import SupportGeometryFeatures
 
 
 # ======================================================================
@@ -263,6 +264,35 @@ def _mlp_head(
     return h
 
 
+def _support_feature_mode(cfg: Dict) -> str:
+    mode = str(cfg.get("support_feature_mode", "none") or "none").strip().lower()
+    if mode not in {"none", "geom3"}:
+        raise ValueError(
+            f"Unknown support_feature_mode={cfg.get('support_feature_mode')!r}. "
+            "Expected one of ['none', 'geom3']."
+        )
+    return mode
+
+
+def _support_feature_scale(cfg: Dict) -> float:
+    scale = float(cfg.get("support_feature_scale", 0.0) or 0.0)
+    if not (scale > 0.0):
+        raise ValueError(
+            "support_feature_mode='geom3' requires cfg['support_feature_scale'] > 0."
+        )
+    return scale
+
+
+def _support_weight_mode(cfg: Dict) -> str:
+    mode = str(cfg.get("support_weight_mode", "none") or "none").strip().lower()
+    if mode not in {"none", "edge_rinf", "edge_rinf_corner"}:
+        raise ValueError(
+            f"Unknown support_weight_mode={cfg.get('support_weight_mode')!r}. "
+            "Expected one of ['none', 'edge_rinf', 'edge_rinf_corner']."
+        )
+    return mode
+
+
 # ======================================================================
 # Sub-model builders
 # ======================================================================
@@ -291,6 +321,7 @@ def build_seq_prior_net(cfg: Dict) -> tf.keras.Model:
     act       = cfg.get("activation", "leaky_relu")
     dropout   = float(cfg.get("dropout", 0.0))
     mlp_sizes = list(cfg["layer_sizes"])
+    support_feature_mode = _support_feature_mode(cfg)
 
     x_win_in = layers.Input(shape=(W, 2), name="prior_net_x_window")
     d_in     = layers.Input(shape=(1,),   name="prior_net_d")
@@ -307,6 +338,12 @@ def build_seq_prior_net(cfg: Dict) -> tf.keras.Model:
     h = _bigru_stack(
         seq_in, hidden, n_layers, bidir, gru_unroll, gru_backend, dropout, name_prefix="prior_net"
     )
+    if support_feature_mode == "geom3":
+        x_center = ExtractCenterFrame(W // 2, name="prior_net_x_center")(x_win_in)
+        geom = SupportGeometryFeatures(
+            _support_feature_scale(cfg), name="prior_net_support_geom"
+        )(x_center)
+        h = layers.Concatenate(name="prior_net_ctx_geom")([h, geom])
 
     # MLP head
     h = _mlp_head(h, mlp_sizes, act, dropout, name_prefix="prior_net")
@@ -342,6 +379,7 @@ def build_seq_encoder(cfg: Dict) -> tf.keras.Model:
     act       = cfg.get("activation", "leaky_relu")
     dropout   = float(cfg.get("dropout", 0.0))
     mlp_sizes = list(cfg["layer_sizes"])
+    support_feature_mode = _support_feature_mode(cfg)
 
     x_win_in  = layers.Input(shape=(W, 2), name="encoder_x_window")
     d_in      = layers.Input(shape=(1,),   name="encoder_d")
@@ -361,7 +399,14 @@ def build_seq_encoder(cfg: Dict) -> tf.keras.Model:
     )
 
     # Append y_center to the context vector before the MLP head
-    h = layers.Concatenate(name="encoder_ctx_y")([h, y_cent_in])
+    ctx_parts = [h, y_cent_in]
+    if support_feature_mode == "geom3":
+        x_center = ExtractCenterFrame(W // 2, name="encoder_x_center")(x_win_in)
+        geom = SupportGeometryFeatures(
+            _support_feature_scale(cfg), name="encoder_support_geom"
+        )(x_center)
+        ctx_parts.append(geom)
+    h = layers.Concatenate(name="encoder_ctx_y")(ctx_parts)
 
     # MLP head
     h = _mlp_head(h, mlp_sizes, act, dropout, name_prefix="encoder")
@@ -406,11 +451,17 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
     cond_embed_dim = int(cfg.get("cond_embed_dim", 0))
     cond_embed_layers = max(1, int(cfg.get("cond_embed_layers", 2)))
     cond_embed_residual = bool(cfg.get("cond_embed_residual", False))
+    support_feature_mode = _support_feature_mode(cfg)
 
     z_in      = layers.Input(shape=(latent,), name="z_input")
     x_cent_in = layers.Input(shape=(2,),      name="x_center_input")
     d_in      = layers.Input(shape=(1,),      name="d_input")
     c_in      = layers.Input(shape=(1,),      name="c_input")
+    geom = None
+    if support_feature_mode == "geom3":
+        geom = SupportGeometryFeatures(
+            _support_feature_scale(cfg), name="decoder_support_geom"
+        )(x_cent_in)
 
     if cond_embed_dim > 0:
         # Nonlinear regime embedding: (d, c) → cond_embed_layers-layer MLP → cond_embed_dim
@@ -420,11 +471,20 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
             cond_h = layers.Dense(cond_embed_dim, activation=act, name=f"dec_cond_emb_{_i}")(cond_h)
         if cond_embed_residual:
             # Skip connection: keep raw (d,c) alongside embedding
-            h = layers.Concatenate(name="dec_concat")([z_in, x_cent_in, d_in, c_in, cond_h])
+            parts = [z_in, x_cent_in, d_in, c_in, cond_h]
+            if geom is not None:
+                parts.append(geom)
+            h = layers.Concatenate(name="dec_concat")(parts)
         else:
-            h = layers.Concatenate(name="dec_concat")([z_in, x_cent_in, cond_h])
+            parts = [z_in, x_cent_in, cond_h]
+            if geom is not None:
+                parts.append(geom)
+            h = layers.Concatenate(name="dec_concat")(parts)
     else:
-        h = layers.Concatenate(name="dec_concat")([z_in, x_cent_in, d_in, c_in])
+        parts = [z_in, x_cent_in, d_in, c_in]
+        if geom is not None:
+            parts.append(geom)
+        h = layers.Concatenate(name="dec_concat")(parts)
 
     h = _mlp_head(h, mlp_sizes, act, dropout, name_prefix="dec")
 
@@ -524,6 +584,7 @@ def build_seq_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
     mmd_mode = str(cfg.get("mmd_mode", "mean_residual"))
     decoder_distribution = str(cfg.get("decoder_distribution", "gaussian"))
     mdn_components = int(cfg.get("mdn_components", 1))
+    support_weight_mode = _support_weight_mode(cfg)
     loss_layer = CondPriorVAELoss(
         beta=0.0, free_bits=free_bits,
         lambda_mmd=lambda_mmd,
@@ -540,10 +601,16 @@ def build_seq_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
         mmd_mode=mmd_mode,
         decoder_distribution=decoder_distribution,
         mdn_components=mdn_components,
+        support_weight_mode=support_weight_mode,
+        support_weight_alpha=float(cfg.get("support_weight_alpha", 1.5)),
+        support_weight_tau=float(cfg.get("support_weight_tau", 0.75)),
+        support_weight_tau_corner=float(cfg.get("support_weight_tau_corner", 0.35)),
+        support_weight_max=float(cfg.get("support_weight_max", 3.0)),
+        support_feature_scale=float(cfg.get("support_feature_scale", 0.0) or 0.0),
         name="condprior_loss",
     )
     loss_inputs = [y_in, out_params, z_mean_q, z_log_var_q, z_mean_p, z_log_var_p]
-    if any(v > 0.0 for v in (lambda_mmd, lambda_axis, lambda_psd, lambda_coverage, lambda_kurt)):
+    if any(v > 0.0 for v in (lambda_mmd, lambda_axis, lambda_psd, lambda_coverage, lambda_kurt)) or support_weight_mode != "none":
         loss_inputs.append(x_center)
     y_mean_out = loss_layer(loss_inputs)
 
@@ -681,6 +748,7 @@ def load_seq_model(path: str) -> tf.keras.Model:
             "ExtractCenterFrame": ExtractCenterFrame,
             "ClipValues": ClipValues,
             "SliceFeatures": SliceFeatures,
+            "SupportGeometryFeatures": SupportGeometryFeatures,
         },
         compile=False,
     )

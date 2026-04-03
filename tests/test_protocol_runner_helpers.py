@@ -100,6 +100,23 @@ def test_effective_cvae_config_only_exposes_relevant_override_keys():
     }
 
 
+def test_effective_cvae_config_includes_support_knobs_when_provided():
+    cfg = _effective_cvae_config(
+        {
+            "support_feature_mode": "geom3",
+            "support_weight_mode": "edge_rinf_corner",
+            "support_filter_mode": "disk_l2",
+            "support_diag_bins": 5,
+        },
+        enabled=True,
+    )
+
+    assert cfg["support_feature_mode"] == "geom3"
+    assert cfg["support_weight_mode"] == "edge_rinf_corner"
+    assert cfg["support_filter_mode"] == "disk_l2"
+    assert cfg["support_diag_bins"] == 5
+
+
 def test_protocol_execution_mode_switches_with_flag():
     assert _protocol_execution_mode(train_once_eval_all=False) == "per_regime_retrain"
     assert _protocol_execution_mode(train_once_eval_all=True) == "train_once_eval_all"

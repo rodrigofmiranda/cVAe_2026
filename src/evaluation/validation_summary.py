@@ -346,6 +346,39 @@ RESIDUAL_SIGNATURE_AMPLITUDE_COLUMNS: List[str] = [
     "stat_energy_qval",
 ]
 
+RESIDUAL_SIGNATURE_SUPPORT_COLUMNS: List[str] = [
+    "study",
+    "regime_id",
+    "regime_label",
+    "run_id",
+    "run_dir",
+    "model_run_dir",
+    "best_grid_tag",
+    "dist_target_m",
+    "curr_target_mA",
+    "support_axis",
+    "support_bin_index",
+    "support_bin_label",
+    "support_lo",
+    "support_hi",
+    "support_region",
+    "n_samples_real",
+    "n_samples_pred",
+    "stat_mode",
+    "std_real_delta_I",
+    "std_real_delta_Q",
+    "std_pred_delta_I",
+    "std_pred_delta_Q",
+    "delta_wasserstein_I",
+    "delta_wasserstein_Q",
+    "delta_jb_stat_rel_I",
+    "delta_jb_stat_rel_Q",
+    "stat_mmd_pval",
+    "stat_mmd_qval",
+    "stat_energy_pval",
+    "stat_energy_qval",
+]
+
 
 def _safe_float(value: Any) -> float:
     try:
@@ -926,6 +959,24 @@ def build_residual_signature_amplitude_table(
         if col not in df.columns:
             df[col] = np.nan
     return df.loc[:, RESIDUAL_SIGNATURE_AMPLITUDE_COLUMNS]
+
+
+def build_residual_signature_support_table(
+    results: Iterable[Dict[str, Any]],
+) -> pd.DataFrame:
+    """Flatten support-bin residual-signature rows from protocol results."""
+    rows: List[Dict[str, Any]] = []
+    for result in results:
+        bins = list(result.get("residual_signature_support_bins", []) or [])
+        for row in bins:
+            rows.append(dict(row))
+    df = pd.DataFrame(rows)
+    if df.empty:
+        return pd.DataFrame(columns=RESIDUAL_SIGNATURE_SUPPORT_COLUMNS)
+    for col in RESIDUAL_SIGNATURE_SUPPORT_COLUMNS:
+        if col not in df.columns:
+            df[col] = np.nan
+    return df.loc[:, RESIDUAL_SIGNATURE_SUPPORT_COLUMNS]
 
 
 def build_protocol_leaderboard(df_summary: pd.DataFrame) -> pd.DataFrame:

@@ -50,6 +50,7 @@ from src.config.runtime_env import ensure_writable_mpl_config_dir
 from src.evaluation.validation_summary import (
     build_protocol_leaderboard,
     build_residual_signature_amplitude_table,
+    build_residual_signature_support_table,
     build_residual_signature_table,
     build_stat_acceptance_summary,
     build_stat_fidelity_table,
@@ -116,6 +117,24 @@ def parse_args():
                    help="Amplitude bins for residual signature diagnostics (default: 4)")
     p.add_argument("--train_regime_diagnostics_focus_only_0p8m", type=int, choices=[0, 1], default=None,
                    help="Restrict periodic train diagnostics to 0.8m regimes only (default: 0)")
+    p.add_argument("--support_feature_mode", type=str, choices=["none", "geom3"], default=None,
+                   help="Support-aware feature conditioning mode (default: none)")
+    p.add_argument("--support_weight_mode", type=str, choices=["none", "edge_rinf", "edge_rinf_corner"], default=None,
+                   help="Support-aware training weight mode (default: none)")
+    p.add_argument("--support_weight_alpha", type=float, default=None,
+                   help="Alpha for support-aware edge weighting (default: 1.5)")
+    p.add_argument("--support_weight_tau", type=float, default=None,
+                   help="r_inf threshold for support-aware edge weighting (default: 0.75)")
+    p.add_argument("--support_weight_tau_corner", type=float, default=None,
+                   help="cornerness threshold for support-aware corner weighting (default: 0.35)")
+    p.add_argument("--support_weight_max", type=float, default=None,
+                   help="Maximum clipped support-aware sample weight (default: 3.0)")
+    p.add_argument("--support_filter_mode", type=str, choices=["none", "disk_l2"], default=None,
+                   help="Virtual support restriction mode applied after split (default: none)")
+    p.add_argument("--support_filter_eval_mode", type=str, choices=["matched_support_and_full"], default=None,
+                   help="How filtered-support models are reported at evaluation time (default: matched_support_and_full)")
+    p.add_argument("--support_diag_bins", type=int, default=None,
+                   help="Number of bins for support-aware residual diagnostics (default: 4)")
     p.add_argument("--keras_verbose", type=int, default=2, choices=[0, 1, 2],
                    help="Keras fit verbosity: 0=silent, 1=progress bar, 2=one line/epoch (default: 2)")
     p.add_argument("--max_dist_samples", type=int, default=None,
@@ -416,6 +435,15 @@ def _effective_cvae_config(
         "max_val_samples_per_exp",
         "keras_verbose",
         "no_data_reduction",
+        "support_feature_mode",
+        "support_weight_mode",
+        "support_weight_alpha",
+        "support_weight_tau",
+        "support_weight_tau_corner",
+        "support_weight_max",
+        "support_filter_mode",
+        "support_filter_eval_mode",
+        "support_diag_bins",
     ):
         if ov.get(key) is not None:
             cfg[key] = ov[key]
@@ -1583,6 +1611,10 @@ def run_regime(
             )
             result["eval_status"] = _eval_summary.get("status", "completed")
             result["metrics"] = dict(_eval_summary.get("metrics", {}))
+            result["support_config"] = dict(_eval_summary.get("support_config", {}))
+            result["support_filter"] = dict(_eval_summary.get("support_filter", {}))
+            if _eval_summary.get("support_full_metrics"):
+                result["support_full_metrics"] = dict(_eval_summary.get("support_full_metrics", {}))
             _eval_ran = True
         except Exception as e:
             result["eval_status"] = "failed"
@@ -1730,7 +1762,10 @@ def run_regime(
 
     if run_dist_metrics and result["train_status"] in {"completed", "shared_model"} and _val_data is not None:
         try:
-            from src.evaluation.metrics import residual_signature_by_amplitude_bin
+            from src.evaluation.metrics import (
+                residual_signature_by_amplitude_bin,
+                residual_signature_by_support_bin,
+            )
 
             _X_va, _Y_va, _D_va, _C_va = _val_data
             _mc_bins = max(1, int(result.get("metrics", {}).get("mc_samples", 8)))
@@ -1771,6 +1806,30 @@ def run_regime(
                     stat_n_perm=_stat_n_perm_bins,
                     stat_seed=int(stat_seed),
                 )
+                _support_cfg = result.get("support_config") or {}
+                _support_a_train = _support_cfg.get("a_train")
+                if _support_a_train is not None and float(_support_a_train) > 0.0:
+                    result["residual_signature_support_bins"] = residual_signature_by_support_bin(
+                        X_real=_X_va,
+                        Y_real=_Y_va,
+                        X_pred=X_tiled_sig,
+                        Y_pred=Y_pred_sig,
+                        a_train=float(_support_a_train),
+                        regime_id=regime_id,
+                        regime_label=result.get("regime_label", ""),
+                        study=result.get("_study", ""),
+                        run_id=run_id,
+                        run_dir=str(run_dir),
+                        model_run_dir=str(model_run_dir),
+                        best_grid_tag=result.get("best_grid_tag", ""),
+                        dist_target_m=float(result.get("selection_criteria", {}).get("distance_m", float("nan"))),
+                        curr_target_mA=float(result.get("selection_criteria", {}).get("current_mA", float("nan"))),
+                        support_bins=int(_support_cfg.get("support_diag_bins", ov.get("support_diag_bins", 4))),
+                        min_samples_per_bin=512,
+                        stat_mode=str(stat_mode),
+                        stat_n_perm=_stat_n_perm_bins,
+                        stat_seed=int(stat_seed),
+                    )
                 del _pred_pack_sig, Y_pred_sig, X_tiled_sig, _D_tiled_sig, _C_tiled_sig
             del _X_va, _Y_va, _D_va, _C_va
         except Exception as e:
@@ -2112,6 +2171,8 @@ def main():
             r["_study"] = sname
             for _row in r.get("residual_signature_bins", []) or []:
                 _row["study"] = sname
+            for _row in r.get("residual_signature_support_bins", []) or []:
+                _row["study"] = sname
             results.append(r)
 
     df_summary = build_summary_table(results)
@@ -2143,6 +2204,20 @@ def main():
     except Exception as e:
         df_signature_amp = None
         print(f"⚠️  Residual signature by amplitude bin failed: {e}")
+
+    try:
+        df_signature_support = build_residual_signature_support_table(results)
+        if not df_signature_support.empty:
+            sig_support_csv = exp_paths.write_table(
+                "tables/residual_signature_by_support_bin.csv",
+                df_signature_support,
+            )
+            print(f"🧭 Residual signature by support bin: {sig_support_csv}")
+        else:
+            df_signature_support = None
+    except Exception as e:
+        df_signature_support = None
+        print(f"⚠️  Residual signature by support bin failed: {e}")
 
     try:
         df_leaderboard = build_protocol_leaderboard(df_summary)

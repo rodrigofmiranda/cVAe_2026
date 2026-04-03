@@ -33,6 +33,21 @@ def test_build_training_runtime_applies_overrides_and_defaults():
     assert runtime.data_reduction_config["enabled"] is True
 
 
+def test_build_training_runtime_applies_support_analysis_overrides():
+    runtime = build_training_runtime(
+        "data/dataset_fullsquare_organized",
+        "outputs",
+        run_id="run_support",
+        overrides={
+            "support_filter_eval_mode": "matched_support_and_full",
+            "support_diag_bins": 6,
+        },
+    )
+
+    assert runtime.analysis_quick["support_filter_eval_mode"] == "matched_support_and_full"
+    assert runtime.analysis_quick["support_diag_bins"] == 6
+
+
 def test_build_training_runtime_can_disable_data_reduction():
     runtime = build_training_runtime(
         "data/dataset_fullsquare_organized",

@@ -5,6 +5,7 @@ import numpy as np
 from src.evaluation.metrics import (
     residual_distribution_metrics,
     residual_signature_by_amplitude_bin,
+    residual_signature_by_support_bin,
 )
 
 
@@ -82,3 +83,31 @@ def test_residual_signature_by_amplitude_bin_builds_rows_and_respects_min_sample
     assert all("delta_wasserstein_I" in row for row in rows)
     assert all("stat_mmd_qval" in row for row in rows)
     assert all("stat_energy_qval" in row for row in rows)
+
+
+def test_residual_signature_by_support_bin_builds_axis_and_region_rows():
+    rng = np.random.default_rng(17)
+    n = 4096
+    x_real = rng.uniform(-1.0, 1.0, size=(n, 2))
+    y_real = x_real + rng.normal(scale=0.10, size=(n, 2))
+    x_pred = np.tile(x_real, (2, 1))
+    y_pred = x_pred + rng.normal(scale=0.12, size=x_pred.shape)
+
+    rows = residual_signature_by_support_bin(
+        X_real=x_real,
+        Y_real=y_real,
+        X_pred=x_pred,
+        Y_pred=y_pred,
+        a_train=1.0,
+        regime_id="dist_0p8m__curr_300mA",
+        support_bins=4,
+        min_samples_per_bin=512,
+        stat_n_perm=16,
+        stat_seed=23,
+    )
+
+    assert len(rows) == 11
+    assert {row["support_axis"] for row in rows} == {"r_l2_norm", "r_inf_norm", "support_region"}
+    assert {"center", "edge", "corner"} <= {row["support_region"] for row in rows}
+    assert all("delta_wasserstein_I" in row for row in rows)
+    assert all("stat_mmd_qval" in row for row in rows)

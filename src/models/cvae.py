@@ -37,6 +37,7 @@ from src.config.defaults import (
 from src.models.sampling import Sampling
 from src.models.losses import CondPriorDeltaVAELoss, CondPriorVAELoss
 from src.models.callbacks import KLAnnealingCallback
+from src.models.support_layers import SupportGeometryFeatures
 
 
 # ======================================================================
@@ -66,6 +67,35 @@ def _normalize_arch_variant(arch_variant: str) -> str:
             f"Expected one of {sorted(valid)}."
         )
     return variant
+
+
+def _support_feature_mode(cfg: Dict) -> str:
+    mode = str(cfg.get("support_feature_mode", "none") or "none").strip().lower()
+    if mode not in {"none", "geom3"}:
+        raise ValueError(
+            f"Unknown support_feature_mode={cfg.get('support_feature_mode')!r}. "
+            "Expected one of ['none', 'geom3']."
+        )
+    return mode
+
+
+def _support_feature_scale(cfg: Dict) -> float:
+    scale = float(cfg.get("support_feature_scale", 0.0) or 0.0)
+    if not (scale > 0.0):
+        raise ValueError(
+            "support_feature_mode='geom3' requires cfg['support_feature_scale'] > 0."
+        )
+    return scale
+
+
+def _support_weight_mode(cfg: Dict) -> str:
+    mode = str(cfg.get("support_weight_mode", "none") or "none").strip().lower()
+    if mode not in {"none", "edge_rinf", "edge_rinf_corner"}:
+        raise ValueError(
+            f"Unknown support_weight_mode={cfg.get('support_weight_mode')!r}. "
+            "Expected one of ['none', 'edge_rinf', 'edge_rinf_corner']."
+        )
+    return mode
 
 
 # ======================================================================
@@ -113,15 +143,40 @@ def build_encoder(cfg: Dict) -> tf.keras.Model:
     -------
     keras.Model  inputs=[x(2), d(1), c(1), y(2)] → [z_mean, z_log_var]
     """
-    return build_mlp(
-        name="encoder",
-        in_shapes=[(2,), (1,), (1,), (2,)],
-        layer_sizes=cfg["layer_sizes"],
-        activation=cfg.get("activation", "leaky_relu"),
-        dropout=float(cfg.get("dropout", 0.0)),
-        out_dim=int(cfg["latent_dim"]),
-        out_name_prefix="q_",
-    )
+    if _support_feature_mode(cfg) == "none":
+        return build_mlp(
+            name="encoder",
+            in_shapes=[(2,), (1,), (1,), (2,)],
+            layer_sizes=cfg["layer_sizes"],
+            activation=cfg.get("activation", "leaky_relu"),
+            dropout=float(cfg.get("dropout", 0.0)),
+            out_dim=int(cfg["latent_dim"]),
+            out_name_prefix="q_",
+        )
+
+    layer_sizes = cfg["layer_sizes"]
+    latent_dim = int(cfg["latent_dim"])
+    activation = cfg.get("activation", "leaky_relu")
+    dropout = float(cfg.get("dropout", 0.0))
+    scale = _support_feature_scale(cfg)
+
+    x_in = layers.Input(shape=(2,), name="encoder_in_0")
+    d_in = layers.Input(shape=(1,), name="encoder_in_1")
+    c_in = layers.Input(shape=(1,), name="encoder_in_2")
+    y_in = layers.Input(shape=(2,), name="encoder_in_3")
+    geom = SupportGeometryFeatures(scale, name="encoder_support_geom")(x_in)
+    h = layers.Concatenate(name="encoder_concat")([x_in, d_in, c_in, geom, y_in])
+    for i, u in enumerate(layer_sizes):
+        h = layers.Dense(
+            u, kernel_initializer="glorot_uniform", name=f"encoder_dense_{i}",
+        )(h)
+        h = layers.BatchNormalization(name=f"encoder_bn_{i}")(h)
+        h = _activation_layer(activation)(h)
+        if dropout and dropout > 0:
+            h = layers.Dropout(dropout, name=f"encoder_drop_{i}")(h)
+    mu = layers.Dense(latent_dim, name="q_z_mean")(h)
+    lv = layers.Dense(latent_dim, name="q_z_log_var")(h)
+    return models.Model([x_in, d_in, c_in, y_in], [mu, lv], name="encoder")
 
 
 def build_prior_net(cfg: Dict) -> tf.keras.Model:
@@ -135,15 +190,39 @@ def build_prior_net(cfg: Dict) -> tf.keras.Model:
     -------
     keras.Model  inputs=[x(2), d(1), c(1)] → [z_mean, z_log_var]
     """
-    return build_mlp(
-        name="prior_net",
-        in_shapes=[(2,), (1,), (1,)],
-        layer_sizes=cfg["layer_sizes"],
-        activation=cfg.get("activation", "leaky_relu"),
-        dropout=float(cfg.get("dropout", 0.0)),
-        out_dim=int(cfg["latent_dim"]),
-        out_name_prefix="p_",
-    )
+    if _support_feature_mode(cfg) == "none":
+        return build_mlp(
+            name="prior_net",
+            in_shapes=[(2,), (1,), (1,)],
+            layer_sizes=cfg["layer_sizes"],
+            activation=cfg.get("activation", "leaky_relu"),
+            dropout=float(cfg.get("dropout", 0.0)),
+            out_dim=int(cfg["latent_dim"]),
+            out_name_prefix="p_",
+        )
+
+    layer_sizes = cfg["layer_sizes"]
+    latent_dim = int(cfg["latent_dim"])
+    activation = cfg.get("activation", "leaky_relu")
+    dropout = float(cfg.get("dropout", 0.0))
+    scale = _support_feature_scale(cfg)
+
+    x_in = layers.Input(shape=(2,), name="prior_net_in_0")
+    d_in = layers.Input(shape=(1,), name="prior_net_in_1")
+    c_in = layers.Input(shape=(1,), name="prior_net_in_2")
+    geom = SupportGeometryFeatures(scale, name="prior_net_support_geom")(x_in)
+    h = layers.Concatenate(name="prior_net_concat")([x_in, d_in, c_in, geom])
+    for i, u in enumerate(layer_sizes):
+        h = layers.Dense(
+            u, kernel_initializer="glorot_uniform", name=f"prior_net_dense_{i}",
+        )(h)
+        h = layers.BatchNormalization(name=f"prior_net_bn_{i}")(h)
+        h = _activation_layer(activation)(h)
+        if dropout and dropout > 0:
+            h = layers.Dropout(dropout, name=f"prior_net_drop_{i}")(h)
+    mu = layers.Dense(latent_dim, name="p_z_mean")(h)
+    lv = layers.Dense(latent_dim, name="p_z_log_var")(h)
+    return models.Model([x_in, d_in, c_in], [mu, lv], name="prior_net")
 
 
 def build_decoder(
@@ -154,6 +233,7 @@ def build_decoder(
     arch_variant: str = "concat",
     decoder_distribution: str = "gaussian",
     mdn_components: int = 1,
+    support_feature_mode: str = "none",
 ) -> tf.keras.Model:
     """Build the heteroscedastic decoder p(y | z, x, d, c).
 
@@ -191,7 +271,14 @@ def build_decoder(
         )
 
     z_in = layers.Input(shape=(latent_dim,), name="z_input")
-    cond_in = layers.Input(shape=(4,), name="cond_input")    # x(2)+d(1)+c(1)
+    support_mode = str(support_feature_mode or "none").strip().lower()
+    if support_mode not in {"none", "geom3"}:
+        raise ValueError(
+            f"Unknown support_feature_mode={support_feature_mode!r}. "
+            "Expected one of ['none', 'geom3']."
+        )
+    cond_dim = 4 + (3 if support_mode == "geom3" else 0)
+    cond_in = layers.Input(shape=(cond_dim,), name="cond_input")
     h = layers.Concatenate(name="dec_concat")([z_in, cond_in])
     for i, u in enumerate(layer_sizes):
         h = layers.Dense(
@@ -264,12 +351,14 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
 
     encoder = build_encoder(cfg)
     prior_net = build_prior_net(cfg)
+    support_feature_mode = _support_feature_mode(cfg)
     decoder = build_decoder(
         layer_sizes=layer_sizes, latent_dim=latent_dim,
         activation=activation, dropout=dropout,
         arch_variant=arch_variant,
         decoder_distribution=str(cfg.get("decoder_distribution", "gaussian")),
         mdn_components=int(cfg.get("mdn_components", 1)),
+        support_feature_mode=support_feature_mode,
     )
 
     # --- Graph wiring ---
@@ -289,7 +378,14 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
 
     z = Sampling(name="sampling")([z_mean_q, z_log_var_q])
 
-    cond = layers.Concatenate(name="cond_concat")([x_in, d_in, c_in])  # (N,4)
+    cond_parts = [x_in, d_in, c_in]
+    if support_feature_mode == "geom3":
+        cond_parts.append(
+            SupportGeometryFeatures(
+                _support_feature_scale(cfg), name="cond_support_geom"
+            )(x_in)
+        )
+    cond = layers.Concatenate(name="cond_concat")(cond_parts)
     out_params = decoder([z, cond])
 
     # Loss layer (β starts at 0 for annealing)
@@ -307,7 +403,10 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
     mmd_mode = str(cfg.get("mmd_mode", "mean_residual"))
     decoder_distribution = str(cfg.get("decoder_distribution", "gaussian"))
     mdn_components = int(cfg.get("mdn_components", 1))
+    support_weight_mode = _support_weight_mode(cfg)
+    support_feature_scale = float(cfg.get("support_feature_scale", 0.0) or 0.0)
     aux_needs_x = any(v > 0.0 for v in (lambda_mmd, lambda_axis, lambda_psd, lambda_coverage))
+    loss_needs_x = aux_needs_x or support_weight_mode != "none"
     if decoder_distribution.strip().lower() != "gaussian" and arch_variant != "seq_bigru_residual":
         raise ValueError(
             "decoder_distribution='mdn' is currently supported only for "
@@ -326,6 +425,12 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
             coverage_temperature=coverage_temperature,
             mmd_mode=mmd_mode,
             decoder_distribution=decoder_distribution,
+            support_weight_mode=support_weight_mode,
+            support_weight_alpha=float(cfg.get("support_weight_alpha", 1.5)),
+            support_weight_tau=float(cfg.get("support_weight_tau", 0.75)),
+            support_weight_tau_corner=float(cfg.get("support_weight_tau_corner", 0.35)),
+            support_weight_max=float(cfg.get("support_weight_max", 3.0)),
+            support_feature_scale=support_feature_scale,
             name="condprior_delta_loss",
         )
         loss_inputs = [y_in, out_params, z_mean_q, z_log_var_q, z_mean_p, z_log_var_p, x_in]
@@ -345,10 +450,16 @@ def build_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
             mmd_mode=mmd_mode,
             decoder_distribution=decoder_distribution,
             mdn_components=mdn_components,
+            support_weight_mode=support_weight_mode,
+            support_weight_alpha=float(cfg.get("support_weight_alpha", 1.5)),
+            support_weight_tau=float(cfg.get("support_weight_tau", 0.75)),
+            support_weight_tau_corner=float(cfg.get("support_weight_tau_corner", 0.35)),
+            support_weight_max=float(cfg.get("support_weight_max", 3.0)),
+            support_feature_scale=support_feature_scale,
             name="condprior_loss",
         )
         loss_inputs = [y_in, out_params, z_mean_q, z_log_var_q, z_mean_p, z_log_var_p]
-        if aux_needs_x:
+        if loss_needs_x:
             loss_inputs.append(x_in)
     y_mean = loss_layer(loss_inputs)
 
@@ -423,7 +534,27 @@ def create_inference_model_from_full(
             lambda a: a[0] + tf.exp(0.5 * a[1]) * a[2], name="sample_z",
         )([z_mean_p, z_log_var_p, eps_z])
 
-    cond = layers.Concatenate(name="cond_concat_inf")([x_in, d_in, c_in])
+    cond_dim = int(dec.inputs[1].shape[-1])
+    cond_parts = [x_in, d_in, c_in]
+    if cond_dim == 7:
+        support_scale = None
+        for layer in list(prior.layers) + list(dec.layers):
+            if isinstance(layer, SupportGeometryFeatures):
+                support_scale = float(layer.a_train)
+                break
+        if support_scale is None or not (support_scale > 0.0):
+            raise ValueError(
+                "Decoder expects geom3 support features, but no valid "
+                "SupportGeometryFeatures scale was found in the saved model."
+            )
+        cond_parts.append(
+            SupportGeometryFeatures(support_scale, name="cond_support_geom_inf")(x_in)
+        )
+    elif cond_dim != 4:
+        raise ValueError(
+            f"Unsupported point-wise decoder condition dimension: {cond_dim!r}"
+        )
+    cond = layers.Concatenate(name="cond_concat_inf")(cond_parts)
     out_params = dec([z, cond])
 
     if is_delta_residual:

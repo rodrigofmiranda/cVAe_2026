@@ -116,6 +116,32 @@ def test_select_grid_best_compare_large_mixes_delta_and_seq_anchors():
     assert "S2seq_W7_h64_lat4_b0p001_lmmd1p0_fb0p10_lr0p0003_L128-256-512" in tags
 
 
+def test_select_grid_support_e0_baselines_returns_two_anchors():
+    grid = select_grid({"grid_preset": "support_e0_baselines"})
+
+    assert len(grid) == 2
+    assert {item["cfg"]["arch_variant"] for item in grid} == {"delta_residual", "seq_bigru_residual"}
+    tags = {item["tag"] for item in grid}
+    assert "D3delta_lat5_b0p001_fb0p0_lr0p0003_bs16384_anneal80_L128-256-512" in tags
+    assert "S27cov_lc0p25_tail95_t0p03" in tags
+
+
+def test_select_grid_support_override_applies_to_all_candidates():
+    grid = select_grid(
+        {
+            "grid_preset": "support_e0_baselines",
+            "support_feature_mode": "geom3",
+            "support_weight_mode": "edge_rinf_corner",
+            "support_filter_mode": "disk_l2",
+        }
+    )
+
+    assert len(grid) == 2
+    assert all(item["cfg"]["support_feature_mode"] == "geom3" for item in grid)
+    assert all(item["cfg"]["support_weight_mode"] == "edge_rinf_corner" for item in grid)
+    assert all(item["cfg"]["support_filter_mode"] == "disk_l2" for item in grid)
+
+
 def test_select_grid_seq_residual_nightly_builds_large_seq_only_sweep():
     grid = select_grid({"grid_preset": "seq_residual_nightly"})
 

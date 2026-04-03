@@ -112,6 +112,8 @@ def build_training_runtime(
         "mini_reanalysis_scope",
         "mini_reanalysis_max_samples_per_regime",
         "grid_ranking_mode",
+        "support_filter_eval_mode",
+        "support_diag_bins",
     ):
         if ov.get(key) is not None:
             value = ov[key]

@@ -16,6 +16,7 @@ from src.config.runtime import build_evaluation_runtime
 from src.config.runtime_env import ensure_writable_mpl_config_dir
 from src.data.loading import load_experiments_as_list
 from src.data.normalization import apply_condition_norm, load_normalization_from_state
+from src.data.support_geometry import support_experiment_config, support_filter_mask
 from src.data.splits import (
     apply_caps_to_df_split,
     cap_train_samples_per_experiment,
@@ -261,6 +262,105 @@ def _apply_split_caps_for_evaluation(
     return X_train, Y_train, D_train, C_train, X_val, Y_val, D_val, C_val, df_split
 
 
+def _compute_eval_metrics_bundle(
+    *,
+    run_id: str,
+    model_path: str,
+    split_mode: str,
+    X_center: np.ndarray,
+    Y_true: np.ndarray,
+    Y_mean: np.ndarray,
+    Y_samples: Optional[np.ndarray],
+    analysis_quick: Dict[str, Any],
+    overrides: Dict[str, Any],
+    seed0: int,
+    det_inf: bool,
+    rank_mode: str,
+    mc_samples: int,
+    arch_variant: str,
+    latent_prior_semantics: str,
+) -> Dict[str, Any]:
+    evm_real, _ = calculate_evm(X_center, Y_true)
+    snr_real = calculate_snr(X_center, Y_true)
+    if Y_samples is not None and not (det_inf or mc_samples <= 1 or rank_mode == "det"):
+        evm_pred = float(np.mean([calculate_evm(X_center, Y_samples[i])[0] for i in range(len(Y_samples))]))
+        snr_pred = float(np.mean([calculate_snr(X_center, Y_samples[i]) for i in range(len(Y_samples))]))
+        Yp_dist = Y_samples.reshape((-1, Y_samples.shape[-1]))
+        X_dist = np.tile(X_center, (int(len(Y_samples)), 1))
+        Y_dist = np.tile(Y_true, (int(len(Y_samples)), 1))
+        var_mc = float(np.mean(np.var(Y_samples, axis=0)))
+    else:
+        evm_pred, _ = calculate_evm(X_center, Y_mean)
+        snr_pred = calculate_snr(X_center, Y_mean)
+        Yp_dist = Y_mean
+        X_dist = X_center
+        Y_dist = Y_true
+        var_mc = float("nan")
+
+    dist_on = bool(analysis_quick.get("dist_metrics", True)) and not bool(overrides.get("no_dist_metrics", False))
+    psd_nfft = int(overrides.get("psd_nfft", analysis_quick.get("psd_nfft", 2048)))
+    gauss_alpha = float(overrides.get("gauss_alpha", 0.01))
+    max_dist_samples = overrides.get("max_dist_samples")
+
+    if dist_on:
+        if max_dist_samples is not None:
+            max_dist_samples = max(1, min(int(max_dist_samples), len(X_dist)))
+            if max_dist_samples < len(X_dist):
+                rng_dist = np.random.default_rng(seed0)
+                idx_dist = np.sort(
+                    rng_dist.choice(len(X_dist), size=max_dist_samples, replace=False)
+                )
+                X_dist = X_dist[idx_dist]
+                Y_dist = Y_dist[idx_dist]
+                Yp_dist = Yp_dist[idx_dist]
+        distm = residual_distribution_metrics(
+            X_dist,
+            Y_dist,
+            Yp_dist,
+            psd_nfft=psd_nfft,
+            gauss_alpha=gauss_alpha,
+            Y_samples=Y_samples,
+            coverage_target=Y_true,
+        )
+    else:
+        distm = {
+            "delta_mean_l2": float("nan"),
+            "delta_cov_fro": float("nan"),
+            "var_real_delta": float("nan"),
+            "var_pred_delta": float("nan"),
+            "delta_skew_l2": float("nan"),
+            "delta_kurt_l2": float("nan"),
+            "delta_psd_l2": float("nan"),
+            "delta_acf_l2": float("nan"),
+            "rho_hetero_real": float("nan"),
+            "rho_hetero_pred": float("nan"),
+            "stat_jsd": float("nan"),
+        }
+
+    global_metrics = build_global_metrics(
+        run_id=run_id,
+        model_path=model_path,
+        split_mode=split_mode,
+        N_eval=int(len(X_center)),
+        evm_real=float(evm_real),
+        evm_pred=float(evm_pred),
+        snr_real=float(snr_real),
+        snr_pred=float(snr_pred),
+        distm=distm,
+        det_inf=bool(det_inf),
+        rank_mode=str(rank_mode),
+        mc_samples=int(mc_samples),
+        var_mc=float(var_mc) if not np.isnan(var_mc) else float("nan"),
+        arch_variant=arch_variant,
+        latent_prior_semantics=latent_prior_semantics,
+    )
+    return {
+        "global_metrics": global_metrics,
+        "distm": distm,
+        "var_mc": var_mc,
+    }
+
+
 def evaluate_run(
     run_dir: str | Path,
     *,
@@ -363,6 +463,19 @@ def evaluate_run(
 
     evalp = dict(runtime.eval_protocol)
     analysis_quick = dict(runtime.analysis_quick)
+    state_support_cfg = dict(runtime.state.get("support_config", {}))
+    support_cfg = support_experiment_config(
+        feature_mode=ov.get("support_feature_mode", state_support_cfg.get("support_feature_mode")),
+        weight_mode=ov.get("support_weight_mode", state_support_cfg.get("support_weight_mode")),
+        weight_alpha=ov.get("support_weight_alpha", state_support_cfg.get("support_weight_alpha")),
+        weight_tau=ov.get("support_weight_tau", state_support_cfg.get("support_weight_tau")),
+        weight_tau_corner=ov.get("support_weight_tau_corner", state_support_cfg.get("support_weight_tau_corner")),
+        weight_max=ov.get("support_weight_max", state_support_cfg.get("support_weight_max")),
+        filter_mode=ov.get("support_filter_mode", state_support_cfg.get("support_filter_mode")),
+        filter_eval_mode=ov.get("support_filter_eval_mode", state_support_cfg.get("support_filter_eval_mode")),
+        diag_bins=ov.get("support_diag_bins", state_support_cfg.get("support_diag_bins")),
+        a_train=state_support_cfg.get("a_train"),
+    )
     det_inf = bool(evalp.get("deterministic_inference", True))
     mc_samples = int(evalp.get("mc_samples", 1))
     rank_mode = str(evalp.get("rank_mode", ("det" if det_inf else "mc"))).lower()
@@ -560,24 +673,70 @@ def evaluate_run(
         Xv_in = Xv
         Xv_center = Xv
 
+    Xv_full = Xv
+    Yv_full = Yv
+    Dv_full = Dv
+    Cv_full = Cv
+    Xv_in_full = Xv_in
+    Xv_center_full = Xv_center
+    support_filter_mode = str(support_cfg.get("support_filter_mode", "none") or "none").strip().lower()
+    support_filter_eval_mode = str(
+        support_cfg.get("support_filter_eval_mode", "matched_support_and_full")
+    ).strip().lower()
+    support_filter_info = {
+        "enabled": False,
+        "mode": support_filter_mode,
+        "eval_mode": support_filter_eval_mode,
+    }
+    support_mask = np.ones(len(Xv_full), dtype=bool)
+    if support_filter_mode != "none":
+        a_train = float(support_cfg.get("a_train") or 0.0)
+        if not (a_train > 0.0):
+            raise ValueError(
+                f"support_filter_mode={support_filter_mode!r} requires support_config.a_train > 0."
+            )
+        support_mask = support_filter_mask(Xv_in_full, a_train=a_train, mode=support_filter_mode)
+        if not np.any(support_mask):
+            raise ValueError(
+                f"support_filter_mode={support_filter_mode!r} removed all evaluation samples."
+            )
+        Xv = Xv_full[support_mask]
+        Yv = Yv_full[support_mask]
+        Dv = Dv_full[support_mask]
+        Cv = Cv_full[support_mask]
+        Xv_in = Xv_in_full[support_mask]
+        Xv_center = Xv_center_full[support_mask]
+        n_eval = len(Xv)
+        support_filter_info.update(
+            {
+                "enabled": True,
+                "kept": int(np.sum(support_mask)),
+                "total": int(len(support_mask)),
+            }
+        )
+        print(
+            "✓ support_filter aplicado | "
+            f"mode={support_filter_mode} | "
+            f"kept={support_filter_info['kept']:,}/{support_filter_info['total']:,}"
+        )
+
     if det_inf or mc_samples <= 1 or rank_mode == "det":
-        Yp = inference_model.predict([Xv_in, Dv, Cv], batch_size=batch_infer, verbose=0)
-        Yp_dist = Yp
-        X_dist = Xv_center
-        Y_dist = Yv
-        var_mc = float("nan")
-        Ys = None
+        Yp_full = inference_model.predict([Xv_in_full, Dv_full, Cv_full], batch_size=batch_infer, verbose=0)
+        Ys_full = None
     else:
         inf_sto = _runtime["inference_sto"]
-        Ys = []
+        Ys_full = []
         for _ in range(int(mc_samples)):
-            Ys.append(inf_sto.predict([Xv_in, Dv, Cv], batch_size=batch_infer, verbose=0))
-        Ys = np.stack(Ys, axis=0)
-        Yp = Ys.mean(axis=0)
-        Yp_dist = Ys.reshape((-1, Ys.shape[-1]))
-        X_dist = np.tile(Xv_center, (int(mc_samples), 1))
-        Y_dist = np.tile(Yv, (int(mc_samples), 1))
-        var_mc = float(np.mean(np.var(Ys, axis=0)))
+            Ys_full.append(inf_sto.predict([Xv_in_full, Dv_full, Cv_full], batch_size=batch_infer, verbose=0))
+        Ys_full = np.stack(Ys_full, axis=0)
+        Yp_full = Ys_full.mean(axis=0)
+
+    if support_filter_info["enabled"]:
+        Yp = Yp_full[support_mask]
+        Ys = None if Ys_full is None else Ys_full[:, support_mask, :]
+    else:
+        Yp = Yp_full
+        Ys = Ys_full
 
     # Visualization arrays: in MC mode, use one stochastic draw per sample so
     # constellation visuals preserve natural spread without MC-mean smoothing.
@@ -592,86 +751,62 @@ def evaluate_run(
         X_vis = Xv_center
         Y_real_vis = Yv
         Y_pred_vis = Ys[draw_idx, row_idx, :]
-
-    evm_real, _ = calculate_evm(Xv_center, Yv)
-    snr_real = calculate_snr(Xv_center, Yv)
-    # For stochastic inference, compute EVM/SNR as the mean over individual MC
-    # draws rather than from the ensemble mean Yp.  The ensemble mean cancels
-    # stochastic noise and produces artificially low EVM, making the digital
-    # twin appear "cleaner" than the real channel.  Individual-draw EVM
-    # reflects the per-realisation fidelity that G1/G2 intend to measure.
-    if not (det_inf or mc_samples <= 1 or rank_mode == "det") and len(Ys) > 0:
-        evm_mc = float(np.mean([calculate_evm(Xv_center, Ys[i])[0]
-                                for i in range(len(Ys))]))
-        snr_mc = float(np.mean([calculate_snr(Xv_center, Ys[i])
-                                for i in range(len(Ys))]))
-        evm_pred = evm_mc
-        snr_pred = snr_mc
-    else:
-        evm_pred, _ = calculate_evm(Xv_center, Yp)
-        snr_pred = calculate_snr(Xv_center, Yp)
-
-    dist_on = bool(analysis_quick.get("dist_metrics", True)) and not bool(ov.get("no_dist_metrics", False))
-    psd_nfft = int(ov.get("psd_nfft", analysis_quick.get("psd_nfft", 2048)))
-    gauss_alpha = float(ov.get("gauss_alpha", 0.01))
-    max_dist_samples = ov.get("max_dist_samples")
-
-    if dist_on:
-        if max_dist_samples is not None:
-            max_dist_samples = max(1, min(int(max_dist_samples), len(X_dist)))
-            if max_dist_samples < len(X_dist):
-                rng_dist = np.random.default_rng(seed0)
-                idx_dist = np.sort(
-                    rng_dist.choice(len(X_dist), size=max_dist_samples, replace=False)
-                )
-                X_dist = X_dist[idx_dist]
-                Y_dist = Y_dist[idx_dist]
-                Yp_dist = Yp_dist[idx_dist]
-                print(f"✓ max_dist_samples aplicado na avaliação | N={max_dist_samples:,}")
-        distm = residual_distribution_metrics(
-            X_dist,
-            Y_dist,
-            Yp_dist,
-            psd_nfft=psd_nfft,
-            gauss_alpha=gauss_alpha,
-            Y_samples=Ys,
-            coverage_target=Yv,
-        )
-    else:
-        distm = {
-            "delta_mean_l2": float("nan"),
-            "delta_cov_fro": float("nan"),
-            "var_real_delta": float("nan"),
-            "var_pred_delta": float("nan"),
-            "delta_skew_l2": float("nan"),
-            "delta_kurt_l2": float("nan"),
-            "delta_psd_l2": float("nan"),
-            "delta_acf_l2": float("nan"),
-            "rho_hetero_real": float("nan"),
-            "rho_hetero_pred": float("nan"),
-            "stat_jsd": float("nan"),
-        }
-
-    global_metrics = build_global_metrics(
+    primary_bundle = _compute_eval_metrics_bundle(
         run_id=output_dir.name,
         model_path=str(best_model_path),
         split_mode=split_mode,
-        N_eval=int(n_eval),
-        evm_real=float(evm_real),
-        evm_pred=float(evm_pred),
-        snr_real=float(snr_real),
-        snr_pred=float(snr_pred),
-        distm=distm,
-        det_inf=bool(det_inf),
-        rank_mode=str(rank_mode),
-        mc_samples=int(mc_samples),
-        var_mc=float(var_mc) if not np.isnan(var_mc) else float("nan"),
+        X_center=Xv_center,
+        Y_true=Yv,
+        Y_mean=Yp,
+        Y_samples=Ys,
+        analysis_quick=analysis_quick,
+        overrides=ov,
+        seed0=seed0,
+        det_inf=det_inf,
+        rank_mode=rank_mode,
+        mc_samples=mc_samples,
         arch_variant=arch_variant,
         latent_prior_semantics=latent_prior_semantics,
     )
+    global_metrics = primary_bundle["global_metrics"]
+    distm = primary_bundle["distm"]
+    var_mc = primary_bundle["var_mc"]
+    if support_filter_info["enabled"]:
+        global_metrics["support_eval_scope"] = "matched_support"
+    else:
+        global_metrics["support_eval_scope"] = "full_square"
 
     metrics_json = run_paths.write_json("logs/metricas_globais_reanalysis.json", global_metrics)
     print(f"✓ metricas_globais_reanalysis.json salvo: {metrics_json}")
+
+    support_full_metrics = None
+    support_full_metrics_path = None
+    if support_filter_info["enabled"] and support_filter_eval_mode == "matched_support_and_full":
+        full_bundle = _compute_eval_metrics_bundle(
+            run_id=output_dir.name,
+            model_path=str(best_model_path),
+            split_mode=split_mode,
+            X_center=Xv_center_full,
+            Y_true=Yv_full,
+            Y_mean=Yp_full,
+            Y_samples=Ys_full,
+            analysis_quick=analysis_quick,
+            overrides=ov,
+            seed0=seed0,
+            det_inf=det_inf,
+            rank_mode=rank_mode,
+            mc_samples=mc_samples,
+            arch_variant=arch_variant,
+            latent_prior_semantics=latent_prior_semantics,
+        )
+        support_full_metrics = dict(full_bundle["global_metrics"])
+        support_full_metrics["support_eval_scope"] = "full_square_extrapolation"
+        support_full_metrics["trained_support_mode"] = support_filter_mode
+        support_full_metrics_path = run_paths.write_json(
+            "logs/metricas_support_full_extrapolation.json",
+            support_full_metrics,
+        )
+        print(f"✓ metricas_support_full_extrapolation.json salvo: {support_full_metrics_path}")
 
     pri_out = prior.predict([Xv_in, Dv, Cv], batch_size=batch_infer, verbose=0)
     z_mean_p, z_log_var_p = _first2(pri_out)
@@ -807,4 +942,8 @@ def evaluate_run(
         "overlay_path": str(overlay_path),
         "fingerprint_path": str(fingerprint_path),
         "dashboard_path": str(dashboard_path),
+        "support_config": support_cfg,
+        "support_filter": support_filter_info,
+        "support_full_metrics": support_full_metrics,
+        "support_full_metrics_path": (str(support_full_metrics_path) if support_full_metrics_path is not None else ""),
     }

@@ -77,6 +77,15 @@ class RunOverrides:
     train_regime_diagnostics_max_samples_per_regime: Optional[int] = None
     train_regime_diagnostics_amplitude_bins: Optional[int] = None
     train_regime_diagnostics_focus_only_0p8m: Optional[bool] = None
+    support_feature_mode: Optional[str] = None
+    support_weight_mode: Optional[str] = None
+    support_weight_alpha: Optional[float] = None
+    support_weight_tau: Optional[float] = None
+    support_weight_tau_corner: Optional[float] = None
+    support_weight_max: Optional[float] = None
+    support_filter_mode: Optional[str] = None
+    support_filter_eval_mode: Optional[str] = None
+    support_diag_bins: Optional[int] = None
 
     # --- Regime filtering ---
     dist_tol_m: Optional[float] = None

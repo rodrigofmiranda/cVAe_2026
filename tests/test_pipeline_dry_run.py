@@ -22,3 +22,15 @@ def _point_cfg(arch_variant="concat", **overrides):
 def test_delta_residual_model_is_ready_for_dry_run_without_priming():
     vae, _ = build_cvae(_point_cfg("delta_residual"))
     assert vae.count_params() > 0
+
+
+def test_support_geom3_model_is_ready_for_dry_run_when_scale_is_provided():
+    vae, _ = build_cvae(
+        _point_cfg(
+            "delta_residual",
+            support_feature_mode="geom3",
+            support_feature_scale=1.0,
+            support_weight_mode="edge_rinf_corner",
+        )
+    )
+    assert vae.count_params() > 0

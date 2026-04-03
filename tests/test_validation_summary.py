@@ -5,9 +5,11 @@ import pandas as pd
 from src.evaluation.validation_summary import (
     RESIDUAL_SIGNATURE_AMPLITUDE_COLUMNS,
     RESIDUAL_SIGNATURE_COLUMNS,
+    RESIDUAL_SIGNATURE_SUPPORT_COLUMNS,
     STAT_FIDELITY_COLUMNS,
     SUMMARY_BY_REGIME_COLUMNS,
     build_residual_signature_amplitude_table,
+    build_residual_signature_support_table,
     build_residual_signature_table,
     build_stat_acceptance_summary,
     build_stat_fidelity_table,
@@ -217,6 +219,52 @@ def test_validation_summary_keeps_schema_without_optional_families():
     assert bool(row["gate_g1"]) is True
     assert row["gate_g6"] is None
     assert row["validation_status"] == "partial"
+
+
+def test_support_signature_table_flattens_rows_with_canonical_schema():
+    result = _full_result()
+    result["residual_signature_support_bins"] = [
+        {
+            "study": "within_regime",
+            "regime_id": result["regime_id"],
+            "regime_label": result["regime_label"],
+            "run_id": result["run_id"],
+            "run_dir": result["run_dir"],
+            "model_run_dir": result["model_run_dir"],
+            "best_grid_tag": result["best_grid_tag"],
+            "dist_target_m": 1.0,
+            "curr_target_mA": 300.0,
+            "support_axis": "r_inf_norm",
+            "support_bin_index": 0,
+            "support_bin_label": "q0-25",
+            "support_lo": 0.0,
+            "support_hi": 0.25,
+            "support_region": "",
+            "n_samples_real": 1024,
+            "n_samples_pred": 2048,
+            "stat_mode": "quick",
+            "std_real_delta_I": 0.1,
+            "std_real_delta_Q": 0.2,
+            "std_pred_delta_I": 0.11,
+            "std_pred_delta_Q": 0.21,
+            "delta_wasserstein_I": 0.01,
+            "delta_wasserstein_Q": 0.02,
+            "delta_jb_stat_rel_I": 0.03,
+            "delta_jb_stat_rel_Q": 0.04,
+            "stat_mmd_pval": 0.5,
+            "stat_mmd_qval": 0.6,
+            "stat_energy_pval": 0.7,
+            "stat_energy_qval": 0.8,
+        }
+    ]
+
+    df = build_residual_signature_support_table([result])
+
+    assert list(df.columns) == RESIDUAL_SIGNATURE_SUPPORT_COLUMNS
+    row = df.iloc[0]
+    assert row["support_axis"] == "r_inf_norm"
+    assert row["support_bin_label"] == "q0-25"
+    assert math.isclose(row["stat_mmd_qval"], 0.6, rel_tol=1e-9)
 
 
 def test_stat_projection_and_acceptance_derive_from_summary():

@@ -234,6 +234,8 @@ class AnalysisConfig:
     mini_reanalysis_scope: str = ANALYSIS_DEFAULTS["mini_reanalysis_scope"]
     mini_reanalysis_max_samples_per_regime: int = ANALYSIS_DEFAULTS["mini_reanalysis_max_samples_per_regime"]
     grid_ranking_mode: str = ANALYSIS_DEFAULTS["grid_ranking_mode"]
+    support_filter_eval_mode: str = ANALYSIS_DEFAULTS["support_filter_eval_mode"]
+    support_diag_bins: int = ANALYSIS_DEFAULTS["support_diag_bins"]
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "AnalysisConfig":
@@ -302,6 +304,17 @@ class AnalysisConfig:
                 d,
                 "grid_ranking_mode",
                 ANALYSIS_DEFAULTS["grid_ranking_mode"],
+            )),
+            support_filter_eval_mode=str(_get(
+                d,
+                "support_filter_eval_mode",
+                ANALYSIS_DEFAULTS["support_filter_eval_mode"],
+            )),
+            support_diag_bins=int(_get(
+                d,
+                "support_diag_bins",
+                ANALYSIS_DEFAULTS["support_diag_bins"],
+                int,
             )),
         )
 

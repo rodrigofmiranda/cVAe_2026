@@ -24,6 +24,8 @@ from typing import Any, Dict, List, Optional, Sequence
 
 import numpy as np
 
+from src.data.support_geometry import support_feature_dict, support_region_labels
+
 
 _SIGNATURE_QUANTILES = (0.05, 0.25, 0.50, 0.75, 0.95)
 _COVERAGE_LEVELS = (0.50, 0.80, 0.95)
@@ -440,6 +442,187 @@ def residual_signature_by_amplitude_bin(
             qvals = benjamini_hochberg(np.asarray([rows[i]["stat_energy_pval"] for i in valid_energy_idx], dtype=float))
             for idx, qv in zip(valid_energy_idx, qvals):
                 rows[idx]["stat_energy_qval"] = float(qv)
+    return rows
+
+
+def residual_signature_by_support_bin(
+    *,
+    X_real: np.ndarray,
+    Y_real: np.ndarray,
+    X_pred: np.ndarray,
+    Y_pred: np.ndarray,
+    a_train: float,
+    regime_id: str,
+    regime_label: str = "",
+    study: str = "",
+    run_id: str = "",
+    run_dir: str = "",
+    model_run_dir: str = "",
+    best_grid_tag: str = "",
+    dist_target_m: float = float("nan"),
+    curr_target_mA: float = float("nan"),
+    support_bins: int = 4,
+    min_samples_per_bin: int = 512,
+    stat_mode: str = "quick",
+    stat_n_perm: int = 200,
+    stat_seed: int = 42,
+) -> List[Dict[str, Any]]:
+    """Return support-conditioned residual signature rows for one regime."""
+    from src.evaluation.stat_tests import benjamini_hochberg, energy_test, mmd_rbf
+    from src.metrics.distribution import residual_fidelity_metrics
+
+    Xr = np.asarray(X_real, dtype=np.float64)
+    Yr = np.asarray(Y_real, dtype=np.float64)
+    Xp = np.asarray(X_pred, dtype=np.float64)
+    Yp = np.asarray(Y_pred, dtype=np.float64)
+    if len(Xr) == 0 or len(Xp) == 0:
+        return []
+
+    feats_real = support_feature_dict(Xr, a_train=float(a_train))
+    feats_pred = support_feature_dict(Xp, a_train=float(a_train))
+    region_real = support_region_labels(Xr, a_train=float(a_train))
+    region_pred = support_region_labels(Xp, a_train=float(a_train))
+
+    rows: List[Dict[str, Any]] = []
+    valid_mmd_idx: List[int] = []
+    valid_energy_idx: List[int] = []
+
+    def _append_row(
+        *,
+        axis_name: str,
+        bin_index: int,
+        bin_label: str,
+        lo: float,
+        hi: float,
+        mask_real: np.ndarray,
+        mask_pred: np.ndarray,
+        region_label: str = "",
+    ) -> None:
+        row: Dict[str, Any] = {
+            "study": study,
+            "regime_id": regime_id,
+            "regime_label": regime_label,
+            "run_id": run_id,
+            "run_dir": run_dir,
+            "model_run_dir": model_run_dir,
+            "best_grid_tag": best_grid_tag,
+            "dist_target_m": float(dist_target_m),
+            "curr_target_mA": float(curr_target_mA),
+            "support_axis": axis_name,
+            "support_bin_index": int(bin_index),
+            "support_bin_label": str(bin_label),
+            "support_lo": float(lo),
+            "support_hi": float(hi),
+            "support_region": str(region_label),
+            "n_samples_real": int(mask_real.sum()),
+            "n_samples_pred": int(mask_pred.sum()),
+            "stat_mode": stat_mode,
+        }
+        if int(mask_real.sum()) < int(min_samples_per_bin) or int(mask_pred.sum()) < int(min_samples_per_bin):
+            row.update({
+                "std_real_delta_I": float("nan"),
+                "std_real_delta_Q": float("nan"),
+                "std_pred_delta_I": float("nan"),
+                "std_pred_delta_Q": float("nan"),
+                "delta_wasserstein_I": float("nan"),
+                "delta_wasserstein_Q": float("nan"),
+                "delta_jb_stat_rel_I": float("nan"),
+                "delta_jb_stat_rel_Q": float("nan"),
+                "stat_mmd_pval": float("nan"),
+                "stat_mmd_qval": float("nan"),
+                "stat_energy_pval": float("nan"),
+                "stat_energy_qval": float("nan"),
+            })
+            rows.append(row)
+            return
+
+        rr = Yr[mask_real] - Xr[mask_real]
+        rp = Yp[mask_pred] - Xp[mask_pred]
+        sig = residual_fidelity_metrics(
+            rr,
+            rp,
+            max_samples=min(len(rr), len(rp)),
+            X=Xr[mask_real],
+            X_pred=Xp[mask_pred],
+        )
+        row.update({
+            "std_real_delta_I": float(sig.get("std_real_delta_I", float("nan"))),
+            "std_real_delta_Q": float(sig.get("std_real_delta_Q", float("nan"))),
+            "std_pred_delta_I": float(sig.get("std_pred_delta_I", float("nan"))),
+            "std_pred_delta_Q": float(sig.get("std_pred_delta_Q", float("nan"))),
+            "delta_wasserstein_I": float(sig.get("delta_wasserstein_I", float("nan"))),
+            "delta_wasserstein_Q": float(sig.get("delta_wasserstein_Q", float("nan"))),
+            "delta_jb_stat_rel_I": float(sig.get("delta_jb_stat_rel_I", float("nan"))),
+            "delta_jb_stat_rel_Q": float(sig.get("delta_jb_stat_rel_Q", float("nan"))),
+        })
+        n_cmp = min(len(rr), len(rp))
+        rng = np.random.RandomState(int(stat_seed) + len(rows))
+        if n_cmp < len(rr):
+            rr = rr[rng.choice(len(rr), n_cmp, replace=False)]
+        if n_cmp < len(rp):
+            rp = rp[rng.choice(len(rp), n_cmp, replace=False)]
+        sf_mmd = mmd_rbf(rr, rp, n_perm=int(stat_n_perm), seed=int(stat_seed) + len(rows))
+        sf_energy = energy_test(rr, rp, n_perm=int(stat_n_perm), seed=int(stat_seed) + len(rows))
+        row["stat_mmd_pval"] = float(sf_mmd["pval"])
+        row["stat_mmd_qval"] = float("nan")
+        row["stat_energy_pval"] = float(sf_energy["pval"])
+        row["stat_energy_qval"] = float("nan")
+        rows.append(row)
+        valid_mmd_idx.append(len(rows) - 1)
+        valid_energy_idx.append(len(rows) - 1)
+
+    for axis_name in ("r_l2_norm", "r_inf_norm"):
+        values_real = np.asarray(feats_real[axis_name], dtype=np.float64)
+        values_pred = np.asarray(feats_pred[axis_name], dtype=np.float64)
+        edges = np.quantile(
+            values_real,
+            np.linspace(0.0, 1.0, int(max(2, support_bins)) + 1),
+        ).astype(np.float64)
+        for i in range(1, len(edges)):
+            if edges[i] <= edges[i - 1]:
+                edges[i] = edges[i - 1] + 1e-12
+        for bi in range(len(edges) - 1):
+            lo = float(edges[bi])
+            hi = float(edges[bi + 1])
+            is_last = bi == len(edges) - 2
+            mask_real = (values_real >= lo) & ((values_real <= hi) if is_last else (values_real < hi))
+            mask_pred = (values_pred >= lo) & ((values_pred <= hi) if is_last else (values_pred < hi))
+            _append_row(
+                axis_name=axis_name,
+                bin_index=bi,
+                bin_label=f"q{int(100 * bi / (len(edges) - 1))}-{int(100 * (bi + 1) / (len(edges) - 1))}",
+                lo=lo,
+                hi=hi,
+                mask_real=mask_real,
+                mask_pred=mask_pred,
+            )
+
+    for region_name in ("center", "edge", "corner"):
+        mask_real = np.asarray(region_real == region_name, dtype=bool)
+        mask_pred = np.asarray(region_pred == region_name, dtype=bool)
+        _append_row(
+            axis_name="support_region",
+            bin_index={"center": 0, "edge": 1, "corner": 2}[region_name],
+            bin_label=region_name,
+            lo=float("nan"),
+            hi=float("nan"),
+            mask_real=mask_real,
+            mask_pred=mask_pred,
+            region_label=region_name,
+        )
+
+    if valid_mmd_idx:
+        qvals = benjamini_hochberg(
+            np.asarray([rows[i]["stat_mmd_pval"] for i in valid_mmd_idx], dtype=float)
+        )
+        for idx, qv in zip(valid_mmd_idx, qvals):
+            rows[idx]["stat_mmd_qval"] = float(qv)
+    if valid_energy_idx:
+        qvals = benjamini_hochberg(
+            np.asarray([rows[i]["stat_energy_pval"] for i in valid_energy_idx], dtype=float)
+        )
+        for idx, qv in zip(valid_energy_idx, qvals):
+            rows[idx]["stat_energy_qval"] = float(qv)
     return rows
 
 

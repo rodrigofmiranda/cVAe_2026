@@ -56,15 +56,23 @@ def reconstruction_loss(
     -------
     scalar Tensor — mean NLL over batch.
     """
+    return tf.reduce_mean(reconstruction_nll_per_sample(y_true, y_mean, y_log_var))
+
+
+def reconstruction_nll_per_sample(
+    y_true: tf.Tensor,
+    y_mean: tf.Tensor,
+    y_log_var: tf.Tensor,
+) -> tf.Tensor:
+    """Return heteroscedastic Gaussian NLL per sample."""
     y_log_var = tf.clip_by_value(
         y_log_var, DECODER_LOGVAR_CLAMP_LO, DECODER_LOGVAR_CLAMP_HI
     )
     y_var = tf.exp(y_log_var) + 1e-6
-    nll = 0.5 * tf.reduce_sum(
+    return 0.5 * tf.reduce_sum(
         y_log_var + tf.square(y_true - y_mean) / y_var + tf.math.log(2.0 * np.pi),
         axis=-1,
     )
-    return tf.reduce_mean(nll)
 
 
 def kl_divergence(
@@ -140,6 +148,63 @@ def compute_total_loss(
     scalar Tensor.
     """
     return recon + beta * tf.minimum(kl, kl_cap)
+
+
+def _weighted_mean(values: tf.Tensor, sample_weight: tf.Tensor | None = None) -> tf.Tensor:
+    """Return a numerically safe weighted mean over the batch axis."""
+    values = tf.cast(values, tf.float32)
+    if sample_weight is None:
+        return tf.reduce_mean(values)
+    w = tf.cast(tf.reshape(sample_weight, [-1]), values.dtype)
+    denom = tf.maximum(tf.reduce_sum(w), tf.constant(1e-6, dtype=values.dtype))
+    return tf.reduce_sum(values * w) / denom
+
+
+def _resolve_support_weight_mode(mode: str | None) -> str:
+    mode_norm = str(mode or "none").strip().lower()
+    aliases = {
+        "none": "none",
+        "edge_rinf": "edge_rinf",
+        "edge_rinf_corner": "edge_rinf_corner",
+    }
+    if mode_norm not in aliases:
+        raise ValueError(
+            "support_weight_mode must be one of "
+            "{'none', 'edge_rinf', 'edge_rinf_corner'}; "
+            f"got {mode!r}"
+        )
+    return aliases[mode_norm]
+
+
+def _support_weights_from_x_tf(
+    x_true: tf.Tensor,
+    *,
+    a_train: float,
+    mode: str,
+    alpha: float,
+    tau: float,
+    tau_corner: float,
+    weight_max: float,
+) -> tf.Tensor | None:
+    """Return support-aware training weights derived from x=(I,Q)."""
+    mode_resolved = _resolve_support_weight_mode(mode)
+    if mode_resolved == "none":
+        return None
+    x_true = tf.cast(x_true, tf.float32)
+    scale = tf.cast(max(float(a_train), 1e-12), tf.float32)
+    abs_x = tf.abs(x_true)
+    r_inf = tf.reduce_max(abs_x, axis=-1)
+    edge = tf.clip_by_value((r_inf / scale - float(tau)) / max(1.0 - float(tau), 1e-6), 0.0, 1.0)
+    w = 1.0 + float(alpha) * edge
+    if mode_resolved == "edge_rinf_corner":
+        cornerness = (abs_x[:, 0] * abs_x[:, 1]) / tf.square(scale)
+        corner = tf.clip_by_value(
+            (cornerness - float(tau_corner)) / max(1.0 - float(tau_corner), 1e-6),
+            0.0,
+            1.0,
+        )
+        w = w * (1.0 + 0.5 * float(alpha) * corner)
+    return tf.clip_by_value(w, 1.0, float(weight_max))
 
 
 # ======================================================================
@@ -278,6 +343,18 @@ def mdn_reconstruction_loss(
     comp_log_var: tf.Tensor,
 ) -> tf.Tensor:
     """Mixture-density negative log-likelihood averaged over the batch."""
+    return tf.reduce_mean(
+        mdn_reconstruction_nll_per_sample(y_true, logits, comp_mean, comp_log_var)
+    )
+
+
+def mdn_reconstruction_nll_per_sample(
+    y_true: tf.Tensor,
+    logits: tf.Tensor,
+    comp_mean: tf.Tensor,
+    comp_log_var: tf.Tensor,
+) -> tf.Tensor:
+    """Return MDN negative log-likelihood per sample."""
     comp_log_var = tf.clip_by_value(
         comp_log_var, DECODER_LOGVAR_CLAMP_LO, DECODER_LOGVAR_CLAMP_HI
     )
@@ -290,7 +367,7 @@ def mdn_reconstruction_loss(
     )
     log_pi = tf.nn.log_softmax(logits, axis=-1)
     log_prob = tf.reduce_logsumexp(log_pi + log_norm, axis=-1)
-    return -tf.reduce_mean(log_prob)
+    return -log_prob
 
 
 def _mdn_expected_mean(logits: tf.Tensor, comp_mean: tf.Tensor) -> tf.Tensor:
@@ -482,6 +559,12 @@ class CondPriorVAELoss(layers.Layer):
         decoder_distribution: str = "gaussian",
         mdn_components: int = 1,
         mmd_bandwidth: float | None = None,
+        support_weight_mode: str = "none",
+        support_weight_alpha: float = 1.5,
+        support_weight_tau: float = 0.75,
+        support_weight_tau_corner: float = 0.35,
+        support_weight_max: float = 3.0,
+        support_feature_scale: float = 0.0,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -502,6 +585,12 @@ class CondPriorVAELoss(layers.Layer):
         self.decoder_distribution = _resolve_decoder_distribution(decoder_distribution)
         self.mdn_components = int(mdn_components)
         self.mmd_bandwidth = mmd_bandwidth
+        self.support_weight_mode = _resolve_support_weight_mode(support_weight_mode)
+        self.support_weight_alpha = float(support_weight_alpha)
+        self.support_weight_tau = float(support_weight_tau)
+        self.support_weight_tau_corner = float(support_weight_tau_corner)
+        self.support_weight_max = float(support_weight_max)
+        self.support_feature_scale = float(support_feature_scale)
         self.beta = tf.Variable(
             self.beta_init, trainable=False, dtype=tf.float32, name="beta",
         )
@@ -525,12 +614,15 @@ class CondPriorVAELoss(layers.Layer):
             y_true, out_params, z_mean_q, z_log_var_q, z_mean_p, z_log_var_p = inputs
             x_center = None
 
+        sample_weight = None
         if self.decoder_distribution == "mdn":
             logits, comp_mean, comp_log_var = _unpack_mdn_params(
                 out_params, self.mdn_components
             )
             y_mean = _mdn_expected_mean(logits, comp_mean)
-            recon = mdn_reconstruction_loss(y_true, logits, comp_mean, comp_log_var)
+            recon_per_sample = mdn_reconstruction_nll_per_sample(
+                y_true, logits, comp_mean, comp_log_var
+            )
             y_sample_cache = None
 
             def _ensure_sample():
@@ -540,7 +632,7 @@ class CondPriorVAELoss(layers.Layer):
                 return y_sample_cache
         else:
             y_mean, y_log_var = _unpack_gaussian_params(out_params)
-            recon = reconstruction_loss(y_true, y_mean, y_log_var)
+            recon_per_sample = reconstruction_nll_per_sample(y_true, y_mean, y_log_var)
             y_sample_cache = None
 
             def _ensure_sample():
@@ -549,11 +641,33 @@ class CondPriorVAELoss(layers.Layer):
                     y_sample_cache = _sample_heteroscedastic(y_mean, y_log_var)
                 return y_sample_cache
 
+        if self.support_weight_mode != "none":
+            if x_center is None:
+                raise ValueError(
+                    "support_weight_mode requires x_center/x_true to be passed "
+                    "to CondPriorVAELoss."
+                )
+            if not (self.support_feature_scale > 0.0):
+                raise ValueError(
+                    "support_weight_mode requires support_feature_scale > 0."
+                )
+            sample_weight = _support_weights_from_x_tf(
+                x_center,
+                a_train=self.support_feature_scale,
+                mode=self.support_weight_mode,
+                alpha=self.support_weight_alpha,
+                tau=self.support_weight_tau,
+                tau_corner=self.support_weight_tau_corner,
+                weight_max=self.support_weight_max,
+            )
+
+        recon = _weighted_mean(recon_per_sample, sample_weight)
+
         kl_per_sample = kl_divergence(
             z_mean_q, z_log_var_q, z_mean_p, z_log_var_p,
         )
         kl_fb = kl_with_freebits(kl_per_sample, self.free_bits)
-        kl = tf.reduce_mean(kl_fb)
+        kl = _weighted_mean(kl_fb, sample_weight)
 
         total = compute_total_loss(recon, kl, self.beta)
 
@@ -610,7 +724,7 @@ class CondPriorVAELoss(layers.Layer):
 
         self.add_loss(total)
         self.recon_loss_tracker.update_state(recon)
-        self.kl_loss_tracker.update_state(tf.reduce_mean(kl_per_sample))
+        self.kl_loss_tracker.update_state(_weighted_mean(kl_per_sample, sample_weight))
         return y_mean
 
     @property
@@ -648,6 +762,12 @@ class CondPriorVAELoss(layers.Layer):
             "decoder_distribution": self.decoder_distribution,
             "mdn_components": self.mdn_components,
             "mmd_bandwidth": self.mmd_bandwidth,
+            "support_weight_mode": self.support_weight_mode,
+            "support_weight_alpha": self.support_weight_alpha,
+            "support_weight_tau": self.support_weight_tau,
+            "support_weight_tau_corner": self.support_weight_tau_corner,
+            "support_weight_max": self.support_weight_max,
+            "support_feature_scale": self.support_feature_scale,
         })
         return cfg
 
@@ -680,6 +800,12 @@ class CondPriorDeltaVAELoss(layers.Layer):
         mmd_mode: str = "mean_residual",
         decoder_distribution: str = "gaussian",
         mmd_bandwidth: float | None = None,
+        support_weight_mode: str = "none",
+        support_weight_alpha: float = 1.5,
+        support_weight_tau: float = 0.75,
+        support_weight_tau_corner: float = 0.35,
+        support_weight_max: float = 3.0,
+        support_feature_scale: float = 0.0,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -700,6 +826,12 @@ class CondPriorDeltaVAELoss(layers.Layer):
                 "decoder_distribution='gaussian'."
             )
         self.mmd_bandwidth = mmd_bandwidth
+        self.support_weight_mode = _resolve_support_weight_mode(support_weight_mode)
+        self.support_weight_alpha = float(support_weight_alpha)
+        self.support_weight_tau = float(support_weight_tau)
+        self.support_weight_tau_corner = float(support_weight_tau_corner)
+        self.support_weight_max = float(support_weight_max)
+        self.support_feature_scale = float(support_feature_scale)
         self.beta = tf.Variable(
             self.beta_init, trainable=False, dtype=tf.float32, name="beta",
         )
@@ -727,13 +859,32 @@ class CondPriorDeltaVAELoss(layers.Layer):
         delta_mean = out_params[:, :2]
         delta_log_var = out_params[:, 2:]
 
-        recon = reconstruction_loss(delta_true, delta_mean, delta_log_var)
+        sample_weight = None
+        if self.support_weight_mode != "none":
+            if not (self.support_feature_scale > 0.0):
+                raise ValueError(
+                    "support_weight_mode requires support_feature_scale > 0."
+                )
+            sample_weight = _support_weights_from_x_tf(
+                x_true,
+                a_train=self.support_feature_scale,
+                mode=self.support_weight_mode,
+                alpha=self.support_weight_alpha,
+                tau=self.support_weight_tau,
+                tau_corner=self.support_weight_tau_corner,
+                weight_max=self.support_weight_max,
+            )
+
+        recon = _weighted_mean(
+            reconstruction_nll_per_sample(delta_true, delta_mean, delta_log_var),
+            sample_weight,
+        )
 
         kl_per_sample = kl_divergence(
             z_mean_q, z_log_var_q, z_mean_p, z_log_var_p,
         )
         kl_fb = kl_with_freebits(kl_per_sample, self.free_bits)
-        kl = tf.reduce_mean(kl_fb)
+        kl = _weighted_mean(kl_fb, sample_weight)
 
         total = compute_total_loss(recon, kl, self.beta)
 
@@ -786,7 +937,7 @@ class CondPriorDeltaVAELoss(layers.Layer):
 
         self.add_loss(total)
         self.recon_loss_tracker.update_state(recon)
-        self.kl_loss_tracker.update_state(tf.reduce_mean(kl_per_sample))
+        self.kl_loss_tracker.update_state(_weighted_mean(kl_per_sample, sample_weight))
         return x_true + delta_mean
 
     @property
@@ -817,6 +968,12 @@ class CondPriorDeltaVAELoss(layers.Layer):
             "mmd_mode": self.mmd_mode,
             "decoder_distribution": self.decoder_distribution,
             "mmd_bandwidth": self.mmd_bandwidth,
+            "support_weight_mode": self.support_weight_mode,
+            "support_weight_alpha": self.support_weight_alpha,
+            "support_weight_tau": self.support_weight_tau,
+            "support_weight_tau_corner": self.support_weight_tau_corner,
+            "support_weight_max": self.support_weight_max,
+            "support_feature_scale": self.support_feature_scale,
         })
         return cfg
 

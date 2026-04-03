@@ -20,6 +20,8 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import pandas as pd
 
+from src.data.support_geometry import support_filter_mask
+
 # ---------------------------------------------------------------------------
 # Public helpers (moved from monolith inner scope)
 # ---------------------------------------------------------------------------
@@ -234,6 +236,28 @@ def _apply_regime_weighted_resampling(
             "target_size": int(target_size),
         },
     )
+
+
+def _apply_support_filter_to_aligned_arrays(
+    *,
+    mask: np.ndarray,
+    x: np.ndarray,
+    y: np.ndarray,
+    d_norm: np.ndarray,
+    c_norm: np.ndarray,
+    d_raw: Optional[np.ndarray],
+    c_raw: Optional[np.ndarray],
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Optional[np.ndarray], Optional[np.ndarray]]:
+    idx = np.asarray(mask, dtype=bool).reshape(-1)
+    out = (
+        x[idx],
+        y[idx],
+        d_norm[idx],
+        c_norm[idx],
+        None if d_raw is None else np.asarray(d_raw)[idx],
+        None if c_raw is None else np.asarray(c_raw)[idx],
+    )
+    return out
 
 
 def checklist_table() -> "pd.DataFrame":
@@ -945,6 +969,7 @@ def run_gridsearch(
     overrides: Optional[Dict[str, Any]] = None,
     df_plan: Optional["pd.DataFrame"] = None,
     df_split: Optional["pd.DataFrame"] = None,
+    support_config: Optional[Dict[str, Any]] = None,
 ) -> "pd.DataFrame":
     """Execute the full grid-search loop and return sorted results.
 
@@ -1007,6 +1032,17 @@ def run_gridsearch(
     for gi, item in enumerate(grid, start=1):
         requested_cfg = dict(item["cfg"])
         cfg = dict(requested_cfg)
+        support_cfg = dict(support_config or {})
+        if support_cfg:
+            cfg.setdefault("support_feature_mode", support_cfg.get("support_feature_mode", "none"))
+            cfg.setdefault("support_weight_mode", support_cfg.get("support_weight_mode", "none"))
+            cfg.setdefault("support_weight_alpha", support_cfg.get("support_weight_alpha", 1.5))
+            cfg.setdefault("support_weight_tau", support_cfg.get("support_weight_tau", 0.75))
+            cfg.setdefault("support_weight_tau_corner", support_cfg.get("support_weight_tau_corner", 0.35))
+            cfg.setdefault("support_weight_max", support_cfg.get("support_weight_max", 3.0))
+            cfg.setdefault("support_filter_mode", support_cfg.get("support_filter_mode", "none"))
+            if support_cfg.get("a_train") is not None:
+                cfg["support_feature_scale"] = float(support_cfg["a_train"])
         group = item["group"]
         tag = item["tag"]
         candidate_analysis_quick = dict(analysis_quick)
@@ -1070,7 +1106,78 @@ def run_gridsearch(
             C_tr_raw_fit = None if C_train_raw is None else np.asarray(C_train_raw).reshape(-1, 1)
             D_va_raw_fit = None if D_val_raw is None else np.asarray(D_val_raw).reshape(-1, 1)
             C_va_raw_fit = None if C_val_raw is None else np.asarray(C_val_raw).reshape(-1, 1)
-            X_va_center_fit = X_va_fit
+        X_va_center_fit = (
+            X_va_fit[:, X_va_fit.shape[1] // 2, :]
+            if _arch == "seq_bigru_residual"
+            else X_va_fit
+        )
+
+        support_filter_mode = str(cfg.get("support_filter_mode", "none") or "none").strip().lower()
+        support_filter_info = {"enabled": False}
+        if support_filter_mode != "none":
+            a_train = float(cfg.get("support_feature_scale", 0.0) or 0.0)
+            if not (a_train > 0.0):
+                raise ValueError(
+                    f"support_filter_mode={support_filter_mode!r} requires support_feature_scale > 0."
+                )
+            train_mask = support_filter_mask(X_tr_fit, a_train=a_train, mode=support_filter_mode)
+            val_mask = support_filter_mask(X_va_fit, a_train=a_train, mode=support_filter_mode)
+            (
+                X_tr_fit,
+                Y_tr_fit,
+                D_tr_fit,
+                C_tr_fit,
+                D_tr_raw_fit,
+                C_tr_raw_fit,
+            ) = _apply_support_filter_to_aligned_arrays(
+                mask=train_mask,
+                x=X_tr_fit,
+                y=Y_tr_fit,
+                d_norm=D_tr_fit,
+                c_norm=C_tr_fit,
+                d_raw=D_tr_raw_fit,
+                c_raw=C_tr_raw_fit,
+            )
+            (
+                X_va_fit,
+                Y_va_fit,
+                D_va_fit,
+                C_va_fit,
+                D_va_raw_fit,
+                C_va_raw_fit,
+            ) = _apply_support_filter_to_aligned_arrays(
+                mask=val_mask,
+                x=X_va_fit,
+                y=Y_va_fit,
+                d_norm=D_va_fit,
+                c_norm=C_va_fit,
+                d_raw=D_va_raw_fit,
+                c_raw=C_va_raw_fit,
+            )
+            if len(X_tr_fit) == 0 or len(X_va_fit) == 0:
+                raise ValueError(
+                    f"support_filter_mode={support_filter_mode!r} removed all samples "
+                    f"(train={len(X_tr_fit)}, val={len(X_va_fit)})."
+                )
+            X_va_center_fit = (
+                X_va_fit[:, X_va_fit.shape[1] // 2, :]
+                if _arch == "seq_bigru_residual"
+                else X_va_fit
+            )
+            support_filter_info = {
+                "enabled": True,
+                "mode": support_filter_mode,
+                "train_kept": int(np.sum(train_mask)),
+                "train_total": int(len(train_mask)),
+                "val_kept": int(np.sum(val_mask)),
+                "val_total": int(len(val_mask)),
+            }
+            print(
+                "  ↳ support filter: "
+                f"mode={support_filter_mode} | "
+                f"train={support_filter_info['train_kept']:,}/{support_filter_info['train_total']:,} | "
+                f"val={support_filter_info['val_kept']:,}/{support_filter_info['val_total']:,}"
+            )
 
         (
             X_tr_fit,
@@ -1371,6 +1478,24 @@ def run_gridsearch(
                     "pen_var_mismatch": float(pen_var_mismatch),
                     "rank_mode": str(candidate_analysis_quick.get("rank_mode", "mc")).lower(),
                     "mc_samples": int(candidate_analysis_quick.get("mc_samples", 8)),
+                    "support_feature_mode": str(cfg.get("support_feature_mode", "none")),
+                    "support_weight_mode": str(cfg.get("support_weight_mode", "none")),
+                    "support_weight_alpha": float(cfg.get("support_weight_alpha", 1.5)),
+                    "support_weight_tau": float(cfg.get("support_weight_tau", 0.75)),
+                    "support_weight_tau_corner": float(cfg.get("support_weight_tau_corner", 0.35)),
+                    "support_weight_max": float(cfg.get("support_weight_max", 3.0)),
+                    "support_filter_mode": str(cfg.get("support_filter_mode", "none")),
+                    "support_feature_scale": float(cfg.get("support_feature_scale", float("nan"))),
+                    "support_filter_train_fraction": (
+                        float(support_filter_info["train_kept"] / support_filter_info["train_total"])
+                        if support_filter_info.get("enabled")
+                        else float("nan")
+                    ),
+                    "support_filter_val_fraction": (
+                        float(support_filter_info["val_kept"] / support_filter_info["val_total"])
+                        if support_filter_info.get("enabled")
+                        else float("nan")
+                    ),
                 }
                 ranking_mode = str(candidate_analysis_quick.get("grid_ranking_mode", "score_v2")).strip().lower()
                 row["ranking_mode"] = ranking_mode

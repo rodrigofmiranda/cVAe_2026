@@ -18,6 +18,10 @@ from src.data.loading import (
     load_experiments_as_list,
     reduce_aligned_arrays,
 )
+from src.data.support_geometry import (
+    compute_support_geometry_stats,
+    support_experiment_config,
+)
 from src.data.normalization import normalize_conditions
 from src.data.splits import (
     apply_caps_to_df_split,
@@ -163,6 +167,43 @@ def _log_regime_tolerance(overrides: Dict[str, Any], d_unique, c_unique) -> None
                     f"⚠️  D={distance:.3f}m exceeds tolerance of regime target "
                     f"{target_d}m ± {tol_d}m"
                 )
+
+
+def _build_support_config(X_train: np.ndarray, overrides: Dict[str, Any]) -> Dict[str, Any]:
+    stats = compute_support_geometry_stats(X_train)
+    return support_experiment_config(
+        feature_mode=overrides.get("support_feature_mode"),
+        weight_mode=overrides.get("support_weight_mode"),
+        weight_alpha=overrides.get("support_weight_alpha"),
+        weight_tau=overrides.get("support_weight_tau"),
+        weight_tau_corner=overrides.get("support_weight_tau_corner"),
+        weight_max=overrides.get("support_weight_max"),
+        filter_mode=overrides.get("support_filter_mode"),
+        filter_eval_mode=overrides.get("support_filter_eval_mode"),
+        diag_bins=overrides.get("support_diag_bins"),
+        a_train=stats.a_train,
+    )
+
+
+def _inject_support_defaults_into_grid(
+    grid: List[Dict[str, Any]],
+    support_config: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    if not grid:
+        return grid
+    enriched: List[Dict[str, Any]] = []
+    for item in grid:
+        cfg = dict(item.get("cfg", {}))
+        cfg.setdefault("support_feature_mode", str(support_config.get("support_feature_mode", "none")))
+        cfg.setdefault("support_weight_mode", str(support_config.get("support_weight_mode", "none")))
+        cfg.setdefault("support_weight_alpha", float(support_config.get("support_weight_alpha", 1.5)))
+        cfg.setdefault("support_weight_tau", float(support_config.get("support_weight_tau", 0.75)))
+        cfg.setdefault("support_weight_tau_corner", float(support_config.get("support_weight_tau_corner", 0.35)))
+        cfg.setdefault("support_weight_max", float(support_config.get("support_weight_max", 3.0)))
+        cfg.setdefault("support_filter_mode", str(support_config.get("support_filter_mode", "none")))
+        cfg["support_feature_scale"] = float(support_config["a_train"])
+        enriched.append({**item, "cfg": cfg})
+    return enriched
     if target_c is not None:
         for current in c_unique:
             if abs(current - float(target_c)) > tol_c:
@@ -333,6 +374,7 @@ def run_training_pipeline(
 
     d_unique = sorted(np.unique(D_train).tolist())
     c_unique = sorted(np.unique(C_train).tolist())
+    support_config = _build_support_config(X_train, ov)
     print(
         f"✓ Distância (treino): [{norm_params['D_min']:.3f}, {norm_params['D_max']:.3f}] m  "
         f"unique={d_unique}"
@@ -346,6 +388,7 @@ def run_training_pipeline(
         _log_regime_tolerance(ov, d_unique, c_unique)
 
     grid = select_grid(ov)
+    grid = _inject_support_defaults_into_grid(grid, support_config)
 
     # Guard: comprehensive check after grid selection — catches arch_variant set per-cfg.
     _seq_in_grid = any(
@@ -409,6 +452,7 @@ def run_training_pipeline(
         overrides=ov,
         df_plan=df_plan,
         df_split=df_split,
+        support_config=support_config,
     )
 
     grid_csv_path = run_paths.run_dir / "tables" / "gridsearch_results.csv"
@@ -464,6 +508,23 @@ def run_training_pipeline(
         "best_grid_tag": best_grid_tag,
         "best_score_v2": best_score_v2,
     }
+    best_support_config = dict(support_config)
+    if best_grid_tag:
+        for item in grid:
+            if str(item.get("tag", "")) != str(best_grid_tag):
+                continue
+            best_support_config.update(
+                {
+                    "support_feature_mode": str(item["cfg"].get("support_feature_mode", best_support_config["support_feature_mode"])),
+                    "support_weight_mode": str(item["cfg"].get("support_weight_mode", best_support_config["support_weight_mode"])),
+                    "support_weight_alpha": float(item["cfg"].get("support_weight_alpha", best_support_config["support_weight_alpha"])),
+                    "support_weight_tau": float(item["cfg"].get("support_weight_tau", best_support_config["support_weight_tau"])),
+                    "support_weight_tau_corner": float(item["cfg"].get("support_weight_tau_corner", best_support_config["support_weight_tau_corner"])),
+                    "support_weight_max": float(item["cfg"].get("support_weight_max", best_support_config["support_weight_max"])),
+                    "support_filter_mode": str(item["cfg"].get("support_filter_mode", best_support_config["support_filter_mode"])),
+                }
+            )
+            break
 
     state_path = write_state_run(
         run_paths.run_dir,
@@ -478,6 +539,7 @@ def run_training_pipeline(
         eval_protocol=runtime.eval_protocol,
         grid=grid_state,
         artifacts=artifacts,
+        extra={"support_config": best_support_config},
         logs_dir=run_paths.logs_dir,
     )
     print(f"✓ state_run.json salvo: {state_path}")

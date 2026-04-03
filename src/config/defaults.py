@@ -94,6 +94,8 @@ K_MINI_REANALYSIS_ENABLED = "mini_reanalysis_enabled"
 K_MINI_REANALYSIS_SCOPE = "mini_reanalysis_scope"
 K_MINI_REANALYSIS_MAX_SAMPLES = "mini_reanalysis_max_samples_per_regime"
 K_GRID_RANKING_MODE = "grid_ranking_mode"
+K_SUPPORT_FILTER_EVAL_MODE = "support_filter_eval_mode"
+K_SUPPORT_DIAG_BINS = "support_diag_bins"
 
 # --- State-run / paths ---
 K_RUN_ID = "run_id"
@@ -191,6 +193,8 @@ ANALYSIS_DEFAULTS: dict = {
     K_MINI_REANALYSIS_SCOPE: "all12",
     K_MINI_REANALYSIS_MAX_SAMPLES: 4096,
     K_GRID_RANKING_MODE: "score_v2",
+    K_SUPPORT_FILTER_EVAL_MODE: "matched_support_and_full",
+    K_SUPPORT_DIAG_BINS: 4,
 }
 
 # Minimal fallback state_run for backward-compat with old runs

@@ -75,6 +75,14 @@ class TestSubModelBuild:
         dec = build_seq_decoder(_min_cfg())
         assert dec is not None
 
+    def test_seq_support_geom3_builds(self):
+        prior = build_seq_prior_net(_min_cfg(support_feature_mode="geom3", support_feature_scale=1.0))
+        enc = build_seq_encoder(_min_cfg(support_feature_mode="geom3", support_feature_scale=1.0))
+        dec = build_seq_decoder(_min_cfg(support_feature_mode="geom3", support_feature_scale=1.0))
+        assert prior is not None
+        assert enc is not None
+        assert dec is not None
+
     def test_seq_gru_layers_are_explicitly_unrolled(self):
         prior = build_seq_prior_net(_min_cfg(seq_bidirectional=True))
         bigru = prior.get_layer("prior_net_bigru_0")

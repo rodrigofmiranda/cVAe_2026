@@ -4676,6 +4676,151 @@ def _preset_delta_residual_adv_smoke() -> List[Dict[str, Any]]:
     ]
 
 
+def _support_delta_anchor_cfg(**kwargs: Any) -> Dict[str, Any]:
+    cfg = _cfg(
+        arch_variant="delta_residual",
+        layer_sizes=[128, 256, 512],
+        latent_dim=5,
+        beta=0.001,
+        free_bits=0.0,
+        lr=3e-4,
+        batch_size=16384,
+        kl_anneal_epochs=80,
+    )
+    cfg.update(kwargs)
+    return cfg
+
+
+def _support_seq_anchor_cfg(**kwargs: Any) -> Dict[str, Any]:
+    cfg = _cfg(
+        arch_variant="seq_bigru_residual",
+        layer_sizes=[128, 256, 512],
+        latent_dim=8,
+        beta=0.002,
+        free_bits=0.10,
+        lr=2e-4,
+        batch_size=6144,
+        kl_anneal_epochs=80,
+        window_size=7,
+        window_stride=1,
+        window_pad_mode="edge",
+        seq_hidden_size=64,
+        seq_num_layers=1,
+        seq_bidirectional=True,
+        seq_gru_unroll=True,
+        lambda_mmd=0.25,
+        mmd_mode="mean_residual",
+        lambda_axis=0.01,
+        lambda_psd=0.0,
+        lambda_coverage=0.25,
+        coverage_levels=[0.50, 0.80, 0.95],
+        tail_levels=[0.05, 0.95],
+        coverage_temperature=0.03,
+        decoder_distribution="mdn",
+        mdn_components=3,
+        shuffle_train_batches=True,
+    )
+    cfg.update(kwargs)
+    return cfg
+
+
+def _preset_support_e0_baselines() -> List[Dict[str, Any]]:
+    return [
+        dict(
+            group="E0_support",
+            tag="D3delta_lat5_b0p001_fb0p0_lr0p0003_bs16384_anneal80_L128-256-512",
+            cfg=_support_delta_anchor_cfg(),
+        ),
+        dict(
+            group="E0_support",
+            tag="S27cov_lc0p25_tail95_t0p03",
+            cfg=_support_seq_anchor_cfg(),
+        ),
+    ]
+
+
+def _preset_support_e1_geom3() -> List[Dict[str, Any]]:
+    return [
+        dict(
+            group="E1_support_geom3",
+            tag="D3delta_lat5_b0p001_fb0p0_lr0p0003_bs16384_anneal80_L128-256-512_geom3",
+            cfg=_support_delta_anchor_cfg(support_feature_mode="geom3"),
+        ),
+        dict(
+            group="E1_support_geom3",
+            tag="S27cov_lc0p25_tail95_t0p03_geom3",
+            cfg=_support_seq_anchor_cfg(support_feature_mode="geom3"),
+        ),
+    ]
+
+
+def _preset_support_e2_edge_weight() -> List[Dict[str, Any]]:
+    return [
+        dict(
+            group="E2_support_edge_weight",
+            tag="D3delta_lat5_b0p001_fb0p0_lr0p0003_bs16384_anneal80_L128-256-512_edge",
+            cfg=_support_delta_anchor_cfg(support_weight_mode="edge_rinf_corner"),
+        ),
+        dict(
+            group="E2_support_edge_weight",
+            tag="S27cov_lc0p25_tail95_t0p03_edge",
+            cfg=_support_seq_anchor_cfg(support_weight_mode="edge_rinf_corner"),
+        ),
+    ]
+
+
+def _preset_support_e3_geom3_edge_weight() -> List[Dict[str, Any]]:
+    return [
+        dict(
+            group="E3_support_geom3_edge",
+            tag="D3delta_lat5_b0p001_fb0p0_lr0p0003_bs16384_anneal80_L128-256-512_geom3_edge",
+            cfg=_support_delta_anchor_cfg(
+                support_feature_mode="geom3",
+                support_weight_mode="edge_rinf_corner",
+            ),
+        ),
+        dict(
+            group="E3_support_geom3_edge",
+            tag="S27cov_lc0p25_tail95_t0p03_geom3_edge",
+            cfg=_support_seq_anchor_cfg(
+                support_feature_mode="geom3",
+                support_weight_mode="edge_rinf_corner",
+            ),
+        ),
+    ]
+
+
+def _preset_support_e4_disk() -> List[Dict[str, Any]]:
+    return [
+        dict(
+            group="E4_support_disk",
+            tag="D3delta_lat5_b0p001_fb0p0_lr0p0003_bs16384_anneal80_L128-256-512_disk",
+            cfg=_support_delta_anchor_cfg(support_filter_mode="disk_l2"),
+        ),
+        dict(
+            group="E4_support_disk",
+            tag="D3delta_lat5_b0p001_fb0p0_lr0p0003_bs16384_anneal80_L128-256-512_disk_geom3",
+            cfg=_support_delta_anchor_cfg(
+                support_filter_mode="disk_l2",
+                support_feature_mode="geom3",
+            ),
+        ),
+        dict(
+            group="E4_support_disk",
+            tag="S27cov_lc0p25_tail95_t0p03_disk",
+            cfg=_support_seq_anchor_cfg(support_filter_mode="disk_l2"),
+        ),
+        dict(
+            group="E4_support_disk",
+            tag="S27cov_lc0p25_tail95_t0p03_disk_geom3",
+            cfg=_support_seq_anchor_cfg(
+                support_filter_mode="disk_l2",
+                support_feature_mode="geom3",
+            ),
+        ),
+    ]
+
+
 def select_grid(
     overrides: Optional[Mapping[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
@@ -4801,8 +4946,39 @@ def select_grid(
             grid = _preset_best_compare_large()
         elif preset_name == "delta_residual_fast":
             grid = _preset_delta_residual_fast()
+        elif preset_name == "support_e0_baselines":
+            grid = _preset_support_e0_baselines()
+        elif preset_name == "support_e1_geom3":
+            grid = _preset_support_e1_geom3()
+        elif preset_name == "support_e2_edge_weight":
+            grid = _preset_support_e2_edge_weight()
+        elif preset_name == "support_e3_geom3_edge_weight":
+            grid = _preset_support_e3_geom3_edge_weight()
+        elif preset_name == "support_e4_disk":
+            grid = _preset_support_e4_disk()
         else:
             raise ValueError(f"Unknown grid_preset={preset!r}")
+
+    support_override_keys = (
+        "support_feature_mode",
+        "support_weight_mode",
+        "support_weight_alpha",
+        "support_weight_tau",
+        "support_weight_tau_corner",
+        "support_weight_max",
+        "support_filter_mode",
+    )
+    if any(ov.get(key) is not None for key in support_override_keys):
+        grid = [
+            {
+                **item,
+                "cfg": {
+                    **item.get("cfg", {}),
+                    **{key: ov[key] for key in support_override_keys if ov.get(key) is not None},
+                },
+            }
+            for item in grid
+        ]
 
     if ov.get("grid_group") is not None:
         grid = [g for g in grid if re.search(str(ov["grid_group"]), g.get("group", ""))]
