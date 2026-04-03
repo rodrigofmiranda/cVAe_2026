@@ -35,6 +35,19 @@ If you are using the shared lab server, continue with
 - this guide covers the public remote branches visible on GitHub
 - local-only branches may still exist on the server and are not guaranteed to appear here
 
+## Historical Outputs On The Shared Server
+
+If you are auditing old runs on the shared lab server, branch history and output
+history do not line up perfectly in the current `outputs/` tree.
+
+- active post-migration outputs live in the current clone under `outputs/`
+- recovered pre-migration historical outputs were copied into the local-only directory `outputs/_recovered_vlc_backup_20260402`
+- the recovered inventory is indexed in `outputs/_recovered_vlc_backup_20260402/inventory.csv`
+- that recovered set currently preserves historical evidence for `feat/sample-aware-mmd`, `feat/sample-aware-mmd-gpu`, and `feat/seq-bigru-residual-cvae`
+- `feat/delta-residual-adv` still exists mainly as a historical documentation trail; docs reference its former `/workspace/2026/feat_delta_residual_adv/...` runs, but that original worktree is not currently preserved on disk
+- older manifests often store `git_commit` without `git_branch`, so branch attribution for legacy runs may still require commit ancestry or the recovered inventory
+- newer protocol manifests now record both `git_commit` and `git_branch`, which should make future audits direct
+
 ## Branch Map
 
 | Branch | Role | When to use it |
