@@ -91,6 +91,30 @@ Combined implication for this repo:
 - do not confuse "easier to fit" with "better for transmission" without bench
   validation
 
+## Research Question And Hypotheses
+
+Primary research question:
+
+- for fixed average transmit power, does replacing the current uniform square
+  support by a matched circular support improve both the physical behavior of
+  the VLC link and the learnability of the digital twin?
+
+Secondary research question:
+
+- if the circular support helps, is the gain due to better alignment with the
+  physically useful operating region, or only because the experiment avoids the
+  hardest square-corner samples?
+
+Working hypotheses:
+
+- `H1`: `full_circle` improves transmission and modeling because it reduces
+  corner-driven peak stress and makes the channel more regular
+- `H0`: support geometry is not the main bottleneck; the dominant problem is
+  still the current model family or loss design
+- `H2`: any real improvement must survive bench diagnostics, digital-twin
+  metrics, and downstream learned-constellation evaluation under fair power
+  constraints
+
 ## Recommended Research Path
 
 Phase 1: channel identification
@@ -115,6 +139,20 @@ Phase 4: bench validation
 - re-inject the learned constellation into GNU Radio
 - measure whether the expected gain survives on the physical setup
 
+## Evaluation Logic
+
+The comparison must keep symbol rate, `sps`, acquisition duration, regime set,
+normalization, and average transmit power fixed.
+
+The decision should use three layers of evidence:
+
+- physical metrics: asymmetry, peak stress, reconstruction correlation / NMSE,
+  and harmonic content
+- digital-twin metrics: residual-shape fidelity, edge-focused diagnostics, and
+  regime-specific performance
+- downstream metrics: whether the stronger twin actually supports learned
+  signaling that survives on the bench
+
 ## Decision Rule
 
 Adopt `full_circle` as the preferred support only if it improves:
@@ -127,4 +165,3 @@ Otherwise:
 
 - keep `full_square` as the main identification source
 - and treat `full_circle` as an auxiliary support-specific experiment
-

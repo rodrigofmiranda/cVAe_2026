@@ -222,6 +222,113 @@ Secondary question:
   physically useful region of the channel, or only because it removes the most
   difficult corner samples?
 
+## Formal Research Frame
+
+### General Objective
+
+- determine whether a support geometry better matched to the VLC bench can
+  improve digital-twin fidelity and create a stronger base for learned
+  modulation and demodulation
+
+### Specific Objectives
+
+- characterize how the current `full_square` acquisition excites the channel
+  and where it fails physically and statistically
+- generate a fair `full_circle` alternative with matched average power and
+  matched acquisition conditions
+- compare `full_square` and `full_circle` at the bench, dataset, and
+  digital-twin levels
+- determine whether the gain from `full_circle` reflects better
+  channel-matching or only avoidance of difficult corner samples
+- decide which support geometry should be used as the base distribution for
+  future constrained autoencoder-based constellation learning
+
+### Main Hypothesis
+
+- `H1`: for fixed average transmit power, a circular IQ support improves both
+  physical transmission quality and digital-twin fit because it reduces corner
+  stress, peak-related distortion, and angle-specific boundary effects present
+  in `full_square`
+
+### Null Hypothesis
+
+- `H0`: changing the support from square to circle does not materially improve
+  the physical channel behavior or the learned twin; the current failure is
+  mainly a modeling-capacity or loss-design issue
+
+### Mechanistic Hypotheses
+
+- `H2`: the circular support lowers peak stress and therefore reduces
+  asymmetry, compression, and harmonic distortion at the bench
+- `H3`: the circular support makes the conditional channel more regular as a
+  function of radius, reducing the current center-to-edge mismatch
+- `H4`: if `full_circle` improves fit but weakens downstream robustness, then
+  it is hiding relevant operating regions rather than solving the channel
+  modeling problem
+
+### Research Contribution Statement
+
+- the expected contribution is not simply "circle beats square"
+- the contribution is to show how support geometry, physical channel behavior,
+  and digital-twin learnability interact in a VLC bench that is later used for
+  learned constellation design
+
+## Evaluation Metrics And Fairness Constraints
+
+### Fair Comparison Constraints
+
+- same symbol rate
+- same `sps`
+- same acquisition duration
+- same current and distance regimes
+- same alignment and normalization pipeline
+- same average transmit power
+- same train/validation/test protocol for the digital twin
+
+### Physical Metrics
+
+- peak positive and negative excursion
+- asymmetry ratio
+- crest factor / effective peak stress
+- baseband reconstruction correlation
+- baseband reconstruction NMSE
+- occupied bandwidth
+- harmonic content near `2f` and higher visible components
+
+### Dataset Metrics
+
+- residual mean and covariance
+- residual skewness and kurtosis
+- Jarque-Bera or equivalent normality distance
+- center-vs-edge residual mismatch
+- amplitude-conditioned and radius-conditioned diagnostics
+
+### Model Metrics
+
+- validation loss under the current training setup
+- residual-shape fidelity metrics already used by the project
+- edge-focused diagnostics
+- regime-specific performance, with priority on `0.8m / 100mA` and
+  `0.8m / 300mA`
+- stability of performance across seeds and runs
+
+### Downstream Metrics For Learned Signaling
+
+- average-power-constrained reconstruction quality
+- decision-region separability on the twin
+- robustness when reinjected into the physical bench
+- fair comparison against traditional baselines such as `16QAM`
+
+## Decision Logic
+
+- if `full_circle` improves physical diagnostics and digital-twin fidelity
+  without harming downstream learned signaling, it becomes the preferred base
+  support for future constellation learning
+- if it improves fit but only by excluding difficult regions, then it should be
+  kept as a complementary dataset rather than a full replacement
+- if it does not improve the key metrics, the next effort should focus on model
+  family, conditioning, and loss design rather than on support geometry
+
 ## Proposed Experimental Plan
 
 1. Generate a `full_circle` acquisition dataset with the same:
@@ -280,4 +387,3 @@ under stronger edge/corner constraints rather than avoiding them.
 - add radius-conditioned diagnostics in evaluation
 - compare digital twin performance between `full_square` and `full_circle`
 - only then move to learned constellations / autoencoder-based signaling
-
