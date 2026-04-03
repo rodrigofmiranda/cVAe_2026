@@ -22,6 +22,27 @@ O modelo recomendado agora e este:
 - um container por usuario
 - uma sessao `tmux` por usuario
 
+### 1.1. Fluxo atual de execucao do projeto
+
+No fluxo atual do `cVAe_2026`, o treino nao deve depender do Python do host.
+O caminho recomendado e:
+
+```bash
+scripts/ops/run_tf25_gpu.sh
+scripts/ops/enter_tf25_gpu.sh
+```
+
+Ja dentro do container persistente, use os wrappers do repo:
+
+```bash
+scripts/ops/train.sh
+scripts/ops/train_support_ablation.sh e0
+scripts/ops/train_support_ablation.sh e4 --max_regimes 4
+```
+
+Isso mantem `tmux`, Docker, `PYTHONPATH`, dataset e saidas alinhados com o
+ambiente oficial do projeto.
+
 ---
 
 ## 2. Visao geral - arquitetura recomendada

@@ -21,7 +21,12 @@ the same level.
 ## File-by-file Status
 
 - `ops/train.sh`
-  Current wrapper for `src.protocol.run --train_once_eval_all`.
+  Current wrapper for `src.protocol.run --train_once_eval_all`; forwards extra
+  protocol args to the runner.
+- `ops/train_support_ablation.sh`
+  Current wrapper for the support-aware `E0` to `E5` ablation battery. Intended
+  to be run inside the persistent tmux/docker environment started by
+  `ops/run_tf25_gpu.sh` and entered with `ops/enter_tf25_gpu.sh`.
 - `ops/eval.sh`
   Current wrapper for `src.evaluation.evaluate`.
 - `ops/import_dataset_lfs.sh`
