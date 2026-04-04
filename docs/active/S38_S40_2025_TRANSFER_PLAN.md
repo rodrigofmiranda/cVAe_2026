@@ -112,6 +112,13 @@ Current branch implementation status:
   - `s38_pointwise_2025_smoke`
   - `s38_pointwise_2025_quick`
   - `s38_pointwise_2025_full`
+- current branch-local continuation:
+  - `s38_pointwise_small_local`
+- first branch-local readings:
+  - `S38 smoke` (`exp_20260402_165714`) gave `10/12`
+  - `S38 quick` (`exp_20260402_234032`) gave `3/12`
+  - current interpretation: the local point-wise idea is alive, but the
+    larger 2025-like hyperparameter region is not
 
 ### Success Criteria
 

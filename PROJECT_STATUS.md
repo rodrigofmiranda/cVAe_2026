@@ -1,17 +1,16 @@
 # PROJECT_STATUS
 
-> Atualizado em 2026-04-01.
+> Atualizado em 2026-04-04.
 > Este arquivo e o inventario oficial das worktrees e do estado ativo do repositorio.
 
 ## Worktrees
 
 Worktrees git registradas neste repositorio:
 
-1. `/workspace/2026/feat_mdn_g5_recovery_explore`
-   - branch: `feat/mdn-g5-recovery-explore-all`
+1. `/workspace/2026/feat_pointwise_2025_revival`
+   - branch: `feat/pointwise-2025-revival`
    - status: worktree ativa atual
-   - foco: continuacao `two-stage` da melhor linha MDN com clamp largo e
-     decoder-conditioning embedding
+   - foco: `S38` — revival point-wise da licao util de 2025 sob protocolo 2026
 
 2. `/workspace/2026/feat_mdn_g5_recovery_remote`
    - branch: `feat/mdn-g5-recovery-explore-remote`
@@ -25,7 +24,7 @@ Worktrees git registradas neste repositorio:
 
 ## Branch Atual
 
-- branch ativa: `feat/mdn-g5-recovery-explore-all`
+- branch ativa: `feat/pointwise-2025-revival`
 - entrypoint canonico:
   - `python -m src.protocol.run`
 
@@ -37,6 +36,23 @@ O fluxo publico de experimentacao permanece:
   - `--reuse_model_run_dir`
 
 ## Estado Cientifico
+
+Leitura especifica desta branch:
+
+- `S38 smoke`:
+  - run: `outputs/exp_20260402_165714`
+  - resultado: `10/12`
+  - leitura: a hipotese point-wise local continua viva
+- `S38 quick`:
+  - run: `outputs/exp_20260402_234032`
+  - resultado: `3/12`
+  - leitura: portar hiperparametros grandes estilo 2025 para o protocolo 2026
+    foi negativo
+- `S38b`:
+  - run: `outputs/exp_20260404_150425`
+  - status: em andamento
+  - leitura pretendida: decidir se o `10/12` do smoke foi uma regiao real de
+    hiperparametro pequeno ou apenas um draw favoravel
 
 Referencias principais hoje:
 
@@ -99,6 +115,11 @@ Leitura atual:
     - `S38`: baseline point-wise estilo 2025 sob protocolo 2026
     - `S39`: seq backbone + expert local heteroscedastico
     - `S40`: seq backbone + expert local MDN
+- estado local do `S38` nesta branch:
+  - `s38_pointwise_2025_smoke`: implementado e validado
+  - `s38_pointwise_2025_quick`: implementado e encerrado como negativo para a
+    regiao grande/legacy
+  - `s38_pointwise_small_local`: implementado e em execucao
 - a linha ativa agora e `MDN v2`:
   - `coverage/tail loss` opcional via `lambda_coverage`
   - ranking do grid por `mini_protocol_v1`

@@ -22,6 +22,45 @@ start here.
     - `s38_pointwise_2025_smoke`
     - `s38_pointwise_2025_quick`
     - `s38_pointwise_2025_full`
+    - `s38_pointwise_small_local`
+
+## Branch-Specific Status
+
+This branch is not the main MDN line. It is the dedicated `S38` lane for the
+question:
+
+- does the old 2025-style point-wise local conditional law help recover the
+  border under the stricter 2026 protocol?
+
+Current branch verdict:
+
+- `S38 smoke` was a strong positive signal:
+  - run: `outputs/exp_20260402_165714`
+  - result: `10/12`
+  - champion: `S38A_pw25_smoke_lat4_b0p01_fb0p0_lr0p0003_bs1024_anneal3_L32-64`
+  - failures: `0.8m/100mA`, `0.8m/300mA`
+  - reading: the point-wise local idea is scientifically alive
+- `S38 quick` was a strong negative for the larger 2025-like configs:
+  - run: `outputs/exp_20260402_234032`
+  - champion: `S38D_pw25_big_lat24_b0p03_fb0p0_lr0p0001_bs8192_anneal50_L64-128-256-512`
+  - result: `3/12`
+  - reading: the useful part of 2025 does **not** transfer by simply reviving
+    larger legacy hyperparameters
+- `S38b` is now the decisive branch-local sweep:
+  - run: `outputs/exp_20260404_150425`
+  - status: running
+  - preset: `s38_pointwise_small_local`
+  - purpose: test whether the `10/12` smoke came from a real stable region
+    around small models / low latent / low beta / short anneal, or from a
+    lucky draw
+
+Current local decision rule:
+
+- if `S38b` reproduces `~10/12` across multiple nearby small configs, the
+  point-wise branch remains a live scientific option
+- if `S38b` collapses broadly, this branch can be treated as exhausted as a
+  standalone architecture, while its local-conditioning idea still remains
+  useful input for `S39`
 
 ## Current Scientific Anchors
 

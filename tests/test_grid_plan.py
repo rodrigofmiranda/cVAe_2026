@@ -75,6 +75,23 @@ def test_select_grid_s38_pointwise_2025_full_promotes_two_conservative_full_cand
     assert {item["cfg"]["beta"] for item in grid} == {0.03, 0.1}
 
 
+def test_select_grid_s38_pointwise_small_local_stays_in_smoke_neighborhood():
+    grid = select_grid({"grid_preset": "s38_pointwise_small_local"})
+
+    assert len(grid) == 12
+    assert {item["group"] for item in grid} == {"S38_pointwise_small_local"}
+    assert all(item["cfg"]["arch_variant"] == "legacy_2025_zero_y" for item in grid)
+    assert all(item["cfg"]["free_bits"] == 0.0 for item in grid)
+    assert {tuple(item["cfg"]["layer_sizes"]) for item in grid} == {
+        (32, 64),
+        (32, 64, 128),
+    }
+    assert {item["cfg"]["latent_dim"] for item in grid} == {4, 6, 8}
+    assert {item["cfg"]["beta"] for item in grid} == {0.005, 0.01, 0.02}
+    assert {item["cfg"]["batch_size"] for item in grid} == {1024, 2048}
+    assert {item["cfg"]["kl_anneal_epochs"] for item in grid} == {3, 10}
+
+
 def test_select_grid_delta_residual_smoke_returns_single_delta_variant():
     grid = select_grid({"grid_preset": "delta_residual_smoke"})
 

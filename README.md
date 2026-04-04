@@ -8,19 +8,22 @@ Autoencoder (cVAE) with heteroscedastic decoding and conditional prior.
 
 This folder is:
 
-- `/workspace/2026/feat_seq_bigru_residual_cvae`
+- `/workspace/2026/feat_pointwise_2025_revival`
 
 Meaning of the name:
 
-- `feat_seq_bigru_residual_cvae` comes from the Git branch name `feat/seq-bigru-residual-cvae`
-- the name is historical; this folder is now the main unified worktree
-- this folder contains the current code for all active architecture families
+- `feat_pointwise_2025_revival` comes from the Git branch name
+  `feat/pointwise-2025-revival`
+- this worktree is the dedicated `S38` lane
+- it exists to test the useful local point-wise lesson from the 2025 project
+  under the stricter 2026 protocol
 
 Use this folder when:
 
-- you want the main day-to-day repository
-- you want to switch architecture by `arch_variant`
-- you want to compare `seq_bigru_residual` and `delta_residual`
+- you want to investigate the 2025-style point-wise conditional law
+- you want to compare small local point-wise variants against the stricter
+  2026 protocol
+- you want the dedicated branch for `S38`
 
 Historical note:
 
@@ -48,19 +51,19 @@ Historical refactor planning has been archived under:
 
 Current experimental branch in this worktree:
 
-- `feat/mdn-g5-recovery`
+- `feat/pointwise-2025-revival`
 
 Purpose of this branch:
 
-- keep the strongest Gaussian seq reference and the strongest MDN quick line as baselines
-- formally discard the current `sinh-arcsinh` flow line as a negative result
-- return to the best stable MDN family
-- recover the remaining `G5` failures in `0.8 m` without reopening `G6`
-- avoid reopening decoder-family exploration unless the current MDN anchor is exhausted
+- revive the useful part of the 2025 point-wise model
+- keep the stricter 2026 protocol unchanged
+- test whether local point-conditioned modeling helps recover the border
+- decide whether this branch stays alive as a standalone architecture or is
+  folded back as an idea for `S39`
 
 The worktree path remains:
 
-- `/workspace/2026/feat_seq_bigru_residual_cvae`
+- `/workspace/2026/feat_pointwise_2025_revival`
 
 The folder name is historical; the active Git branch may differ from the path.
 

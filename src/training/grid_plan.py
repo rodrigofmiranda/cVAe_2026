@@ -621,6 +621,53 @@ def _preset_s38_pointwise_2025_full() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_s38_pointwise_small_local() -> List[Dict[str, Any]]:
+    """S38b local sweep around the only successful region seen so far.
+
+    The quick 2025-like larger models regressed sharply, while the tiny smoke
+    config reached 10/12. This preset explores only the small/low-beta/local
+    neighborhood around that winner.
+    """
+    base = dict(
+        arch_variant="legacy_2025_zero_y",
+        dropout=0.0,
+        free_bits=0.0,
+        activation="leaky_relu",
+        lr=3e-4,
+    )
+    grid: List[Dict[str, Any]] = []
+    candidates = [
+        ("S38bA_pw25_local_lat4_b0p01_fb0p0_lr0p0003_bs1024_anneal3_L32-64", [32, 64], 4, 0.01, 1024, 3),
+        ("S38bB_pw25_local_lat4_b0p01_fb0p0_lr0p0003_bs2048_anneal3_L32-64", [32, 64], 4, 0.01, 2048, 3),
+        ("S38bC_pw25_local_lat6_b0p01_fb0p0_lr0p0003_bs2048_anneal3_L32-64", [32, 64], 6, 0.01, 2048, 3),
+        ("S38bD_pw25_local_lat8_b0p01_fb0p0_lr0p0003_bs2048_anneal3_L32-64", [32, 64], 8, 0.01, 2048, 3),
+        ("S38bE_pw25_local_lat4_b0p005_fb0p0_lr0p0003_bs1024_anneal10_L32-64", [32, 64], 4, 0.005, 1024, 10),
+        ("S38bF_pw25_local_lat6_b0p005_fb0p0_lr0p0003_bs2048_anneal10_L32-64", [32, 64], 6, 0.005, 2048, 10),
+        ("S38bG_pw25_local_lat4_b0p02_fb0p0_lr0p0003_bs1024_anneal3_L32-64", [32, 64], 4, 0.02, 1024, 3),
+        ("S38bH_pw25_local_lat6_b0p02_fb0p0_lr0p0003_bs2048_anneal10_L32-64", [32, 64], 6, 0.02, 2048, 10),
+        ("S38bI_pw25_local_lat4_b0p01_fb0p0_lr0p0003_bs1024_anneal3_L32-64-128", [32, 64, 128], 4, 0.01, 1024, 3),
+        ("S38bJ_pw25_local_lat6_b0p01_fb0p0_lr0p0003_bs2048_anneal10_L32-64-128", [32, 64, 128], 6, 0.01, 2048, 10),
+        ("S38bK_pw25_local_lat4_b0p005_fb0p0_lr0p0003_bs2048_anneal10_L32-64-128", [32, 64, 128], 4, 0.005, 2048, 10),
+        ("S38bL_pw25_local_lat6_b0p02_fb0p0_lr0p0003_bs2048_anneal10_L32-64-128", [32, 64, 128], 6, 0.02, 2048, 10),
+    ]
+    for tag, layers, latent_dim, beta, batch_size, kl_anneal_epochs in candidates:
+        grid.append(
+            dict(
+                group="S38_pointwise_small_local",
+                tag=tag,
+                cfg=_cfg(
+                    layer_sizes=layers,
+                    latent_dim=latent_dim,
+                    beta=beta,
+                    batch_size=batch_size,
+                    kl_anneal_epochs=kl_anneal_epochs,
+                    **base,
+                ),
+            )
+        )
+    return grid
+
+
 def _seq_bigru_residual_candidates() -> List[Dict[str, Any]]:
     """seq_bigru_residual grid items: smoke (S0) and small-sweep (S1) configs.
 
@@ -4649,6 +4696,8 @@ def select_grid(
             grid = _preset_s38_pointwise_2025_quick()
         elif preset_name == "s38_pointwise_2025_full":
             grid = _preset_s38_pointwise_2025_full()
+        elif preset_name == "s38_pointwise_small_local":
+            grid = _preset_s38_pointwise_small_local()
         elif preset_name == "seq_residual_smoke":
             grid = _preset_seq_residual_smoke()
         elif preset_name == "seq_residual_small":
