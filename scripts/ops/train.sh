@@ -7,7 +7,22 @@ cd "$REPO_ROOT"
 
 export DATASET_ROOT="${DATASET_ROOT:-$REPO_ROOT/data/dataset_fullsquare_organized}"
 export OUTPUT_BASE="${OUTPUT_BASE:-$REPO_ROOT/outputs}"
-export PYTHONPATH="$REPO_ROOT"
+BOOTSTRAP_SCRIPT="$REPO_ROOT/scripts/ops/container_bootstrap_python.sh"
+AUTO_BOOTSTRAP_PYTHON="${CVAE_AUTO_BOOTSTRAP_PYTHON:-1}"
+
+if [[ "$AUTO_BOOTSTRAP_PYTHON" == "1" && -f "$BOOTSTRAP_SCRIPT" ]]; then
+  # Make protocol/eval runs self-contained inside the container so plot deps are
+  # available even when the interactive shell was not bootstrapped manually.
+  export CVAE_TF25_WORKDIR="${CVAE_TF25_WORKDIR:-$REPO_ROOT}"
+  # shellcheck disable=SC1090
+  source "$BOOTSTRAP_SCRIPT"
+fi
+
+if [[ -n "${PYTHONPATH:-}" ]]; then
+  export PYTHONPATH="$REPO_ROOT:$PYTHONPATH"
+else
+  export PYTHONPATH="$REPO_ROOT"
+fi
 
 python -u -m src.protocol.run \
     --dataset_root "$DATASET_ROOT" \
