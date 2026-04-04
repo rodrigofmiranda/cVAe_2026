@@ -2,6 +2,7 @@ import json
 
 from src.config.runtime import build_evaluation_runtime, build_training_runtime
 from src.config.schema import AnalysisConfig, EvalProtocolConfig
+from src.data.support_geometry import resolve_support_experiment_config
 from src.training.engine import train_engine
 from src.training.logging import write_state_run
 
@@ -86,6 +87,55 @@ def test_build_evaluation_runtime_roundtrip_uses_state_dataset_root(tmp_path, mo
     assert str(runtime.dataset_root) == "/tmp/dataset_root"
     assert runtime.eval_protocol["eval_slice"] == "stratified"
     assert runtime.training_config["seed"] == 7
+
+
+def test_support_config_roundtrip_is_available_for_later_evaluation(tmp_path):
+    run_dir = tmp_path / "run_support_eval"
+    support_cfg = {
+        "support_feature_mode": "geom3",
+        "support_weight_mode": "edge_rinf_corner",
+        "support_weight_alpha": 1.5,
+        "support_weight_tau": 0.75,
+        "support_weight_tau_corner": 0.35,
+        "support_weight_max": 3.0,
+        "support_filter_mode": "disk_l2",
+        "support_filter_eval_mode": "matched_support_and_full",
+        "support_diag_bins": 4,
+        "a_train": 0.975,
+    }
+    state_path = write_state_run(
+        run_dir,
+        run_id="run_support_eval",
+        dataset_root="/tmp/dataset_root",
+        output_base="/tmp/outputs",
+        training_config={"seed": 7, "validation_split": 0.2},
+        data_reduction_config={"enabled": False},
+        analysis_quick=AnalysisConfig.from_dict({}).to_dict(),
+        normalization={"D_min": 1.0, "D_max": 1.5, "C_min": 300.0, "C_max": 900.0},
+        data_split={"split_mode": "per_experiment", "validation_split": 0.2, "seed": 7},
+        eval_protocol=EvalProtocolConfig.from_dict({}).to_dict(),
+        grid={"n_models": 1},
+        artifacts={"best_model_full": str(run_dir / "models" / "best_model_full.keras")},
+        extra={"support_config": support_cfg},
+    )
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+
+    runtime = build_evaluation_runtime(
+        run_dir=run_dir,
+        state=state,
+        overrides={"support_diag_bins": 6},
+    )
+    resolved = resolve_support_experiment_config(
+        overrides=runtime.overrides,
+        state_support_cfg=runtime.state.get("support_config", {}),
+    )
+
+    assert resolved["support_feature_mode"] == "geom3"
+    assert resolved["support_weight_mode"] == "edge_rinf_corner"
+    assert resolved["support_filter_mode"] == "disk_l2"
+    assert resolved["support_filter_eval_mode"] == "matched_support_and_full"
+    assert resolved["support_diag_bins"] == 6
+    assert resolved["a_train"] == support_cfg["a_train"]
 
 
 def test_train_engine_does_not_require_env_vars(monkeypatch):

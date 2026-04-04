@@ -17,6 +17,15 @@ Stages:
   e4   support_e4_disk
   e5   confirmation run; requires SUPPORT_E5_GRID_TAG or explicit --grid_tag
 
+Notes:
+  - E0-E4 are mixed-family exploratory sweeps by default.
+  - For controlled paired comparisons, pin a single candidate with:
+      --grid_tag <tag> --max_grids 1
+    Example:
+      scripts/ops/train_support_ablation.sh e1 \
+        --grid_tag S27cov_lc0p25_tail95_t0p03_geom3 --max_grids 1 --seed 42
+  - E5 is intentionally manual because it depends on the E0-E4 findings.
+
 Environment overrides:
   DATASET_ROOT            Dataset root (default: repo-local full_square dataset)
   OUTPUT_BASE             Output base (default: outputs/support_ablation/<stage>)

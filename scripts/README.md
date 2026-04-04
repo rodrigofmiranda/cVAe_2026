@@ -26,7 +26,9 @@ the same level.
 - `ops/train_support_ablation.sh`
   Current wrapper for the support-aware `E0` to `E5` ablation battery. Intended
   to be run inside the persistent tmux/docker environment started by
-  `ops/run_tf25_gpu.sh` and entered with `ops/enter_tf25_gpu.sh`.
+  `ops/run_tf25_gpu.sh` and entered with `ops/enter_tf25_gpu.sh`. For
+  controlled family comparisons, pin a single candidate with
+  `--grid_tag <tag> --max_grids 1`.
 - `ops/eval.sh`
   Current wrapper for `src.evaluation.evaluate`.
 - `ops/import_dataset_lfs.sh`
@@ -49,6 +51,10 @@ the same level.
   Kept as the main compact run summarizer used in current docs.
 - `analysis/compare_protocol_finalists.py`
   Kept as a tested comparison helper for candidate tags inside a protocol run.
+- `analysis/compare_support_ablation_pairs.py`
+  Current helper for support-ablation audits. Compares fixed-candidate protocol
+  runs, warns when an input still contains multiple grid candidates, and
+  exports paired regime/support tables.
 - `analysis/recompute_validation_gates.py`
   Kept as an active backfill tool when validation-gate logic changes.
 - `knowledge/ingest_papers_docling.py`

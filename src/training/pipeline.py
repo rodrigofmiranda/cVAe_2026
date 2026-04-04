@@ -167,6 +167,13 @@ def _log_regime_tolerance(overrides: Dict[str, Any], d_unique, c_unique) -> None
                     f"⚠️  D={distance:.3f}m exceeds tolerance of regime target "
                     f"{target_d}m ± {tol_d}m"
                 )
+    if target_c is not None:
+        for current in c_unique:
+            if abs(current - float(target_c)) > tol_c:
+                print(
+                    f"⚠️  C={current:.1f}mA exceeds tolerance of regime target "
+                    f"{target_c}mA ± {tol_c}mA"
+                )
 
 
 def _build_support_config(X_train: np.ndarray, overrides: Dict[str, Any]) -> Dict[str, Any]:
@@ -204,13 +211,6 @@ def _inject_support_defaults_into_grid(
         cfg["support_feature_scale"] = float(support_config["a_train"])
         enriched.append({**item, "cfg": cfg})
     return enriched
-    if target_c is not None:
-        for current in c_unique:
-            if abs(current - float(target_c)) > tol_c:
-                print(
-                    f"⚠️  C={current:.1f}mA exceeds tolerance of regime target "
-                    f"{target_c}mA ± {tol_c}mA"
-                )
 
 
 def run_training_pipeline(

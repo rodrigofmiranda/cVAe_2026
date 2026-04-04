@@ -16,7 +16,10 @@ from src.config.runtime import build_evaluation_runtime
 from src.config.runtime_env import ensure_writable_mpl_config_dir
 from src.data.loading import load_experiments_as_list
 from src.data.normalization import apply_condition_norm, load_normalization_from_state
-from src.data.support_geometry import support_experiment_config, support_filter_mask
+from src.data.support_geometry import (
+    resolve_support_experiment_config,
+    support_filter_mask,
+)
 from src.data.splits import (
     apply_caps_to_df_split,
     cap_train_samples_per_experiment,
@@ -464,17 +467,9 @@ def evaluate_run(
     evalp = dict(runtime.eval_protocol)
     analysis_quick = dict(runtime.analysis_quick)
     state_support_cfg = dict(runtime.state.get("support_config", {}))
-    support_cfg = support_experiment_config(
-        feature_mode=ov.get("support_feature_mode", state_support_cfg.get("support_feature_mode")),
-        weight_mode=ov.get("support_weight_mode", state_support_cfg.get("support_weight_mode")),
-        weight_alpha=ov.get("support_weight_alpha", state_support_cfg.get("support_weight_alpha")),
-        weight_tau=ov.get("support_weight_tau", state_support_cfg.get("support_weight_tau")),
-        weight_tau_corner=ov.get("support_weight_tau_corner", state_support_cfg.get("support_weight_tau_corner")),
-        weight_max=ov.get("support_weight_max", state_support_cfg.get("support_weight_max")),
-        filter_mode=ov.get("support_filter_mode", state_support_cfg.get("support_filter_mode")),
-        filter_eval_mode=ov.get("support_filter_eval_mode", state_support_cfg.get("support_filter_eval_mode")),
-        diag_bins=ov.get("support_diag_bins", state_support_cfg.get("support_diag_bins")),
-        a_train=state_support_cfg.get("a_train"),
+    support_cfg = resolve_support_experiment_config(
+        overrides=ov,
+        state_support_cfg=state_support_cfg,
     )
     det_inf = bool(evalp.get("deterministic_inference", True))
     mc_samples = int(evalp.get("mc_samples", 1))

@@ -13,7 +13,7 @@ These utilities define a single source of truth for:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Mapping, Optional
 
 import numpy as np
 
@@ -137,7 +137,16 @@ def support_filter_mask(
     a_train: float,
     mode: str = "none",
 ) -> np.ndarray:
-    """Return a boolean mask selecting the requested support subset."""
+    """Return a boolean mask selecting the requested support subset.
+
+    For ``disk_l2``, the radius is chosen as ``R = a_train * sqrt(4/3)``.
+    Under a uniform square excitation on ``[-a_train, a_train]^2``, this makes
+    the average symbol energy of the retained disk match the square baseline:
+
+    - square: ``E[r^2] = 2 a_train^2 / 3``
+    - disk:   ``E[r^2] = R^2 / 2``
+    - therefore ``R^2 = 4 a_train^2 / 3``
+    """
     mode_norm = str(mode or "none").strip().lower()
     n = int(_center_iq(X).shape[0])
     if mode_norm in {"", "none"}:
@@ -184,7 +193,7 @@ def support_experiment_config(
     filter_eval_mode: Optional[str],
     diag_bins: Optional[int],
     a_train: Optional[float] = None,
-) -> Dict[str, Any]:
+    ) -> Dict[str, Any]:
     """Serialize support-aware runtime settings for manifests/state files."""
     return {
         "support_feature_mode": str(feature_mode or "none"),
@@ -198,3 +207,30 @@ def support_experiment_config(
         "support_diag_bins": int(4 if diag_bins is None else diag_bins),
         "a_train": None if a_train is None else float(a_train),
     }
+
+
+def resolve_support_experiment_config(
+    *,
+    overrides: Optional[Mapping[str, Any]] = None,
+    state_support_cfg: Optional[Mapping[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Resolve the effective support config from runtime overrides + saved state.
+
+    Precedence is ``overrides > saved state > defaults``. This helper is used
+    to guarantee that evaluation in a later session reconstructs the same
+    support-aware setup that training serialized into ``state_run.json``.
+    """
+    ov = dict(overrides or {})
+    state_cfg = dict(state_support_cfg or {})
+    return support_experiment_config(
+        feature_mode=ov.get("support_feature_mode", state_cfg.get("support_feature_mode")),
+        weight_mode=ov.get("support_weight_mode", state_cfg.get("support_weight_mode")),
+        weight_alpha=ov.get("support_weight_alpha", state_cfg.get("support_weight_alpha")),
+        weight_tau=ov.get("support_weight_tau", state_cfg.get("support_weight_tau")),
+        weight_tau_corner=ov.get("support_weight_tau_corner", state_cfg.get("support_weight_tau_corner")),
+        weight_max=ov.get("support_weight_max", state_cfg.get("support_weight_max")),
+        filter_mode=ov.get("support_filter_mode", state_cfg.get("support_filter_mode")),
+        filter_eval_mode=ov.get("support_filter_eval_mode", state_cfg.get("support_filter_eval_mode")),
+        diag_bins=ov.get("support_diag_bins", state_cfg.get("support_diag_bins")),
+        a_train=ov.get("support_feature_scale", state_cfg.get("a_train")),
+    )

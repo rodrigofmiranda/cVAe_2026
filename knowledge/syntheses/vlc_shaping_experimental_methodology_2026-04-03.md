@@ -91,6 +91,20 @@ The candidate acquisition will generate samples uniformly over a disk in the IQ
 plane while preserving the same average transmit power used in the square
 comparison.
 
+For the virtual disk experiment derived from the current `full_square` data,
+the matched-power radius is:
+
+- `R = a_train * sqrt(4/3)`
+
+This follows from the uniform-support assumption used by the current source:
+
+- square baseline on `[-a_train, a_train]^2`: `E[r^2] = 2 a_train^2 / 3`
+- disk baseline of radius `R`: `E[r^2] = R^2 / 2`
+- matched average power therefore implies `R^2 = 4 a_train^2 / 3`
+
+This equality is exact for a continuous uniform square and remains a close
+approximation for the current dense `int16` excitation.
+
 The candidate is motivated by two expected benefits:
 
 - lower peak stress due to removal of square corners
@@ -191,6 +205,15 @@ The comparison should report:
 
 The key test is whether `full_circle` reduces the observed edge gap without
 simply collapsing useful structure.
+
+For the support-aware ablation battery on the existing `full_square` dataset,
+the primary controlled comparison should not rely only on the stage champion.
+The preferred reading is:
+
+- matched-family runs (`D3` vs `D3_*`, `S27` vs `S27_*`)
+- at least 3 seeds per comparison when claiming an effect
+- explicit inspection of `support_region = corner` in addition to the global
+  protocol gates, especially for `disk_l2`
 
 ## Decision Criteria
 
