@@ -128,6 +128,7 @@ def build_training_runtime(
                 "rank_mode",
                 "mini_reanalysis_scope",
                 "grid_ranking_mode",
+                "support_filter_eval_mode",
             }:
                 value = str(value)
             elif key in {"w_psd", "w_skew", "w_kurt"}:
