@@ -66,7 +66,7 @@ def _get_eval_cached_entry(best_model_path: Path) -> Dict[str, Any]:
 
 
 def clear_evaluation_model_cache():
-    """Release cached evaluation models after the protocol finishes."""
+    """Release cached evaluation models after a regime or protocol finishes."""
     _EVAL_MODEL_CACHE.clear()
     try:
         tf.keras.backend.clear_session()
