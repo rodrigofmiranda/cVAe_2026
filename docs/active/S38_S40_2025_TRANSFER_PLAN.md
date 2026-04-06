@@ -117,8 +117,12 @@ Current branch implementation status:
 - first branch-local readings:
   - `S38 smoke` (`exp_20260402_165714`) gave `10/12`
   - `S38 quick` (`exp_20260402_234032`) gave `3/12`
+  - `S38b` capped local sweep (`exp_20260404_150425`) gave `9/12`
+  - `S38A` full confirmation (`exp_20260404_154011`) gave `9/12`
+  - `S38bB` full confirmation (`exp_20260404_155322`) recovered `10/12`
   - current interpretation: the local point-wise idea is alive, but the
-    larger 2025-like hyperparameter region is not
+    larger 2025-like hyperparameter region is not; the viable standalone
+    region is small and narrow
 
 ### Success Criteria
 
@@ -136,11 +140,23 @@ Treat `S38` as negative if:
 - or it cannot beat the current seq line even locally on `0.8m`;
 - or it only looks good visually but fails `G5/G6` the same way.
 
+Current status against those criteria:
+
+- `S38` is not negative yet
+- it already matched the current `10/12` ceiling with `S38 smoke` under caps
+  and `S38bB` on full data
+- however, it still fails `G5` on two `0.8m` regimes, so it should be treated
+  as a live but incomplete standalone route
+
 ### Interpretation
 
 - If `S38` helps: the local point-wise law is genuinely missing in the seq line.
 - If `S38` does not help: the problem is not solved by reviving 2025-style
   conditioning alone.
+- Current read:
+  - the local point-wise law does help
+  - but the standalone point-wise route still does not close the remaining
+    border-shape gap by itself
 
 ## S39: Seq Backbone + Local Heteroscedastic Expert
 

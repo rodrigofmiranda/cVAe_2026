@@ -61,6 +61,16 @@ Purpose of this branch:
 - decide whether this branch stays alive as a standalone architecture or is
   folded back as an idea for `S39`
 
+Current branch snapshot:
+
+- `S38 smoke` under caps reached `10/12`
+- larger 2025-like configs were negative (`3/12`)
+- the best full-data point-wise replay so far is:
+  - `outputs/exp_20260404_155322`
+  - champion: `S38bB_pw25_local_lat4_b0p01_fb0p0_lr0p0003_bs2048_anneal3_L32-64`
+  - result: `10/12`
+  - remaining failures: `0.8m/300mA`, `0.8m/500mA`
+
 The worktree path remains:
 
 - `/workspace/2026/feat_pointwise_2025_revival`

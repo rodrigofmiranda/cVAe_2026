@@ -50,9 +50,23 @@ Leitura especifica desta branch:
     foi negativo
 - `S38b`:
   - run: `outputs/exp_20260404_150425`
-  - status: em andamento
-  - leitura pretendida: decidir se o `10/12` do smoke foi uma regiao real de
-    hiperparametro pequeno ou apenas um draw favoravel
+  - campeao: `S38bE_pw25_local_lat4_b0p005_fb0p0_lr0p0003_bs1024_anneal10_L32-64`
+  - resultado: `9/12`
+  - leitura: a regiao pequena/local e real, mas o melhor capped winner ficou
+    um regime abaixo do teto
+- `S38A full`:
+  - run: `outputs/exp_20260404_154011`
+  - campeao: `S38A_pw25_smoke_lat4_b0p01_fb0p0_lr0p0003_bs1024_anneal3_L32-64`
+  - resultado: `9/12`
+  - leitura: a familia do smoke continua valida em full data, mas cai um
+    regime em relacao ao smoke capado
+- `S38bB full`:
+  - run: `outputs/exp_20260404_155322`
+  - campeao: `S38bB_pw25_local_lat4_b0p01_fb0p0_lr0p0003_bs2048_anneal3_L32-64`
+  - resultado: `10/12`
+  - falhas: `0.8m/300mA`, `0.8m/500mA`
+  - leitura: melhor resultado atual desta branch; o centro bom do revival
+    point-wise e pequeno, com `latent_dim=4`, `beta~0.01`, `batch_size=2048`
 
 Referencias principais hoje:
 
@@ -101,6 +115,11 @@ Leitura atual:
 - a linha atual mostra um tradeoff claro:
   - `S27` passa `0.8m/500mA` e falha `0.8m/100mA`
   - `S36` passa `0.8m/100mA` e falha `0.8m/500mA`
+- a linha `S38` agora entra no mesmo patamar de teto:
+  - `S38bB` tambem faz `10/12`
+  - troca a topologia de falha para `0.8m/300mA` e `0.8m/500mA`
+  - isso reforca que a lei local point-wise ajuda, mas nao resolve sozinha o
+    shape final da borda em `0.8m`
 - `0.8m/300mA` continua sendo a falha persistente entre as melhores variantes
 - o probe `S37` nao mudou a leitura cientifica ainda:
   - o baseline sem radial reproduziu `10/12`
@@ -119,7 +138,10 @@ Leitura atual:
   - `s38_pointwise_2025_smoke`: implementado e validado
   - `s38_pointwise_2025_quick`: implementado e encerrado como negativo para a
     regiao grande/legacy
-  - `s38_pointwise_small_local`: implementado e em execucao
+  - `s38_pointwise_small_local`: implementado e fechado
+  - melhor full local hoje: `S38bB` (`10/12`)
+  - a branch segue viva como arquitetura standalone, mas em uma janela estreita
+    de hiperparametro pequeno
 - a linha ativa agora e `MDN v2`:
   - `coverage/tail loss` opcional via `lambda_coverage`
   - ranking do grid por `mini_protocol_v1`

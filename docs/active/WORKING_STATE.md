@@ -48,19 +48,43 @@ Current branch verdict:
     larger legacy hyperparameters
 - `S38b` is now the decisive branch-local sweep:
   - run: `outputs/exp_20260404_150425`
-  - status: running
+  - champion: `S38bE_pw25_local_lat4_b0p005_fb0p0_lr0p0003_bs1024_anneal10_L32-64`
   - preset: `s38_pointwise_small_local`
-  - purpose: test whether the `10/12` smoke came from a real stable region
-    around small models / low latent / low beta / short anneal, or from a
-    lucky draw
+  - result: `9/12`
+  - failures: `0.8m/100mA`, `0.8m/300mA`, `0.8m/500mA`
+  - reading: the good small/local region is real, but the best capped winner
+    still sits one regime below the best `10/12` anchors
+- `S38A` full-data confirmation:
+  - run: `outputs/exp_20260404_154011`
+  - champion: `S38A_pw25_smoke_lat4_b0p01_fb0p0_lr0p0003_bs1024_anneal3_L32-64`
+  - result: `9/12`
+  - failures: `0.8m/100mA`, `0.8m/300mA`, `0.8m/500mA`
+  - reading: the original smoke family remains valid on full data, but the
+    capped `10/12` does not transfer directly at `batch_size=1024`
+- `S38bB` full-data confirmation is now the best result in this branch:
+  - run: `outputs/exp_20260404_155322`
+  - champion: `S38bB_pw25_local_lat4_b0p01_fb0p0_lr0p0003_bs2048_anneal3_L32-64`
+  - result: `10/12`
+  - failures: `0.8m/300mA`, `0.8m/500mA`
+  - G1-G4 and G6 pass on all `12` regimes; only `G5` remains open on the two
+    failing `0.8m` cases
+  - reading: the branch stays scientifically alive, and the viable standalone
+    point-wise region is now much narrower than the initial plan suggested
 
 Current local decision rule:
 
-- if `S38b` reproduces `~10/12` across multiple nearby small configs, the
-  point-wise branch remains a live scientific option
-- if `S38b` collapses broadly, this branch can be treated as exhausted as a
-  standalone architecture, while its local-conditioning idea still remains
-  useful input for `S39`
+- `S38` remains a live standalone option if the small/local family can keep
+  reproducing `9-10/12` under full-data reruns
+- the current center of that family is:
+  - `latent_dim=4`
+  - `beta in {0.005, 0.01}`
+  - `batch_size in {1024, 2048}`
+  - `kl_anneal_epochs in {3, 10}`
+  - `layer_sizes in {[32, 64], [32, 64, 128]}`
+- treat the broader large-capacity 2025-like region as negative for this
+  protocol
+- if future reruns in this narrow family fall back to `<=8/12`, then the
+  branch should be downgraded from standalone architecture to input for `S39`
 
 ## Current Scientific Anchors
 
