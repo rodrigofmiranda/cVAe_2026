@@ -381,6 +381,24 @@ Also verify environment parity before trusting a completed protocol:
   protocol metrics can still be counted
 - if `eval_status=failed` appears, inspect run logs before discarding the run
 
+## Plot Incident Log (exp_20260401_163940)
+
+`exp_20260401_163940` completed training and metrics, but regime dashboards were
+missing because `matplotlib` was not available in the runtime environment used
+for evaluation.
+
+Recovery performed:
+
+- plots regenerated for all regimes with the containerized environment
+- run now contains regime dashboards and global best-model figures
+
+Prevention now enforced in this branch:
+
+- protocol/eval preflight checks for required Python modules
+- automatic repo-local `.pydeps` injection into `sys.path` for manual runs
+- `container_bootstrap_python.sh` now verifies/installs plotting and test deps
+- `scripts/ops/eval.sh` now bootstraps Python deps like `train.sh`
+
 Do not reopen:
 
 - `sample-aware MMD`
