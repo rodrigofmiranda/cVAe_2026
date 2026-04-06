@@ -46,7 +46,15 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
 from src.config.overrides import RunOverrides
 from src.config.gpu_guard import warn_if_no_gpu_and_confirm
-from src.config.runtime_env import ensure_writable_mpl_config_dir
+from src.config.runtime_env import (
+    ensure_repo_pydeps_on_sys_path,
+    ensure_required_python_modules,
+    ensure_writable_mpl_config_dir,
+)
+
+# Allow direct `python -m src.protocol.run ...` without manual bootstrap.
+ensure_repo_pydeps_on_sys_path()
+
 from src.evaluation.validation_summary import (
     build_protocol_leaderboard,
     build_residual_signature_amplitude_table,
@@ -140,6 +148,14 @@ def parse_args():
                    help="Run training only, skip evaluation step")
     p.add_argument("--dry_run", action="store_true",
                    help="Validate protocol + build model summary, no training")
+    p.add_argument(
+        "--allow_missing_plot_deps",
+        action="store_true",
+        help=(
+            "Allow running even when matplotlib is missing (not recommended). "
+            "Default is fail-fast to avoid finishing a run without plots."
+        ),
+    )
     p.add_argument(
         "--train_once_eval_all",
         action="store_true",
@@ -1879,6 +1895,15 @@ def build_summary_table(results: List[dict]) -> "pd.DataFrame":
 def main():
     ensure_writable_mpl_config_dir()
     args = parse_args()
+    allow_missing_plot_deps = bool(args.allow_missing_plot_deps) or (
+        os.environ.get("CVAE_ALLOW_MISSING_PLOT_DEPS", "").strip().lower()
+        in {"1", "true", "yes", "on"}
+    )
+    ensure_required_python_modules(
+        ("matplotlib",),
+        context="protocol plot generation",
+        allow_missing=allow_missing_plot_deps,
+    )
     warn_if_no_gpu_and_confirm("protocol run")
     ts_start = datetime.now()
     ts_label = ts_start.strftime("%Y%m%d_%H%M%S")

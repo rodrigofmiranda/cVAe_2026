@@ -24,12 +24,15 @@ Usage
 """
 
 import argparse
+import os
 from pathlib import Path
 
 from src.config.gpu_guard import warn_if_no_gpu_and_confirm
 from src.config.overrides import RunOverrides
-from src.config.runtime_env import ensure_writable_mpl_config_dir
-from src.data.loading import discover_experiments, parse_dist_curr_from_path, read_metadata
+from src.config.runtime_env import (
+    ensure_required_python_modules,
+    ensure_writable_mpl_config_dir,
+)
 
 
 def parse_args():
@@ -69,6 +72,14 @@ def parse_args():
                         help="Distance tolerance for regime filtering (default: 0.05 m)")
     parser.add_argument("--curr_tol_mA", type=float, default=None,
                         help="Current tolerance for regime filtering (default: 25 mA)")
+    parser.add_argument(
+        "--allow_missing_plot_deps",
+        action="store_true",
+        help=(
+            "Allow evaluation to continue sem matplotlib (not recommended). "
+            "Default is fail-fast to avoid missing plot artifacts."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -80,6 +91,12 @@ def _select_experiments_by_regime(
     dist_tol_m: float,
     curr_tol_mA: float,
 ) -> list[str]:
+    from src.data.loading import (
+        discover_experiments,
+        parse_dist_curr_from_path,
+        read_metadata,
+    )
+
     exp_dirs = discover_experiments(dataset_root, verbose=False)
     selected: list[str] = []
 
@@ -124,6 +141,21 @@ def _select_experiments_by_regime(
 
 def main():
     args = parse_args()
+    ensure_writable_mpl_config_dir()
+    allow_missing_plot_deps = bool(args.allow_missing_plot_deps) or (
+        os.environ.get("CVAE_ALLOW_MISSING_PLOT_DEPS", "").strip().lower()
+        in {"1", "true", "yes", "on"}
+    )
+    ensure_required_python_modules(
+        ("numpy", "tensorflow"),
+        context="evaluation core",
+        allow_missing=False,
+    )
+    ensure_required_python_modules(
+        ("matplotlib",),
+        context="evaluation plots",
+        allow_missing=allow_missing_plot_deps,
+    )
     warn_if_no_gpu_and_confirm("evaluation")
 
     # Build typed overrides from CLI flags
@@ -153,10 +185,6 @@ def main():
         )
         for exp_path in selected_exps:
             print(f"   • {exp_path}")
-
-    # Ensure MPLCONFIGDIR is writable before importing the evaluation module,
-    # otherwise matplotlib may emit temp-dir warnings at import time.
-    ensure_writable_mpl_config_dir()
 
     from src.evaluation.engine import evaluate_run
 
