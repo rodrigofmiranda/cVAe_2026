@@ -1057,6 +1057,30 @@ def _clear_quick_pred_runtime_cache():
         pass
 
 
+def _release_protocol_inference_memory(
+    *,
+    quick_pred_cache: Optional[Dict[Any, Any]] = None,
+    clear_eval_cache: bool = False,
+) -> None:
+    """Release inference caches eagerly to avoid cross-phase RAM buildup."""
+    if quick_pred_cache is not None:
+        quick_pred_cache.clear()
+    if clear_eval_cache:
+        try:
+            from src.evaluation.engine import clear_evaluation_model_cache
+
+            clear_evaluation_model_cache()
+        except Exception:
+            pass
+    _clear_quick_pred_runtime_cache()
+    try:
+        import gc
+
+        gc.collect()
+    except Exception:
+        pass
+
+
 def _quick_cvae_predict(
     run_dir: Path,
     X_va,
@@ -1522,6 +1546,7 @@ def run_regime(
         print(f"⏭️  Skipping cVAE path for regime '{regime_id}' (--no_cvae/--baseline_only)")
         _val_data = None
         gc.collect()
+        _release_protocol_inference_memory(clear_eval_cache=True)
         return result
 
     # ---- TRAINING / MODEL RESOLUTION ----
@@ -1568,9 +1593,11 @@ def run_regime(
     # If dry_run was set, do not require a materialized model under the regime dir.
     if ov.get("dry_run", False):
         result["train_status"] = "dry_run"
+        _release_protocol_inference_memory(clear_eval_cache=True)
         return result
 
     if model_run_dir is None:
+        _release_protocol_inference_memory(clear_eval_cache=True)
         return result
 
     # Read train state from the model source
@@ -1611,6 +1638,9 @@ def run_regime(
         result["metrics"] = _read_eval_metrics(run_dir)
     if result["metrics"]:
         result["residual_signature"] = dict(result["metrics"])
+
+    if _eval_ran:
+        _release_protocol_inference_memory(clear_eval_cache=True)
 
     _quick_pred_cache = {}
 
@@ -1743,6 +1773,8 @@ def run_regime(
             if _dm_source is not None:
                 result["dist_metrics_source"] = _dm_source
             print(f"⚠️  cVAE dist metrics failed for regime '{regime_id}': {e}")
+        finally:
+            _release_protocol_inference_memory(quick_pred_cache=_quick_pred_cache)
 
     if run_dist_metrics and result["train_status"] in {"completed", "shared_model"} and _val_data is not None:
         try:
@@ -1791,6 +1823,8 @@ def run_regime(
             del _X_va, _Y_va, _D_va, _C_va
         except Exception as e:
             print(f"⚠️  Residual signature by amplitude bin failed for regime '{regime_id}': {e}")
+        finally:
+            _release_protocol_inference_memory(quick_pred_cache=_quick_pred_cache)
 
     # ---- STATISTICAL FIDELITY TESTS (Etapa A2) ----
     # Runs MMD², Energy distance, and PSD L2 on residuals (Y - X) for cVAE.
@@ -1874,11 +1908,16 @@ def run_regime(
         except Exception as e:
             result["stat_fidelity"] = {"error": str(e)}
             print(f"⚠️  Stat fidelity failed for regime '{regime_id}': {e}")
+        finally:
+            _release_protocol_inference_memory(quick_pred_cache=_quick_pred_cache)
 
     # Commit 3P: aggressively free val data; prevent cross-regime leakage
-    _quick_pred_cache.clear()
     _val_data = None
     gc.collect()
+    _release_protocol_inference_memory(
+        quick_pred_cache=_quick_pred_cache,
+        clear_eval_cache=True,
+    )
 
     return result
 
