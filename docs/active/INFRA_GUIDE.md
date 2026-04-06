@@ -68,6 +68,49 @@ O ponto central e este:
 - a GPU continua sendo uma so
 - mas agora cada pessoa tem seu proprio usuario, sua propria `home`, seu proprio clone e seu proprio container
 
+## 2.1. Layout atual do Rodrigo - 4 linhas, 2 slots ativos
+
+No setup atual do Rodrigo, mantemos quatro worktrees nomeados, mas apenas dois
+containers/sessoes `tmux` quentes ao mesmo tempo.
+
+Worktrees:
+
+- `mdn-anchor` -> `/home/rodrigo/cVAe_2026_mdn_anchor`
+- `mdn-explore` -> `/home/rodrigo/cVAe_2026_mdn_explore`
+- `shape` -> `/home/rodrigo/cVAe_2026_shape`
+- `legacy2025` -> `/home/rodrigo/cVAe_2026_legacy2025`
+
+Slots ativos:
+
+- slot fixo: `anchor` -> branch `feat/mdn-g5-recovery`
+- slot rotativo: `explore` ou `shape` ou `legacy2025`
+
+Regra operacional:
+
+- `anchor` permanece ligado para a linha cientifica estavel
+- o segundo slot gira conforme a hipotese da vez
+- nao manter os quatro containers abertos sem necessidade
+
+Script canonico para girar o segundo slot:
+
+- [switch_slot2.sh](/home/rodrigo/cVAe_2026_mdn_explore/scripts/ops/switch_slot2.sh)
+
+Uso:
+
+```bash
+/home/rodrigo/cVAe_2026_mdn_explore/scripts/ops/switch_slot2.sh status
+/home/rodrigo/cVAe_2026_mdn_explore/scripts/ops/switch_slot2.sh explore
+/home/rodrigo/cVAe_2026_mdn_explore/scripts/ops/switch_slot2.sh shape
+/home/rodrigo/cVAe_2026_mdn_explore/scripts/ops/switch_slot2.sh legacy2025
+```
+
+O script:
+
+- preserva `anchor`
+- desliga qualquer slot rotativo antigo
+- sobe o novo `tmux` + container com o nome correto
+- reaproveita `scripts/ops/run_tf25_gpu.sh` do proprio worktree alvo
+
 ---
 
 ## 3. O que cada camada faz (e o que NAO faz)

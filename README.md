@@ -31,6 +31,7 @@ start, use this order:
 Internal team members using the shared server should also read:
 
 - [docs/active/INFRA_GUIDE.md](docs/active/INFRA_GUIDE.md) - SSH, Unix users, Docker, tmux, Git LFS
+- [docs/active/MULTI_PC_WORKFLOW.md](docs/active/MULTI_PC_WORKFLOW.md) - worktrees, two hot slots, and multi-PC operating rules
 
 Important GitHub note:
 
