@@ -34,6 +34,8 @@ Use these documents in this order:
 - [docs/README.md](docs/README.md) — canonical documentation map
 - [PROJECT_STATUS.md](PROJECT_STATUS.md) — current architecture and repo state
 - [docs/active/WORKING_STATE.md](docs/active/WORKING_STATE.md) — single active working note for the current branch
+- [docs/active/INFRA_GUIDE.md](docs/active/INFRA_GUIDE.md) — SSH, Unix users, Docker, tmux and host organization
+- [docs/active/MULTI_PC_WORKFLOW.md](docs/active/MULTI_PC_WORKFLOW.md) — four worktrees, two hot slots and multi-PC rules
 - [docs/reference/EXPERIMENT_WORKFLOW.md](docs/reference/EXPERIMENT_WORKFLOW.md) — how to launch and analyze experiments
 - [docs/reference/PROTOCOL.md](docs/reference/PROTOCOL.md) — protocol runner, artifacts, CLI
 - [docs/reference/MODELING_ASSUMPTIONS.md](docs/reference/MODELING_ASSUMPTIONS.md) — modeling rationale

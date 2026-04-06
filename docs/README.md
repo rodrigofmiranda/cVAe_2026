@@ -16,6 +16,8 @@ agent tooling conventions:
 ## Active Docs
 
 - [active/WORKING_STATE.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/active/WORKING_STATE.md)
+- [active/INFRA_GUIDE.md](active/INFRA_GUIDE.md) - SSH, users, Docker, tmux, Git LFS
+- [active/MULTI_PC_WORKFLOW.md](active/MULTI_PC_WORKFLOW.md) - worktree layout, two hot slots, and how to operate across PCs
 
 ## Reference Docs
 
