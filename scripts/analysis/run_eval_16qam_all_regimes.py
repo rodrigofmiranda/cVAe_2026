@@ -7,7 +7,10 @@ import json
 import traceback
 from pathlib import Path
 
+import numpy as np
+
 from src.data.loading import discover_experiments, parse_dist_curr_from_path, read_metadata
+from src.evaluation.stat_tests import benjamini_hochberg
 from src.evaluation.engine import clear_evaluation_model_cache, evaluate_run
 
 
@@ -39,6 +42,49 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Output root for per-regime evaluation artifacts.",
     )
+    parser.add_argument(
+        "--currents_mA",
+        type=int,
+        nargs="+",
+        default=None,
+        help="Optional current filter in mA (example: --currents_mA 100 300 500 700).",
+    )
+    parser.add_argument(
+        "--distances_m",
+        type=float,
+        nargs="+",
+        default=None,
+        help="Optional distance filter in metres.",
+    )
+    parser.add_argument(
+        "--stat_tests",
+        action="store_true",
+        help="Enable statistical fidelity tests during per-regime evaluation.",
+    )
+    parser.add_argument(
+        "--stat_mode",
+        choices=["quick", "full"],
+        default="quick",
+        help="Statistical test mode when --stat_tests is enabled.",
+    )
+    parser.add_argument(
+        "--stat_n_perm",
+        type=int,
+        default=None,
+        help="Explicit permutation count override for stat tests.",
+    )
+    parser.add_argument(
+        "--stat_max_n",
+        type=int,
+        default=None,
+        help="Maximum sample count used by stat tests.",
+    )
+    parser.add_argument(
+        "--stat_seed",
+        type=int,
+        default=42,
+        help="Random seed for statistical tests.",
+    )
     return parser.parse_args()
 
 
@@ -61,9 +107,21 @@ def main() -> None:
     print(f'[batch] dataset_root={dataset_root}')
     print(f'[batch] model_run_dir={model_run_dir}')
     print(f'[batch] out_root={out_root}')
+    if args.currents_mA:
+        print(f'[batch] current_filter_mA={sorted(set(int(v) for v in args.currents_mA))}')
+    if args.distances_m:
+        print(f'[batch] distance_filter_m={sorted(set(float(v) for v in args.distances_m))}')
+    if args.stat_tests:
+        print(
+            '[batch] stat_tests=enabled '
+            f'(mode={args.stat_mode}, stat_n_perm={args.stat_n_perm}, '
+            f'stat_max_n={args.stat_max_n}, stat_seed={args.stat_seed})'
+        )
 
     exp_dirs = discover_experiments(dataset_root, verbose=False)
     regime_map: dict[tuple[float, int], list[str]] = {}
+    allowed_currents = set(int(v) for v in args.currents_mA or [])
+    allowed_distances = set(float(v) for v in args.distances_m or [])
 
     for exp in exp_dirs:
         dist, curr = parse_dist_curr_from_path(exp)
@@ -90,6 +148,11 @@ def main() -> None:
             print(f'[batch][warn] skipping experiment without regime parse: {exp}')
             continue
 
+        if allowed_currents and int(curr) not in allowed_currents:
+            continue
+        if allowed_distances and float(dist) not in allowed_distances:
+            continue
+
         key = (float(dist), int(curr))
         regime_map.setdefault(key, []).append(str(exp))
 
@@ -111,6 +174,14 @@ def main() -> None:
                 'dist_tol_m': 0.01,
                 'curr_tol_mA': 1.0,
             }
+            if args.stat_tests:
+                overrides['stat_tests'] = True
+                overrides['stat_mode'] = str(args.stat_mode)
+                overrides['stat_seed'] = int(args.stat_seed)
+                if args.stat_n_perm is not None:
+                    overrides['stat_n_perm'] = int(args.stat_n_perm)
+                if args.stat_max_n is not None:
+                    overrides['stat_max_n'] = int(args.stat_max_n)
 
             try:
                 summary = evaluate_run(
@@ -126,10 +197,18 @@ def main() -> None:
                         'current_mA': curr,
                         'status': summary.get('status', 'unknown'),
                         'run_dir': summary.get('run_dir', str(out_dir)),
+                        'metrics_path': summary.get('metrics_path', ''),
                         'panel6_path': summary.get('panel6_path', ''),
                         'overlay_path': summary.get('overlay_path', ''),
                         'fingerprint_path': summary.get('fingerprint_path', ''),
                         'dashboard_path': summary.get('dashboard_path', ''),
+                        'stat_mmd_pval': summary.get('metrics', {}).get('stat_mmd_pval'),
+                        'stat_mmd_qval': summary.get('metrics', {}).get('stat_mmd_qval'),
+                        'stat_energy_pval': summary.get('metrics', {}).get('stat_energy_pval'),
+                        'stat_energy_qval': summary.get('metrics', {}).get('stat_energy_qval'),
+                        'stat_n_samples': summary.get('metrics', {}).get('stat_n_samples'),
+                        'stat_n_perm': summary.get('metrics', {}).get('stat_n_perm'),
+                        'stat_mode': summary.get('metrics', {}).get('stat_mode'),
                     }
                 )
                 print(f"[batch][ok] {rid} -> {summary.get('run_dir', str(out_dir))}")
@@ -141,16 +220,65 @@ def main() -> None:
                         'current_mA': curr,
                         'status': f'error: {exc}',
                         'run_dir': str(out_dir),
+                        'metrics_path': '',
                         'panel6_path': '',
                         'overlay_path': '',
                         'fingerprint_path': '',
                         'dashboard_path': '',
+                        'stat_mmd_pval': np.nan,
+                        'stat_mmd_qval': np.nan,
+                        'stat_energy_pval': np.nan,
+                        'stat_energy_qval': np.nan,
+                        'stat_n_samples': np.nan,
+                        'stat_n_perm': np.nan,
+                        'stat_mode': '',
                     }
                 )
                 print(f"[batch][error] {rid}: {exc}")
                 traceback.print_exc()
     finally:
         clear_evaluation_model_cache()
+
+    if args.stat_tests and rows:
+        valid_mmd_idx = [
+            i for i, row in enumerate(rows)
+            if np.isfinite(float(row.get('stat_mmd_pval', np.nan)))
+        ]
+        valid_energy_idx = [
+            i for i, row in enumerate(rows)
+            if np.isfinite(float(row.get('stat_energy_pval', np.nan)))
+        ]
+
+        if valid_mmd_idx:
+            qvals = benjamini_hochberg(
+                np.asarray([rows[i]['stat_mmd_pval'] for i in valid_mmd_idx], dtype=float)
+            )
+            for idx, qv in zip(valid_mmd_idx, qvals):
+                rows[idx]['stat_mmd_qval'] = float(qv)
+
+        if valid_energy_idx:
+            qvals = benjamini_hochberg(
+                np.asarray([rows[i]['stat_energy_pval'] for i in valid_energy_idx], dtype=float)
+            )
+            for idx, qv in zip(valid_energy_idx, qvals):
+                rows[idx]['stat_energy_qval'] = float(qv)
+
+        for row in rows:
+            metrics_path = str(row.get('metrics_path', '') or '').strip()
+            if not metrics_path:
+                continue
+            path = Path(metrics_path)
+            if not path.exists():
+                continue
+            try:
+                payload = json.loads(path.read_text(encoding='utf-8'))
+                if np.isfinite(float(row.get('stat_mmd_qval', np.nan))):
+                    payload['stat_mmd_qval'] = float(row['stat_mmd_qval'])
+                if np.isfinite(float(row.get('stat_energy_qval', np.nan))):
+                    payload['stat_energy_qval'] = float(row['stat_energy_qval'])
+                path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding='utf-8')
+            except Exception as exc:
+                print(f"[batch][warn] failed to update qvals in {path}: {exc}")
 
     manifest_json = out_root / 'manifest_all_regimes_eval.json'
     manifest_csv = out_root / 'manifest_all_regimes_eval.csv'
@@ -172,6 +300,14 @@ def main() -> None:
                 'current_mA',
                 'status',
                 'run_dir',
+                'metrics_path',
+                'stat_mmd_pval',
+                'stat_mmd_qval',
+                'stat_energy_pval',
+                'stat_energy_qval',
+                'stat_n_samples',
+                'stat_n_perm',
+                'stat_mode',
                 'panel6_path',
                 'overlay_path',
                 'fingerprint_path',

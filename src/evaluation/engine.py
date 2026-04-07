@@ -82,6 +82,15 @@ def _autofind(path: Path, patterns):
     return None
 
 
+def _effective_stat_max_n(stat_mode: str, stat_max_n: Optional[int]) -> int:
+    if stat_max_n is not None:
+        n_eff = int(stat_max_n)
+        if n_eff <= 0:
+            raise ValueError("stat_max_n must be > 0")
+        return n_eff
+    return 5_000 if str(stat_mode).strip().lower() == "quick" else 50_000
+
+
 def _fallback_state(
     run_dir: Path,
     *,
@@ -361,6 +370,77 @@ def _compute_eval_metrics_bundle(
         "global_metrics": global_metrics,
         "distm": distm,
         "var_mc": var_mc,
+    }
+
+
+def _compute_stat_fidelity_bundle(
+    *,
+    X_center: np.ndarray,
+    Y_true: np.ndarray,
+    Y_mean: np.ndarray,
+    Y_samples: Optional[np.ndarray],
+    det_inf: bool,
+    rank_mode: str,
+    mc_samples: int,
+    overrides: Dict[str, Any],
+    seed0: int,
+) -> Dict[str, Any]:
+    if not bool(overrides.get("stat_tests", False)):
+        return {}
+
+    from src.evaluation.stat_tests import energy_test, mmd_rbf, psd_distance
+
+    stat_mode = str(overrides.get("stat_mode", "quick")).strip().lower()
+    stat_seed = int(overrides.get("stat_seed", seed0))
+    stat_max_n = _effective_stat_max_n(stat_mode, overrides.get("stat_max_n"))
+    stat_n_perm = overrides.get("stat_n_perm")
+    n_perm = int(stat_n_perm) if stat_n_perm is not None else (200 if stat_mode == "quick" else 2000)
+    psd_nfft = int(overrides.get("psd_nfft", 2048))
+
+    res_real_all = np.asarray(Y_true, dtype=np.float64) - np.asarray(X_center, dtype=np.float64)
+    if Y_samples is not None and not (det_inf or mc_samples <= 1 or rank_mode == "det"):
+        X_tiled = np.tile(np.asarray(X_center, dtype=np.float64), (int(len(Y_samples)), 1))
+        res_pred_all = np.asarray(Y_samples, dtype=np.float64).reshape((-1, Y_samples.shape[-1])) - X_tiled
+    else:
+        res_pred_all = np.asarray(Y_mean, dtype=np.float64) - np.asarray(X_center, dtype=np.float64)
+
+    n_sf = min(int(stat_max_n), int(res_real_all.shape[0]), int(res_pred_all.shape[0]))
+    if n_sf <= 1:
+        raise ValueError("Not enough samples to run stat fidelity")
+
+    rng = np.random.RandomState(stat_seed)
+    idx_real = (
+        rng.choice(res_real_all.shape[0], n_sf, replace=False)
+        if n_sf < res_real_all.shape[0]
+        else np.arange(res_real_all.shape[0])
+    )
+    idx_pred = (
+        rng.choice(res_pred_all.shape[0], n_sf, replace=False)
+        if n_sf < res_pred_all.shape[0]
+        else np.arange(res_pred_all.shape[0])
+    )
+    res_real = res_real_all[idx_real]
+    res_pred = res_pred_all[idx_pred]
+
+    sf_mmd = mmd_rbf(res_real, res_pred, n_perm=n_perm, seed=stat_seed)
+    sf_energy = energy_test(res_real, res_pred, n_perm=n_perm, seed=stat_seed)
+    sf_psd = psd_distance(res_real, res_pred, nfft=psd_nfft, seed=stat_seed)
+
+    return {
+        "mmd2": float(sf_mmd["mmd2"]),
+        "mmd_pval": float(sf_mmd["pval"]),
+        "mmd_qval": float("nan"),
+        "mmd_bandwidth": float(sf_mmd["bandwidth"]),
+        "energy": float(sf_energy["energy"]),
+        "energy_pval": float(sf_energy["pval"]),
+        "energy_qval": float("nan"),
+        "psd_dist": float(sf_psd["psd_dist"]),
+        "psd_ci_low": float(sf_psd["psd_ci_low"]),
+        "psd_ci_high": float(sf_psd["psd_ci_high"]),
+        "n_samples": int(n_sf),
+        "n_perm": int(n_perm),
+        "stat_mode": stat_mode,
+        "stat_seed": int(stat_seed),
     }
 
 
@@ -771,6 +851,69 @@ def evaluate_run(
     else:
         global_metrics["support_eval_scope"] = "full_square"
 
+    stat_fidelity = {}
+    stat_fidelity_path = None
+    if ov.get("stat_tests", False):
+        try:
+            stat_fidelity = _compute_stat_fidelity_bundle(
+                X_center=Xv_center,
+                Y_true=Yv,
+                Y_mean=Yp,
+                Y_samples=Ys,
+                det_inf=det_inf,
+                rank_mode=rank_mode,
+                mc_samples=mc_samples,
+                overrides=ov,
+                seed0=seed0,
+            )
+            global_metrics.update(
+                {
+                    "stat_mmd_pval": stat_fidelity["mmd_pval"],
+                    "stat_mmd_qval": stat_fidelity["mmd_qval"],
+                    "stat_energy_pval": stat_fidelity["energy_pval"],
+                    "stat_energy_qval": stat_fidelity["energy_qval"],
+                    "stat_psd_l2": stat_fidelity["psd_dist"],
+                    "stat_psd_ci_low": stat_fidelity["psd_ci_low"],
+                    "stat_psd_ci_high": stat_fidelity["psd_ci_high"],
+                    "stat_n_samples": stat_fidelity["n_samples"],
+                    "stat_n_perm": stat_fidelity["n_perm"],
+                    "stat_mode": stat_fidelity["stat_mode"],
+                    "stat_seed": stat_fidelity["stat_seed"],
+                }
+            )
+            stat_fidelity_path = run_paths.write_json(
+                "logs/stat_fidelity_reanalysis.json",
+                stat_fidelity,
+            )
+            print(
+                "✓ stat_fidelity_reanalysis.json salvo: "
+                f"{stat_fidelity_path} | "
+                f"MMD p={stat_fidelity['mmd_pval']:.4f} | "
+                f"Energy p={stat_fidelity['energy_pval']:.4f}"
+            )
+        except Exception as exc:
+            stat_fidelity = {"error": str(exc)}
+            global_metrics.update(
+                {
+                    "stat_mmd_pval": float("nan"),
+                    "stat_mmd_qval": float("nan"),
+                    "stat_energy_pval": float("nan"),
+                    "stat_energy_qval": float("nan"),
+                    "stat_psd_l2": float("nan"),
+                    "stat_psd_ci_low": float("nan"),
+                    "stat_psd_ci_high": float("nan"),
+                    "stat_n_samples": float("nan"),
+                    "stat_n_perm": float("nan"),
+                    "stat_mode": str(ov.get("stat_mode", "quick")),
+                    "stat_seed": int(ov.get("stat_seed", seed0)),
+                }
+            )
+            stat_fidelity_path = run_paths.write_json(
+                "logs/stat_fidelity_reanalysis.json",
+                stat_fidelity,
+            )
+            print(f"⚠️  stat_fidelity na avaliação direta falhou: {exc}")
+
     metrics_json = run_paths.write_json("logs/metricas_globais_reanalysis.json", global_metrics)
     print(f"✓ metricas_globais_reanalysis.json salvo: {metrics_json}")
 
@@ -939,6 +1082,8 @@ def evaluate_run(
         "dashboard_path": str(dashboard_path),
         "support_config": support_cfg,
         "support_filter": support_filter_info,
+        "stat_fidelity": stat_fidelity,
+        "stat_fidelity_path": (str(stat_fidelity_path) if stat_fidelity_path is not None else ""),
         "support_full_metrics": support_full_metrics,
         "support_full_metrics_path": (str(support_full_metrics_path) if support_full_metrics_path is not None else ""),
     }
