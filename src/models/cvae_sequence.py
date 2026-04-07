@@ -750,5 +750,9 @@ def load_seq_model(path: str) -> tf.keras.Model:
             "SliceFeatures": SliceFeatures,
             "SupportGeometryFeatures": SupportGeometryFeatures,
         },
+        # Our own saved models may contain Lambda layers (for example MDN
+        # sampling nodes), so evaluation/inference reloads must trust the
+        # project artifact instead of Keras' default safe-mode block.
+        safe_mode=False,
         compile=False,
     )

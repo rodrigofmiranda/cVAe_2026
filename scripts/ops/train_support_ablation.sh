@@ -14,11 +14,15 @@ Stages:
   e1   support_e1_geom3
   e2   support_e2_edge_weight
   e3   support_e3_geom3_edge_weight
+  e3b  support_e3b_geom3_edge_retune
+  e3c  support_e3c_geom3_edge_decision
   e4   support_e4_disk
   e5   confirmation run; requires SUPPORT_E5_GRID_TAG or explicit --grid_tag
 
 Notes:
   - E0-E4 are mixed-family exploratory sweeps by default.
+  - E3b is a short S27-only local retune around the E3 winner.
+  - E3c is a 2-candidate decision run after E3b.
   - For controlled paired comparisons, pin a single candidate with:
       --grid_tag <tag> --max_grids 1
     Example:
@@ -70,6 +74,16 @@ case "$STAGE" in
   e3)
     GRID_PRESET="support_e3_geom3_edge_weight"
     STAGE_DIR="e3"
+    EXTRA_ARGS=()
+    ;;
+  e3b)
+    GRID_PRESET="support_e3b_geom3_edge_retune"
+    STAGE_DIR="e3b"
+    EXTRA_ARGS=()
+    ;;
+  e3c)
+    GRID_PRESET="support_e3c_geom3_edge_decision"
+    STAGE_DIR="e3c"
     EXTRA_ARGS=()
     ;;
   e4)

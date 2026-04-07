@@ -4790,6 +4790,138 @@ def _preset_support_e3_geom3_edge_weight() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_support_e3b_geom3_edge_retune() -> List[Dict[str, Any]]:
+    """Short S27-only retune around the E3 geom3+edge winner.
+
+    Goal:
+    - keep the improved edge/corner support pressure that unlocked 1.5 m
+    - recover some of the global fidelity that E3 lost vs E2 at 1.0 m
+
+    Strategy:
+    - localize edge weighting closer to the true perimeter/corners
+    - reduce weight saturation
+    - probe slightly softer coverage pressure on a subset of variants
+    """
+    base = dict(
+        support_feature_mode="geom3",
+        support_weight_mode="edge_rinf_corner",
+    )
+    return [
+        dict(
+            group="E3b_support_geom3_edge_retune",
+            tag="S27cov_geom3_edge_rt_localcap_a1p5_tau0p82_tc0p45_wmax2p5",
+            cfg=_support_seq_anchor_cfg(
+                support_weight_alpha=1.5,
+                support_weight_tau=0.82,
+                support_weight_tau_corner=0.45,
+                support_weight_max=2.5,
+                **base,
+            ),
+        ),
+        dict(
+            group="E3b_support_geom3_edge_retune",
+            tag="S27cov_geom3_edge_rt_softlocal_a1p25_tau0p82_tc0p45_wmax2p5",
+            cfg=_support_seq_anchor_cfg(
+                support_weight_alpha=1.25,
+                support_weight_tau=0.82,
+                support_weight_tau_corner=0.45,
+                support_weight_max=2.5,
+                **base,
+            ),
+        ),
+        dict(
+            group="E3b_support_geom3_edge_retune",
+            tag="S27cov_geom3_edge_rt_covsoft_a1p5_tau0p82_tc0p45_wmax2p5_lc0p20",
+            cfg=_support_seq_anchor_cfg(
+                support_weight_alpha=1.5,
+                support_weight_tau=0.82,
+                support_weight_tau_corner=0.45,
+                support_weight_max=2.5,
+                lambda_coverage=0.20,
+                **base,
+            ),
+        ),
+        dict(
+            group="E3b_support_geom3_edge_retune",
+            tag="S27cov_geom3_edge_rt_covsoftwarm_a1p5_tau0p82_tc0p45_wmax2p5_lc0p20_t0p04",
+            cfg=_support_seq_anchor_cfg(
+                support_weight_alpha=1.5,
+                support_weight_tau=0.82,
+                support_weight_tau_corner=0.45,
+                support_weight_max=2.5,
+                lambda_coverage=0.20,
+                coverage_temperature=0.04,
+                **base,
+            ),
+        ),
+        dict(
+            group="E3b_support_geom3_edge_retune",
+            tag="S27cov_geom3_edge_rt_cornerfocus_a1p75_tau0p84_tc0p50_wmax2p5_lc0p20",
+            cfg=_support_seq_anchor_cfg(
+                support_weight_alpha=1.75,
+                support_weight_tau=0.84,
+                support_weight_tau_corner=0.50,
+                support_weight_max=2.5,
+                lambda_coverage=0.20,
+                **base,
+            ),
+        ),
+        dict(
+            group="E3b_support_geom3_edge_retune",
+            tag="S27cov_geom3_edge_rt_bridge_a1p25_tau0p80_tc0p40_wmax2p4_lc0p22_t0p035",
+            cfg=_support_seq_anchor_cfg(
+                support_weight_alpha=1.25,
+                support_weight_tau=0.80,
+                support_weight_tau_corner=0.40,
+                support_weight_max=2.4,
+                lambda_coverage=0.22,
+                coverage_temperature=0.035,
+                **base,
+            ),
+        ),
+    ]
+
+
+def _preset_support_e3c_geom3_edge_decision() -> List[Dict[str, Any]]:
+    """Two-candidate decision run after E3b.
+
+    We keep only the two most promising local retunes:
+    - bridge: better compromise between E2-like fidelity and E3-like edge intent
+    - covsoft: best validation-loss signal in the E3b sweep
+    """
+    base = dict(
+        support_feature_mode="geom3",
+        support_weight_mode="edge_rinf_corner",
+    )
+    return [
+        dict(
+            group="E3c_support_geom3_edge_decision",
+            tag="S27cov_geom3_edge_rt_bridge_a1p25_tau0p80_tc0p40_wmax2p4_lc0p22_t0p035",
+            cfg=_support_seq_anchor_cfg(
+                support_weight_alpha=1.25,
+                support_weight_tau=0.80,
+                support_weight_tau_corner=0.40,
+                support_weight_max=2.4,
+                lambda_coverage=0.22,
+                coverage_temperature=0.035,
+                **base,
+            ),
+        ),
+        dict(
+            group="E3c_support_geom3_edge_decision",
+            tag="S27cov_geom3_edge_rt_covsoft_a1p5_tau0p82_tc0p45_wmax2p5_lc0p20",
+            cfg=_support_seq_anchor_cfg(
+                support_weight_alpha=1.5,
+                support_weight_tau=0.82,
+                support_weight_tau_corner=0.45,
+                support_weight_max=2.5,
+                lambda_coverage=0.20,
+                **base,
+            ),
+        ),
+    ]
+
+
 def _preset_support_e4_disk() -> List[Dict[str, Any]]:
     return [
         dict(
@@ -4954,6 +5086,10 @@ def select_grid(
             grid = _preset_support_e2_edge_weight()
         elif preset_name == "support_e3_geom3_edge_weight":
             grid = _preset_support_e3_geom3_edge_weight()
+        elif preset_name == "support_e3b_geom3_edge_retune":
+            grid = _preset_support_e3b_geom3_edge_retune()
+        elif preset_name == "support_e3c_geom3_edge_decision":
+            grid = _preset_support_e3c_geom3_edge_decision()
         elif preset_name == "support_e4_disk":
             grid = _preset_support_e4_disk()
         else:
