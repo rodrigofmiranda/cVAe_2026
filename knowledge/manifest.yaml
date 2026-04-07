@@ -4,7 +4,46 @@ description: >
   Use este arquivo para registrar metadados confiaveis que nao devem depender
   apenas da extração automatica de PDF.
 
-papers: []
+papers:
+  - paper_id: askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance
+    title: "Probabilistic Shaping for Nonlinearity Tolerance"
+    authors:
+      - "Mohammad Taha Askari"
+      - "Lutz Lampe"
+    year: 2025
+    topic_tags:
+      - probabilistic_shaping
+      - nonlinearity_tolerance
+      - sequence_selection
+      - optical_communications
+      - digital_twin_guidance
+    why_it_matters: >
+      Principal referencia conceitual para tratar shaping sob canal real com
+      memoria e nao linearidade. Deve guiar decisoes sobre estrutura temporal,
+      momentos, borda/cauda e o caminho para o e2e.
+    pdf_path: "knowledge/papers/raw/askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance.pdf"
+    parsed_dir: "knowledge/papers/parsed/askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance"
+    note_path: "knowledge/notes/askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance.md"
+
+  - paper_id: shu_2020_probabilistic_shaping_optical
+    title: "Probabilistic shaping: a step closer to the Shannon limit in channel capacity for optical communications"
+    authors:
+      - "Chester Shu"
+      - "Qiulin Zhang"
+    year: 2020
+    topic_tags:
+      - probabilistic_shaping
+      - optical_communications
+      - shaping_gain
+      - hardware_constraints
+      - capacity
+    why_it_matters: >
+      Referencia pratica para lembrar que a melhor sinalizacao deve ser medida
+      sob restricoes reais de hardware e potencia, nao apenas sob criterio
+      abstrato de forma ou energia.
+    pdf_path: "knowledge/papers/raw/shu_2020_probabilistic_shaping_optical.pdf"
+    parsed_dir: "knowledge/papers/parsed/shu_2020_probabilistic_shaping_optical"
+    note_path: "knowledge/notes/shu_2020_probabilistic_shaping_optical.md"
 
 # Exemplo de entrada:
 # papers:

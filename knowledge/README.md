@@ -11,6 +11,7 @@ knowledge/
   papers/
     raw/          # coloque aqui os PDFs originais
     parsed/       # saidas geradas pelo Docling
+  imports/        # acervos externos importados sem misturar com a base canonica
   index/          # base vetorial local e estado incremental
   notes/          # research cards por paper
   syntheses/      # sinteses tematicas e comparativas
@@ -78,6 +79,33 @@ python scripts/knowledge/index_knowledge_chroma.py \
   --state-path knowledge/index/index_state.json
 ```
 
+## Script de consulta
+
+Para buscar trechos relevantes na base local:
+
+```bash
+python scripts/knowledge/query_knowledge.py "probabilistic shaping VLC"
+```
+
+Para consultar tambem o acervo importado:
+
+```bash
+python scripts/knowledge/query_knowledge.py \
+  "digital twin nonlinearity visible light communication" \
+  --source both \
+  --dedupe-paper \
+  --show-paths
+```
+
+Para o nosso fluxo de `shape`, existe um atalho com presets:
+
+```bash
+scripts/knowledge/query_shape.sh shape
+scripts/knowledge/query_shape.sh twin
+scripts/knowledge/query_shape.sh e2e
+scripts/knowledge/query_shape.sh project
+```
+
 ## O que o ingest gera
 
 Para cada PDF, o script gera:
@@ -109,6 +137,24 @@ Por isso a pipeline separa:
 
 - `raw`
 - `parsed`
+- `imports`
 - `index`
 - `notes`
 - `syntheses`
+
+## Acervos importados
+
+Quando um corpus externo chegar ja em Markdown, como um cache Docling vindo de
+outro ambiente, ele deve entrar primeiro em `knowledge/imports/`.
+
+Fluxo recomendado:
+
+1. copiar o corpus bruto para `knowledge/imports/<nome_do_corpus>/`
+2. normalizar para o layout `document.md + metadata.yaml`
+3. indexar em uma base vetorial separada
+4. promover apenas os papers realmente relevantes para a base canonica
+
+Isso evita misturar:
+
+- os papers de referencia que guiam decisoes do projeto
+- e um acervo amplo de apoio para busca exploratoria

@@ -15,6 +15,7 @@ data/*
 backup/
 *.tar
 *.zip
+*.rar
 
 # Checkpoints / model weights (se estiverem fora de outputs)
 *.h5
@@ -28,12 +29,14 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 .venv/
+.venvs/
 *.swp
 
 # Temporary / log files
 *.tmp
 *.log
 .tmp_*.py
+.tmp_docling_cache_md/
 .bash_history
 
 # OS
@@ -46,8 +49,12 @@ __pycache__/
 knowledge/papers/raw/*.pdf
 knowledge/papers/parsed/*
 !knowledge/papers/parsed/README.md
+knowledge/imports/*
+!knowledge/imports/README.md
 knowledge/index/chroma_db/
 knowledge/index/index_state.json
+knowledge/index/chroma_db_*/
+knowledge/index/index_state_*.json
 
 # Local runtime/bootstrap artifacts
 .pydeps/
