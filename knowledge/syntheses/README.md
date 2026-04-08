@@ -13,6 +13,7 @@ Exemplos:
 - `support_ablation_e0_e3_comparison_2026-04-07.md`
 - `support_ablation_e3b_e4_followup_2026-04-07.md`
 - `support_hyperparameter_guide_2026-04-08.md`
+- `support_hyperparameter_scientific_screening_2026-04-08.md`
 
 Regra pratica:
 

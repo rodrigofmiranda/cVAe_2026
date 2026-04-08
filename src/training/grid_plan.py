@@ -4998,6 +4998,208 @@ def _preset_support_e2_full_overnight_local() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_support_e2_scientific_screen_v1() -> List[Dict[str, Any]]:
+    """Structured exploratory screen around the robust E2 full-data line.
+
+    Scientific intent:
+    - complete the support-hyperparameter evidence table with falsifiable runs
+    - discard weak families of hyperparameters, not just hunt a lucky winner
+    - keep a single robust anchor (E2 edge-only) and perturb one family at a
+      time so the final thesis narrative remains readable
+
+    Design:
+    - Block A: support-weight localization
+    - Block B: coverage / tail calibration
+    - Block C: model capacity
+    - Block D: optimization / KL regularization
+
+    The control is the current strongest E2 full-data anchor.
+    """
+    base = dict(
+        support_weight_mode="edge_rinf_corner",
+        support_weight_alpha=1.50,
+        support_weight_tau=0.75,
+        support_weight_tau_corner=0.35,
+        support_weight_max=3.0,
+        lambda_coverage=0.25,
+        tail_levels=[0.05, 0.95],
+        coverage_temperature=0.03,
+    )
+    return [
+        dict(
+            group="E2_scientific_screen_v1",
+            tag="S27cov_sciv1_ctrl_lc0p25_t0p03_a1p50_tau0p75_tc0p35_wmax3p0",
+            cfg=_support_seq_anchor_cfg(
+                **base,
+            ),
+        ),
+        dict(
+            group="E2_scientific_screen_v1",
+            tag="S27cov_sciv1_edgebroad_a1p25_tau0p70_tc0p30_wmax2p8",
+            cfg=_support_seq_anchor_cfg(
+                support_weight_mode="edge_rinf_corner",
+                support_weight_alpha=1.25,
+                support_weight_tau=0.70,
+                support_weight_tau_corner=0.30,
+                support_weight_max=2.8,
+                lambda_coverage=0.25,
+                tail_levels=[0.05, 0.95],
+                coverage_temperature=0.03,
+            ),
+        ),
+        dict(
+            group="E2_scientific_screen_v1",
+            tag="S27cov_sciv1_edgelocal_a1p50_tau0p80_tc0p40_wmax3p0",
+            cfg=_support_seq_anchor_cfg(
+                support_weight_mode="edge_rinf_corner",
+                support_weight_alpha=1.50,
+                support_weight_tau=0.80,
+                support_weight_tau_corner=0.40,
+                support_weight_max=3.0,
+                lambda_coverage=0.25,
+                tail_levels=[0.05, 0.95],
+                coverage_temperature=0.03,
+            ),
+        ),
+        dict(
+            group="E2_scientific_screen_v1",
+            tag="S27cov_sciv1_cornerhard_a1p75_tau0p82_tc0p45_wmax3p2",
+            cfg=_support_seq_anchor_cfg(
+                support_weight_mode="edge_rinf_corner",
+                support_weight_alpha=1.75,
+                support_weight_tau=0.82,
+                support_weight_tau_corner=0.45,
+                support_weight_max=3.2,
+                lambda_coverage=0.25,
+                tail_levels=[0.05, 0.95],
+                coverage_temperature=0.03,
+            ),
+        ),
+        dict(
+            group="E2_scientific_screen_v1",
+            tag="S27cov_sciv1_covsoft_lc0p20_t0p035",
+            cfg=_support_seq_anchor_cfg(
+                **dict(base, lambda_coverage=0.20, coverage_temperature=0.035),
+            ),
+        ),
+        dict(
+            group="E2_scientific_screen_v1",
+            tag="S27cov_sciv1_covhard_lc0p30_t0p025",
+            cfg=_support_seq_anchor_cfg(
+                **dict(base, lambda_coverage=0.30, coverage_temperature=0.025),
+            ),
+        ),
+        dict(
+            group="E2_scientific_screen_v1",
+            tag="S27cov_sciv1_tail98_lc0p25_t0p03",
+            cfg=_support_seq_anchor_cfg(
+                **dict(base, tail_levels=[0.02, 0.98]),
+            ),
+        ),
+        dict(
+            group="E2_scientific_screen_v1",
+            tag="S27cov_sciv1_covdense_cg50-75-90-95_lc0p25_t0p03",
+            cfg=_support_seq_anchor_cfg(
+                **dict(base, coverage_levels=[0.50, 0.75, 0.90, 0.95]),
+            ),
+        ),
+        dict(
+            group="E2_scientific_screen_v1",
+            tag="S27cov_sciv1_lat10",
+            cfg=_support_seq_anchor_cfg(
+                **base,
+                latent_dim=10,
+            ),
+        ),
+        dict(
+            group="E2_scientific_screen_v1",
+            tag="S27cov_sciv1_h96",
+            cfg=_support_seq_anchor_cfg(
+                **base,
+                seq_hidden_size=96,
+            ),
+        ),
+        dict(
+            group="E2_scientific_screen_v1",
+            tag="S27cov_sciv1_L192-384-512",
+            cfg=_support_seq_anchor_cfg(
+                **base,
+                layer_sizes=[192, 384, 512],
+            ),
+        ),
+        dict(
+            group="E2_scientific_screen_v1",
+            tag="S27cov_sciv1_lr0p00015",
+            cfg=_support_seq_anchor_cfg(
+                **base,
+                lr=1.5e-4,
+            ),
+        ),
+        dict(
+            group="E2_scientific_screen_v1",
+            tag="S27cov_sciv1_bs8192",
+            cfg=_support_seq_anchor_cfg(
+                **base,
+                batch_size=8192,
+            ),
+        ),
+        dict(
+            group="E2_scientific_screen_v1",
+            tag="S27cov_sciv1_b0p0015_fb0p05",
+            cfg=_support_seq_anchor_cfg(
+                **base,
+                beta=0.0015,
+                free_bits=0.05,
+            ),
+        ),
+    ]
+
+
+def _preset_support_e2_scientific_screen_v1_block_a() -> List[Dict[str, Any]]:
+    """Control + Block A (support-weight localization)."""
+    tags = {
+        "S27cov_sciv1_ctrl_lc0p25_t0p03_a1p50_tau0p75_tc0p35_wmax3p0",
+        "S27cov_sciv1_edgebroad_a1p25_tau0p70_tc0p30_wmax2p8",
+        "S27cov_sciv1_edgelocal_a1p50_tau0p80_tc0p40_wmax3p0",
+        "S27cov_sciv1_cornerhard_a1p75_tau0p82_tc0p45_wmax3p2",
+    }
+    return [item for item in _preset_support_e2_scientific_screen_v1() if item["tag"] in tags]
+
+
+def _preset_support_e2_scientific_screen_v1_block_b() -> List[Dict[str, Any]]:
+    """Control + Block B (coverage and tail calibration)."""
+    tags = {
+        "S27cov_sciv1_ctrl_lc0p25_t0p03_a1p50_tau0p75_tc0p35_wmax3p0",
+        "S27cov_sciv1_covsoft_lc0p20_t0p035",
+        "S27cov_sciv1_covhard_lc0p30_t0p025",
+        "S27cov_sciv1_tail98_lc0p25_t0p03",
+        "S27cov_sciv1_covdense_cg50-75-90-95_lc0p25_t0p03",
+    }
+    return [item for item in _preset_support_e2_scientific_screen_v1() if item["tag"] in tags]
+
+
+def _preset_support_e2_scientific_screen_v1_block_c() -> List[Dict[str, Any]]:
+    """Control + Block C (model capacity)."""
+    tags = {
+        "S27cov_sciv1_ctrl_lc0p25_t0p03_a1p50_tau0p75_tc0p35_wmax3p0",
+        "S27cov_sciv1_lat10",
+        "S27cov_sciv1_h96",
+        "S27cov_sciv1_L192-384-512",
+    }
+    return [item for item in _preset_support_e2_scientific_screen_v1() if item["tag"] in tags]
+
+
+def _preset_support_e2_scientific_screen_v1_block_d() -> List[Dict[str, Any]]:
+    """Control + Block D (optimization and KL regularization)."""
+    tags = {
+        "S27cov_sciv1_ctrl_lc0p25_t0p03_a1p50_tau0p75_tc0p35_wmax3p0",
+        "S27cov_sciv1_lr0p00015",
+        "S27cov_sciv1_bs8192",
+        "S27cov_sciv1_b0p0015_fb0p05",
+    }
+    return [item for item in _preset_support_e2_scientific_screen_v1() if item["tag"] in tags]
+
+
 def _preset_support_e4_disk() -> List[Dict[str, Any]]:
     return [
         dict(
@@ -5168,6 +5370,16 @@ def select_grid(
             grid = _preset_support_e3c_geom3_edge_decision()
         elif preset_name == "support_e2_full_overnight_local":
             grid = _preset_support_e2_full_overnight_local()
+        elif preset_name == "support_e2_scientific_screen_v1":
+            grid = _preset_support_e2_scientific_screen_v1()
+        elif preset_name == "support_e2_scientific_screen_v1_block_a":
+            grid = _preset_support_e2_scientific_screen_v1_block_a()
+        elif preset_name == "support_e2_scientific_screen_v1_block_b":
+            grid = _preset_support_e2_scientific_screen_v1_block_b()
+        elif preset_name == "support_e2_scientific_screen_v1_block_c":
+            grid = _preset_support_e2_scientific_screen_v1_block_c()
+        elif preset_name == "support_e2_scientific_screen_v1_block_d":
+            grid = _preset_support_e2_scientific_screen_v1_block_d()
         elif preset_name == "support_e4_disk":
             grid = _preset_support_e4_disk()
         else:
