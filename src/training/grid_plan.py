@@ -4922,6 +4922,82 @@ def _preset_support_e3c_geom3_edge_decision() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_support_e2_full_overnight_local() -> List[Dict[str, Any]]:
+    """Overnight full-data retune around the robust E2 finalist.
+
+    The quick/full comparisons suggest E2 remains the safest family in full data,
+    but we still want to recover G5 without giving back the G6 gains.
+    This sweep keeps the edge-only hypothesis fixed and only explores local
+    support-weight / coverage calibrations around that winner.
+    """
+    base = dict(
+        support_weight_mode="edge_rinf_corner",
+    )
+    return [
+        dict(
+            group="E2_full_overnight_local",
+            tag="S27cov_e2full_ctrl_lc0p25_t0p03",
+            cfg=_support_seq_anchor_cfg(
+                **base,
+            ),
+        ),
+        dict(
+            group="E2_full_overnight_local",
+            tag="S27cov_e2full_softlocal_a1p25_tau0p80_tc0p40_wmax2p4_lc0p20_t0p035",
+            cfg=_support_seq_anchor_cfg(
+                support_weight_alpha=1.25,
+                support_weight_tau=0.80,
+                support_weight_tau_corner=0.40,
+                support_weight_max=2.4,
+                lambda_coverage=0.20,
+                coverage_temperature=0.035,
+                **base,
+            ),
+        ),
+        dict(
+            group="E2_full_overnight_local",
+            tag="S27cov_e2full_tailfocus_a1p25_tau0p80_tc0p40_wmax2p4_lc0p22_t0p025_tail98",
+            cfg=_support_seq_anchor_cfg(
+                support_weight_alpha=1.25,
+                support_weight_tau=0.80,
+                support_weight_tau_corner=0.40,
+                support_weight_max=2.4,
+                lambda_coverage=0.22,
+                coverage_temperature=0.025,
+                tail_levels=[0.02, 0.98],
+                **base,
+            ),
+        ),
+        dict(
+            group="E2_full_overnight_local",
+            tag="S27cov_e2full_hybrid_a1p50_tau0p82_tc0p45_wmax2p5_lc0p22_t0p03_tail98",
+            cfg=_support_seq_anchor_cfg(
+                support_weight_alpha=1.50,
+                support_weight_tau=0.82,
+                support_weight_tau_corner=0.45,
+                support_weight_max=2.5,
+                lambda_coverage=0.22,
+                coverage_temperature=0.03,
+                tail_levels=[0.02, 0.98],
+                **base,
+            ),
+        ),
+        dict(
+            group="E2_full_overnight_local",
+            tag="S27cov_e2full_cornerfocus_a1p75_tau0p84_tc0p50_wmax2p5_lc0p20_t0p03",
+            cfg=_support_seq_anchor_cfg(
+                support_weight_alpha=1.75,
+                support_weight_tau=0.84,
+                support_weight_tau_corner=0.50,
+                support_weight_max=2.5,
+                lambda_coverage=0.20,
+                coverage_temperature=0.03,
+                **base,
+            ),
+        ),
+    ]
+
+
 def _preset_support_e4_disk() -> List[Dict[str, Any]]:
     return [
         dict(
@@ -5090,6 +5166,8 @@ def select_grid(
             grid = _preset_support_e3b_geom3_edge_retune()
         elif preset_name == "support_e3c_geom3_edge_decision":
             grid = _preset_support_e3c_geom3_edge_decision()
+        elif preset_name == "support_e2_full_overnight_local":
+            grid = _preset_support_e2_full_overnight_local()
         elif preset_name == "support_e4_disk":
             grid = _preset_support_e4_disk()
         else:
