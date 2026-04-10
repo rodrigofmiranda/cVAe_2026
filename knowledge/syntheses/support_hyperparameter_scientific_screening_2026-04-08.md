@@ -182,6 +182,35 @@ historical evidence that they should not be reopened before this screening:
 - `decoder_distribution=mdn`
 - `mdn_components=3`
 
+## Execution Snapshot (2026-04-10)
+
+The blocked screen moved from design into execution in four independent blocks.
+
+Current status:
+
+- `A`: completed clean rerun, scientifically usable
+- `B`: completed clean rerun, scientifically usable
+- `C`: running in clean local execution
+- `D`: running in clean local execution
+
+High-level result so far:
+
+- `A` beat `B` on the primary protocol endpoint (`5/12` vs `4/12`)
+- the `A` winner was the control itself
+- the `B` winner was `tail98`, which helped statistical acceptance but did not
+  surpass the control on the main protocol criterion
+
+This is exactly the kind of thesis-useful negative evidence the design was
+intended to produce:
+
+- more aggressive support localization has not yet justified promotion
+- stronger tail emphasis remains interesting as a secondary direction, but not
+  yet as the main reference line
+
+The block-by-block master table lives in:
+
+- `knowledge/syntheses/support_scientific_screen_master_table_2026-04-10.md`
+
 ## Reproducibility Checklist for Thesis
 
 For each run, record:
@@ -201,6 +230,28 @@ For each run, record:
   - promoted
   - retained for follow-up
   - discarded
+
+## Parallel Execution Rule
+
+If blocks are executed in parallel, each block **must** use a distinct
+`OUTPUT_BASE`.
+
+Recommended layout:
+
+- `.../e2_scientific_screen_v1/block_a`
+- `.../e2_scientific_screen_v1/block_b`
+- `.../e2_scientific_screen_v1/block_c`
+- `.../e2_scientific_screen_v1/block_d`
+
+This avoids artifact collisions in:
+
+- `manifest.json`
+- `protocol_leaderboard.csv`
+- `summary_by_regime.csv`
+- `train/tables/gridsearch_results.csv`
+
+Without this separation, logs may still exist, but the final experiment folder
+becomes ambiguous and should not be used as a clean scientific record.
 
 ## Operational Command
 
