@@ -182,7 +182,7 @@ historical evidence that they should not be reopened before this screening:
 - `decoder_distribution=mdn`
 - `mdn_components=3`
 
-## Execution Snapshot (2026-04-10)
+## Execution Snapshot (2026-04-11)
 
 The blocked screen moved from design into execution in four independent blocks.
 
@@ -190,8 +190,8 @@ Current status:
 
 - `A`: completed clean rerun, scientifically usable
 - `B`: completed clean rerun, scientifically usable
-- `C`: running in clean local execution
-- `D`: running in clean local execution
+- `C`: completed clean rerun, scientifically usable
+- `D`: completed clean rerun, scientifically usable
 
 High-level result so far:
 
@@ -199,6 +199,9 @@ High-level result so far:
 - the `A` winner was the control itself
 - the `B` winner was `tail98`, which helped statistical acceptance but did not
   surpass the control on the main protocol criterion
+- `C` did not beat the `A` control; `lat10` won the block at `4/12`
+- `D` did not beat the `A` control either, but `lr0p00015` emerged as the
+  strongest non-`A` follow-up because it improved `G6`
 
 This is exactly the kind of thesis-useful negative evidence the design was
 intended to produce:
@@ -206,6 +209,8 @@ intended to produce:
 - more aggressive support localization has not yet justified promotion
 - stronger tail emphasis remains interesting as a secondary direction, but not
   yet as the main reference line
+- larger capacity alone did not justify promotion
+- optimization remains the strongest remaining follow-up family
 
 The block-by-block master table lives in:
 
