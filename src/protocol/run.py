@@ -2453,12 +2453,16 @@ def main():
         _champ = df_leaderboard.iloc[0]
         _champ_id = _champ.get("candidate_id", _champ.get("best_grid_tag", "?"))
         _champ_pass = int(_champ.get("n_pass", 0))
+        _champ_full_pass = int(_champ.get("n_full_pass", _champ_pass))
+        _champ_stat_pass = int(_champ.get("stat_screen_pass", _champ.get("gate_g6_pass", 0)))
         _champ_partial = int(_champ.get("n_partial", 0))
         _champ_fail = int(_champ.get("n_fail", 0))
         _champ_total = _champ_pass + _champ_partial + _champ_fail
         print(f"\n🏆 Champion: {_champ_id}")
-        print(f"   {_champ_pass}/{_champ_total} pass, "
+        print(f"   twin: {_champ_pass}/{_champ_total} pass, "
               f"{_champ_partial} partial, {_champ_fail} fail")
+        print(f"   full (with G6): {_champ_full_pass}/{_champ_total} pass | "
+              f"stat_screen={_champ_stat_pass}/{_champ_total}")
 
     # Per-regime gate results from df_summary
     _gate_cols = ["gate_g1", "gate_g2", "gate_g3", "gate_g4", "gate_g5", "gate_g6"]
@@ -2466,14 +2470,16 @@ def main():
                   and any(c in df_summary.columns for c in _gate_cols))
     if _has_gates:
         print(f"\n{'─'*70}")
-        print(f"   {'regime':<30s}  G1  G2  G3  G4  G5  G6  status")
+        print(f"   {'regime':<30s}  G1  G2  G3  G4  G5  G6  twin   full")
         print(f"   {'─'*30}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*8}")
         _total_pass = 0
         _total_fail = 0
         _total_partial = 0
+        _total_full_pass = 0
         for _, row in df_summary.iterrows():
             _rid = str(row.get("regime_id", "?"))
             _vs = str(row.get("validation_status", "?"))
+            _vs_full = str(row.get("validation_status_full", _vs))
             _gates = []
             for gc in _gate_cols:
                 v = row.get(gc)
@@ -2489,9 +2495,12 @@ def main():
                 _total_fail += 1
             else:
                 _total_partial += 1
-            print(f"   {_rid:<30s}  {'  '.join(_gates)}  {_vs}")
+            if _vs_full == "pass":
+                _total_full_pass += 1
+            print(f"   {_rid:<30s}  {'  '.join(_gates)}  {_vs:<6s} {_vs_full}")
         print(f"   {'─'*30}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*8}")
-        print(f"   TOTAL: {_total_pass} pass, {_total_partial} partial, {_total_fail} fail")
+        print(f"   TOTAL twin: {_total_pass} pass, {_total_partial} partial, {_total_fail} fail")
+        print(f"   TOTAL full (with G6): {_total_full_pass} pass")
     else:
         # Fallback: per-regime one-liner from results dicts
         for r in results:

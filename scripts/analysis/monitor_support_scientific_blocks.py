@@ -117,23 +117,25 @@ def render_block_md(name: str, summary: Dict[str, object]) -> str:
     )
     if champion:
         lines.append(
-            f"- Champion result: `pass={champion.get('n_pass', '?')}` "
+            f"- Champion result: `twin_pass={champion.get('n_pass', '?')}` "
+            f"`full_pass={champion.get('n_full_pass', '?')}` "
             f"`g5={champion.get('gate_g5_pass', '?')}` "
             f"`g6={champion.get('gate_g6_pass', '?')}`"
         )
     if control:
         lines.append(
-            f"- Control result: `pass={control.get('n_pass', '?')}` "
+            f"- Control result: `twin_pass={control.get('n_pass', '?')}` "
+            f"`full_pass={control.get('n_full_pass', '?')}` "
             f"`g5={control.get('gate_g5_pass', '?')}` "
             f"`g6={control.get('gate_g6_pass', '?')}`"
         )
     lines.append("")
-    lines.append("| Candidate | n_pass | G5 | G6 | rel_evm | cov_rel_var | psd_l2 |")
-    lines.append("| --- | ---: | ---: | ---: | ---: | ---: | ---: |")
+    lines.append("| Candidate | twin_pass | full_pass | G5 | G6 | rel_evm | cov_rel_var | psd_l2 |")
+    lines.append("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
     for row in family_rows:
         tag = row.get("candidate_id", row.get("best_grid_tag", row.get("tag", "?")))
         lines.append(
-            f"| `{tag}` | {row.get('n_pass', '?')} | {row.get('gate_g5_pass', '?')} | "
+            f"| `{tag}` | {row.get('n_pass', '?')} | {row.get('n_full_pass', '?')} | {row.get('gate_g5_pass', '?')} | "
             f"{row.get('gate_g6_pass', '?')} | {row.get('mean_cvae_rel_evm_error', '?')} | "
             f"{row.get('mean_cvae_cov_rel_var', '?')} | {row.get('mean_cvae_psd_l2', '?')} |"
         )

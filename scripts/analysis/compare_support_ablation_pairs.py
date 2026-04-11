@@ -30,6 +30,9 @@ import pandas as pd
 SUMMARY_METRICS = [
     "best_grid_tag",
     "validation_status",
+    "validation_status_twin",
+    "validation_status_full",
+    "stat_screen_pass",
     "gate_g3",
     "gate_g5",
     "gate_g6",

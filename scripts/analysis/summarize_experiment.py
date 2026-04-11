@@ -163,7 +163,15 @@ def _summarize_protocol(exp_dir: Path) -> None:
         print(f"eval_status_counts: {counts}")
     if "validation_status" in summary.columns:
         counts = summary["validation_status"].fillna("nan").value_counts().to_dict()
-        print(f"validation_status_counts: {counts}")
+        print(f"validation_status_twin_counts: {counts}")
+    if "validation_status_full" in summary.columns:
+        counts = summary["validation_status_full"].fillna("nan").value_counts().to_dict()
+        print(f"validation_status_full_counts: {counts}")
+    if "stat_screen_pass" in summary.columns:
+        ss = pd.Series(summary["stat_screen_pass"]).map(
+            lambda v: "pass" if v is True else ("fail" if v is False else "partial")
+        )
+        print(f"stat_screen_counts: {ss.value_counts(dropna=False).to_dict()}")
 
     gate_cols = [c for c in summary.columns if c.startswith("gate_g")]
     if gate_cols:
@@ -194,7 +202,7 @@ def _summarize_protocol(exp_dir: Path) -> None:
                 f"evm_rel={_fmt(row.get('cvae_rel_evm_error'))} "
                 f"cov_rel={_fmt(row.get('cvae_cov_rel_var'))} "
                 f"psd={_fmt(row.get('cvae_psd_l2'))} "
-                f"status={row.get('validation_status', 'n/a')}"
+                f"status_twin={row.get('validation_status', 'n/a')}"
             )
 
     if leaderboard is not None and len(leaderboard):
@@ -203,7 +211,8 @@ def _summarize_protocol(exp_dir: Path) -> None:
             "leaderboard_top: "
             f"tag={row.get('best_grid_tag', 'n/a')} "
             f"pass_ratio={_fmt(row.get('gate_pass_ratio'))} "
-            f"n_pass={_fmt(row.get('n_pass'))} "
+            f"n_pass_twin={_fmt(row.get('n_pass'))} "
+            f"n_pass_full={_fmt(row.get('n_full_pass'))} "
             f"n_fail={_fmt(row.get('n_fail'))}"
         )
 

@@ -24,6 +24,7 @@ if str(ROOT) not in sys.path:
 from src.evaluation.validation_summary import (
     build_stat_acceptance_summary,
     build_stat_fidelity_table,
+    build_protocol_leaderboard,
     recompute_validation_summary,
 )
 
@@ -51,12 +52,16 @@ def _recover_one(exp_dir: Path, *, overwrite: bool = False) -> Dict[str, object]
         out_xlsx = tables_dir / "summary_by_regime.xlsx"
         sf_csv = tables_dir / "stat_fidelity_by_regime.csv"
         sf_xlsx = tables_dir / "stat_fidelity_by_regime.xlsx"
+        lb_csv = tables_dir / "protocol_leaderboard.csv"
+        lb_xlsx = tables_dir / "protocol_leaderboard.xlsx"
         meta_json = tables_dir / "validation_recompute.json"
     else:
         out_csv = tables_dir / "summary_by_regime_recomputed.csv"
         out_xlsx = tables_dir / "summary_by_regime_recomputed.xlsx"
         sf_csv = tables_dir / "stat_fidelity_by_regime_recomputed.csv"
         sf_xlsx = tables_dir / "stat_fidelity_by_regime_recomputed.xlsx"
+        lb_csv = tables_dir / "protocol_leaderboard_recomputed.csv"
+        lb_xlsx = tables_dir / "protocol_leaderboard_recomputed.xlsx"
         meta_json = tables_dir / "validation_recompute.json"
 
     _write_table(updated, out_csv, out_xlsx)
@@ -65,17 +70,30 @@ def _recover_one(exp_dir: Path, *, overwrite: bool = False) -> Dict[str, object]
     if df_sf is not None and not df_sf.empty:
         _write_table(df_sf, sf_csv, sf_xlsx)
 
+    df_lb = build_protocol_leaderboard(updated)
+    if df_lb is not None and not df_lb.empty:
+        _write_table(df_lb, lb_csv, lb_xlsx)
+
     acceptance = build_stat_acceptance_summary(updated)
     meta = {
         "run": exp_dir.name,
         "source_summary_csv": str(src_csv),
         "output_summary_csv": str(out_csv),
         "rows": int(len(updated)),
-        "validation_status_counts": {
+        "validation_status_twin_counts": {
             str(k): int(v)
             for k, v in updated["validation_status"].fillna("partial").value_counts(dropna=False).items()
         },
+        "validation_status_full_counts": (
+            {
+                str(k): int(v)
+                for k, v in updated["validation_status_full"].fillna("partial").value_counts(dropna=False).items()
+            }
+            if "validation_status_full" in updated.columns
+            else {}
+        ),
         "has_stat_fidelity_table": bool(df_sf is not None and not df_sf.empty),
+        "has_protocol_leaderboard": bool(df_lb is not None and not df_lb.empty),
         "acceptance": acceptance,
     }
     meta_json.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")

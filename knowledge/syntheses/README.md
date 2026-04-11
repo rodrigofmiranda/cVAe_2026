@@ -15,6 +15,9 @@ Exemplos:
 - `support_hyperparameter_guide_2026-04-08.md`
 - `support_hyperparameter_scientific_screening_2026-04-08.md`
 - `support_scientific_screen_master_table_2026-04-10.md`
+- `gate_validation_audit_2026-04-11.md`
+- `digital_twin_validation_foundation_table_2026-04-11.md`
+- `gate_threshold_calibration_2026-04-11.md`
 
 Regra pratica:
 
