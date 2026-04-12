@@ -161,22 +161,34 @@ def _summarize_protocol(exp_dir: Path) -> None:
     if "eval_status" in summary.columns:
         counts = summary["eval_status"].fillna("nan").value_counts().to_dict()
         print(f"eval_status_counts: {counts}")
+
+    print("twin_validation:")
     if "validation_status" in summary.columns:
         counts = summary["validation_status"].fillna("nan").value_counts().to_dict()
-        print(f"validation_status_twin_counts: {counts}")
+        print(f"  validation_status_twin_counts: {counts}")
     if "validation_status_full" in summary.columns:
         counts = summary["validation_status_full"].fillna("nan").value_counts().to_dict()
-        print(f"validation_status_full_counts: {counts}")
+        print(f"  validation_status_full_counts: {counts}")
     if "stat_screen_pass" in summary.columns:
         ss = pd.Series(summary["stat_screen_pass"]).map(
             lambda v: "pass" if v is True else ("fail" if v is False else "partial")
         )
-        print(f"stat_screen_counts: {ss.value_counts(dropna=False).to_dict()}")
+        print("auxiliary_analysis:")
+        print(f"  stat_screen_counts: {ss.value_counts(dropna=False).to_dict()}")
 
-    gate_cols = [c for c in summary.columns if c.startswith("gate_g")]
-    if gate_cols:
-        gate_pass = {c: int(pd.to_numeric(summary[c], errors="coerce").fillna(0).sum()) for c in gate_cols}
-        print(f"gate_pass_counts: {gate_pass}")
+    twin_gate_cols = [c for c in ["gate_g1", "gate_g2", "gate_g3", "gate_g4", "gate_g5"] if c in summary.columns]
+    if twin_gate_cols:
+        gate_pass = {c: int(pd.to_numeric(summary[c], errors="coerce").fillna(0).sum()) for c in twin_gate_cols}
+        print(f"  twin_gate_pass_counts: {gate_pass}")
+    if "gate_g6" in summary.columns:
+        g6_pass = int(pd.to_numeric(summary["gate_g6"], errors="coerce").fillna(0).sum())
+        print(f"  stat_screen_gate_pass_count: {g6_pass}")
+    if {"stat_mmd_qval", "stat_energy_qval"}.issubset(summary.columns):
+        print(
+            "  stat_screen_means: "
+            f"mmd_q={_fmt(pd.to_numeric(summary['stat_mmd_qval'], errors='coerce').mean())} "
+            f"energy_q={_fmt(pd.to_numeric(summary['stat_energy_qval'], errors='coerce').mean())}"
+        )
 
     if {"dist_target_m", "validation_status"}.issubset(summary.columns):
         by_dist = (

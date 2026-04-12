@@ -18,6 +18,7 @@ if str(ROOT) not in sys.path:
 
 from src.evaluation.summary_plots import (  # noqa: E402
     plot_eval_gate_difference_heatmaps,
+    plot_eval_stat_screen_heatmaps,
     plot_eval_gate_threshold_heatmaps,
     plot_eval_gate_supplementary_heatmaps,
 )
@@ -142,6 +143,11 @@ def _build_summary_df(eval_root: Path) -> pd.DataFrame:
                 "coverage_95": _coerce_float(metrics.get("coverage_95")),
                 "var_real_delta": var_real_delta,
                 "var_pred_delta": _coerce_float(metrics.get("var_pred_delta")),
+                "stat_mmd2": _coerce_float(metrics.get("stat_mmd2")),
+                "stat_mmd_qval": _coerce_float(metrics.get("stat_mmd_qval")),
+                "stat_energy": _coerce_float(metrics.get("stat_energy")),
+                "stat_energy_qval": _coerce_float(metrics.get("stat_energy_qval")),
+                "stat_psd_dist": _coerce_float(metrics.get("stat_psd_dist")),
                 "g1_rel_error": g1_rel_error,
                 "g2_rel_error": g2_rel_error,
                 "g3_mean_rel_sigma": g3_mean_rel_sigma,
@@ -189,18 +195,44 @@ def main() -> None:
     csv_path = tables_dir / "global_gate_differences_by_regime.csv"
     df.to_csv(csv_path, index=False)
 
-    threshold_plot = plot_eval_gate_threshold_heatmaps(df, plots_dir)
-    main_plot = plot_eval_gate_difference_heatmaps(df, plots_dir)
-    supp_plot = plot_eval_gate_supplementary_heatmaps(df, plots_dir)
+    threshold_plot = plot_eval_gate_threshold_heatmaps(
+        df,
+        plots_dir,
+        fname="heatmap_twin_gate_metrics_by_regime.png",
+    )
+    legacy_threshold_plot = plot_eval_gate_threshold_heatmaps(
+        df,
+        plots_dir,
+        fname="heatmap_gate_metrics_by_regime.png",
+    )
+    main_plot = plot_eval_gate_difference_heatmaps(
+        df,
+        plots_dir,
+        fname="heatmap_twin_gate_differences_by_regime.png",
+    )
+    supp_plot = plot_eval_gate_supplementary_heatmaps(
+        df,
+        plots_dir,
+        fname="heatmap_auxiliary_analysis_by_regime.png",
+    )
+    stat_plot = plot_eval_stat_screen_heatmaps(
+        df,
+        plots_dir,
+        fname="heatmap_stat_screen_by_regime.png",
+    )
 
     print(f"[ok] rows={len(df)}")
     print(f"[ok] csv={csv_path}")
     if threshold_plot is not None:
-        print(f"[ok] threshold_plot={threshold_plot}")
+        print(f"[ok] twin_threshold_plot={threshold_plot}")
+    if legacy_threshold_plot is not None:
+        print(f"[ok] legacy_threshold_plot={legacy_threshold_plot}")
     if main_plot is not None:
-        print(f"[ok] gate_plot={main_plot}")
+        print(f"[ok] twin_difference_plot={main_plot}")
     if supp_plot is not None:
-        print(f"[ok] supplementary_plot={supp_plot}")
+        print(f"[ok] auxiliary_plot={supp_plot}")
+    if stat_plot is not None:
+        print(f"[ok] stat_screen_plot={stat_plot}")
 
 
 if __name__ == "__main__":

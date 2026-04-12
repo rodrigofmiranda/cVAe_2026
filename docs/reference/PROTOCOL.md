@@ -264,7 +264,10 @@ outputs/exp_YYYYMMDD_HHMMSS/
 │   └── stat_fidelity_by_regime.csv
 └── plots/
     └── best_model/
-        ├── heatmap_gate_metrics_by_regime.png
+        ├── heatmap_twin_gate_metrics_by_regime.png
+        ├── heatmap_stat_screen_by_regime.png
+        ├── heatmap_auxiliary_analysis_by_regime.png
+        ├── heatmap_gate_metrics_by_regime.png   (legacy alias to the twin panel)
         └── residual_signature_overview.png
 ```
 
@@ -280,10 +283,18 @@ outputs/exp_YYYYMMDD_HHMMSS/
   - `residual_signature_by_regime.csv` stores the detailed residual signature by regime
   - `residual_signature_by_amplitude_bin.csv` stores the same residual diagnostics conditioned on `|X|`
   - `train_regime_diagnostics_history.csv` mirrors the periodic train callback when enabled
-  - `plots/best_model/heatmap_gate_metrics_by_regime.png` is the canonical scientific visual summary
-    and is threshold-aware: green remains within gate, yellow approaches the
-    limit, and red indicates the regime crossed the gate threshold; the figure
-    also embeds the gate legend and color legend.
+  - `plots/best_model/heatmap_twin_gate_metrics_by_regime.png` is the canonical
+    digital-twin visual summary. It is threshold-aware, uses only `G1..G5`,
+    and therefore matches `validation_status_twin`.
+  - `plots/best_model/heatmap_stat_screen_by_regime.png` is the auxiliary
+    statistical-screen summary (`G6` only). It is not part of the main
+    digital-twin validation decision.
+  - `plots/best_model/heatmap_auxiliary_analysis_by_regime.png` groups
+    supporting diagnostics such as coverage, ACF, heteroscedasticity, JSD,
+    and statistical PSD distance. These metrics help analysis but do not define
+    pass/fail for the twin.
+  - `plots/best_model/heatmap_gate_metrics_by_regime.png` is kept as a legacy
+    alias to the twin panel for backward compatibility.
   - `plots/best_model/residual_signature_overview.png` is the compact residual-signature visual summary
   - `train/plots/champion/analysis_dashboard.png` is the full dashboard of the winning model
   - `train/plots/training/dashboard_analysis_complete.png` is the operational convergence dashboard for the full grid
@@ -315,8 +326,25 @@ outputs/exp_YYYYMMDD_HHMMSS/
 | `stat_mmd2`, `stat_mmd_pval`, `stat_mmd_qval`, `stat_mmd2_normalized` | Formal two-sample MMD outputs |
 | `stat_energy`, `stat_energy_pval`, `stat_energy_qval` | Formal Energy test outputs |
 | `stat_psd_dist`, `stat_psd_ci_low`, `stat_psd_ci_high` | Spectral fidelity outputs |
-| `better_than_baseline_*`, `gate_g1`…`gate_g6`, `validation_status` | Derived acceptance helpers |
+| `better_than_baseline_*`, `gate_g1`…`gate_g6` | Derived gate booleans |
+| `validation_status_twin`, `validation_status` | Main digital-twin acceptance status based on `G1..G5` |
+| `stat_screen_pass` | Auxiliary statistical screen (`G6`) based on MMD/Energy q-values |
+| `validation_status_full` | Conservative combined status using `G1..G6` |
+| `gate_pass_ratio`, `gate_pass_ratio_full` | Aggregate pass ratios for the twin ladder and the full ladder |
 | `n_experiments_selected` | How many experiments matched this regime |
+
+### Additional communication metrics
+
+The active protocol does **not** currently compute or gate on:
+
+- mutual information (`MI`)
+- generalized mutual information (`GMI`)
+- normalized GMI (`NGMI`)
+- achievable information rate (`AIR`)
+
+These metrics remain planned diagnostics only. They are not part of the active
+validation pipeline, they do not appear in the protocol gates, and they should
+not be interpreted as available unless explicitly added in a future revision.
 
 ## CLI flags
 
