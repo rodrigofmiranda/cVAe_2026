@@ -452,6 +452,30 @@ _EVAL_GATE_SUPPLEMENTARY_SPECS = [
         "cbar": "PSD dist",
         "mode": "lower_better",
     },
+    {
+        "cols": ("mi_aux_gap_rel",),
+        "title": "Auxiliary — MI relative gap",
+        "fmt": ".3f",
+        "cmap": "RdYlGn_r",
+        "cbar": "rel gap",
+        "mode": "lower_better",
+    },
+    {
+        "cols": ("gmi_aux_gap_rel",),
+        "title": "Auxiliary — GMI relative gap",
+        "fmt": ".3f",
+        "cmap": "RdYlGn_r",
+        "cbar": "rel gap",
+        "mode": "lower_better",
+    },
+    {
+        "cols": ("ngmi_aux_gap",),
+        "title": "Auxiliary — NGMI gap",
+        "fmt": ".3f",
+        "cmap": "RdYlGn_r",
+        "cbar": "ΔNGMI",
+        "mode": "signed",
+    },
 ]
 
 

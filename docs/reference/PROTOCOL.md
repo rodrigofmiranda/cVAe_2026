@@ -335,16 +335,25 @@ outputs/exp_YYYYMMDD_HHMMSS/
 
 ### Additional communication metrics
 
-The active protocol does **not** currently compute or gate on:
+The active protocol now computes auxiliary information-theoretic diagnostics
+when the transmitted alphabet is discrete and repeated enough in the evaluated
+dataset:
 
 - mutual information (`MI`)
 - generalized mutual information (`GMI`)
 - normalized GMI (`NGMI`)
 - achievable information rate (`AIR`)
 
-These metrics remain planned diagnostics only. They are not part of the active
-validation pipeline, they do not appear in the protocol gates, and they should
-not be interpreted as available unless explicitly added in a future revision.
+Important scope limits:
+
+- they are **auxiliary diagnostics only**
+- they **do not** participate in `G1..G6`
+- they are reported only when the input alphabet can be inferred reliably
+- `GMI/NGMI` are only emitted when a Gray rectangular QAM labeling with
+  near-uniform symbol prior can be inferred
+
+For dense or continuous-input datasets such as the full-square excitation,
+these fields are expected to remain unavailable (`NaN` / unavailable status).
 
 ## CLI flags
 

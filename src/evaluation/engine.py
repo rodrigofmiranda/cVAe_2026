@@ -26,6 +26,7 @@ from src.data.splits import (
     cap_val_samples_per_experiment,
 )
 from src.evaluation.metrics import calculate_evm, calculate_snr, residual_distribution_metrics
+from src.evaluation.information_metrics import auxiliary_information_metrics
 from src.evaluation.plots import (
     plot_comparison_panel_6,
     plot_overlay,
@@ -309,6 +310,9 @@ def _compute_eval_metrics_bundle(
         Y_dist = Y_true
         var_mc = float("nan")
 
+    X_pred_info = np.asarray(X_dist, dtype=np.float64)
+    Y_pred_info = np.asarray(Yp_dist, dtype=np.float64)
+
     dist_on = bool(analysis_quick.get("dist_metrics", True)) and not bool(overrides.get("no_dist_metrics", False))
     psd_nfft = int(overrides.get("psd_nfft", analysis_quick.get("psd_nfft", 2048)))
     gauss_alpha = float(overrides.get("gauss_alpha", 0.01))
@@ -349,6 +353,19 @@ def _compute_eval_metrics_bundle(
             "stat_jsd": float("nan"),
         }
 
+    info_metrics = auxiliary_information_metrics(
+        X_real=X_center,
+        Y_real=Y_true,
+        X_pred=X_pred_info,
+        Y_pred=Y_pred_info,
+        seed=int(seed0),
+        max_samples=int(overrides.get("info_max_n", 50_000)),
+        symbol_round_decimals=int(overrides.get("info_symbol_round_decimals", 6)),
+        max_alphabet=int(overrides.get("info_max_alphabet", 4_096)),
+        min_avg_repeats=float(overrides.get("info_min_avg_repeats", 8.0)),
+        covariance_reg=float(overrides.get("info_covariance_reg", 1e-6)),
+    )
+
     global_metrics = build_global_metrics(
         run_id=run_id,
         model_path=model_path,
@@ -365,11 +382,13 @@ def _compute_eval_metrics_bundle(
         var_mc=float(var_mc) if not np.isnan(var_mc) else float("nan"),
         arch_variant=arch_variant,
         latent_prior_semantics=latent_prior_semantics,
+        extra_metrics=info_metrics,
     )
     return {
         "global_metrics": global_metrics,
         "distm": distm,
         "var_mc": var_mc,
+        "info_metrics": info_metrics,
     }
 
 
@@ -846,6 +865,7 @@ def evaluate_run(
     global_metrics = primary_bundle["global_metrics"]
     distm = primary_bundle["distm"]
     var_mc = primary_bundle["var_mc"]
+    info_metrics = primary_bundle.get("info_metrics", {})
     if support_filter_info["enabled"]:
         global_metrics["support_eval_scope"] = "matched_support"
     else:
@@ -1002,6 +1022,7 @@ def evaluate_run(
         sens_var_mean=sens["decoder_output_variance_mean"],
         sens_rms=sens["decoder_output_rms_std"],
         arch_variant=arch_variant,
+        info_metrics=info_metrics,
     )
     dashboard_path = ""
     overlay_path = ""

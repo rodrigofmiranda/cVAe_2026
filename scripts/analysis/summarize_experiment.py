@@ -175,6 +175,31 @@ def _summarize_protocol(exp_dir: Path) -> None:
         )
         print("auxiliary_analysis:")
         print(f"  stat_screen_counts: {ss.value_counts(dropna=False).to_dict()}")
+        if "info_metrics_available" in summary.columns:
+            info_counts = pd.Series(summary["info_metrics_available"]).map(
+                lambda v: "available" if v is True else ("unavailable" if v is False else "nan")
+            )
+            print(f"  info_metrics_counts: {info_counts.value_counts(dropna=False).to_dict()}")
+            if all(
+                col in summary.columns
+                for col in [
+                    "mi_aux_real_bits",
+                    "mi_aux_pred_bits",
+                    "gmi_aux_real_bits",
+                    "gmi_aux_pred_bits",
+                    "ngmi_aux_real",
+                    "ngmi_aux_pred",
+                ]
+            ):
+                print(
+                    "  info_means: "
+                    f"MI real/pred={_fmt(pd.to_numeric(summary['mi_aux_real_bits'], errors='coerce').mean())}/"
+                    f"{_fmt(pd.to_numeric(summary['mi_aux_pred_bits'], errors='coerce').mean())} "
+                    f"GMI real/pred={_fmt(pd.to_numeric(summary['gmi_aux_real_bits'], errors='coerce').mean())}/"
+                    f"{_fmt(pd.to_numeric(summary['gmi_aux_pred_bits'], errors='coerce').mean())} "
+                    f"NGMI real/pred={_fmt(pd.to_numeric(summary['ngmi_aux_real'], errors='coerce').mean())}/"
+                    f"{_fmt(pd.to_numeric(summary['ngmi_aux_pred'], errors='coerce').mean())}"
+                )
 
     twin_gate_cols = [c for c in ["gate_g1", "gate_g2", "gate_g3", "gate_g4", "gate_g5"] if c in summary.columns]
     if twin_gate_cols:

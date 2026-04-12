@@ -22,6 +22,18 @@ from src.data.support_geometry import support_feature_matrix
 # Global metrics assembly
 # ---------------------------------------------------------------------------
 
+def _serialize_metric_value(value: Any) -> Any:
+    if isinstance(value, (bool, np.bool_)):
+        return bool(value)
+    if isinstance(value, (int, np.integer)):
+        return int(value)
+    if isinstance(value, (float, np.floating)):
+        return float(value)
+    if value is None:
+        return None
+    return str(value)
+
+
 def build_global_metrics(
     *,
     run_id: str,
@@ -39,14 +51,12 @@ def build_global_metrics(
     var_mc: float,
     arch_variant: str | None = None,
     latent_prior_semantics: str | None = None,
+    extra_metrics: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Assemble the global-metrics dictionary (identical to monolith)."""
     distm_serialized = {}
     for key, value in distm.items():
-        if isinstance(value, (bool, np.bool_)):
-            distm_serialized[key] = bool(value)
-        else:
-            distm_serialized[key] = float(value)
+        distm_serialized[key] = _serialize_metric_value(value)
 
     metrics = {
         "timestamp": datetime.now().isoformat(timespec="seconds"),
@@ -70,6 +80,9 @@ def build_global_metrics(
         metrics["arch_variant"] = str(arch_variant)
     if latent_prior_semantics is not None:
         metrics["latent_prior_semantics"] = str(latent_prior_semantics)
+    if extra_metrics:
+        for key, value in extra_metrics.items():
+            metrics[str(key)] = _serialize_metric_value(value)
     return metrics
 
 
@@ -301,6 +314,7 @@ def build_summary_text(
     sens_var_mean: float,
     sens_rms: float,
     arch_variant: str = "concat",
+    info_metrics: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Build the summary text identical to the monolith's section 10.7."""
     is_legacy_std_normal = (
@@ -318,6 +332,22 @@ def build_summary_text(
         if is_legacy_std_normal
         else "conditional prior"
     )
+    info_line = ""
+    if info_metrics:
+        status = str(info_metrics.get("info_metrics_status", "unavailable"))
+        if bool(info_metrics.get("info_metrics_available", False)):
+            info_line = (
+                "Aux info: "
+                f"MI real/pred={_fmt_metric(info_metrics.get('mi_aux_real_bits'))}/"
+                f"{_fmt_metric(info_metrics.get('mi_aux_pred_bits'))} bits | "
+                f"GMI real/pred={_fmt_metric(info_metrics.get('gmi_aux_real_bits'))}/"
+                f"{_fmt_metric(info_metrics.get('gmi_aux_pred_bits'))} bits | "
+                f"NGMI real/pred={_fmt_metric(info_metrics.get('ngmi_aux_real'))}/"
+                f"{_fmt_metric(info_metrics.get('ngmi_aux_pred'))}\n"
+            )
+        else:
+            info_line = f"Aux info: unavailable ({status})\n"
+
     return (
         f"Run: {run_id}\n"
         f"Split mode: {split_mode}\n"
@@ -330,4 +360,5 @@ def build_summary_text(
         f"Latent prior semantics: {prior_semantics}\n"
         f"KL(q||p) total mean: {_fmt_metric(kl_qp_total_mean)} | KL(p||N) total mean: {_fmt_metric(kl_pN_total_mean)}\n"
         f"Decoder sensitivity var_mean: {sens_var_mean:.4g} | rms_std: {sens_rms:.4g}\n"
+        f"{info_line}"
     )
