@@ -32,7 +32,7 @@ def _result(tag: str, run_dir: str, regime_id: str, *, evm_delta: float, snr_del
             "var_real_delta": 0.05,
             "var_pred_delta": 0.045,
             "delta_skew_l2": 0.10,
-            "delta_kurt_l2": 0.30,
+            "delta_kurt_l2": 0.12,
             "delta_psd_l2": 0.15,
             "delta_acf_l2": 0.08,
             "jb_p_min": 1e-6,
@@ -63,7 +63,7 @@ def _result(tag: str, run_dir: str, regime_id: str, *, evm_delta: float, snr_del
             "delta_mean_l2": 0.005,
             "delta_cov_fro": 0.007,
             "delta_skew_l2": 0.10,
-            "delta_kurt_l2": 0.30,
+            "delta_kurt_l2": 0.12,
             "psd_l2": 0.15,
             "delta_acf_l2": 0.08,
             "jb_p_min": 1e-6,
@@ -95,8 +95,8 @@ def _result(tag: str, run_dir: str, regime_id: str, *, evm_delta: float, snr_del
 def test_protocol_leaderboard_ranks_candidates_from_canonical_summary():
     df_summary = build_validation_summary_table(
         [
-            _result("TAG_A", "/tmp/model_a", "r1", evm_delta=0.6, snr_delta=0.5, mmd_pval=0.4, energy_pval=0.6),
-            _result("TAG_A", "/tmp/model_a", "r2", evm_delta=0.7, snr_delta=0.4, mmd_pval=0.3, energy_pval=0.5),
+            _result("TAG_A", "/tmp/model_a", "r1", evm_delta=0.2, snr_delta=0.2, mmd_pval=0.4, energy_pval=0.6),
+            _result("TAG_A", "/tmp/model_a", "r2", evm_delta=0.2, snr_delta=0.2, mmd_pval=0.3, energy_pval=0.5),
             _result("TAG_B", "/tmp/model_b", "r1", evm_delta=2.5, snr_delta=-1.5, mmd_pval=0.001, energy_pval=0.002),
             _result("TAG_B", "/tmp/model_b", "r2", evm_delta=2.0, snr_delta=-1.2, mmd_pval=0.003, energy_pval=0.004),
         ]

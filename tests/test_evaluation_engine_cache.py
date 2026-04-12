@@ -1,5 +1,9 @@
 from pathlib import Path
 
+import pytest
+
+pytest.importorskip("tensorflow")
+
 from src.evaluation.engine import (
     _get_eval_cached_entry,
     clear_evaluation_model_cache,

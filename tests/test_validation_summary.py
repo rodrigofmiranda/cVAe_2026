@@ -32,13 +32,13 @@ def _full_result() -> dict:
         "best_grid_tag": "G1_core",
         "metrics": {
             "evm_real_%": 10.0,
-            "evm_pred_%": 10.8,
-            "delta_evm_%": 0.8,
+            "evm_pred_%": 10.2,
+            "delta_evm_%": 0.2,
             "snr_real_db": 10.0,
-            "snr_pred_db": 10.6,
-            "delta_snr_db": 0.6,
+            "snr_pred_db": 10.2,
+            "delta_snr_db": 0.2,
             "delta_mean_l2": 0.005,
-            "delta_cov_fro": 0.008,
+            "delta_cov_fro": 0.007,
             "delta_mean_I": 0.003,
             "delta_mean_Q": -0.004,
             "delta_std_I": -0.002,
@@ -46,7 +46,7 @@ def _full_result() -> dict:
             "var_real_delta": 0.05,
             "var_pred_delta": 0.04,
             "delta_skew_l2": 0.10,
-            "delta_kurt_l2": 0.30,
+            "delta_kurt_l2": 0.12,
             "delta_skew_I": 0.06,
             "delta_skew_Q": -0.08,
             "delta_kurt_I": 0.20,
@@ -65,6 +65,29 @@ def _full_result() -> dict:
             "jb_real_log10p_Q": -6.2,
             "jb_real_log10p_min": -6.2,
             "jb_real_reject_gaussian": True,
+            "info_metrics_available": True,
+            "info_metrics_status": "ok",
+            "info_alphabet_size": 16,
+            "info_bits_per_symbol": 4,
+            "info_input_entropy_bits": 4.0,
+            "info_avg_symbol_repeats": 32.0,
+            "info_labeling_mode": "gray_rect_qam_uniform",
+            "info_aux_channel_mode": "gaussian_shared_covariance",
+            "mi_aux_real_bits": 3.8,
+            "mi_aux_pred_bits": 3.7,
+            "mi_aux_gap_bits": -0.1,
+            "mi_aux_gap_rel": 0.1 / 3.8,
+            "gmi_aux_real_bits": 3.7,
+            "gmi_aux_pred_bits": 3.6,
+            "gmi_aux_gap_bits": -0.1,
+            "gmi_aux_gap_rel": 0.1 / 3.7,
+            "ngmi_aux_real": 0.925,
+            "ngmi_aux_pred": 0.900,
+            "ngmi_aux_gap": -0.025,
+            "air_aux_real_bits": 3.8,
+            "air_aux_pred_bits": 3.7,
+            "air_aux_gap_bits": -0.1,
+            "air_aux_gap_rel": 0.1 / 3.8,
         },
         "baseline": {
             "evm_pred_%": 22.0,
@@ -85,13 +108,13 @@ def _full_result() -> dict:
         },
         "cvae_dist": {
             "delta_mean_l2": 0.005,
-            "delta_cov_fro": 0.008,
+            "delta_cov_fro": 0.007,
             "delta_mean_I": 0.003,
             "delta_mean_Q": -0.004,
             "delta_std_I": -0.002,
             "delta_std_Q": 0.001,
             "delta_skew_l2": 0.10,
-            "delta_kurt_l2": 0.30,
+            "delta_kurt_l2": 0.12,
             "delta_skew_I": 0.06,
             "delta_skew_Q": -0.08,
             "delta_kurt_I": 0.20,
@@ -152,11 +175,16 @@ def test_validation_summary_schema_and_derived_fields():
     assert math.isclose(row["delta_jb_stat_rel_I"], 0.1 / 5.9, rel_tol=1e-9)
     assert math.isclose(row["delta_jb_stat_rel_Q"], 0.2 / 6.2, rel_tol=1e-9)
     assert math.isclose(row["delta_jb_log10p"], 0.2, rel_tol=1e-9)
-    assert math.isclose(row["cvae_rel_evm_error"], 0.08, rel_tol=1e-9)
-    assert math.isclose(row["cvae_rel_snr_error"], 0.06, rel_tol=1e-9)
+    assert math.isclose(row["cvae_rel_evm_error"], 0.02, rel_tol=1e-9)
+    assert math.isclose(row["cvae_rel_snr_error"], 0.02, rel_tol=1e-9)
     assert math.isclose(row["cvae_mean_rel_sigma"], 0.005 / math.sqrt(0.05), rel_tol=1e-9)
-    assert math.isclose(row["cvae_cov_rel_var"], 0.008 / 0.05, rel_tol=1e-9)
+    assert math.isclose(row["cvae_cov_rel_var"], 0.007 / 0.05, rel_tol=1e-9)
     assert math.isclose(row["cvae_delta_acf_l2"], 0.09, rel_tol=1e-9)
+    assert bool(row["info_metrics_available"]) is True
+    assert row["info_metrics_status"] == "ok"
+    assert math.isclose(row["mi_aux_real_bits"], 3.8, rel_tol=1e-9)
+    assert math.isclose(row["gmi_aux_pred_bits"], 3.6, rel_tol=1e-9)
+    assert math.isclose(row["ngmi_aux_real"], 0.925, rel_tol=1e-9)
     assert row["model_run_dir"] == "/tmp/global_model"
     assert row["model_scope"] == "shared_global"
     assert bool(row["better_than_baseline_mean"]) is True
@@ -216,9 +244,11 @@ def test_validation_summary_keeps_schema_without_optional_families():
     assert pd.isna(row["baseline_evm_pred_%"])
     assert pd.isna(row["stat_mmd2"])
     assert pd.isna(row["stat_mmd_qval"])
+    assert bool(row["info_metrics_available"]) is True
     assert bool(row["gate_g1"]) is True
     assert row["gate_g6"] is None
-    assert row["validation_status"] == "partial"
+    assert row["validation_status"] == "pass"
+    assert row["validation_status_full"] == "partial"
 
 
 def test_support_signature_table_flattens_rows_with_canonical_schema():

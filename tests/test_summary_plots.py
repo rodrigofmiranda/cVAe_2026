@@ -62,9 +62,14 @@ def _make_summary_df(n_dist: int = 3, n_curr: int = 4) -> pd.DataFrame:
 def test_generate_all_creates_best_model_heatmap(out_dir):
     df = _make_summary_df()
     paths = generate_all(df, out_dir)
-    assert len(paths) == 1
-    assert paths[0].name == "heatmap_gate_metrics_by_regime.png"
-    assert paths[0].exists() and paths[0].stat().st_size > 500
+    names = {p.name for p in paths}
+    assert len(paths) == 5
+    assert "heatmap_twin_gate_metrics_by_regime.png" in names
+    assert "heatmap_gate_metrics_by_regime.png" in names
+    assert "heatmap_stat_screen_by_regime.png" in names
+    assert "heatmap_stat_screen_by_regime_raw.png" in names
+    assert "heatmap_auxiliary_analysis_by_regime.png" in names
+    assert all(p.exists() and p.stat().st_size > 500 for p in paths)
 
 
 def test_eval_gate_difference_heatmap_creates_png(out_dir):
@@ -72,7 +77,7 @@ def test_eval_gate_difference_heatmap_creates_png(out_dir):
     df["delta_jb_stat_rel"] = np.random.RandomState(1).uniform(0.01, 1.0, len(df))
     path = plot_eval_gate_difference_heatmaps(df, out_dir)
     assert path is not None
-    assert path.name == "heatmap_gate_differences_by_regime.png"
+    assert path.name == "heatmap_twin_gate_differences_by_regime.png"
     assert path.exists() and path.stat().st_size > 500
 
 
@@ -80,9 +85,12 @@ def test_eval_gate_supplementary_heatmap_creates_png(out_dir):
     df = _make_summary_df()
     df["delta_coverage_95"] = np.random.RandomState(2).uniform(-0.3, 0.3, len(df))
     df["rho_hetero_abs_gap"] = np.random.RandomState(3).uniform(0.0, 0.2, len(df))
+    df["mi_aux_gap_rel"] = np.random.RandomState(4).uniform(0.0, 0.2, len(df))
+    df["gmi_aux_gap_rel"] = np.random.RandomState(5).uniform(0.0, 0.2, len(df))
+    df["ngmi_aux_gap"] = np.random.RandomState(6).uniform(-0.1, 0.1, len(df))
     path = plot_eval_gate_supplementary_heatmaps(df, out_dir)
     assert path is not None
-    assert path.name == "heatmap_gate_supplementary_by_regime.png"
+    assert path.name == "heatmap_auxiliary_analysis_by_regime.png"
     assert path.exists() and path.stat().st_size > 500
 
 
@@ -90,7 +98,7 @@ def test_eval_gate_threshold_heatmap_creates_png(out_dir):
     df = _make_summary_df()
     path = plot_eval_gate_threshold_heatmaps(df, out_dir)
     assert path is not None
-    assert path.name == "heatmap_gate_threshold_aware_by_regime.png"
+    assert path.name == "heatmap_gate_metrics_by_regime.png"
     assert path.exists() and path.stat().st_size > 500
 
 
