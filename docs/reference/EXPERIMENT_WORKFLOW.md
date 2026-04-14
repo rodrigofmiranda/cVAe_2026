@@ -36,9 +36,10 @@ print("environment ok")
 PY
 ```
 
-If `matplotlib` is missing, the dashboard plot is skipped. The protocol result
-should still remain valid; missing plots are no longer a reason to discard the
-run.
+The current runtime now auto-bootstraps lightweight plotting/test dependencies
+into the repo `.pydeps` directory when needed. In practice, `matplotlib`
+should be installed automatically before protocol/evaluation plotting starts,
+even for direct Python entrypoints that did not source the shell bootstrap.
 
 ## Quick Run Pattern
 

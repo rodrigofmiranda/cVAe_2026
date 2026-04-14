@@ -10,9 +10,19 @@ from __future__ import annotations
 
 import importlib
 import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Iterable, List, Sequence
+
+
+_AUTO_BOOTSTRAP_PACKAGE_SPECS = {
+    "numpy": "numpy<2",
+    "pandas": "pandas<3",
+    "openpyxl": "openpyxl<4",
+    "matplotlib": "matplotlib<3.9",
+    "pytest": "pytest<10",
+}
 
 
 def ensure_writable_mpl_config_dir() -> str:
@@ -73,6 +83,14 @@ def candidate_pydeps_dirs() -> List[Path]:
     return _unique_paths(candidates)
 
 
+def default_pydeps_dir() -> Path:
+    """Return the preferred persistent ``.pydeps`` install target."""
+    candidates = candidate_pydeps_dirs()
+    if candidates:
+        return candidates[0]
+    return Path.cwd() / ".pydeps"
+
+
 def ensure_repo_pydeps_on_sys_path() -> List[str]:
     """Prepend discovered ``.pydeps`` directories to ``sys.path``.
 
@@ -89,6 +107,60 @@ def ensure_repo_pydeps_on_sys_path() -> List[str]:
         sys.path.insert(0, d_str)
         added.append(d_str)
     return added
+
+
+def _install_known_modules_into_pydeps(
+    modules: Sequence[str],
+    *,
+    context: str,
+) -> List[str]:
+    """Install known lightweight Python modules into the repo ``.pydeps`` dir.
+
+    Returns the subset of modules that still remains missing after the attempt.
+    Unknown/heavy modules (for example ``tensorflow``) are not installed here.
+    """
+    target = default_pydeps_dir().resolve()
+    target.mkdir(parents=True, exist_ok=True)
+
+    install_specs: List[str] = []
+    for mod in modules:
+        spec = _AUTO_BOOTSTRAP_PACKAGE_SPECS.get(mod)
+        if spec and spec not in install_specs:
+            install_specs.append(spec)
+
+    if not install_specs:
+        return list(modules)
+
+    print(
+        "[bootstrap] missing lightweight python deps for "
+        f"{context}; installing into {target}: {', '.join(install_specs)}"
+    )
+    cmd = [
+        sys.executable,
+        "-m",
+        "pip",
+        "install",
+        "--no-cache-dir",
+        "--target",
+        str(target),
+        *install_specs,
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0:
+        print(
+            "[bootstrap][warn] pip install failed while fixing runtime deps "
+            f"for {context}.\n{proc.stdout}\n{proc.stderr}"
+        )
+        return list(modules)
+
+    ensure_repo_pydeps_on_sys_path()
+    still_missing: List[str] = []
+    for mod in modules:
+        try:
+            importlib.import_module(mod)
+        except ModuleNotFoundError:
+            still_missing.append(mod)
+    return still_missing
 
 
 def ensure_required_python_modules(
@@ -121,6 +193,19 @@ def ensure_required_python_modules(
             importlib.import_module(mod)
         except ModuleNotFoundError:
             missing.append(mod)
+
+    auto_bootstrap = (
+        os.environ.get("CVAE_AUTO_BOOTSTRAP_PYDEPS", "1").strip().lower()
+        not in {"0", "false", "no", "off"}
+    )
+    if missing and auto_bootstrap:
+        lightweight = [mod for mod in missing if mod in _AUTO_BOOTSTRAP_PACKAGE_SPECS]
+        if lightweight:
+            remaining = _install_known_modules_into_pydeps(
+                lightweight,
+                context=context,
+            )
+            missing = [mod for mod in missing if mod not in lightweight] + remaining
 
     if not missing:
         return []

@@ -15,11 +15,19 @@ import sys
 from pathlib import Path
 from typing import Dict, List
 
-import pandas as pd
-
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+from src.config.runtime_env import ensure_required_python_modules
+
+ensure_required_python_modules(
+    ("pandas", "openpyxl"),
+    context="validation gate recompute",
+    allow_missing=False,
+)
+
+import pandas as pd
 
 from src.evaluation.validation_summary import (
     build_stat_acceptance_summary,
@@ -27,7 +35,6 @@ from src.evaluation.validation_summary import (
     build_protocol_leaderboard,
     recompute_validation_summary,
 )
-
 
 def _write_table(df: pd.DataFrame, csv_path: Path, xlsx_path: Path) -> None:
     csv_path.parent.mkdir(parents=True, exist_ok=True)

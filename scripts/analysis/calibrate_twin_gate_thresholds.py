@@ -23,15 +23,22 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List
 
-import numpy as np
-import pandas as pd
-
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.evaluation.validation_summary import TWIN_GATE_THRESHOLDS
+from src.config.runtime_env import ensure_required_python_modules
 
+ensure_required_python_modules(
+    ("numpy", "pandas"),
+    context="gate threshold calibration",
+    allow_missing=False,
+)
+
+import numpy as np
+import pandas as pd
+
+from src.evaluation.validation_summary import TWIN_GATE_THRESHOLDS
 
 POSITIVE_DEFAULTS = [
     "/home/rodrigo/cVAe_2026/outputs/exp_20260328_153611/tables/summary_by_regime.csv",

@@ -7,25 +7,32 @@ run still contains multiple grid candidates, because those runs only expose the
 stage champion during protocol evaluation.
 
 Examples:
-    python scripts/analysis/compare_support_ablation_pairs.py \
-      --run e0_seq=outputs/support_ablation/e0/exp_20260405_120000 \
-      --run e1_seq=outputs/support_ablation/e1/exp_20260405_140000
+    python scripts/analysis/compare_support_ablation_pairs.py       --run e0_seq=outputs/support_ablation/e0/exp_20260405_120000       --run e1_seq=outputs/support_ablation/e1/exp_20260405_140000
 
-    python scripts/analysis/compare_support_ablation_pairs.py \
-      --run e0_delta=outputs/support_ablation/e0 \
-      --run e2_delta=outputs/support_ablation/e2 \
-      --output_dir outputs/support_ablation/paired_reports
+    python scripts/analysis/compare_support_ablation_pairs.py       --run e0_delta=outputs/support_ablation/e0       --run e2_delta=outputs/support_ablation/e2       --output_dir outputs/support_ablation/paired_reports
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 
-import pandas as pd
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
+from src.config.runtime_env import ensure_required_python_modules
+
+ensure_required_python_modules(
+    ("pandas",),
+    context="support ablation paired comparison",
+    allow_missing=False,
+)
+
+import pandas as pd
 
 SUMMARY_METRICS = [
     "best_grid_tag",

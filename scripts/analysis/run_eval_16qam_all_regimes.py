@@ -5,14 +5,27 @@ import argparse
 import csv
 import json
 import traceback
+import sys
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from src.config.runtime_env import ensure_required_python_modules, ensure_writable_mpl_config_dir
+
+ensure_writable_mpl_config_dir()
+ensure_required_python_modules(
+    ("numpy", "pandas", "matplotlib", "tensorflow"),
+    context="16QAM evaluation batch",
+    allow_missing=False,
+)
 
 import numpy as np
 
 from src.data.loading import discover_experiments, parse_dist_curr_from_path, read_metadata
 from src.evaluation.stat_tests import benjamini_hochberg
 from src.evaluation.engine import clear_evaluation_model_cache, evaluate_run
-
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(

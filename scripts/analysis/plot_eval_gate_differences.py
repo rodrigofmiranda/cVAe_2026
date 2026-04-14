@@ -10,20 +10,31 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
-import pandas as pd
-
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.evaluation.summary_plots import (  # noqa: E402
+from src.config.runtime_env import (
+    ensure_required_python_modules,
+    ensure_writable_mpl_config_dir,
+)
+
+ensure_writable_mpl_config_dir()
+ensure_required_python_modules(
+    ("numpy", "pandas", "matplotlib"),
+    context="evaluation heatmap plotting",
+    allow_missing=False,
+)
+
+import pandas as pd
+
+from src.evaluation.summary_plots import (
     plot_eval_gate_difference_heatmaps,
     plot_eval_stat_screen_heatmaps,
     plot_eval_gate_threshold_heatmaps,
     plot_eval_gate_supplementary_heatmaps,
 )
-from src.evaluation.validation_summary import TWIN_GATE_THRESHOLDS  # noqa: E402
-
+from src.evaluation.validation_summary import TWIN_GATE_THRESHOLDS
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -189,6 +200,12 @@ def _build_summary_df(eval_root: Path) -> pd.DataFrame:
 
 def main() -> None:
     args = parse_args()
+    ensure_writable_mpl_config_dir()
+    ensure_required_python_modules(
+        ("numpy", "pandas", "matplotlib"),
+        context="evaluation heatmap plotting",
+        allow_missing=False,
+    )
     eval_root = args.eval_root.expanduser().resolve()
     plots_dir = (
         args.plots_dir.expanduser().resolve()

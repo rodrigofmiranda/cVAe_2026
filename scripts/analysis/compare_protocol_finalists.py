@@ -2,18 +2,29 @@
 """Compare selected grid finalists across regimes inside a protocol run.
 
 Usage:
-    python scripts/analysis/compare_protocol_finalists.py outputs/exp_YYYYMMDD_HHMMSS \
-      --tags TAG_A TAG_B
+    python scripts/analysis/compare_protocol_finalists.py outputs/exp_YYYYMMDD_HHMMSS       --tags TAG_A TAG_B
 """
 
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 from typing import List
 
-import pandas as pd
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
+from src.config.runtime_env import ensure_required_python_modules
+
+ensure_required_python_modules(
+    ("pandas",),
+    context="protocol finalist comparison",
+    allow_missing=False,
+)
+
+import pandas as pd
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(

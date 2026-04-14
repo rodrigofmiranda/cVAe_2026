@@ -45,6 +45,8 @@ the same level.
 - `ops/container_bootstrap_python.sh`
   Container-side Python bootstrap (sets `PYTHONNOUSERSITE=1`, writable
   `MPLCONFIGDIR`, and persistent `.pydeps` with `numpy<2` + `matplotlib`).
+  Direct Python entrypoints now also reuse the same `.pydeps` auto-bootstrap
+  path through `src.config.runtime_env` when lightweight deps are missing.
 - `ops/prune_incomplete_experiments.py`
   Kept as an active maintenance utility for cleaning stale incomplete runs.
 - `analysis/summarize_experiment.py`

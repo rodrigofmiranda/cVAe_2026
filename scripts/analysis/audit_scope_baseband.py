@@ -16,9 +16,23 @@ import argparse
 import json
 import math
 import re
+import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Dict, List, Tuple
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from src.config.runtime_env import ensure_required_python_modules, ensure_writable_mpl_config_dir
+
+ensure_writable_mpl_config_dir()
+ensure_required_python_modules(
+    ("numpy", "pandas", "matplotlib", "scipy"),
+    context="scope baseband audit",
+    allow_missing=False,
+)
 
 import matplotlib
 
@@ -27,7 +41,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy import signal
-
 
 NOMINAL_CARRIER_HZ = 1_000_000.0
 SAMP_RATE_HZ = 200_000.0

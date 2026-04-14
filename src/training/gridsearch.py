@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import pandas as pd
 
+from src.config.runtime_env import ensure_required_python_modules
 from src.data.support_geometry import support_filter_mask
 
 # ---------------------------------------------------------------------------
@@ -1615,9 +1616,26 @@ def run_gridsearch(
                     except ModuleNotFoundError as exc:
                         if exc.name != "matplotlib":
                             raise
+                        ensure_required_python_modules(
+                            ("matplotlib",),
+                            context="training champion plots",
+                            allow_missing=False,
+                        )
+                        dashboard_path = save_champion_analysis_dashboard(
+                            plots_dir=best_grid_plots_dir,
+                            Xv=Xv_center,
+                            Yv=Yv,
+                            Yp=Yp,
+                            std_mu_p=std_mu_p,
+                            kl_dim_mean=kl_dim_mean,
+                            summary_lines=summary_lines + [
+                                f"ranking criterion: {ranking_mode}",
+                            ],
+                            model_label=f"Champion ({tag})",
+                            title=f"Champion Analysis Dashboard | {tag}",
+                        )
                         print(
-                            "⚠️  matplotlib não está instalado neste ambiente; "
-                            "pulando geração de plots do melhor grid sem invalidar o resultado."
+                            f"✓ Champion analysis dashboard salvo: {dashboard_path}"
                         )
 
                 break
@@ -1766,9 +1784,15 @@ def run_gridsearch(
     except ModuleNotFoundError as exc:
         if exc.name != "matplotlib":
             raise
-        print(
-            "⚠️  matplotlib não está instalado neste ambiente; "
-            "pulando dashboard operacional de treinamento."
+        ensure_required_python_modules(
+            ("matplotlib",),
+            context="training dashboard plots",
+            allow_missing=False,
         )
+        training_dashboard_path = save_training_analysis_dashboard(
+            df_diag=df_diag,
+            plots_dir=run_paths.plots_dir,
+        )
+        print(f"✓ Training analysis dashboard salvo: {training_dashboard_path}")
 
     return df_results

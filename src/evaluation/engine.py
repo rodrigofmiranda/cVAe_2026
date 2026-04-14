@@ -13,7 +13,10 @@ import pandas as pd
 import tensorflow as tf
 
 from src.config.runtime import build_evaluation_runtime
-from src.config.runtime_env import ensure_writable_mpl_config_dir
+from src.config.runtime_env import (
+    ensure_required_python_modules,
+    ensure_writable_mpl_config_dir,
+)
 from src.data.loading import load_experiments_as_list
 from src.data.normalization import apply_condition_norm, load_normalization_from_state
 from src.data.support_geometry import (
@@ -1028,11 +1031,12 @@ def evaluate_run(
     overlay_path = ""
     fingerprint_path = ""
     panel6_path = ""
-    try:
+
+    def _render_visual_artifacts() -> tuple[str, str, str, str]:
         champion_dir = run_paths.plots_dir / "champion"
         champion_dir.mkdir(parents=True, exist_ok=True)
 
-        panel6_path = str(
+        local_panel6 = str(
             plot_comparison_panel_6(
                 X_vis,
                 Y_real_vis,
@@ -1041,7 +1045,7 @@ def evaluate_run(
                 title=f"Comparison panel (X, Y, Ŷ) | {output_dir.name}",
             )
         )
-        overlay_path = str(
+        local_overlay = str(
             plot_overlay(
                 Y_real_vis,
                 Y_pred_vis,
@@ -1049,7 +1053,7 @@ def evaluate_run(
                 title=f"Constellation overlay | {output_dir.name}",
             )
         )
-        fingerprint_path = str(
+        local_fingerprint = str(
             plot_residual_fingerprint(
                 X_vis,
                 Y_real_vis,
@@ -1060,7 +1064,7 @@ def evaluate_run(
             )
         )
 
-        dashboard_path = save_champion_analysis_dashboard(
+        local_dashboard = save_champion_analysis_dashboard(
             plots_dir=run_paths.plots_dir,
             Xv=Xv_center,
             Yv=Yv,
@@ -1071,13 +1075,27 @@ def evaluate_run(
             model_label="cVAE",
             title=f"Champion Analysis Dashboard | {output_dir.name}",
         )
-    except ModuleNotFoundError as exc:
-        if exc.name != "matplotlib":
-            raise
-        print(
-            "⚠️  matplotlib não está instalado neste ambiente; "
-            "pulando dashboard sem invalidar a avaliação."
-        )
+        return local_panel6, local_overlay, local_fingerprint, local_dashboard
+
+    for attempt in range(2):
+        try:
+            panel6_path, overlay_path, fingerprint_path, dashboard_path = _render_visual_artifacts()
+            break
+        except ModuleNotFoundError as exc:
+            if exc.name != "matplotlib":
+                raise
+            if attempt == 0:
+                ensure_required_python_modules(
+                    ("matplotlib",),
+                    context="evaluation plots",
+                    allow_missing=False,
+                )
+                continue
+            print(
+                "⚠️  matplotlib não está instalado neste ambiente; "
+                "pulando dashboard sem invalidar a avaliação."
+            )
+            break
 
     print("\n✅ Análise concluída.")
     print(f"📌 Figuras em: {run_paths.plots_dir}")

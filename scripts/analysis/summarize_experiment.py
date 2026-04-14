@@ -9,14 +9,21 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-import pandas as pd
-
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.protocol.experiment_tracking import latest_complete_protocol_experiment
+from src.config.runtime_env import ensure_required_python_modules
 
+ensure_required_python_modules(
+    ("pandas",),
+    context="experiment summarizer",
+    allow_missing=False,
+)
+
+import pandas as pd
+
+from src.protocol.experiment_tracking import latest_complete_protocol_experiment
 
 def _latest_experiment_any(outputs_dir: Path) -> Path:
     candidates = sorted(

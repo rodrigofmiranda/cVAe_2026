@@ -6,8 +6,22 @@ from __future__ import annotations
 
 import argparse
 import csv
+import sys
 from pathlib import Path
 from typing import Dict, List
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from src.config.runtime_env import ensure_required_python_modules, ensure_writable_mpl_config_dir
+
+ensure_writable_mpl_config_dir()
+ensure_required_python_modules(
+    ("numpy", "matplotlib"),
+    context="16QAM raw constellation plotting",
+    allow_missing=False,
+)
 
 import numpy as np
 
