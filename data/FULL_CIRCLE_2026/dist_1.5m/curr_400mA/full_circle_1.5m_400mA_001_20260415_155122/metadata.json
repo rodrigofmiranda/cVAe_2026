@@ -1,0 +1,50 @@
+{
+  "distance_m": 1.5,
+  "psu": {
+    "idn": "Siglent Technologies,SPD3303C,SPD3EGGC900104,1.02.01.02.02R3,V2.0",
+    "channel": "CH1",
+    "v_max_V": 18.0,
+    "i_set_A": 0.4,
+    "i_meas_A": 0.4,
+    "v_meas_V": 12.7
+  },
+  "environment": {
+    "temperature_C": null
+  },
+  "timing": {
+    "step_s": 30.0,
+    "note": "step_s usado para estabilização e aquisição"
+  },
+  "acquisition": {
+    "samples": 1000000.0,
+    "samp_rate": 200000.0,
+    "sps": 4
+  },
+  "timestamp": "20260415_155122",
+  "files": {
+    "sent": "full_circle_1.5m_400mA_001_20260415_155122_sent.c64",
+    "received": "full_circle_1.5m_400mA_001_20260415_155122_recv.c64"
+  },
+  "dataset_mode": "full_circle",
+  "dist_m": 1.5,
+  "curr_mA": 400.0,
+  "regime_id": "dist_1p5m__curr_400mA",
+  "conversion": {
+    "fixed_hardware_multiplier": null,
+    "startup_skip_frac": 0.1,
+    "startup_skip_samples": 100000,
+    "estimated_lag_samples": 212,
+    "estimated_phase_rad": -2.289105176925659,
+    "anchor_target": {
+      "dist_m": 0.8,
+      "curr_mA": 300.0
+    },
+    "anchor_used": {
+      "dist_m": 0.8,
+      "curr_mA": 300.0,
+      "path": "C:\\Users\\rodrigo.miranda\\UFSM (rodrigo.miranda@acad.ufsm.br)\\Doutorado\\IA\\1-Data\\Dataraw\\FULL_CIRCLE_ORGANIZED_2026\\dist_0.8m\\curr_300mA\\full_circle_0.8m_300mA_001_20260415_152735"
+    },
+    "factor_ref": 3.2387198587481496,
+    "normalization": "y_norm = y_sync * factor_ref"
+  }
+}
