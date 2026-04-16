@@ -8,6 +8,8 @@ CONTAINER_NAME="${CVAE_TF25_CONTAINER_NAME:-cvae_tf25_gpu}"
 SESSION_NAME="${CVAE_TF25_TMUX_SESSION:-cvae_tf25_gpu}"
 IMAGE_NAME="${CVAE_TF25_IMAGE:-vlc/tf25-gpu-ready:1}"
 CONTAINER_WORKDIR="${CVAE_TF25_WORKDIR:-/workspace/2026/feat_seq_bigru_residual_cvae}"
+HOST_DATASET_ROOT="${CVAE_DATASET_HOST_ROOT:-}"
+CONTAINER_DATASET_ROOT="${CVAE_DATASET_CONTAINER_ROOT:-}"
 TF_CPP_MIN_LOG_LEVEL_VALUE="${CVAE_TF_CPP_MIN_LOG_LEVEL:-2}"
 TF_ENABLE_ONEDNN_OPTS_VALUE="${CVAE_TF_ENABLE_ONEDNN_OPTS:-0}"
 BOOTSTRAP_PLOT_DEPS="${CVAE_BOOTSTRAP_PLOT_DEPS:-1}"
@@ -37,6 +39,22 @@ fi
 
 docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
 
+EXTRA_DOCKER_ARGS=""
+DATASET_MOUNT_INFO=""
+if [[ -n "${HOST_DATASET_ROOT}" || -n "${CONTAINER_DATASET_ROOT}" ]]; then
+  if [[ -z "${HOST_DATASET_ROOT}" || -z "${CONTAINER_DATASET_ROOT}" ]]; then
+    echo "Both CVAE_DATASET_HOST_ROOT and CVAE_DATASET_CONTAINER_ROOT must be set together." >&2
+    exit 1
+  fi
+  if [[ ! -d "${HOST_DATASET_ROOT}" ]]; then
+    echo "Dataset mount source does not exist: ${HOST_DATASET_ROOT}" >&2
+    exit 1
+  fi
+  EXTRA_DOCKER_ARGS+=" -e CVAE_DATASET_CONTAINER_ROOT=$(printf '%q' "${CONTAINER_DATASET_ROOT}")"
+  EXTRA_DOCKER_ARGS+=" -v $(printf '%q' "${HOST_DATASET_ROOT}:${CONTAINER_DATASET_ROOT}:ro")"
+  DATASET_MOUNT_INFO="${HOST_DATASET_ROOT}:${CONTAINER_DATASET_ROOT}:ro"
+fi
+
 RUN_CMD="
 cd $(printf '%q' "${REPO_ROOT}") && exec docker run --rm -it \
   --name $(printf '%q' "${CONTAINER_NAME}") \
@@ -53,6 +71,7 @@ cd $(printf '%q' "${REPO_ROOT}") && exec docker run --rm -it \
   -v /etc/passwd:/etc/passwd:ro \
   -v /etc/group:/etc/group:ro \
   -v $(printf '%q' "${REPO_ROOT}:${CONTAINER_WORKDIR}") \
+  ${EXTRA_DOCKER_ARGS} \
   -w $(printf '%q' "${CONTAINER_WORKDIR}") \
   --entrypoint bash \
   $(printf '%q' "${IMAGE_NAME}") \
@@ -65,6 +84,9 @@ echo "tmux_session=${SESSION_NAME}"
 echo "container_name=${CONTAINER_NAME}"
 echo "image=${IMAGE_NAME}"
 echo "mount=${REPO_ROOT}:${CONTAINER_WORKDIR}"
+if [[ -n "${DATASET_MOUNT_INFO}" ]]; then
+  echo "dataset_mount=${DATASET_MOUNT_INFO}"
+fi
 echo "bootstrap_plot_deps=${BOOTSTRAP_PLOT_DEPS}"
 echo "enter: ${SCRIPT_DIR}/enter_tf25_gpu.sh"
 echo "stop:  ${SCRIPT_DIR}/stop_tf25_gpu.sh"
