@@ -5236,6 +5236,90 @@ def _preset_support_full_circle_g2_shortlist_v1() -> List[Dict[str, Any]]:
     return [available[tag] for tag in tags if tag in available]
 
 
+def _preset_support_full_circle_disk_bs8192_lat10_v1() -> List[Dict[str, Any]]:
+    """Incremental Full Circle follow-up around the current disk_geom3 anchor.
+
+    Replays the current best geometry-aligned candidate and adds the two most
+    defensible imports from the Full Square line that remain orthogonal to the
+    geometry fix already validated on Full Circle:
+    - `bs8192`: optimization / gradient-noise probe
+    - `lat10`: mild capacity probe
+    """
+    base = dict(
+        support_filter_mode="disk_l2",
+        support_feature_mode="geom3",
+    )
+    return [
+        dict(
+            group="E5_full_circle_disk_followup",
+            tag="S27cov_lc0p25_tail95_t0p03_disk_geom3",
+            cfg=_support_seq_anchor_cfg(
+                **base,
+            ),
+        ),
+        dict(
+            group="E5_full_circle_disk_followup",
+            tag="S27cov_lc0p25_tail95_t0p03_disk_geom3_bs8192",
+            cfg=_support_seq_anchor_cfg(
+                batch_size=8192,
+                **base,
+            ),
+        ),
+        dict(
+            group="E5_full_circle_disk_followup",
+            tag="S27cov_lc0p25_tail95_t0p03_disk_geom3_lat10",
+            cfg=_support_seq_anchor_cfg(
+                latent_dim=10,
+                **base,
+            ),
+        ),
+    ]
+
+
+def _preset_support_full_circle_clean_bs8192_lat10_v1() -> List[Dict[str, Any]]:
+    """Clean Full Circle restart before any border-focused adaptations.
+
+    Scientific intent:
+    - remove the square-biased border weighting inherited from the Full Square line
+    - remove geometry descriptors (`geom3`) that still encode corner-aware structure
+    - remove `disk_l2` filtering because the dataset is already a true Full Circle acquisition
+
+    The only retained probes are orthogonal to support geometry:
+    - `bs8192`: optimization / gradient-noise probe
+    - `lat10`: mild capacity probe
+    """
+    base = dict(
+        support_weight_mode="none",
+        support_feature_mode="none",
+        support_filter_mode="none",
+    )
+    return [
+        dict(
+            group="E6_full_circle_clean_restart",
+            tag="S27cov_fc_clean_lc0p25_t0p03",
+            cfg=_support_seq_anchor_cfg(
+                **base,
+            ),
+        ),
+        dict(
+            group="E6_full_circle_clean_restart",
+            tag="S27cov_fc_clean_lc0p25_t0p03_bs8192",
+            cfg=_support_seq_anchor_cfg(
+                batch_size=8192,
+                **base,
+            ),
+        ),
+        dict(
+            group="E6_full_circle_clean_restart",
+            tag="S27cov_fc_clean_lc0p25_t0p03_lat10",
+            cfg=_support_seq_anchor_cfg(
+                latent_dim=10,
+                **base,
+            ),
+        ),
+    ]
+
+
 def _preset_support_e4_disk() -> List[Dict[str, Any]]:
     return [
         dict(
@@ -5420,6 +5504,10 @@ def select_grid(
             grid = _preset_support_e2_finalists_shortlist_v1()
         elif preset_name == "support_full_circle_g2_shortlist_v1":
             grid = _preset_support_full_circle_g2_shortlist_v1()
+        elif preset_name == "support_full_circle_disk_bs8192_lat10_v1":
+            grid = _preset_support_full_circle_disk_bs8192_lat10_v1()
+        elif preset_name == "support_full_circle_clean_bs8192_lat10_v1":
+            grid = _preset_support_full_circle_clean_bs8192_lat10_v1()
         elif preset_name == "support_e4_disk":
             grid = _preset_support_e4_disk()
         else:
