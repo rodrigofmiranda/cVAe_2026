@@ -1,0 +1,35 @@
+protocol_version: "1.0"
+description: >
+  Full Circle reduced protocol for global train + evaluation over the
+  12-regime grid: 3 distances x 4 currents (100, 300, 500, 700 mA).
+  This variant intentionally avoids `_selected_experiments` path pinning so it
+  can be used with `data/FULL_CIRCLE_2026`.
+
+studies:
+  - name: within_regime
+    split_strategy: per_experiment
+    selectors:
+      - distance_m: 0.8
+        current_mA: 100
+      - distance_m: 0.8
+        current_mA: 300
+      - distance_m: 0.8
+        current_mA: 500
+      - distance_m: 0.8
+        current_mA: 700
+      - distance_m: 1.0
+        current_mA: 100
+      - distance_m: 1.0
+        current_mA: 300
+      - distance_m: 1.0
+        current_mA: 500
+      - distance_m: 1.0
+        current_mA: 700
+      - distance_m: 1.5
+        current_mA: 100
+      - distance_m: 1.5
+        current_mA: 300
+      - distance_m: 1.5
+        current_mA: 500
+      - distance_m: 1.5
+        current_mA: 700

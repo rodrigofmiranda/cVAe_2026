@@ -5216,6 +5216,26 @@ def _preset_support_e2_finalists_shortlist_v1() -> List[Dict[str, Any]]:
     return [item for item in _preset_support_e2_scientific_screen_v1() if item["tag"] in tags]
 
 
+def _preset_support_full_circle_g2_shortlist_v1() -> List[Dict[str, Any]]:
+    """Full Circle-specific shortlist targeting the current G2 failures.
+
+    Keeps the two least-bad E2 survivors from the first Full Circle quick run,
+    adds a softer coverage variant, and probes two disk-aligned candidates that
+    remove the square-biased edge weighting inherited from the Full Square line.
+    """
+    tags = [
+        "S27cov_sciv1_ctrl_lc0p25_t0p03_a1p50_tau0p75_tc0p35_wmax3p0",
+        "S27cov_sciv1_lr0p00015",
+        "S27cov_sciv1_covsoft_lc0p20_t0p035",
+        "S27cov_lc0p25_tail95_t0p03_disk",
+        "S27cov_lc0p25_tail95_t0p03_disk_geom3",
+    ]
+    available: Dict[str, Dict[str, Any]] = {}
+    for item in _preset_support_e2_scientific_screen_v1() + _preset_support_e4_disk():
+        available[str(item["tag"])] = item
+    return [available[tag] for tag in tags if tag in available]
+
+
 def _preset_support_e4_disk() -> List[Dict[str, Any]]:
     return [
         dict(
@@ -5398,6 +5418,8 @@ def select_grid(
             grid = _preset_support_e2_scientific_screen_v1_block_d()
         elif preset_name == "support_e2_finalists_shortlist_v1":
             grid = _preset_support_e2_finalists_shortlist_v1()
+        elif preset_name == "support_full_circle_g2_shortlist_v1":
+            grid = _preset_support_full_circle_g2_shortlist_v1()
         elif preset_name == "support_e4_disk":
             grid = _preset_support_e4_disk()
         else:
