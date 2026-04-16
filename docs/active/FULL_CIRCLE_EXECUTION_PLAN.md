@@ -1,221 +1,108 @@
-# Full Circle Execution Plan
+# Full Circle Execution Record
 
 Date: 2026-04-16
 
-Purpose: immediate execution plan for the `full_circle` line starting from
-zero scientific progress.
+Purpose: document what was actually executed on `research/full-circle`, what was
+learned, and what should be considered primary versus secondary evidence.
 
-Important assumption for this document:
+## Fixed Methodology For This Iteration
 
-- no validation experiment is considered completed yet
-- nothing is marked as done
-- this file is the operational starting point
-- the master reference remains `docs/active/FULL_CIRCLE_VALIDATION_CHECKLIST.md`
+All quick screens in this branch used the same reduced protocol contract after
+the initial correction:
 
-## Current Starting Point
+- dataset root: `data/FULL_CIRCLE_2026`
+- protocol: `configs/protocol_full_circle_sel4curr.json`
+- `--train_once_eval_all`
+- `--max_samples_per_exp 100000`
+- `--max_val_samples_per_exp 20000`
+- `--max_dist_samples 20000`
+- `--stat_mode quick --stat_max_n 2000`
+- output base under `outputs/full_circle`
 
-Status:
+Important note:
 
-- scientific validation of `full_circle`: not started
-- controlled twin comparison against `full_square`: not started
-- 12-regime screening: not started
-- 27-regime confirmation: not started
-- threshold calibration for this line: not started
-- uncertainty layer: not started
-- temporal validation gate: not started
-- external validation on `16QAM`: not started
-- downstream learned-signaling validation: not started
+- an early Full Circle shortlist was mistakenly launched with full data; it was
+  interrupted and replaced by the corrected `100k/20k` quick-screen run
 
-## Execution Order
+## Run Chronology
 
-## Phase 0. Setup Freeze
+| Step | Output | Scope | Best outcome | Reading |
+|---|---|---|---|---|
+| 1 | `outputs/full_circle/e2_finalists_shortlist_100k/exp_20260416_014727` | direct import of the three strongest Full Square finalists | `S27cov_sciv1_lr0p00015`, `4/12` | transfer was poor; `tail98` should be dropped for Full Circle |
+| 2 | `outputs/full_circle/g2_shortlist_100k/exp_20260416_120619` | first Full Circle-specific shortlist (`control`, `lr0p00015`, `covsoft`, `disk`, `disk_geom3`) | `S27cov_lc0p25_tail95_t0p03_disk_geom3`, `7/12` | geometry-aligned disk handling recovered much of the line |
+| 3A | `outputs/full_circle/disk_bs8192_lat10_100k_split_a/exp_20260416_165643` | geometry-biased follow-up on `disk_geom3` with `bs8192` | `S27cov_lc0p25_tail95_t0p03_disk_geom3_bs8192`, `8/12` | strongest operational result, but still geometry-biased |
+| 3B | `outputs/full_circle/disk_bs8192_lat10_100k_split_b/exp_20260416_165644` | geometry-biased follow-up on `disk_geom3` with `lat10` | `S27cov_lc0p25_tail95_t0p03_disk_geom3_lat10`, `3/12` | negative probe |
+| 4A | `outputs/full_circle/20260416_182317_clean_bs8192_lat10_100k_split_a/exp_20260416_182319` | clean restart with `support_weight_mode=none`, `support_feature_mode=none`, `support_filter_mode=none`; split A = baseline + `clean_bs8192` | `S27cov_fc_clean_lc0p25_t0p03`, `1/12` | removing geometry priors collapsed the line |
+| 4B | `outputs/full_circle/20260416_182317_clean_bs8192_lat10_100k_split_b/exp_20260416_182319` | clean restart split B = `clean_lat10` | `S27cov_fc_clean_lc0p25_t0p03_lat10`, `4/12` | small recovery, still far below the geometry-biased line |
 
-Goal: freeze the initial comparison contract before running any experiment.
+## What Is Scientifically Established
 
-Tasks:
+1. The best Full Square finalists do not transfer cleanly to Full Circle.
+2. Informing the model about disk-shaped support clearly helps on this dataset.
+3. The strongest numbers from this branch (`7/12` and `8/12`) are not neutral
+   Full Circle baselines, because they still rely on geometry-specific support
+   assumptions.
+4. The clean restart is the honest baseline for scientific comparison, and it
+   is much weaker than the geometry-biased line.
 
-- [ ] Confirm dataset root for `full_circle` experiments.
-- [ ] Confirm baseline dataset root for `full_square` comparison.
-- [ ] Confirm protocol to use for first screening:
-  - [ ] `configs/all_regimes_sel4curr.json`
-- [ ] Confirm model family for the first controlled run.
-- [ ] Confirm training budget for the first controlled run.
-- [ ] Confirm output directory convention for the new line.
+## What Remains Open
 
-Minimum decision before moving on:
+Only one candidate from this iteration still lacks a direct protocol answer:
 
-- one fixed model family
-- one fixed training budget
-- one fixed 12-regime protocol
-- one fixed output path convention
+- `S27cov_fc_clean_lc0p25_t0p03_bs8192`
 
-## Phase 1. Dataset Readiness Gate
+Why it is still open:
 
-Goal: verify that the `full_circle` dataset is usable before training.
+- split A used training-time `score_v2` to pick one local champion for protocol
+- the champion in split A was the clean baseline, not `clean_bs8192`
+- therefore `clean_bs8192` trained successfully and looked more stable than the
+  baseline, but it was never given its own protocol evaluation in this branch
 
-Tasks:
+## Scientific Reading
 
-- [ ] Verify dataset structure is complete across intended regimes.
-- [ ] Verify `_report/REPORT.md` exists and is readable.
-- [ ] Verify `_report/summary_by_experiment.csv` exists.
-- [ ] Verify `_report/summary_by_regime.csv` exists.
-- [ ] Verify that preprocessing is the same as the baseline comparison path.
-- [ ] Verify the anchor and normalization settings that generated the dataset.
-- [ ] Verify there is no geometry-specific preprocessing deviation.
+The main branch-level conclusion is not that `disk_geom3_bs8192` solved Full
+Circle. The stronger conclusion is that the earlier gain depended heavily on
+geometry priors inherited from the Full Square line.
 
-Deliverable:
+That makes the clean restart decisive:
 
-- a short readiness note saying the dataset is accepted for training
+- if the goal is scientific honesty about Full Circle as a new acquisition
+  geometry, the clean baseline must remain the reference point
+- if the goal is engineering performance only, `disk_geom3_bs8192` is the best
+  practical result obtained here
+- these are not the same claim and should not be mixed in future writeups
 
-## Phase 2. First Scientific Screening Run
+## Operational Notes
 
-Goal: run the first `full_circle` digital-twin experiment on the reduced
-12-regime protocol.
+New launchers created in this branch:
 
-Canonical command template:
+- `scripts/ops/train_full_circle_g2_shortlist.sh`
+- `scripts/ops/train_full_circle_disk_bs8192_lat10.sh`
+- `scripts/ops/train_full_circle_clean_bs8192_lat10.sh`
+- `scripts/ops/train_full_circle_clean_bs8192_lat10_split.sh`
 
-```bash
-python -m src.protocol.run \
-  --dataset_root data/FULL_CIRCLE_2026 \
-  --output_base outputs/full_circle \
-  --protocol configs/all_regimes_sel4curr.json \
-  --train_once_eval_all \
-  --no_data_reduction \
-  --stat_tests --stat_mode quick
-```
+Additional operational points:
 
-Tasks:
+- timestamp-prefixed `RUN_STAMP` output naming was restored for the new
+  launchers
+- the clean split launcher runs two tmux + Docker GPU stacks with a shared
+  `RUN_STAMP`
+- convenience timestamp aliases were created for the older geometry-biased
+  split outputs, but the original split directories remain canonical
 
-- [ ] Launch first 12-regime run.
-- [ ] Record exact command used.
-- [ ] Record run directory.
-- [ ] Summarize the resulting experiment after completion.
+## Recommended Handoff
 
-Deliverable:
+This branch can now be treated as documented and parked.
 
-- one baseline `full_circle` screening run with a written summary
+If Full Circle is revisited later, the next experiment should be:
 
-## Phase 3. First Reading Of Results
+1. a single-candidate confirmation run for `clean_bs8192`
 
-Goal: determine whether the first `full_circle` run is scientifically usable.
+If that still underperforms, the next design principle should be:
 
-Tasks:
+1. test only soft radial priors
+2. avoid `cornerness_norm`
+3. avoid hard `disk_l2` filtering if the goal is a clean Full Circle baseline
 
-- [ ] Read regime-by-regime outcomes.
-- [ ] Separate `G1..G5` from `G6` in the interpretation.
-- [ ] Inspect edge-focused diagnostics.
-- [ ] Inspect whether the center-vs-edge gap looks improved or unchanged.
-- [ ] Decide whether the result is:
-  - [ ] unusable
-  - [ ] promising but incomplete
-  - [ ] ready for matched comparison against `full_square`
-
-Deliverable:
-
-- a short reading note with the decision above
-
-## Phase 4. Controlled Matched Comparison
-
-Goal: compare `full_circle` and `full_square` under the same model family and
-same training budget.
-
-Tasks:
-
-- [ ] Run matched baseline on `full_square` if no fair comparator exists.
-- [ ] Keep model family identical.
-- [ ] Keep protocol identical.
-- [ ] Keep training budget identical.
-- [ ] Compare physical evidence, twin evidence, and regime-specific outcomes.
-
-Deliverable:
-
-- one matched comparison note: `full_square` vs `full_circle`
-
-## Phase 5. Replication And Stability
-
-Goal: test whether any apparent gain is real or just seed variance.
-
-Tasks:
-
-- [ ] Repeat the same comparison with at least 3 seeds if an effect is claimed.
-- [ ] Record pass/fail variation by seed.
-- [ ] Record whether the conclusion is stable.
-
-Deliverable:
-
-- seed-stability note for the first claimed result
-
-## Phase 6. Full Confirmation
-
-Goal: move from screening to full validation across 27 regimes.
-
-Canonical command template:
-
-```bash
-python -m src.protocol.run \
-  --dataset_root data/FULL_CIRCLE_2026 \
-  --output_base outputs/full_circle \
-  --protocol configs/all_regimes_full_dataset.json \
-  --train_once_eval_all \
-  --no_data_reduction \
-  --stat_tests --stat_mode quick
-```
-
-Tasks:
-
-- [ ] Run the 27-regime confirmation only after a promising 12-regime result.
-- [ ] Read all 27 regimes.
-- [ ] Check whether the effect survives hard regimes.
-- [ ] Report:
-  - [ ] `validation_status_twin = G1..G5`
-  - [ ] `stat_screen_pass = G6`
-  - [ ] optional `validation_status_full`
-
-Deliverable:
-
-- one full confirmation note for the `full_circle` line
-
-## Phase 7. Credibility Hardening
-
-Goal: convert promising results into a thesis-defensible validation claim.
-
-Tasks:
-
-- [ ] write threshold-calibration note for `G1..G5`
-- [ ] add uncertainty / bootstrap reporting
-- [ ] add explicit temporal validation gate
-- [ ] define the role of `16QAM` external validation
-- [ ] clean reporting language for `G6`
-
-Deliverable:
-
-- a defensible validation package, not only a promising run
-
-## Phase 8. Downstream Decision
-
-Goal: decide whether `full_circle` becomes the preferred support geometry.
-
-Tasks:
-
-- [ ] confirm physical bench benefit
-- [ ] confirm digital-twin fidelity benefit
-- [ ] confirm downstream learned-signaling benefit
-- [ ] decide:
-  - [ ] promote `full_circle`
-  - [ ] keep `full_circle` as complementary only
-  - [ ] reject geometry change and refocus on modeling
-
-## Immediate Next Action
-
-Start here:
-
-1. freeze the exact first-run configuration for the 12-regime screen
-2. verify dataset readiness for `data/FULL_CIRCLE_2026`
-3. launch the first canonical `src.protocol.run` experiment
-
-## What Not To Do Yet
-
-- do not claim `full_circle` is better before the first matched run
-- do not jump directly to 27 regimes before the first 12-regime screen
-- do not treat `G6` alone as proof of a valid twin
-- do not use training loss alone as acceptance evidence
+For the next active cycle, the recommendation is to return to MDN in a fresh
+folder and branch rather than continuing in this worktree.
