@@ -22,9 +22,18 @@ else
   export PYTHONPATH="$REPO_ROOT"
 fi
 
+PYTHON_BIN="${PYTHON_BIN:-}"
+if [[ -z "$PYTHON_BIN" ]]; then
+    if command -v python >/dev/null 2>&1; then
+        PYTHON_BIN="python"
+    else
+        PYTHON_BIN="python3"
+    fi
+fi
+
 # If RUN_DIR is set, use it; otherwise pick latest run
 if [[ -n "${RUN_DIR:-}" ]]; then
-    python -u -m src.evaluation.evaluate \
+    "$PYTHON_BIN" -u -m src.evaluation.evaluate \
         --dataset_root "$DATASET_ROOT" \
         --run_dir      "$RUN_DIR"
 else
@@ -34,7 +43,7 @@ else
         echo "ERROR: No run_* directories found in $OUTPUT_BASE" >&2
         exit 1
     fi
-    python -u -m src.evaluation.evaluate \
+    "$PYTHON_BIN" -u -m src.evaluation.evaluate \
         --dataset_root "$DATASET_ROOT" \
         --run_dir      "$LATEST_RUN"
 fi

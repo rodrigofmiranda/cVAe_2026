@@ -24,7 +24,16 @@ else
   export PYTHONPATH="$REPO_ROOT"
 fi
 
-python -u -m src.protocol.run \
+PYTHON_BIN="${PYTHON_BIN:-}"
+if [[ -z "$PYTHON_BIN" ]]; then
+  if command -v python >/dev/null 2>&1; then
+    PYTHON_BIN="python"
+  else
+    PYTHON_BIN="python3"
+  fi
+fi
+
+"$PYTHON_BIN" -u -m src.protocol.run \
     --dataset_root "$DATASET_ROOT" \
     --output_base  "$OUTPUT_BASE" \
     --train_once_eval_all \

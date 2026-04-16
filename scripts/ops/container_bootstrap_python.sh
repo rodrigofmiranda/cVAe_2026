@@ -34,11 +34,11 @@ fi
 # Optional quick visibility line for troubleshooting.
 python3 - <<'PY' || true
 import os
-import importlib
+from importlib import util as importlib_util
 print("[bootstrap] PYTHONNOUSERSITE=", os.environ.get("PYTHONNOUSERSITE", ""))
 print("[bootstrap] PYTHONPATH=", os.environ.get("PYTHONPATH", ""))
 print("[bootstrap] MPLCONFIGDIR=", os.environ.get("MPLCONFIGDIR", ""))
 for mod in ("numpy", "pandas", "openpyxl", "matplotlib", "pytest"):
-    ok = importlib.util.find_spec(mod) is not None
+    ok = importlib_util.find_spec(mod) is not None
     print(f"[bootstrap] module:{mod}={'ok' if ok else 'missing'}")
 PY

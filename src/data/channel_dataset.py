@@ -24,12 +24,51 @@ from gnuradio import uhd
 import time
 
 
+def _build_interleaved_iq_int16(samples, source_mode="square", seed=None, circle_radius_scale=1.0):
+    """Build interleaved int16 IQ samples for the selected support geometry."""
+    n = int(samples)
+    if n <= 0:
+        raise ValueError("samples must be > 0")
+
+    mode = str(source_mode).strip().lower()
+    rng = numpy.random.default_rng(seed)
+
+    if mode in ("square", "full_square"):
+        i = rng.integers(-32767, 32767, size=n, dtype=numpy.int16)
+        q = rng.integers(-32767, 32767, size=n, dtype=numpy.int16)
+    elif mode in ("circle", "circular", "full_circle"):
+        # Uniform-in-area disk: r = R*sqrt(U), theta = 2*pi*V
+        # circle_radius_scale allows controlled power sweeps while preserving
+        # a circular support shape. Values >1 can clip at int16 bounds.
+        theta = rng.uniform(0.0, 2.0 * numpy.pi, size=n)
+        radius = float(circle_radius_scale) * 32767.0 * numpy.sqrt(rng.uniform(0.0, 1.0, size=n))
+        i = numpy.rint(radius * numpy.cos(theta)).astype(numpy.int32)
+        q = numpy.rint(radius * numpy.sin(theta)).astype(numpy.int32)
+        i = numpy.clip(i, -32767, 32767).astype(numpy.int16)
+        q = numpy.clip(q, -32767, 32767).astype(numpy.int16)
+    else:
+        raise ValueError(f"Unsupported source_mode: {source_mode!r}")
+
+    interleaved = numpy.empty(2 * n, dtype=numpy.int16)
+    interleaved[0::2] = i
+    interleaved[1::2] = q
+    return interleaved
+
+
 
 
 class channel_dataset(gr.top_block):
 
-    def __init__(self):
-        gr.top_block.__init__(self, "channel_dataset_full_square", catch_exceptions=True)
+    def __init__(self, source_mode="square", seed=None, sent_fname=None, recv_fname=None, circle_radius_scale=1.0):
+        source_mode_norm = str(source_mode).strip().lower()
+        if source_mode_norm in ("circle", "circular", "full_circle"):
+            flowgraph_name = "channel_dataset_full_circle"
+            default_dir = "/home/rodrigo/Documents/Amplificado/FULLCIRCLE"
+        else:
+            flowgraph_name = "channel_dataset_full_square"
+            default_dir = "/home/rodrigo/Documents/Amplificado/FULLSQUARE"
+
+        gr.top_block.__init__(self, flowgraph_name, catch_exceptions=True)
 
         ##################################################
         # Variables
@@ -37,12 +76,15 @@ class channel_dataset(gr.top_block):
         self.sps = sps = 4
         self.nfilts = nfilts = 45
         self.tuning = tuning = 1000e3
-        self.sent_fname = sent_fname = "/home/rodrigo/Documents/Amplificado/FULLSQUARE/sent.bin"
+        self.source_mode = source_mode = source_mode_norm
+        self.seed = seed
+        self.circle_radius_scale = circle_radius_scale
+        self.sent_fname = sent_fname = sent_fname or f"{default_dir}/sent.bin"
         self.samples = samples = 2000e3
         self.samp_rate = samp_rate = 200e3
         self.rrc_taps = rrc_taps = firdes.root_raised_cosine(nfilts, nfilts, 1.0/float(sps), 0.35, 45*nfilts)
         self.rf_gain = rf_gain = 1
-        self.recv_fname = recv_fname = "/home/rodrigo/Documents/Amplificado/FULLSQUARE/received.bin"
+        self.recv_fname = recv_fname = recv_fname or f"{default_dir}/received.bin"
         self.phase_bw = phase_bw = 0.00628
         self.excess_bw = excess_bw = 0.35
         self.arity = arity = 4
@@ -100,7 +142,20 @@ class channel_dataset(gr.top_block):
         self.blocks_file_sink_0_0.set_unbuffered(False)
         self.blocks_file_sink_0 = blocks.file_sink(gr.sizeof_gr_complex*1, sent_fname, False)
         self.blocks_file_sink_0.set_unbuffered(False)
-        self.analog_random_source_x_1 = blocks.vector_source_s(list(map(int, numpy.random.randint((-32767), 32767, (int(samples*2))))), False)
+        self.analog_random_source_x_1 = blocks.vector_source_s(
+            list(
+                map(
+                    int,
+                    _build_interleaved_iq_int16(
+                        samples=samples,
+                        source_mode=source_mode,
+                        seed=seed,
+                        circle_radius_scale=circle_radius_scale,
+                    ),
+                )
+            ),
+            False,
+        )
 
 
         ##################################################
@@ -213,7 +268,44 @@ class channel_dataset(gr.top_block):
 
 
 def main(top_block_cls=channel_dataset, options=None):
-    tb = top_block_cls()
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--source_mode",
+        default="square",
+        choices=["square", "circle"],
+        help="IQ support geometry for transmitted source samples.",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Optional RNG seed for reproducible source generation.",
+    )
+    parser.add_argument(
+        "--sent_fname",
+        default=None,
+        help="Optional output path for TX complex stream.",
+    )
+    parser.add_argument(
+        "--recv_fname",
+        default=None,
+        help="Optional output path for RX complex stream.",
+    )
+    parser.add_argument(
+        "--circle_radius_scale",
+        type=float,
+        default=1.0,
+        help="Scale factor for circle radius before int16 clipping.",
+    )
+    args = parser.parse_args()
+
+    tb = top_block_cls(
+        source_mode=args.source_mode,
+        seed=args.seed,
+        sent_fname=args.sent_fname,
+        recv_fname=args.recv_fname,
+        circle_radius_scale=args.circle_radius_scale,
+    )
 
     def sig_handler(sig=None, frame=None):
         tb.stop()

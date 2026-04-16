@@ -5200,6 +5200,22 @@ def _preset_support_e2_scientific_screen_v1_block_d() -> List[Dict[str, Any]]:
     return [item for item in _preset_support_e2_scientific_screen_v1() if item["tag"] in tags]
 
 
+def _preset_support_e2_finalists_shortlist_v1() -> List[Dict[str, Any]]:
+    """Final short-list after the scientific screening.
+
+    Keeps only the three surviving lines:
+    - robust control anchor
+    - tail-focused alternative
+    - optimization-focused alternative
+    """
+    tags = {
+        "S27cov_sciv1_ctrl_lc0p25_t0p03_a1p50_tau0p75_tc0p35_wmax3p0",
+        "S27cov_sciv1_tail98_lc0p25_t0p03",
+        "S27cov_sciv1_lr0p00015",
+    }
+    return [item for item in _preset_support_e2_scientific_screen_v1() if item["tag"] in tags]
+
+
 def _preset_support_e4_disk() -> List[Dict[str, Any]]:
     return [
         dict(
@@ -5380,6 +5396,8 @@ def select_grid(
             grid = _preset_support_e2_scientific_screen_v1_block_c()
         elif preset_name == "support_e2_scientific_screen_v1_block_d":
             grid = _preset_support_e2_scientific_screen_v1_block_d()
+        elif preset_name == "support_e2_finalists_shortlist_v1":
+            grid = _preset_support_e2_finalists_shortlist_v1()
         elif preset_name == "support_e4_disk":
             grid = _preset_support_e4_disk()
         else:
