@@ -46,7 +46,7 @@ For most people, there are only three meaningful starting points:
 | Branch | Use it when | Notes |
 |---|---|---|
 | `main` | you want the public landing page and a stable overview | default branch on GitHub |
-| `feat/mdn-g5-recovery-explore-remote` | you want the currently coordinated remote research line | best default choice for active collaboration right now |
+| `research/mdn-return-20260416` | you want the currently coordinated MDN return line | best default choice for active collaboration right now |
 | `release/cvae-online` | you want a release-style snapshot instead of live experimentation | more conservative than the active research branch |
 
 The full map of public branches is in [docs/BRANCH_GUIDE.md](docs/BRANCH_GUIDE.md).
@@ -57,9 +57,9 @@ To copy the current active remote work into a fresh local clone:
 
 ```bash
 git clone https://github.com/rodrigofmiranda/cVAe_2026.git
-cd cVAe_2026
+cd cVAe_2026_mdn_return
 git fetch --all --prune
-git switch feat/mdn-g5-recovery-explore-remote
+git switch research/mdn-return-20260416
 git lfs install --local
 git lfs pull
 ```
@@ -85,6 +85,30 @@ For the sequential family `seq_bigru_residual`, also use:
 ```
 
 because the default balanced-block reduction breaks temporal context.
+
+## Current Research Reading
+
+For the active `research/mdn-return-20260416` line, the current scientific
+anchor remains `S27cov_lc0p25_tail95_t0p03` with `10/12` full-protocol pass.
+
+The main import from the stable MDN anchor line is now fixed in the branch
+reading:
+
+- the broad `cond_embed` search was already pushed further in `S32` and closed
+  as a negative result (`0/12` full pass)
+- because of that, `cond_embed` should not be reopened as a broad family sweep
+- the only still-justified follow-up is a narrow promotion test of the fast
+  `e64` candidate from `S35`, not a restart of the whole embed axis
+
+Scope boundary for current work:
+
+- the `full_circle` line was only tested in the separate worktree
+  `/home/rodrigo/cVAe_2026_shape_fullcircle` on branch `research/full-circle`
+- its geometry/support conclusions should be treated as branch-specific evidence,
+  not as automatic assumptions for the current `mdn_return` line
+
+If you need the detailed scientific state, read
+[docs/active/WORKING_STATE.md](docs/active/WORKING_STATE.md) next.
 
 ## Modeling Summary
 
@@ -130,7 +154,7 @@ tests/          Unit and integration tests
 If your goal is to understand the program and copy the current work:
 
 1. Read [docs/BRANCH_GUIDE.md](docs/BRANCH_GUIDE.md)
-2. Clone the repository and switch to `feat/mdn-g5-recovery-explore-remote`
+2. Clone the repository and switch to `research/mdn-return-20260416`
 3. Run `git lfs pull`
 4. Read [PROJECT_STATUS.md](PROJECT_STATUS.md)
 5. Read [docs/PROTOCOL.md](docs/PROTOCOL.md)

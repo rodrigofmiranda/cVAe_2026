@@ -145,7 +145,7 @@ search instead of local finishing:
 Canonical command:
 
 ```bash
-cd /workspace/2026/feat_seq_bigru_residual_cvae
+cd /home/rodrigo/cVAe_2026_mdn_return
 python -m src.protocol.run \
   --dataset_root data/dataset_fullsquare_organized \
   --output_base outputs \
@@ -175,7 +175,7 @@ candidates under the new axis-wise residual diagnostics, use:
 Canonical command:
 
 ```bash
-cd /workspace/2026/feat_seq_bigru_residual_cvae
+cd /home/rodrigo/cVAe_2026_mdn_return
 python -m src.protocol.run \
   --dataset_root data/dataset_fullsquare_organized \
   --output_base outputs \
@@ -209,7 +209,7 @@ attack only the remaining `0.8 m` failures.
 Canonical command:
 
 ```bash
-cd /workspace/2026/feat_seq_bigru_residual_cvae
+cd /home/rodrigo/cVAe_2026_mdn_return
 python -m src.protocol.run \
   --dataset_root data/dataset_fullsquare_organized \
   --output_base outputs \
@@ -338,7 +338,7 @@ Current broader MDN G5 sweep:
 - the old local adversarial folder was deleted to save disk space
 - the branch name `feat/delta-residual-adv` remains available only as historical traceability
 - if we need to bring that strategy back later, use
-  [docs/archive/ideas/FUTURE_ADVERSARIAL_STRATEGY.md](../archive/ideas/FUTURE_ADVERSARIAL_STRATEGY.md)
+  [docs/archive/ideas/FUTURE_ADVERSARIAL_STRATEGY.md](../ideas/FUTURE_ADVERSARIAL_STRATEGY.md)
   as the single implementation note
 
 ## Canonical Artifacts
@@ -361,7 +361,7 @@ Protocol-side:
 For any future run copied into `outputs/`, use:
 
 ```bash
-cd /workspace/2026/feat_seq_bigru_residual_cvae
+cd /home/rodrigo/cVAe_2026_mdn_return
 python scripts/summarize_experiment.py outputs/exp_YYYYMMDD_HHMMSS
 ```
 

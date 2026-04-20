@@ -90,12 +90,12 @@ Nao chame de limitacao do modelo antes disso:
 2. rodar suite de testes
 3. rodar smoke de protocolo
 4. rodar `scripts/verify_pipeline_fixes.py` sobre o ultimo `exp_*`
-5. reler `docs/DIAGNOSTIC_CHECKLIST.md`
+5. reler `docs/archive/reference/DIAGNOSTIC_CHECKLIST.md`
 
 Checklist minima:
 
 ```bash
-cd /workspace/2026/feat_seq_bigru_residual_cvae
+cd /home/rodrigo/cVAe_2026_mdn_return
 python -m pytest tests -q
 python -m src.protocol.run \
   --dataset_root data/dataset_fullsquare_organized \

@@ -123,9 +123,9 @@ The active seq model is a heteroscedastic conditional Gaussian decoder:
 - decoder output:
   - `(mean_I, mean_Q, logvar_I, logvar_Q)`
 - sequence builder:
-  - [cvae_sequence.py](/workspace/2026/feat_seq_bigru_residual_cvae/src/models/cvae_sequence.py#L423)
+  - [cvae_sequence.py](../../../src/models/cvae_sequence.py#L423)
 - reconstruction loss:
-  - heteroscedastic Gaussian NLL in [losses.py](/workspace/2026/feat_seq_bigru_residual_cvae/src/models/losses.py#L34)
+  - heteroscedastic Gaussian NLL in [losses.py](../../../src/models/losses.py#L34)
 
 This setup is good for learning:
 
@@ -145,12 +145,12 @@ For the seq family:
 
 - `r_real = y_true - x_center`
 - `r_gen  = y_mean - x_center`
-- [losses.py](/workspace/2026/feat_seq_bigru_residual_cvae/src/models/losses.py#L265)
+- [losses.py](../../../src/models/losses.py#L265)
 
 For the point-wise explicit residual family:
 
 - `MMD(delta_true, delta_mean)`
-- [losses.py](/workspace/2026/feat_seq_bigru_residual_cvae/src/models/losses.py#L353)
+- [losses.py](../../../src/models/losses.py#L353)
 
 This is the core audit finding.
 
@@ -171,7 +171,7 @@ The decoder variance clamp is:
 
 - `DECODER_LOGVAR_CLAMP_LO = -5.82`
 - `DECODER_LOGVAR_CLAMP_HI = -0.69`
-- [defaults.py](/workspace/2026/feat_seq_bigru_residual_cvae/src/config/defaults.py#L169)
+- [defaults.py](../../../src/config/defaults.py#L169)
 
 This implies approximately:
 

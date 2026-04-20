@@ -8,11 +8,20 @@ start here.
 ## Current Worktree
 
 - active worktree:
-  - `/workspace/2026/feat_seq_bigru_residual_cvae`
+  - `/home/rodrigo/cVAe_2026_mdn_return`
 - active branch:
-  - `feat/mdn-g5-recovery`
+  - `research/mdn-return-20260416`
 - git worktree count:
   - `1`
+
+## Structural Next Step
+
+- `shape`-line support weighting / filtering should now be read as a temporary
+  proxy used before the project had a real disk-shaped acquisition
+- the next honest validation step for the support-geometry hypothesis is the
+  clean `full_circle` line documented in `docs/active/FULL_CIRCLE_NEXT_STEP.md`
+- do not treat geometry-biased `full_circle` results as equivalent to
+  validating the real disk acquisition itself
 
 ## Current Scientific Anchors
 
@@ -113,6 +122,42 @@ start here.
     embed16 (epoch 40/100); residual skip + lr4e4 collapses posterior; e64/lr2e4 is the only
     stable variant and still hits the same G5 floor at 8 failures
 
+- **decoder conditioning embed large sweep (S32, 6 variants)**:
+  - imported branch reading from the stable anchor line `feat/mdn-g5-recovery`
+  - **S32 completed** (`seq_cond_embed_large_sweep`)
+  - champion: `S32C_e64_resid_lr2e4`
+  - full protocol: **`0/12`** full pass (`5` partial, `7` fail)
+  - reading: **worst S27-family result so far** despite broadening the embed axis across
+    `embed16/32/64`, residual skip, 3-layer decoder conditioning, `mdn5`, and `lat7`
+  - conclusion: the broad `cond_embed` axis is exhausted as a general search direction;
+    only a narrow promotion of the fast-path `e64` candidate still makes sense
+
+- **fast cond-embed stage 1 (S35, 8 variants)**:
+  - run: `outputs/20260416_204133_seq_cond_embed_fast_stage1_100k/exp_20260416_204135`
+  - intent: quick triage on the fast operational path before any full-data promotion
+  - runtime path: `seq_gru_unroll=False`, `batch_size=8192`, `batch_infer=16384`
+  - quick caps: `100k` train / exp, `20k` val / exp, `stat_mode=quick`, `stat_max_n=2000`
+  - decoder clamp used: `[-6.82, 0.31]`
+  - **champion: `S35C_fast_e64_base`**
+  - final result: **`7/12`** (`protocol_score_v1=0.505`, `gate_pass_ratio=0.931`, `G6=7/12`)
+  - pass regimes:
+    - `0.8m / 700mA`
+    - `1.0m / 100mA`, `300mA`, `700mA`
+    - `1.5m / 100mA`, `500mA`, `700mA`
+  - fail regimes:
+    - `0.8m / 100mA`, `300mA`, `500mA`
+    - `1.0m / 500mA`
+    - `1.5m / 300mA`
+  - ranking inside the stage-1 grid:
+    - `S35C_fast_e64_base`: `7/12`
+    - `S35D_fast_e32_lat7`: `7/12`
+    - `S35E_fast_e16_b15`: `7/12`
+    - `S35A_fast_e16_base`: `6/12`
+    - `S35B_fast_e32_base`, `S35F_fast_e32_b15`, `S35G_fast_e32_fb05`: `4/12`
+  - **conclusion: `cond_embed_dim=64` is the best fast-path promotion candidate**;
+    the cond-embed direction remains alive, but the fast stage does not replace
+    the S27 anchor and does not break the `0.8m` low-current bottleneck
+
 - **MDN components sweep (S29, 3 candidates: k=3/5/8)**:
   - run: `outputs/exp_20260328_210953`
   - base: exact S27 A2 config (`lambda_coverage=0.25`, lat8)
@@ -172,7 +217,7 @@ The 0.8m problem has two independent layers:
   becomes a large relative JB error; `lambda_coverage=0.25` is insufficient
   to fix 100mA and 300mA; tested MDN k=3/5/8 — none fixes it (S29)
 
-Current branch reading (2026-03-30, after S27 + S28 + S29 + S30 + S31):
+Current branch reading (2026-04-17, after S27 + S28 + S29 + S30 + S31 + S32 + S35):
 
 - `S27cov_lc0p25_tail95_t0p03` (`exp_20260328_153611`) is the best known result:
   **`10/12`** full protocol
@@ -186,10 +231,17 @@ Current branch reading (2026-03-30, after S27 + S28 + S29 + S30 + S31):
   however the 8 G5 failures in the mini-protocol persist unchanged
 - **stability issue**: LR=4e-4 crashes embed variants; residual+lr4e4 collapses
   posterior; e64/lr2e4 is the only stable config found so far
-- S32 (`seq_cond_embed_large_sweep`, currently running) explores 6 variants:
-  embed64/lr3e4, embed32+residual/lr2e4, embed64+residual/lr2e4,
-  embed32+3-layer/lr2e4, embed64+mdn5/lr2e4, embed32/lat7/lr2e4
-- G6 not computed in S30/S31 (stat_fidelity disabled); S32 also has stat disabled
+- **anchor import (S32)**: the broader full-data `cond_embed` sweep already closed at
+  `0/12` full pass in the stable MDN line; as a general search axis, `cond_embed`
+  is exhausted beyond the narrow fast-path promotion question
+- **S35 fast stage 1 completed**: `S35C_fast_e64_base` wins the quick screen at `7/12`
+  with the fast operational path; `e64` beats `e32` base and stays tied for the
+  best pass count while also giving the best final protocol score in the stage-1 grid
+- **interpretation of S35**: the fast path is good enough for triage and preserves
+  one narrow `e64` promotion path, but it is still below the historical S27 ceiling
+  and should be treated as a promotion filter, not as a new scientific anchor
+- G6 is now computed in S35 and lands at `7/12`; the fast screen still confirms
+  that low-current `0.8m` remains the controlling failure slice
 
 ## Current Direction
 
@@ -207,17 +259,21 @@ with all available loss-side and architecture-side interventions:
 | MDN k=8 (S29) | marginal (6/12), 0.8m fails persist |
 | cond_embed_dim sweep (S30) | direction confirmed: δJB 2990→0.375 with embed16; convergence bottleneck |
 | cond_embed_dim tuned (S31) | LR=4e-4 too high; e64/lr2e4 stable (δJB=0.387), 8 G5 failures persist |
+| cond_embed large sweep (S32) | `0/12` full pass; broad embed axis exhausted |
+| cond_embed fast stage 1 (S35) | `S35C_fast_e64_base` wins quick screen at 7/12; good promotion candidate, not new anchor |
 
 **The 0.8m/100mA and 300mA G5 failure appears to be a hard constraint of the
 leptokurtic shape at short distance and low current, not addressable within the
 current seq_bigru_residual + MDN + coverage-loss family.**
 
 Open questions:
-- **`cond_embed_dim` with stable LR**: S30/S31 confirm the direction but expose
-  a convergence/stability problem; e64/lr2e4 is the only stable variant (δJB=0.387,
-  same 8 G5 failures); S32 sweeps this axis more broadly with safer LR configs
+- **narrow `e64` promotion from the fast path**: S35 says `e64` is the best
+  quick-screen candidate; after S32, this is no longer a reason to reopen the
+  broad `cond_embed` family, only to test whether the specific fast-path `e64`
+  advantage survives a full-data / slower-path confirmation run
 - **accept the current ceiling** (~7–8/12 expected, 10/12 best known) and move
-  to the next scientific milestone if S32 confirms the embed ceiling
+  to the next scientific milestone if the promoted `e64` line still stalls at the
+  same low-current `0.8m` slice
 
 Do not reopen:
 - `tail_levels=[0.01,0.99]` — tested negative in S27
@@ -228,6 +284,9 @@ Do not reopen:
   more components globally do not fix 0.8m G5
 - **`cond_embed_residual=True` + LR=4e-4** — S31 collapses posterior (active_dims=3)
 - **LR=4e-4 for embed variants** — S31 negative; crashes or destabilises all variants
+- **the broad `cond_embed_dim` axis** — S30/S31/S32 exhausted; `embed16/32/64`,
+  residual skip, 3-layer decoder conditioning, `mdn5`, and `lat7` did not beat
+  the S27 anchor in the stable MDN line
 
 The current implementation branch now includes an `MDN v2` path:
 
@@ -409,16 +468,16 @@ Do not reopen:
 
 ## Minimal Read Order
 
-1. [README.md](/workspace/2026/feat_seq_bigru_residual_cvae/README.md)
-2. [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_cvae/PROJECT_STATUS.md)
-3. [reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/PROTOCOL.md)
-4. [reference/EXPERIMENT_WORKFLOW.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/EXPERIMENT_WORKFLOW.md)
+1. [README.md](../../README.md)
+2. [PROJECT_STATUS.md](../../PROJECT_STATUS.md)
+3. [reference/PROTOCOL.md](../reference/PROTOCOL.md)
+4. [reference/EXPERIMENT_WORKFLOW.md](../reference/EXPERIMENT_WORKFLOW.md)
 
 ## Archived Sources For This Working State
 
 If you need the older detailed notes, they were archived here:
 
-- [archive/active/ACTIVE_CONTEXT_legacy.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/archive/active/ACTIVE_CONTEXT_legacy.md)
-- [archive/active/MDN_G5_RECOVERY_PLAN.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/archive/active/MDN_G5_RECOVERY_PLAN.md)
-- [archive/active/TRAINING_PLAN_legacy.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/archive/active/TRAINING_PLAN_legacy.md)
-- [archive/research/NOISE_DISTRIBUTION_AUDIT.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/archive/research/NOISE_DISTRIBUTION_AUDIT.md)
+- [archive/active/ACTIVE_CONTEXT_legacy.md](../archive/active/ACTIVE_CONTEXT_legacy.md)
+- [archive/active/MDN_G5_RECOVERY_PLAN.md](../archive/active/MDN_G5_RECOVERY_PLAN.md)
+- [archive/active/TRAINING_PLAN_legacy.md](../archive/active/TRAINING_PLAN_legacy.md)
+- [archive/research/NOISE_DISTRIBUTION_AUDIT.md](../archive/research/NOISE_DISTRIBUTION_AUDIT.md)

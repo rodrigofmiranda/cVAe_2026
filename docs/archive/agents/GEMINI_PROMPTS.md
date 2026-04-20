@@ -14,17 +14,17 @@ Principios praticos:
 
 ```text
 Contexto:
-- Repo: /workspace/2026/feat_seq_bigru_residual_cvae
+- Repo: /home/rodrigo/cVAe_2026_mdn_return
 - Branch: feat/channel-residual-architecture
 - Commit: eaef7f0
 - Objetivo atual: avaliar se a arquitetura residual reduz o vies por regime visto no concat
 
 Leia nesta ordem:
 1. PROJECT_STATUS.md
-2. TRAINING_PLAN.md
+2. docs/archive/active/TRAINING_PLAN_legacy.md
 3. README.md
-4. docs/PROTOCOL.md
-5. docs/GEMINI_PLAYBOOK.md
+4. docs/reference/PROTOCOL.md
+5. docs/archive/agents/GEMINI_PLAYBOOK.md
 
 Seu papel:
 - atuar como revisor tecnico do experimento

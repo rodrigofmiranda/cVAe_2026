@@ -1,14 +1,14 @@
 # PROJECT_STATUS
 
-> Atualizado em 2026-03-27.
+> Atualizado em 2026-04-17.
 > Este arquivo e o inventario oficial das worktrees e do estado ativo do repositorio.
 
 ## Worktrees
 
 Worktrees git registradas neste repositorio:
 
-1. `/workspace/2026/feat_seq_bigru_residual_cvae`
-   - branch: `feat/mdn-g5-recovery`
+1. `/home/rodrigo/cVAe_2026_mdn_return`
+  - branch: `research/mdn-return-20260416`
    - status: worktree ativa atual
    - foco: recuperar as falhas residuais de `G5` perto de `0.8 m` partindo da
      melhor linha MDN estavel
@@ -17,7 +17,7 @@ No momento nao ha worktree secundaria registrada por `git worktree list`.
 
 ## Branch Atual
 
-- branch ativa: `feat/mdn-g5-recovery`
+- branch ativa: `research/mdn-return-20260416`
 - entrypoint canonico:
   - `python -m src.protocol.run`
 
@@ -46,6 +46,20 @@ Referencias principais hoje:
   - run: `outputs/exp_20260326_050257`
   - linha: `regime-weighted resampling`
   - resultado: `3/12`
+- ultimo screening rapido da linha `cond_embed fast`:
+  - run: `outputs/20260416_204133_seq_cond_embed_fast_stage1_100k/exp_20260416_204135`
+  - preset: `seq_cond_embed_fast_stage1`
+  - campeao: `S35C_fast_e64_base`
+  - resultado: `7/12`
+  - leitura operacional:
+    - melhor candidato de promocao no caminho rapido atual
+    - nao substitui a ancora cientifica `S27` (`10/12`)
+  - falhas remanescentes do campeao:
+    - `0.8m / 100mA`
+    - `0.8m / 300mA`
+    - `0.8m / 500mA`
+    - `1.0m / 500mA`
+    - `1.5m / 300mA`
 
 Leitura atual:
 
@@ -54,6 +68,24 @@ Leitura atual:
 - `sample-aware MMD`, o flow `sinh-arcsinh` atual e o weighting puro por regime
   devem ser tratados como linhas negativas nesta iteracao
 - o gargalo restante segue concentrado em `0.8 m`, principalmente em `G5`
+- a linha `cond_embed fast` agora tem um filtro operacional fechado:
+  - `S35C_fast_e64_base` venceu o stage-1 rapido em `7/12`
+  - o uso correto desse resultado e promocao para follow-up mais caro, nao troca de ancora
+- leitura importada da linha estavel `feat/mdn-g5-recovery`:
+  - o sweep amplo `S32` de `cond_embed` fechou em `0/12`
+  - como direcao geral, o eixo `cond_embed` esta esgotado
+  - o unico follow-up ainda justificavel e a promocao estreita do `e64` rapido do `S35`
+- fronteira de escopo importante:
+  - a linha `full_circle` foi testada apenas na worktree separada
+    `/home/rodrigo/cVAe_2026_shape_fullcircle`
+  - leituras sobre geometria/suporte daquela branch `research/full-circle` nao
+    devem ser tratadas como baseline automatico desta pasta `mdn_return`
+- proximo passo estrutural documentado:
+  - a linha `shape` deve ser lida como proxy provisoria via pesos/filtros sobre
+    `full_square`, nao como validacao final da hipotese de suporte
+  - agora que existe aquisicao real em disco, o proximo teste honesto e fechar
+    a validacao limpa de `full_circle`
+  - nota ativa: `docs/active/FULL_CIRCLE_NEXT_STEP.md`
 - a linha ativa agora e `MDN v2`:
   - `coverage/tail loss` opcional via `lambda_coverage`
   - ranking do grid por `mini_protocol_v1`
@@ -209,29 +241,29 @@ Artefatos operacionais principais:
 
 Raiz:
 
-- [README.md](/workspace/2026/feat_seq_bigru_residual_cvae/README.md)
+- [README.md](README.md)
   - guia principal do repositorio para leitura no GitHub
-- [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_cvae/PROJECT_STATUS.md)
+- [PROJECT_STATUS.md](PROJECT_STATUS.md)
   - inventario oficial das worktrees e estado ativo
-- [CODEX.md](/workspace/2026/feat_seq_bigru_residual_cvae/CODEX.md)
+- [CODEX.md](CODEX.md)
   - stub de auto-discovery para Codex
-- [CLAUDE.md](/workspace/2026/feat_seq_bigru_residual_cvae/CLAUDE.md)
+- [CLAUDE.md](CLAUDE.md)
   - stub de auto-discovery para Claude
 
 Docs ativos:
 
-- [docs/README.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/README.md)
-- [docs/active/WORKING_STATE.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/active/WORKING_STATE.md)
-- [docs/reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/PROTOCOL.md)
-- [docs/reference/EXPERIMENT_WORKFLOW.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/EXPERIMENT_WORKFLOW.md)
-- [docs/reference/MODELING_ASSUMPTIONS.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/MODELING_ASSUMPTIONS.md)
-- [docs/agents/AI_AGENT_GUIDE.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/agents/AI_AGENT_GUIDE.md)
-- [docs/agents/REVIEW.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/agents/REVIEW.md)
+- [docs/README.md](docs/README.md)
+- [docs/active/WORKING_STATE.md](docs/active/WORKING_STATE.md)
+- [docs/reference/PROTOCOL.md](docs/reference/PROTOCOL.md)
+- [docs/reference/EXPERIMENT_WORKFLOW.md](docs/reference/EXPERIMENT_WORKFLOW.md)
+- [docs/reference/MODELING_ASSUMPTIONS.md](docs/reference/MODELING_ASSUMPTIONS.md)
+- [docs/agents/AI_AGENT_GUIDE.md](docs/agents/AI_AGENT_GUIDE.md)
+- [docs/agents/REVIEW.md](docs/agents/REVIEW.md)
 
 ## Como Retomar Rapidamente
 
 ```bash
-cd /workspace/2026/feat_seq_bigru_residual_cvae
+cd /home/rodrigo/cVAe_2026_mdn_return
 git status -sb
 git worktree list
 python scripts/analysis/summarize_experiment.py "$(ls -td outputs/exp_* | head -1)"
@@ -239,13 +271,13 @@ python scripts/analysis/summarize_experiment.py "$(ls -td outputs/exp_* | head -
 
 Depois disso, leia:
 
-1. [README.md](/workspace/2026/feat_seq_bigru_residual_cvae/README.md)
-2. [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_cvae/PROJECT_STATUS.md)
-3. [docs/active/WORKING_STATE.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/active/WORKING_STATE.md)
-4. [docs/reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/PROTOCOL.md)
+1. [README.md](README.md)
+2. [PROJECT_STATUS.md](PROJECT_STATUS.md)
+3. [docs/active/WORKING_STATE.md](docs/active/WORKING_STATE.md)
+4. [docs/reference/PROTOCOL.md](docs/reference/PROTOCOL.md)
 
 ## Arquivo Historico
 
 Tudo que deixou de ser documento vivo foi movido para:
 
-- [docs/archive/README.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/archive/README.md)
+- [docs/archive/README.md](docs/archive/README.md)

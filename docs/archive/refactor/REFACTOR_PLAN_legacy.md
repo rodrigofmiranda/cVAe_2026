@@ -16,9 +16,9 @@ O objetivo principal do plano foi concluído:
 
 ## Documento ativo que substitui este plano
 
-- [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_cvae/PROJECT_STATUS.md)
-- [TRAINING_PLAN.md](/workspace/2026/feat_seq_bigru_residual_cvae/TRAINING_PLAN.md)
-- [docs/reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/PROTOCOL.md)
+- [PROJECT_STATUS.md](../../../PROJECT_STATUS.md)
+- `TRAINING_PLAN.md` (historical root file, no longer present in the active tree)
+- [docs/reference/PROTOCOL.md](../../reference/PROTOCOL.md)
 
 ## Motivo do arquivamento
 

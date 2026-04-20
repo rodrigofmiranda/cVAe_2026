@@ -15,6 +15,9 @@ Start with these if you are arriving from GitHub or onboarding into the repo:
 
 These are especially relevant for the shared lab server:
 
+- [active/FULL_SQUARE_LINEAGE_TO_SHAPE.md](active/FULL_SQUARE_LINEAGE_TO_SHAPE.md) - single-document history of the `full_square` research line from traditional cVAE to `shape`, with a recommended simple-to-complex restart order for `full_circle`
+- [active/FULL_CIRCLE_NEXT_STEP.md](active/FULL_CIRCLE_NEXT_STEP.md) - why `shape` was a proxy, what `full_circle` now needs to prove, and the concrete next validation step
+- [active/FULL_CIRCLE_CLEAN_RUN_CHECKLIST.md](active/FULL_CIRCLE_CLEAN_RUN_CHECKLIST.md) - short operational checklist for the next clean `full_circle` validation run
 - [active/INFRA_GUIDE.md](active/INFRA_GUIDE.md) - SSH, users, Docker, tmux, Git LFS
 - [active/MULTI_PC_WORKFLOW.md](active/MULTI_PC_WORKFLOW.md) - worktree layout, two hot slots, and how to operate across PCs
 - [operations/DATASET_LFS_UPLOAD.md](operations/DATASET_LFS_UPLOAD.md) - standardized dataset import and upload flow for Git LFS

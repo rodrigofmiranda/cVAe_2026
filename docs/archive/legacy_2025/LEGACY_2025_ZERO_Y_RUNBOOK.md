@@ -20,7 +20,7 @@ Use this first to confirm that the legacy variant still trains end-to-end in
 the canonical training entrypoint.
 
 ```bash
-cd /workspace/2026/feat_seq_bigru_residual_cvae
+cd /home/rodrigo/cVAe_2026_mdn_return
 python -m src.training.train \
   --dataset_root data/dataset_fullsquare_organized \
   --output_base outputs \
@@ -47,7 +47,7 @@ Protocol:
 - protocol file: `configs/one_regime_1p0m_300mA_sel4curr.json`
 
 ```bash
-cd /workspace/2026/feat_seq_bigru_residual_cvae
+cd /home/rodrigo/cVAe_2026_mdn_return
 python -m src.protocol.run \
   --dataset_root data/dataset_fullsquare_organized \
   --output_base outputs \
@@ -83,8 +83,8 @@ Protocol:
 - larger search preset: `legacy2025_large`
 
 ```bash
-cd /workspace/2026/feat_seq_bigru_residual_cvae
-PYTHONPATH=/workspace/2026/feat_seq_bigru_residual_cvae python3.8 -u -m src.protocol.run \
+cd /home/rodrigo/cVAe_2026_mdn_return
+PYTHONPATH=/home/rodrigo/cVAe_2026_mdn_return python3.8 -u -m src.protocol.run \
   --dataset_root data/dataset_fullsquare_organized \
   --output_base outputs \
   --protocol configs/one_regime_1p0m_300mA_sel4curr.json \
@@ -121,7 +121,7 @@ Reasoning:
   `lr=1e-4`, `batch_size=4096`, `dropout=0.0`, `kl_anneal_epochs=50`,
   `free_bits=0.0`.
 - For batch-size scaling around that same reference config, use the dedicated
-  protocol in [LEGACY_2025_BATCHSIZE_PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/archive/legacy_2025/LEGACY_2025_BATCHSIZE_PROTOCOL.md).
+  protocol in [LEGACY_2025_BATCHSIZE_PROTOCOL.md](LEGACY_2025_BATCHSIZE_PROTOCOL.md).
 - For this variant, latent diagnostics intentionally report `KL(q||p)` as
   `n/a`, because the port uses `KL(q||N(0,I))` rather than a learned
   conditional prior.

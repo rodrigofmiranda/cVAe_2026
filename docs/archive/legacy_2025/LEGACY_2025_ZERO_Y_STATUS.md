@@ -25,7 +25,7 @@ Current status of the experimental `arch_variant="legacy_2025_zero_y"` in the
 
 This run is invalid as scientific reference:
 
-- `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_190337`
+- historical run: `exp_20260318_190337` from removed worktree `feat_delta_residual_adv`
 
 Reason:
 
@@ -40,9 +40,9 @@ Observed bad normalization in the invalid run:
 
 The bug was fixed in:
 
-- `/workspace/2026/feat_seq_bigru_residual_cvae/src/data/loading.py`
-- `/workspace/2026/feat_seq_bigru_residual_cvae/src/training/pipeline.py`
-- `/workspace/2026/feat_seq_bigru_residual_cvae/tests/test_data_reduction_alignment.py`
+- [src/data/loading.py](../../../src/data/loading.py)
+- [src/training/pipeline.py](../../../src/training/pipeline.py)
+- [tests/test_data_reduction_alignment.py](../../../tests/test_data_reduction_alignment.py)
 
 Post-fix spot-check on the intended 12-group reduced subset:
 
@@ -55,7 +55,7 @@ Post-fix spot-check on the intended 12-group reduced subset:
 ### Reduced 4-current pivot benchmark
 
 - valid reference run:
-  - `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_193036`
+  - historical run: `exp_20260318_193036`
 - protocol:
   - `configs/one_regime_1p0m_300mA_sel4curr.json`
 - architecture:
@@ -71,15 +71,15 @@ Post-fix spot-check on the intended 12-group reduced subset:
 
 The batch-size sweep results are recorded in:
 
-- `/workspace/2026/feat_seq_bigru_residual_cvae/docs/LEGACY_2025_BATCHSIZE_RESULTS.md`
+- [LEGACY_2025_BATCHSIZE_RESULTS.md](LEGACY_2025_BATCHSIZE_RESULTS.md)
 
 Key runs:
 
 - accepted ceiling:
-  - `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_195010`
+  - historical run: `exp_20260318_195010`
   - `batch_size = 8192`
 - rejected escalation:
-  - `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_195709`
+  - historical run: `exp_20260318_195709`
   - `batch_size = 16384`
 
 Current operational conclusion:
@@ -91,9 +91,9 @@ Current operational conclusion:
 Scientific screening currently running:
 
 - run:
-  - `/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_204208`
+  - historical run: `exp_20260318_204208`
 - launch log:
-  - `/workspace/2026/feat_delta_residual_adv/outputs/legacy2025_large_sel4curr.launch.log`
+  - `legacy2025_large_sel4curr.launch.log`
 - mode:
   - `train_once_eval_all`
 - protocol:
@@ -140,7 +140,7 @@ while the rest of the workspace output footprint was reduced substantially.
 
 Wait for the current large reduced-data sweep to finish, then compare the
 top-ranked candidates against the valid reference run
-`/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_193036`.
+`exp_20260318_193036`.
 
 Primary comparison columns:
 

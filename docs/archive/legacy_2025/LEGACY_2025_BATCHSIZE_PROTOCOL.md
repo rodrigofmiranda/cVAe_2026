@@ -28,7 +28,7 @@ Keep these fixed for every run:
 - architecture: `layer_sizes=[32,64,128,256]`, `latent_dim=16`
 - loss settings: `beta=0.1`, `free_bits=0.0`, `kl_anneal_epochs=50`
 - optimizer: `lr=1e-4`
-- data subset: [one_regime_1p0m_300mA_sel4curr.json](/workspace/2026/feat_seq_bigru_residual_cvae/configs/one_regime_1p0m_300mA_sel4curr.json)
+- data subset: [one_regime_1p0m_300mA_sel4curr.json](../../../configs/one_regime_1p0m_300mA_sel4curr.json)
 - train reduction: default `balanced_blocks` with target `200k` samples/experiment
 - protocol mode: `--train_once_eval_all`
 - statistical suite: `--stat_tests --stat_mode quick`
@@ -64,8 +64,8 @@ That yields one fully evaluated protocol run per batch size.
 Reference run first:
 
 ```bash
-cd /workspace/2026/feat_seq_bigru_residual_cvae
-PYTHONPATH=/workspace/2026/feat_seq_bigru_residual_cvae python3.8 -u -m src.protocol.run \
+cd /home/rodrigo/cVAe_2026_mdn_return
+PYTHONPATH=/home/rodrigo/cVAe_2026_mdn_return python3.8 -u -m src.protocol.run \
   --dataset_root data/dataset_fullsquare_organized \
   --output_base outputs \
   --protocol configs/one_regime_1p0m_300mA_sel4curr.json \
@@ -84,9 +84,9 @@ PYTHONPATH=/workspace/2026/feat_seq_bigru_residual_cvae python3.8 -u -m src.prot
 Then escalate one step at a time:
 
 ```bash
-cd /workspace/2026/feat_seq_bigru_residual_cvae
+cd /home/rodrigo/cVAe_2026_mdn_return
 for bs in 8192 16384 32768 65536; do
-  PYTHONPATH=/workspace/2026/feat_seq_bigru_residual_cvae python3.8 -u -m src.protocol.run \
+  PYTHONPATH=/home/rodrigo/cVAe_2026_mdn_return python3.8 -u -m src.protocol.run \
     --dataset_root data/dataset_fullsquare_organized \
     --output_base outputs \
     --protocol configs/one_regime_1p0m_300mA_sel4curr.json \
@@ -166,7 +166,7 @@ passing value as the operational ceiling.
 
 The corrected reference-style legacy run is:
 
-- [exp_20260318_193036](/workspace/2026/feat_delta_residual_adv/outputs/exp_20260318_193036)
+- `exp_20260318_193036`
 
 Useful reference values from that run:
 

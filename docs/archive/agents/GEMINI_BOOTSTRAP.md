@@ -6,7 +6,7 @@ Bootstrap curto para entregar contexto a outra IA sem despejar todo o historico.
 
 Atualize estes campos antes de reutilizar o arquivo:
 
-- repo: `/workspace/2026/feat_seq_bigru_residual_cvae`
+- repo: `/home/rodrigo/cVAe_2026_mdn_return`
 - branch: `feat/channel-residual-architecture`
 - commit: `eaef7f0`
 - worktree: limpa
@@ -22,10 +22,10 @@ Atualize estes campos antes de reutilizar o arquivo:
 Leia nesta ordem:
 
 1. `PROJECT_STATUS.md`
-2. `TRAINING_PLAN.md`
+2. `docs/archive/active/TRAINING_PLAN_legacy.md`
 3. `README.md`
-4. `docs/PROTOCOL.md`
-5. `docs/DIAGNOSTIC_CHECKLIST.md`
+4. `docs/reference/PROTOCOL.md`
+5. `docs/archive/reference/DIAGNOSTIC_CHECKLIST.md`
 
 ## 3. Objetivo do projeto
 

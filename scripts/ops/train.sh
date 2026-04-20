@@ -12,7 +12,8 @@ export PYTHONPATH="$REPO_ROOT"
 python -u -m src.protocol.run \
     --dataset_root "$DATASET_ROOT" \
     --output_base  "$OUTPUT_BASE" \
-    --train_once_eval_all
+    --train_once_eval_all \
+    "$@"
 
 # --- Smoke-test examples (uncomment to use) ---
 # python -u -m src.protocol.run \

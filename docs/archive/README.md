@@ -6,7 +6,7 @@ Archived docs are kept for traceability, not as active execution guides.
 
 - `agents/`
   Secondary-AI handoff material replaced by the active
-  [AI_AGENT_GUIDE.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/agents/AI_AGENT_GUIDE.md)
+  [AI_AGENT_GUIDE.md](../agents/AI_AGENT_GUIDE.md)
 - `branching/`
   Old branch-planning notes that no longer match the unified worktree
 - `ideas/`
@@ -21,4 +21,4 @@ Archived docs are kept for traceability, not as active execution guides.
 ## Rule
 
 If a task depends on an archived doc, compare it first against the active map in
-[docs/README.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/README.md).
+[docs/README.md](../README.md).

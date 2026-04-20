@@ -12,6 +12,6 @@ Typical reasons a script ends up here:
 
 Before reviving one of these scripts, compare it against:
 
-- `/workspace/2026/feat_seq_bigru_residual_cvae/scripts/README.md`
-- `/workspace/2026/feat_seq_bigru_residual_cvae/PROJECT_STATUS.md`
-- `/workspace/2026/feat_seq_bigru_residual_cvae/docs/active/WORKING_STATE.md`
+- `../README.md`
+- `../../PROJECT_STATUS.md`
+- `../../docs/active/WORKING_STATE.md`

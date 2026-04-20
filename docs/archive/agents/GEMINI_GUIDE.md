@@ -2,7 +2,7 @@
 
 Shared project context now lives in:
 
-- [AI_AGENT_GUIDE.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/agents/AI_AGENT_GUIDE.md)
+- [AI_AGENT_GUIDE.md](../../agents/AI_AGENT_GUIDE.md)
 
 This file remains only as a Gemini-oriented wrapper plus prompt templates.
 
@@ -16,7 +16,7 @@ It supersedes the archived notes in:
 
 Ask Gemini to read:
 
-1. [docs/agents/AI_AGENT_GUIDE.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/agents/AI_AGENT_GUIDE.md)
+1. [docs/agents/AI_AGENT_GUIDE.md](../../agents/AI_AGENT_GUIDE.md)
 2. one task-specific doc if needed
 
 ## Bootstrap Template

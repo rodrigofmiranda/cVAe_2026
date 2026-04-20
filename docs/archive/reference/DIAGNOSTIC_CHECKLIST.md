@@ -6,16 +6,16 @@ Checklist executavel para diagnosticar o twin cVAE no regime pivo e decidir entr
 - ajuste de hiperparametros
 - mudanca estrutural do modelo
 
-Este documento operacionaliza o [TRAINING_PLAN.md](/workspace/2026/feat_seq_bigru_residual_cvae/TRAINING_PLAN.md).
+Este documento operacionaliza o [TRAINING_PLAN_legacy.md](../active/TRAINING_PLAN_legacy.md).
 
 ## 1. Pre-condicoes
 
-- Estar em `/workspace/2026/feat_seq_bigru_residual_cvae`
+- Estar em `/home/rodrigo/cVAe_2026_mdn_return`
 - Dataset acessivel em `data/dataset_fullsquare_organized`
 - Branch e worktree conferidos:
 
 ```bash
-cd /workspace/2026/feat_seq_bigru_residual_cvae
+cd /home/rodrigo/cVAe_2026_mdn_return
 git status -sb
 git log --oneline -3
 ```
@@ -25,7 +25,7 @@ git log --oneline -3
 Use estas variaveis para evitar erro manual:
 
 ```bash
-cd /workspace/2026/feat_seq_bigru_residual_cvae
+cd /home/rodrigo/cVAe_2026_mdn_return
 
 export DATASET_ROOT=data/dataset_fullsquare_organized
 export OUTPUT_BASE=outputs

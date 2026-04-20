@@ -5,21 +5,21 @@ um PC sem misturar branch, outputs, `tmux` ou containers.
 
 Use este guia junto com:
 
-- [INFRA_GUIDE.md](/home/rodrigo/cVAe_2026_mdn_explore/docs/active/INFRA_GUIDE.md)
-- [switch_slot2.sh](/home/rodrigo/cVAe_2026_mdn_explore/scripts/ops/switch_slot2.sh)
+- [INFRA_GUIDE.md](INFRA_GUIDE.md)
+- [switch_slot2.sh](../../scripts/ops/switch_slot2.sh)
 
 ## 1. Objetivo
 
 Queremos quatro linhas registradas:
 
-- `mdn-anchor`
+- `mdn-return`
 - `mdn-explore`
 - `shape`
 - `legacy2025`
 
 Mas apenas dois slots quentes por maquina:
 
-- slot fixo: `anchor`
+- slot fixo: `return`
 - slot rotativo: `explore` ou `shape` ou `legacy2025`
 
 ## 2. Layout canonico
@@ -30,9 +30,9 @@ No host do Rodrigo, o layout padrao e este:
   - `/home/rodrigo/cVAe_2026`
   - mantido em `detached HEAD`
   - nao usar para trabalho diario
-- worktree `mdn-anchor`:
-  - `/home/rodrigo/cVAe_2026_mdn_anchor`
-  - branch `feat/mdn-g5-recovery`
+- worktree `mdn-return`:
+  - `/home/rodrigo/cVAe_2026_mdn_return`
+  - branch `research/mdn-return-20260416`
 - worktree `mdn-explore`:
   - `/home/rodrigo/cVAe_2026_mdn_explore`
   - branch `feat/mdn-g5-recovery-explore-remote`
@@ -45,14 +45,14 @@ No host do Rodrigo, o layout padrao e este:
 
 Slots quentes:
 
-- `anchor` -> container `cvae_anchor`
+- `return` -> container `cvae_return`
 - `explore` -> container `cvae_explore`
 - `shape` -> container `cvae_shape`
 - `legacy2025` -> container `cvae_legacy2025`
 
 Observacao:
 
-- `anchor` deve permanecer ligado quando a linha MDN for a referencia ativa
+- `return` deve permanecer ligado quando a linha MDN return for a referencia ativa
 - o segundo slot gira conforme a hipotese da vez
 
 ## 3. Regras De Organizacao
@@ -74,7 +74,7 @@ Observacao:
 
 ## 4. Quando Usar Cada Linha
 
-- `mdn-anchor`:
+- `mdn-return`:
   - reproducao
   - comparacao com a melhor linha estavel
   - reruns serios
@@ -103,7 +103,7 @@ Criar os worktrees:
 
 ```bash
 git -C /home/rodrigo/cVAe_2026 worktree add /home/rodrigo/cVAe_2026_mdn_explore feat/mdn-g5-recovery-explore-remote
-git -C /home/rodrigo/cVAe_2026 worktree add /home/rodrigo/cVAe_2026_mdn_anchor feat/mdn-g5-recovery
+git -C /home/rodrigo/cVAe_2026 worktree add /home/rodrigo/cVAe_2026_mdn_return research/mdn-return-20260416
 git -C /home/rodrigo/cVAe_2026 worktree add /home/rodrigo/cVAe_2026_shape feat/probabilistic-shaping-nonlinearity
 git -C /home/rodrigo/cVAe_2026 worktree add -b feat/pointwise-2025-revival /home/rodrigo/cVAe_2026_legacy2025 origin/feat/pointwise-2025-revival
 ```
@@ -111,9 +111,9 @@ git -C /home/rodrigo/cVAe_2026 worktree add -b feat/pointwise-2025-revival /home
 Subir os dois slots padrao:
 
 ```bash
-CVAE_TF25_TMUX_SESSION=anchor \
-CVAE_TF25_CONTAINER_NAME=cvae_anchor \
-bash /home/rodrigo/cVAe_2026_mdn_anchor/scripts/ops/run_tf25_gpu.sh
+CVAE_TF25_TMUX_SESSION=return \
+CVAE_TF25_CONTAINER_NAME=cvae_return \
+bash /home/rodrigo/cVAe_2026_mdn_return/scripts/ops/run_tf25_gpu.sh
 
 CVAE_TF25_TMUX_SESSION=explore \
 CVAE_TF25_CONTAINER_NAME=cvae_explore \
@@ -131,7 +131,7 @@ git -C /home/rodrigo/cVAe_2026 fetch --all --prune
 Atualizar os quatro worktrees:
 
 ```bash
-git -C /home/rodrigo/cVAe_2026_mdn_anchor pull --ff-only
+git -C /home/rodrigo/cVAe_2026_mdn_return pull --ff-only
 git -C /home/rodrigo/cVAe_2026_mdn_explore pull --ff-only
 git -C /home/rodrigo/cVAe_2026_shape pull --ff-only
 git -C /home/rodrigo/cVAe_2026_legacy2025 pull --ff-only
@@ -151,17 +151,17 @@ Se quiser conferir o estado dos slots:
 
 ## 7. Girar O Segundo Slot
 
-O `anchor` fica como referencia fixa. O segundo slot e trocado pelo script:
+O `return` fica como referencia fixa. O segundo slot e trocado pelo script:
 
 ```bash
-/home/rodrigo/cVAe_2026_mdn_explore/scripts/ops/switch_slot2.sh explore
-/home/rodrigo/cVAe_2026_mdn_explore/scripts/ops/switch_slot2.sh shape
-/home/rodrigo/cVAe_2026_mdn_explore/scripts/ops/switch_slot2.sh legacy2025
+/home/rodrigo/cVAe_2026_mdn_return/scripts/ops/switch_slot2.sh explore
+/home/rodrigo/cVAe_2026_mdn_return/scripts/ops/switch_slot2.sh shape
+/home/rodrigo/cVAe_2026_mdn_return/scripts/ops/switch_slot2.sh legacy2025
 ```
 
 O script:
 
-- preserva `anchor`
+- preserva `return`
 - derruba qualquer slot rotativo antigo
 - sobe o novo `tmux` + container com nomes canonicos
 
@@ -191,9 +191,9 @@ Antes de iniciar um treino novo:
 ```bash
 hostname
 git -C /home/rodrigo/cVAe_2026_mdn_explore fetch --all --prune
-git -C /home/rodrigo/cVAe_2026_mdn_anchor status -sb
+git -C /home/rodrigo/cVAe_2026_mdn_return status -sb
 git -C /home/rodrigo/cVAe_2026_mdn_explore status -sb
-/home/rodrigo/cVAe_2026_mdn_explore/scripts/ops/switch_slot2.sh status
+/home/rodrigo/cVAe_2026_mdn_return/scripts/ops/switch_slot2.sh status
 tmux ls
 docker ps
 ```
@@ -209,7 +209,7 @@ E confirme:
 
 Se a duvida for entre simplicidade e paralelismo, prefira simplicidade:
 
-- `anchor` sempre previsivel
+- `return` sempre previsivel
 - apenas um segundo slot rotativo por maquina
 - worktree nomeado para cada linha cientifica
 - `outputs` tratados como locais, a menos que sejam copiados de forma explicita

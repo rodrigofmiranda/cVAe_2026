@@ -17,11 +17,11 @@ to inspect the external PDF tooling or the local paper index.
 
 Recommended Claude Code integration:
 
-- load this plan through the project memory file [CLAUDE.md](/workspace/2026/feat_seq_bigru_residual_cvae/CLAUDE.md)
-- keep review-only criteria in [REVIEW.md](/workspace/2026/feat_seq_bigru_residual_cvae/REVIEW.md)
-- use shared project settings in [.claude/settings.json](/workspace/2026/feat_seq_bigru_residual_cvae/.claude/settings.json)
+- load this plan through the project memory file [CLAUDE.md](../../../CLAUDE.md)
+- keep review-only criteria in [REVIEW.md](../../agents/REVIEW.md)
+- use shared project settings in [.claude/settings.json](../../../.claude/settings.json)
   so Claude starts in Plan Mode for this branch by default
-- use path-scoped rules in [.claude/rules/seq-invariants.md](/workspace/2026/feat_seq_bigru_residual_cvae/.claude/rules/seq-invariants.md)
+- use path-scoped rules in [.claude/rules/seq-invariants.md](../../../.claude/rules/seq-invariants.md)
   so the key invariants load when Claude works in `src/`, `tests/`, and related files
 - use reusable project skills:
   - `/seq-bigru-kickoff [phase-or-focus]`
@@ -45,7 +45,7 @@ Keep the always-loaded project memory concise in `CLAUDE.md`.
 
 Use Claude Code with this project in this order:
 
-1. launch from `/workspace/2026/feat_seq_bigru_residual_cvae`
+1. launch from `/home/rodrigo/cVAe_2026_mdn_return`
 2. confirm loaded memory with `/memory`
 3. keep the session in Plan Mode while doing Phase 0 and planning the next code change
 4. use `/rename` early so the session can be resumed later
@@ -86,18 +86,18 @@ The current cVAE architecture state before this new project is:
 
 Read these files in this exact order before making changes:
 
-1. [PROJECT_STATUS.md](/workspace/2026/feat_seq_bigru_residual_cvae/PROJECT_STATUS.md)
-2. [TRAINING_PLAN.md](/workspace/2026/feat_seq_bigru_residual_cvae/TRAINING_PLAN.md)
-3. [docs/reference/PROTOCOL.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/reference/PROTOCOL.md)
-4. [src/models/cvae.py](/workspace/2026/feat_seq_bigru_residual_cvae/src/models/cvae.py)
-5. [src/data/loading.py](/workspace/2026/feat_seq_bigru_residual_cvae/src/data/loading.py)
-6. [src/protocol/split_strategies.py](/workspace/2026/feat_seq_bigru_residual_cvae/src/protocol/split_strategies.py)
-7. [src/training/pipeline.py](/workspace/2026/feat_seq_bigru_residual_cvae/src/training/pipeline.py)
-8. [src/training/grid_plan.py](/workspace/2026/feat_seq_bigru_residual_cvae/src/training/grid_plan.py)
-9. [src/config/defaults.py](/workspace/2026/feat_seq_bigru_residual_cvae/src/config/defaults.py)
-10. [src/config/schema.py](/workspace/2026/feat_seq_bigru_residual_cvae/src/config/schema.py)
-11. [src/protocol/run.py](/workspace/2026/feat_seq_bigru_residual_cvae/src/protocol/run.py)
-12. [src/evaluation/engine.py](/workspace/2026/feat_seq_bigru_residual_cvae/src/evaluation/engine.py)
+1. [PROJECT_STATUS.md](../../../PROJECT_STATUS.md)
+2. [TRAINING_PLAN_legacy.md](../active/TRAINING_PLAN_legacy.md)
+3. [docs/reference/PROTOCOL.md](../../reference/PROTOCOL.md)
+4. [src/models/cvae.py](../../../src/models/cvae.py)
+5. [src/data/loading.py](../../../src/data/loading.py)
+6. [src/protocol/split_strategies.py](../../../src/protocol/split_strategies.py)
+7. [src/training/pipeline.py](../../../src/training/pipeline.py)
+8. [src/training/grid_plan.py](../../../src/training/grid_plan.py)
+9. [src/config/defaults.py](../../../src/config/defaults.py)
+10. [src/config/schema.py](../../../src/config/schema.py)
+11. [src/protocol/run.py](../../../src/protocol/run.py)
+12. [src/evaluation/engine.py](../../../src/evaluation/engine.py)
 
 After that, inspect the two final validation experiments:
 
@@ -208,7 +208,7 @@ Do not violate these rules:
 This is the subset of the repo that matters for this architecture project:
 
 ```text
-/workspace/2026/feat_seq_bigru_residual_cvae
+/home/rodrigo/cVAe_2026_mdn_return
 ├── src/
 │   ├── config/
 │   │   ├── defaults.py
@@ -239,21 +239,21 @@ This is the subset of the repo that matters for this architecture project:
 
 Expected write scope for this project:
 
-- [src/config/defaults.py](/workspace/2026/feat_seq_bigru_residual_cvae/src/config/defaults.py)
-- [src/config/schema.py](/workspace/2026/feat_seq_bigru_residual_cvae/src/config/schema.py)
-- [src/models/cvae.py](/workspace/2026/feat_seq_bigru_residual_cvae/src/models/cvae.py)
-- new file recommended: [src/models/cvae_sequence.py](/workspace/2026/feat_seq_bigru_residual_cvae/src/models/cvae_sequence.py)
-- new file recommended: [src/data/windowing.py](/workspace/2026/feat_seq_bigru_residual_cvae/src/data/windowing.py)
-- [src/training/pipeline.py](/workspace/2026/feat_seq_bigru_residual_cvae/src/training/pipeline.py)
-- [src/training/grid_plan.py](/workspace/2026/feat_seq_bigru_residual_cvae/src/training/grid_plan.py)
-- [src/evaluation/engine.py](/workspace/2026/feat_seq_bigru_residual_cvae/src/evaluation/engine.py)
-- [src/protocol/run.py](/workspace/2026/feat_seq_bigru_residual_cvae/src/protocol/run.py)
-- tests to add under `/workspace/2026/feat_seq_bigru_residual_cvae/tests/`
+- [src/config/defaults.py](../../../src/config/defaults.py)
+- [src/config/schema.py](../../../src/config/schema.py)
+- [src/models/cvae.py](../../../src/models/cvae.py)
+- new file recommended: [src/models/cvae_sequence.py](../../../src/models/cvae_sequence.py)
+- new file recommended: [src/data/windowing.py](../../../src/data/windowing.py)
+- [src/training/pipeline.py](../../../src/training/pipeline.py)
+- [src/training/grid_plan.py](../../../src/training/grid_plan.py)
+- [src/evaluation/engine.py](../../../src/evaluation/engine.py)
+- [src/protocol/run.py](../../../src/protocol/run.py)
+- tests to add under `/home/rodrigo/cVAe_2026_mdn_return/tests/`
 
 Files to read but preferably avoid editing unless necessary:
 
-- [src/data/loading.py](/workspace/2026/feat_seq_bigru_residual_cvae/src/data/loading.py)
-- [src/protocol/split_strategies.py](/workspace/2026/feat_seq_bigru_residual_cvae/src/protocol/split_strategies.py)
+- [src/data/loading.py](../../../src/data/loading.py)
+- [src/protocol/split_strategies.py](../../../src/protocol/split_strategies.py)
 
 Files not in scope:
 
@@ -645,14 +645,14 @@ Recommended first model settings:
 ### Quick tests
 
 ```bash
-cd /workspace/2026/feat_seq_bigru_residual_cvae
+cd /home/rodrigo/cVAe_2026_mdn_return
 python -m pytest tests -q
 ```
 
 ### Targeted smoke train
 
 ```bash
-cd /workspace/2026/feat_seq_bigru_residual_cvae
+cd /home/rodrigo/cVAe_2026_mdn_return
 python -m src.training.train \
   --dataset_root data/dataset_fullsquare_organized \
   --output_base outputs \
@@ -668,7 +668,7 @@ python -m src.training.train \
 ### Reduced 12-regime protocol smoke
 
 ```bash
-cd /workspace/2026/feat_seq_bigru_residual_cvae
+cd /home/rodrigo/cVAe_2026_mdn_return
 python -m src.protocol.run \
   --dataset_root data/dataset_fullsquare_organized \
   --output_base outputs \
@@ -684,7 +684,7 @@ python -m src.protocol.run \
 ### Small global exploratory run
 
 ```bash
-cd /workspace/2026/feat_seq_bigru_residual_cvae
+cd /home/rodrigo/cVAe_2026_mdn_return
 python -m src.training.train \
   --dataset_root data/dataset_fullsquare_organized \
   --output_base outputs \

@@ -9,16 +9,16 @@ the project, do not start by guessing from the branch names alone.
 | Branch | Audience | Recommendation |
 |---|---|---|
 | `main` | visitors arriving from GitHub | start here for the public landing page |
-| `feat/mdn-g5-recovery-explore-remote` | active collaborators | best branch to copy if you want the latest coordinated remote work |
+| `research/mdn-return-20260416` | active collaborators | best branch to copy if you want the latest coordinated MDN return work |
 | `release/cvae-online` | readers who want a release-style snapshot | use when you want something more conservative than the active research branch |
 
 ## How To Copy The Current Active Work
 
 ```bash
 git clone https://github.com/rodrigofmiranda/cVAe_2026.git
-cd cVAe_2026
+cd cVAe_2026_mdn_return
 git fetch --all --prune
-git switch feat/mdn-g5-recovery-explore-remote
+git switch research/mdn-return-20260416
 git lfs install --local
 git lfs pull
 ```
@@ -47,7 +47,7 @@ If you are using the shared lab server, continue with
 | `feat/delta-residual-adv` | residual-target and adversarial-era experiments | use mainly for historical comparison or targeted recovery of that line |
 | `feat/imdd-graybox-channel` | gray-box IM/DD channel line | use if your work is about the IM/DD gray-box formulation |
 | `feat/mdn-g5-recovery` | core MDN G5 recovery line | use to inspect the main recovery direction that led into the current remote branch |
-| `feat/mdn-g5-recovery-explore-remote` | current coordinated remote line | best default branch for active collaboration right now |
+| `research/mdn-return-20260416` | current coordinated MDN return line | best default branch for active collaboration right now |
 | `feat/mdn-g5-recovery-run` | run-oriented companion branch for the MDN recovery line | use only if you specifically need that run snapshot/history |
 | `feat/sample-aware-mmd` | sample-aware MMD research line | use only if you are revisiting that loss family |
 | `feat/sample-aware-mmd-gpu` | GPU-oriented continuation of sample-aware MMD | use only for reproducing that GPU-specific branch |
@@ -72,7 +72,7 @@ If you want to understand the project first:
 If you want to copy the work that the team is actively extending:
 
 1. clone the repository
-2. switch to `feat/mdn-g5-recovery-explore-remote`
+2. switch to `research/mdn-return-20260416`
 3. run `git lfs pull`
 4. if you are on the shared server, follow [active/INFRA_GUIDE.md](active/INFRA_GUIDE.md)
 
