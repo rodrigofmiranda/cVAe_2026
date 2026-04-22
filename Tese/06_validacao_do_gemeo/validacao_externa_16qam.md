@@ -13,6 +13,7 @@ fina ainda pode crescer em versões futuras desta camada.
 ## Fontes canônicas usadas
 
 - [digital_twin_validation_foundation_table](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/digital_twin_validation_foundation_table_2026-04-11.md)
+- [full_circle_soft_radial_master_table](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/full_circle_soft_radial_master_table_2026-04-22.md)
 - [FULL_CIRCLE_VALIDATION_CHECKLIST](/home/rodrigo/cVAe_2026_shape_fullcircle/docs/active/FULL_CIRCLE_VALIDATION_CHECKLIST.md)
 - [DATASET_LFS_UPLOAD](/home/rodrigo/cVAe_2026_mdn_return/docs/operations/DATASET_LFS_UPLOAD.md)
 - [dataset 16QAM no shape repo](/home/rodrigo/cVAe_2026_shape/data/16qam)
@@ -44,20 +45,25 @@ Mas ele não deve ser tratado como:
 
 - o papel metodológico de `16QAM` já está reconhecido
 - os dados existem e estão organizados
-- a tese ainda precisa de um catálogo numérico consolidado dessa validação em
-  uma página própria de resultados
-- a comparação executada até agora ficou concentrada na linha `full_square`
-  (`E0`, `E2`, `E3c`), sem fechamento equivalente para `full_circle`
+- a comparação crossline entre `full_square`, `full_circle clean` e
+  `full_circle geometry-biased` já foi consolidada
+- a principal ampliação ainda em aberto é adicionar o melhor representante
+  `full_circle` geometry-light a essa mesma rodada externa
 
 ## Linhas já comparadas com 16QAM
 
-Até o momento, a validação externa em `16QAM` foi realizada de forma efetiva na
-linha `full_square/shape`, com os artefatos organizados em
-[eval_16qam_sel4curr_review](/home/rodrigo/cVAe_2026_shape/outputs/analysis/eval_16qam_sel4curr_review/README.md).
+Até o momento, a validação externa em `16QAM` foi realizada de forma efetiva em
+duas camadas:
 
-As linhas `full_circle` já tinham previsão metodológica explícita dessa etapa,
-mas ainda não possuíam um pacote equivalente de artefatos executados para
-comparação direta com `full_square`.
+- na linha `full_square/shape`, com os artefatos organizados em
+  [eval_16qam_sel4curr_review](/home/rodrigo/cVAe_2026_shape/outputs/analysis/eval_16qam_sel4curr_review/README.md)
+- na rodada comparativa crossline `full_square` versus `full_circle clean`
+  versus `full_circle geometry-biased`, consolidada em
+  `eval_16qam_crossline_20260420_clean`
+
+O passo ainda pendente, se quisermos uma leitura externa mais completa de
+`full_circle`, é incluir o representante `geometry-light` fechado depois na
+linha `soft-radial`.
 
 ## Rodada comparativa full_square vs full_circle
 
@@ -83,6 +89,17 @@ Foram escolhidos três representantes, um da linha `full_square` e dois da linha
 | `full_square` | `S27cov_sciv1_lr0p00015` | melhor representante atual da linha `shape/full_square` | [protocol_leaderboard full_square](/home/rodrigo/cVAe_2026_shape/outputs/support_ablation/final_grid/e2_finalists_shortlist/exp_20260414_131231/tables/protocol_leaderboard.csv) |
 | `full_circle clean` | `S27cov_fc_clean_lc0p25_t0p03_lat10` | baseline científica limpa, sem viés geométrico explícito | [protocol_leaderboard full_circle clean](/home/rodrigo/cVAe_2026_shape_fullcircle/outputs/full_circle/20260417_115140_clean_bs8192_lat10_100k_split_b/exp_20260417_115142/tables/protocol_leaderboard.csv) |
 | `full_circle geometry-biased` | `S27cov_lc0p25_tail95_t0p03_disk_geom3_bs8192` | linha operacional que favorece a hipótese geométrica circular | [protocol_leaderboard full_circle disk](/home/rodrigo/cVAe_2026_shape_fullcircle/outputs/full_circle/disk_bs8192_lat10_100k_split_a/exp_20260416_165643/tables/protocol_leaderboard.csv) |
+
+Leitura atualizada após o fechamento do `soft-radial`:
+
+- o melhor representante `full_circle` geometry-light passou a ser
+  `S27cov_fc_soft_rinf_local_lat10_a1p50_tau0p80_wmax3p0`, com `6/12` no
+  protocolo principal
+- ele ainda nao faz parte da rodada comparativa `16QAM` consolidada em
+  `2026-04-20`
+- se a tese pedir uma extensao dessa comparacao externa, este e o candidato
+  correto para entrar como quarto braco, e nao `covsoft`, `tail98` ou o
+  variante `bs8192`
 
 ### Regimes avaliados
 
