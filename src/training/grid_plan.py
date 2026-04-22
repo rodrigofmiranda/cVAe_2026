@@ -5320,6 +5320,129 @@ def _preset_support_full_circle_clean_bs8192_lat10_v1() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_support_full_circle_soft_radial_v1() -> List[Dict[str, Any]]:
+    """Soft-radial Full Circle screen without cornerness or hard disk filtering.
+
+    Scientific intent:
+    - keep the clean Full Circle contract as the reference point
+    - test only soft radial reweighting through ``edge_rinf``
+    - avoid both corner-aware descriptors (``geom3``) and hard ``disk_l2`` masking
+
+    Structure:
+    - Block A: localize a promising soft-radial family
+    - Block B: orthogonal probes around the best localized family
+    """
+    base_clean = dict(
+        support_weight_mode="none",
+        support_feature_mode="none",
+        support_filter_mode="none",
+        latent_dim=10,
+    )
+    base_soft = dict(
+        support_weight_mode="edge_rinf",
+        support_feature_mode="none",
+        support_filter_mode="none",
+        latent_dim=10,
+    )
+    return [
+        dict(
+            group="E7_full_circle_soft_radial",
+            tag="S27cov_fc_soft_ctrl_clean_lat10",
+            cfg=_support_seq_anchor_cfg(
+                **base_clean,
+            ),
+        ),
+        dict(
+            group="E7_full_circle_soft_radial",
+            tag="S27cov_fc_soft_rinf_broad_lat10_a1p25_tau0p70_wmax2p8",
+            cfg=_support_seq_anchor_cfg(
+                support_weight_alpha=1.25,
+                support_weight_tau=0.70,
+                support_weight_max=2.8,
+                **base_soft,
+            ),
+        ),
+        dict(
+            group="E7_full_circle_soft_radial",
+            tag="S27cov_fc_soft_rinf_local_lat10_a1p50_tau0p80_wmax3p0",
+            cfg=_support_seq_anchor_cfg(
+                support_weight_alpha=1.50,
+                support_weight_tau=0.80,
+                support_weight_max=3.0,
+                **base_soft,
+            ),
+        ),
+        dict(
+            group="E7_full_circle_soft_radial",
+            tag="S27cov_fc_soft_rinf_tight_lat10_a1p75_tau0p82_wmax3p2",
+            cfg=_support_seq_anchor_cfg(
+                support_weight_alpha=1.75,
+                support_weight_tau=0.82,
+                support_weight_max=3.2,
+                **base_soft,
+            ),
+        ),
+        dict(
+            group="E7_full_circle_soft_radial",
+            tag="S27cov_fc_soft_rinf_local_lat10_a1p50_tau0p80_wmax3p0_bs8192",
+            cfg=_support_seq_anchor_cfg(
+                batch_size=8192,
+                support_weight_alpha=1.50,
+                support_weight_tau=0.80,
+                support_weight_max=3.0,
+                **base_soft,
+            ),
+        ),
+        dict(
+            group="E7_full_circle_soft_radial",
+            tag="S27cov_fc_soft_rinf_local_lat10_a1p50_tau0p80_wmax3p0_covsoft_lc0p20_t0p035",
+            cfg=_support_seq_anchor_cfg(
+                lambda_coverage=0.20,
+                coverage_temperature=0.035,
+                support_weight_alpha=1.50,
+                support_weight_tau=0.80,
+                support_weight_max=3.0,
+                **base_soft,
+            ),
+        ),
+        dict(
+            group="E7_full_circle_soft_radial",
+            tag="S27cov_fc_soft_rinf_local_lat10_a1p50_tau0p80_wmax3p0_tail98",
+            cfg=_support_seq_anchor_cfg(
+                tail_levels=[0.02, 0.98],
+                support_weight_alpha=1.50,
+                support_weight_tau=0.80,
+                support_weight_max=3.0,
+                **base_soft,
+            ),
+        ),
+    ]
+
+
+def _preset_support_full_circle_soft_radial_v1_block_a() -> List[Dict[str, Any]]:
+    """Block A: localize the soft-radial family."""
+    tags = [
+        "S27cov_fc_soft_ctrl_clean_lat10",
+        "S27cov_fc_soft_rinf_broad_lat10_a1p25_tau0p70_wmax2p8",
+        "S27cov_fc_soft_rinf_local_lat10_a1p50_tau0p80_wmax3p0",
+        "S27cov_fc_soft_rinf_tight_lat10_a1p75_tau0p82_wmax3p2",
+    ]
+    by_tag = {item["tag"]: item for item in _preset_support_full_circle_soft_radial_v1()}
+    return [by_tag[tag] for tag in tags if tag in by_tag]
+
+
+def _preset_support_full_circle_soft_radial_v1_block_b() -> List[Dict[str, Any]]:
+    """Block B: orthogonal probes around the localized soft-radial family."""
+    tags = [
+        "S27cov_fc_soft_rinf_local_lat10_a1p50_tau0p80_wmax3p0",
+        "S27cov_fc_soft_rinf_local_lat10_a1p50_tau0p80_wmax3p0_bs8192",
+        "S27cov_fc_soft_rinf_local_lat10_a1p50_tau0p80_wmax3p0_covsoft_lc0p20_t0p035",
+        "S27cov_fc_soft_rinf_local_lat10_a1p50_tau0p80_wmax3p0_tail98",
+    ]
+    by_tag = {item["tag"]: item for item in _preset_support_full_circle_soft_radial_v1()}
+    return [by_tag[tag] for tag in tags if tag in by_tag]
+
+
 def _preset_support_e4_disk() -> List[Dict[str, Any]]:
     return [
         dict(
@@ -5508,6 +5631,12 @@ def select_grid(
             grid = _preset_support_full_circle_disk_bs8192_lat10_v1()
         elif preset_name == "support_full_circle_clean_bs8192_lat10_v1":
             grid = _preset_support_full_circle_clean_bs8192_lat10_v1()
+        elif preset_name == "support_full_circle_soft_radial_v1":
+            grid = _preset_support_full_circle_soft_radial_v1()
+        elif preset_name == "support_full_circle_soft_radial_v1_block_a":
+            grid = _preset_support_full_circle_soft_radial_v1_block_a()
+        elif preset_name == "support_full_circle_soft_radial_v1_block_b":
+            grid = _preset_support_full_circle_soft_radial_v1_block_b()
         elif preset_name == "support_e4_disk":
             grid = _preset_support_e4_disk()
         else:

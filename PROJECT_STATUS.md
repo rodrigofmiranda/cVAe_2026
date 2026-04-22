@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-> Atualizado em 2026-04-16.
+> Atualizado em 2026-04-22.
 > Estado oficial da worktree Full Circle antes de retornar para a linha MDN em
 > outra pasta e branch.
 
@@ -60,8 +60,33 @@ Observacao metodologica principal:
    - split B: `outputs/full_circle/20260416_182317_clean_bs8192_lat10_100k_split_b/exp_20260416_182319`
    - clean baseline: `S27cov_fc_clean_lc0p25_t0p03` -> `1/12`
    - clean lat10: `S27cov_fc_clean_lc0p25_t0p03_lat10` -> `4/12`
-   - clean bs8192: treinou de forma mais estavel, mas nao foi para protocolo
-     porque o split A so avaliou o campeao interno pelo `score_v2`
+
+5. Confirmacao limpa posterior do candidato ainda aberto
+   - split A: `outputs/full_circle/20260417_115140_clean_bs8192_lat10_100k_split_a/exp_20260417_115142`
+   - split B: `outputs/full_circle/20260417_115140_clean_bs8192_lat10_100k_split_b/exp_20260417_115142`
+   - clean bs8192: `S27cov_fc_clean_lc0p25_t0p03_bs8192` -> `2/12`
+   - clean lat10 rerun: `S27cov_fc_clean_lc0p25_t0p03_lat10` -> `5/12`
+   - leitura: o candidato limpo em aberto agora tem resposta direta e continua
+     fraco; a linha limpa segue muito abaixo dos runs enviesados por geometria
+
+6. Follow-up soft-radial sem `geom3` e sem `disk_l2`
+   - bloco A: `outputs/full_circle/20260420_233254_soft_radial_block_a_100k/exp_20260420_233256`
+   - bloco B: `outputs/full_circle/20260420_233254_soft_radial_block_b_100k/exp_20260420_233257`
+   - melhor geometry-light: `S27cov_fc_soft_rinf_local_lat10_a1p50_tau0p80_wmax3p0` -> `6/12`
+   - campeao interno negativo do bloco B:
+     `S27cov_fc_soft_rinf_local_lat10_a1p50_tau0p80_wmax3p0_covsoft_lc0p20_t0p035` -> `0/12`
+   - leitura: vies radial suave ajudou sem voltar para `geom3`/`disk_l2`, mas
+     `covsoft` falhou sob validacao completa
+
+7. Reruns diretos para fechar o shortlist soft-radial
+   - `bs8192`: `outputs/full_circle/20260421_234722_soft_radial_resolve_bs8192_100k/exp_20260421_234723`
+   - resultado `bs8192`:
+     `S27cov_fc_soft_rinf_local_lat10_a1p50_tau0p80_wmax3p0_bs8192` -> `6/12`
+   - `tail98`: `outputs/full_circle/20260421_234722_soft_radial_resolve_tail98_100k/exp_20260421_234724`
+   - resultado `tail98`:
+     `S27cov_fc_soft_rinf_local_lat10_a1p50_tau0p80_wmax3p0_tail98` -> `1/12`
+   - leitura: `bs8192` empatou com o melhor geometry-light e `tail98` ficou
+     negativo
 
 ## Leitura Cientifica Atual
 
@@ -73,8 +98,11 @@ Observacao metodologica principal:
   `support_filter_mode` sao todos forçados para `none`, a linha perde muito
 - portanto, o ganho anterior de `7/12` e `8/12` depende fortemente de priors de
   geometria e nao pode ser vendido como baseline limpo da aquisicao Full Circle
-- o unico probe limpo ainda em aberto e o `clean_bs8192`, que precisa de um run
-  isolado para ter resposta de protocolo propria
+- o `clean_bs8192` ja foi confirmado e fechou em `2/12`; portanto a familia
+  limpa atual le `1/12`, `2/12` e `5/12`, ainda bem abaixo da linha com priors
+- existe agora uma classe intermediaria geometry-light:
+  `soft_rinf_local` e `soft_rinf_local_bs8192`, ambos com `6/12`
+- `tail98` e `covsoft` ficaram negativos e nao devem ser promovidos
 
 ## Estado Operacional Ao Encerrar Esta Branch
 
@@ -86,6 +114,7 @@ Observacao metodologica principal:
   - `scripts/ops/train_full_circle_disk_bs8192_lat10.sh`
   - `scripts/ops/train_full_circle_clean_bs8192_lat10.sh`
   - `scripts/ops/train_full_circle_clean_bs8192_lat10_split.sh`
+  - `scripts/ops/train_full_circle_soft_radial_screen.sh`
 
 ## O Que Fazer Depois
 
@@ -95,10 +124,11 @@ Proximo movimento recomendado:
 
 1. voltar para MDN em uma nova pasta e uma nova branch
 2. nao continuar o trabalho MDN nesta worktree
-3. se a linha Full Circle for reaberta no futuro, rodar primeiro um
-   confirmatorio isolado de `clean_bs8192`
+3. se a linha Full Circle for reaberta no futuro, usar
+   `soft_rinf_local` como referencia geometry-light atual
 4. se ainda houver interesse em geometria apos isso, testar apenas vies radial
-   suave e continuo, sem `cornerness_norm` e sem `disk_l2` hard filter
+   suave e continuo, sem `cornerness_norm` e sem `disk_l2` hard filter, e
+   apenas com retunes muito locais
 
 ## Documentos De Handoff
 
