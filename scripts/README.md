@@ -31,6 +31,9 @@ the same level.
   Current persistent GPU container launcher. Bootstraps persistent Python plot
   deps into repo-local `.pydeps` on container start (can disable with
   `CVAE_BOOTSTRAP_PLOT_DEPS=0`).
+- `ops/canonical_dual_run.sh`
+  Current two-slot helper for the always-on `algo1` and `algo2` sessions.
+  Standardizes default directories, attach flow, and launch-log naming.
 - `ops/enter_tf25_gpu.sh`
   Current tmux/container attach helper.
 - `ops/stop_tf25_gpu.sh`

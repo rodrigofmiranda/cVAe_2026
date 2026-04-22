@@ -103,10 +103,20 @@ Main findings from the active docs:
 
 What that result meant:
 
-- `G3` and `G6` were effectively recovered across all `12` regimes
+- the engineering side of the protocol was effectively recovered across most of
+  the `12` regimes
 - the remaining `2/12` gap was no longer broad failure
 - it was concentrated at `0.8m/100mA` and `0.8m/300mA`
 - those failures were `G5` failures, not general collapse
+
+Important methodological note for current readers:
+
+- later protocol work split the validation reading into:
+  - `G1..G5` as the main digital-twin acceptance ladder
+  - `G6` as an auxiliary statistical screen rather than the primary veto
+- so older statements like "`G6` was recovered" should now be read as:
+  - the line had become strong enough that the remaining problem was no longer
+    dominated by broad distributional failure
 
 This is the critical historical simplification:
 
@@ -246,6 +256,53 @@ So the honest historical reading is:
 - but it did not cleanly settle whether the true scientific gain should come
   from a new acquisition geometry or from a better model of the existing one
 
+## Shape After The First Ablations
+
+The first `shape` memo is not the whole story.
+After the early `E0-E4` ablations, the line continued into a more structured
+scientific screen around the robust `E2` family.
+
+That later screen matters because it changed the operational conclusion.
+
+Completed blocks:
+
+- `A`: support-weight localization
+- `B`: coverage / tail calibration
+- `C`: model capacity
+- `D`: optimization / KL regularization
+
+Best clean winners by block:
+
+- `A`: `S27cov_sciv1_ctrl_lc0p25_t0p03_a1p50_tau0p75_tc0p35_wmax3p0` with `5/12`
+- `B`: `S27cov_sciv1_tail98_lc0p25_t0p03` with `4/12`
+- `C`: `S27cov_sciv1_lat10` with `4/12`
+- `D`: `S27cov_sciv1_lr0p00015` with `4/12`
+
+What that changed:
+
+- the strongest post-screening reference was **not** the more engineered
+  `geom3 + covsoft` path
+- the strongest reference returned to the `E2` control family
+- the best retained secondary lines were:
+  - `lr0p00015`
+  - `tail98`
+
+This is the most important late-stage reading of `shape`:
+
+- aggressive support localization did not beat the control
+- stronger tail emphasis was interesting, but remained secondary
+- capacity expansion did not emerge as the main missing ingredient
+- optimization-level refinement stayed more promising than additional support
+  geometry complexity
+
+So the branch ended with a narrower conclusion than the early `E3/E3c`
+excitement might suggest:
+
+- `shape` was valuable because it exposed which support-aware ideas were worth
+  keeping
+- but the final practical baseline remained closer to the robust `E2` control
+  than to the more elaborate proxy variants
+
 ## Full-Square Evolution In One Sentence Per Stage
 
 1. Traditional cVAE: learn `p(y | x, d, c)` point-wise on `full_square`.
@@ -259,6 +316,9 @@ So the honest historical reading is:
    so the representation question is not closed.
 6. Shape: reinterpret part of the remaining problem as support geometry on the
    same `full_square` dataset and use proxy support-aware interventions.
+7. Shape scientific screening: keep `E2` control as the main reference, retain
+   `lr0p00015` and `tail98` as secondary follow-ups, and reject several more
+   aggressive support-aware families for immediate promotion.
 
 ## What Must Carry Forward Into A Clean Full-Circle Restart
 
@@ -272,6 +332,9 @@ Keep:
 - the distinction between covariance recovery and shape recovery
 - the recognition that `0.8m` low-current is the decisive stress test
 - the possibility that both sequence structure and local point-wise law matter
+- the current methodological split between:
+  - main twin validation (`G1..G5`)
+  - auxiliary statistical screening (`G6`)
 
 Do not carry forward as assumptions:
 
@@ -280,6 +343,8 @@ Do not carry forward as assumptions:
 - that `full_circle` should start from hard geometry priors or filters
 - that the best `full_square` MDN stack is automatically the only correct
   baseline for a new support geometry
+- that the more engineered `shape` proxy winners from intermediate ablations are
+  automatically better starting points than the later `E2` control reference
 
 ## Recommended Clean Restart Order For Full-Circle
 
@@ -341,6 +406,14 @@ the remaining error was:
 
 So `shape` should be read as the last major `full_square` reinterpretation
 before the honest scientific move to a real `full_circle` dataset.
+
+But it should also be read as a filtering stage, not just a source of new
+proxy tricks:
+
+- it showed that support-aware pressure can help
+- it showed that some geometry-heavy variants do not justify promotion
+- and it left the project with a cleaner final ordering than the early
+  ablations alone would suggest
 
 That is why the right next step for `full_circle` is not to continue from the
 most complex support-aware proxy. It is to restart from the simplest matched

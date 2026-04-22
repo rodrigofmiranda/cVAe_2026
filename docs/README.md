@@ -20,6 +20,7 @@ These are especially relevant for the shared lab server:
 - [active/FULL_CIRCLE_CLEAN_RUN_CHECKLIST.md](active/FULL_CIRCLE_CLEAN_RUN_CHECKLIST.md) - short operational checklist for the next clean `full_circle` validation run
 - [active/INFRA_GUIDE.md](active/INFRA_GUIDE.md) - SSH, users, Docker, tmux, Git LFS
 - [active/MULTI_PC_WORKFLOW.md](active/MULTI_PC_WORKFLOW.md) - worktree layout, two hot slots, and how to operate across PCs
+- [operations/CANONICAL_DUAL_RUN_STANDARD.md](operations/CANONICAL_DUAL_RUN_STANDARD.md) - canonical `algo1`/`algo2` sessions, default directories, launch wrapper, and naming rules
 - [operations/DATASET_LFS_UPLOAD.md](operations/DATASET_LFS_UPLOAD.md) - standardized dataset import and upload flow for Git LFS
 
 ## Reference Docs
