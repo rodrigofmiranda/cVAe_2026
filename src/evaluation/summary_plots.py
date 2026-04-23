@@ -464,56 +464,139 @@ _EVAL_GATE_SUPPLEMENTARY_SPECS = [
     },
 ]
 
-_EVAL_GATE_THRESHOLD_SPECS = [
     {
-        "ratio_col": "gate_g1_ratio",
-        "title": "G1 — rel EVM error / gate limit (0.10)",
-        "fmt": "",
+        "cols": ("stat_psd_dist",),
+        "title": "Auxiliary — stat PSD distance",
+        "fmt": ".3f",
+        "cmap": "RdYlGn_r",
+        "cbar": "PSD dist",
+        "mode": "lower_better",
     },
     {
-        "ratio_col": "gate_g2_ratio",
-        "title": "G2 — rel SNR error / gate limit (0.10)",
-        "fmt": "",
+        "cols": ("mi_aux_gap_rel",),
+        "title": "Auxiliary — MI relative gap",
+        "fmt": ".3f",
+        "cmap": "RdYlGn_r",
+        "cbar": "rel gap",
+        "mode": "lower_better",
     },
     {
-        "ratio_col": "gate_g3_mean_ratio",
-        "title": "G3 — mean_rel_sigma / gate limit (0.10)",
-        "fmt": "",
+        "cols": ("gmi_aux_gap_rel",),
+        "title": "Auxiliary — GMI relative gap",
+        "fmt": ".3f",
+        "cmap": "RdYlGn_r",
+        "cbar": "rel gap",
+        "mode": "lower_better",
     },
     {
-        "ratio_col": "gate_g3_cov_ratio",
-        "title": "G3 — cov_rel_var / gate limit (0.20)",
-        "fmt": "",
+        "cols": ("ngmi_aux_gap",),
+        "title": "Auxiliary — NGMI gap",
+        "fmt": ".3f",
+        "cmap": "RdYlGn_r",
+        "cbar": "ΔNGMI",
+        "mode": "signed",
+    },
+]
+
+
+def _build_twin_gate_threshold_specs() -> List[dict]:
+    from src.evaluation.validation_summary import TWIN_GATE_THRESHOLDS
+
+    return [
+        {
+            "ratio_col": "gate_g1_ratio",
+            "title": f"G1 — rel EVM error / twin limit ({TWIN_GATE_THRESHOLDS['rel_evm_error']:.02f})",
+            "fmt": "",
+        },
+        {
+            "ratio_col": "gate_g2_ratio",
+            "title": f"G2 — rel SNR error / twin limit ({TWIN_GATE_THRESHOLDS['rel_snr_error']:.02f})",
+            "fmt": "",
+        },
+        {
+            "ratio_col": "gate_g3_mean_ratio",
+            "title": f"G3 — mean_rel_sigma / twin limit ({TWIN_GATE_THRESHOLDS['mean_rel_sigma']:.02f})",
+            "fmt": "",
+        },
+        {
+            "ratio_col": "gate_g3_cov_ratio",
+            "title": f"G3 — cov_rel_var / twin limit ({TWIN_GATE_THRESHOLDS['cov_rel_var']:.02f})",
+            "fmt": "",
+        },
+        {
+            "ratio_col": "gate_g4_ratio",
+            "title": f"G4 — PSD mismatch / twin limit ({TWIN_GATE_THRESHOLDS['delta_psd_l2']:.02f})",
+            "fmt": "",
+        },
+        {
+            "ratio_col": "gate_g5_skew_ratio",
+            "title": f"G5 — skew mismatch / twin limit ({TWIN_GATE_THRESHOLDS['delta_skew_l2']:.02f})",
+            "fmt": "",
+        },
+        {
+            "ratio_col": "gate_g5_kurt_ratio",
+            "title": f"G5 — kurtosis mismatch / twin limit ({TWIN_GATE_THRESHOLDS['delta_kurt_l2']:.02f})",
+            "fmt": "",
+        },
+        {
+            "ratio_col": "gate_g5_jb_ratio",
+            "title": f"G5 — JB relative mismatch / twin limit ({TWIN_GATE_THRESHOLDS['delta_jb_stat_rel']:.02f})",
+            "fmt": "",
+        },
+    ]
+
+
+def _build_stat_screen_threshold_specs() -> List[dict]:
+    from src.evaluation.validation_summary import TWIN_GATE_THRESHOLDS
+
+    return [
+        {
+            "ratio_col": "gate_g6_mmd_ratio",
+            "title": f"Stat screen — MMD q threshold ratio (q > {TWIN_GATE_THRESHOLDS['stat_qval']:.02f})",
+            "fmt": "",
+        },
+        {
+            "ratio_col": "gate_g6_energy_ratio",
+            "title": f"Stat screen — Energy q threshold ratio (q > {TWIN_GATE_THRESHOLDS['stat_qval']:.02f})",
+            "fmt": "",
+        },
+    ]
+
+
+_STAT_SCREEN_PANEL_SPECS = [
+    {
+        "cols": ("stat_mmd_qval",),
+        "title": "Stat screen — MMD q-value",
+        "fmt": ".3f",
+        "cmap": "RdYlGn",
+        "cbar": "q_MMD",
+        "mode": "higher_better",
+        "threshold": 0.05,
     },
     {
-        "ratio_col": "gate_g4_ratio",
-        "title": "G4 — PSD mismatch / gate limit (0.25)",
-        "fmt": "",
+        "cols": ("stat_energy_qval",),
+        "title": "Stat screen — Energy q-value",
+        "fmt": ".3f",
+        "cmap": "RdYlGn",
+        "cbar": "q_Energy",
+        "mode": "higher_better",
+        "threshold": 0.05,
     },
     {
-        "ratio_col": "gate_g5_skew_ratio",
-        "title": "G5 — skew mismatch / gate limit (0.30)",
-        "fmt": "",
+        "cols": ("stat_mmd2",),
+        "title": "Stat screen — MMD²",
+        "fmt": ".4f",
+        "cmap": "YlOrRd",
+        "cbar": "MMD²",
+        "mode": "lower_better",
     },
     {
-        "ratio_col": "gate_g5_kurt_ratio",
-        "title": "G5 — kurtosis mismatch / gate limit (1.25)",
-        "fmt": "",
-    },
-    {
-        "ratio_col": "gate_g5_jb_ratio",
-        "title": "G5 — JB relative mismatch / gate limit (0.20)",
-        "fmt": "",
-    },
-    {
-        "ratio_col": "gate_g6_mmd_ratio",
-        "title": "G6 — MMD q gate ratio (q > 0.05)",
-        "fmt": "",
-    },
-    {
-        "ratio_col": "gate_g6_energy_ratio",
-        "title": "G6 — Energy q gate ratio (q > 0.05)",
-        "fmt": "",
+        "cols": ("stat_energy",),
+        "title": "Stat screen — Energy distance",
+        "fmt": ".4f",
+        "cmap": "YlOrRd",
+        "cbar": "Energy",
+        "mode": "lower_better",
     },
 ]
 
@@ -867,7 +950,7 @@ def plot_eval_gate_supplementary_heatmaps(
     df_summary: pd.DataFrame,
     out_dir: Path,
     *,
-    fname: str = "heatmap_gate_supplementary_by_regime.png",
+    fname: str = "heatmap_auxiliary_analysis_by_regime.png",
 ) -> Optional[Path]:
     """Render supplementary regime heatmaps for eval batches."""
     return _plot_metric_panel(
@@ -880,13 +963,15 @@ def plot_eval_gate_supplementary_heatmaps(
     )
 
 
-def plot_eval_gate_threshold_heatmaps(
+def _plot_threshold_ratio_heatmaps(
     df_summary: pd.DataFrame,
     out_dir: Path,
     *,
-    fname: str = "heatmap_gate_threshold_aware_by_regime.png",
+    specs: Sequence[dict],
+    fname: str,
+    panel_title: str,
+    legend_lines: Sequence[str],
 ) -> Optional[Path]:
-    """Render threshold-aware gate heatmaps where >1x gate limit turns red."""
     import matplotlib
 
     matplotlib.use("Agg")
@@ -896,7 +981,7 @@ def plot_eval_gate_threshold_heatmaps(
 
     df_summary = _ensure_gate_ratio_columns(df_summary)
     resolved = []
-    for spec in _EVAL_GATE_THRESHOLD_SPECS:
+    for spec in specs:
         ratio_col = spec["ratio_col"]
         if ratio_col not in df_summary.columns:
             continue
@@ -955,17 +1040,6 @@ def plot_eval_gate_threshold_heatmaps(
     for ax in axes[len(resolved):]:
         ax.axis("off")
 
-    available_ratio_cols = {spec["ratio_col"] for spec, _ in resolved}
-    gate_line_1 = (
-        "G1: rel EVM < 0.10 | G2: rel SNR < 0.10 | "
-        "G3: mean < 0.10 and cov < 0.20 | G4: PSD < 0.25"
-    )
-    gate_line_2 = "G5: skew < 0.30 and kurt < 1.25 and JB < 0.20"
-    if {"gate_g6_mmd_ratio", "gate_g6_energy_ratio"} & available_ratio_cols:
-        gate_line_2 += " | G6: q_MMD > 0.05 and q_Energy > 0.05"
-    else:
-        gate_line_2 += " | G6 omitted here: q-values unavailable"
-
     legend_handles = [
         mpatches.Patch(color="#0b8f3a", label="within gate (< 1x)"),
         mpatches.Patch(color="#fee08b", label="near gate (~ 1x)"),
@@ -984,21 +1058,87 @@ def plot_eval_gate_threshold_heatmaps(
         0.018,
         "Color scale: green < 1x gate limit, yellow ~= 1x, red > 1x. "
         "Annotations show value/limit.\n"
-        f"{gate_line_1}\n{gate_line_2}",
+        + "\n".join(str(line) for line in legend_lines if str(line).strip()),
         ha="center",
         va="bottom",
         fontsize=9,
         bbox={"boxstyle": "round,pad=0.35", "facecolor": "white", "alpha": 0.9, "edgecolor": "#cccccc"},
     )
-    fig.suptitle(
-        "Threshold-aware gates by regime — green within limit, red beyond gate",
-        fontsize=15,
-    )
+    fig.suptitle(panel_title, fontsize=15)
     path = Path(out_dir) / fname
     fig.tight_layout(rect=(0.0, 0.12, 1.0, 0.95))
     fig.savefig(path, dpi=200, bbox_inches="tight")
     plt.close(fig)
     return path
+
+
+def plot_eval_gate_threshold_heatmaps(
+    df_summary: pd.DataFrame,
+    out_dir: Path,
+    *,
+    fname: str = "heatmap_gate_metrics_by_regime.png",
+) -> Optional[Path]:
+    """Render threshold-aware G1..G5 heatmaps for the digital twin gates."""
+    from src.evaluation.validation_summary import TWIN_GATE_THRESHOLDS
+
+    specs = _build_twin_gate_threshold_specs()
+    legend_lines = [
+        (
+            f"G1: rel EVM < {TWIN_GATE_THRESHOLDS['rel_evm_error']:.02f} | "
+            f"G2: rel SNR < {TWIN_GATE_THRESHOLDS['rel_snr_error']:.02f} | "
+            f"G3: mean < {TWIN_GATE_THRESHOLDS['mean_rel_sigma']:.02f} and "
+            f"cov < {TWIN_GATE_THRESHOLDS['cov_rel_var']:.02f}"
+        ),
+        (
+            f"G4: PSD < {TWIN_GATE_THRESHOLDS['delta_psd_l2']:.02f} | "
+            f"G5: skew < {TWIN_GATE_THRESHOLDS['delta_skew_l2']:.02f}, "
+            f"kurt < {TWIN_GATE_THRESHOLDS['delta_kurt_l2']:.02f}, "
+            f"JB < {TWIN_GATE_THRESHOLDS['delta_jb_stat_rel']:.02f}"
+        ),
+        "This panel defines validation_status_twin and the digital-twin pass/fail decision.",
+    ]
+    return _plot_threshold_ratio_heatmaps(
+        df_summary,
+        out_dir,
+        specs=specs,
+        fname=fname,
+        panel_title="Digital twin gates by regime (G1..G5 only)",
+        legend_lines=legend_lines,
+    )
+
+
+def plot_eval_stat_screen_heatmaps(
+    df_summary: pd.DataFrame,
+    out_dir: Path,
+    *,
+    fname: str = "heatmap_stat_screen_by_regime.png",
+) -> Optional[Path]:
+    """Render auxiliary statistical-screen heatmaps kept outside the twin gates."""
+    from src.evaluation.validation_summary import TWIN_GATE_THRESHOLDS
+
+    ratio_plot = _plot_threshold_ratio_heatmaps(
+        df_summary,
+        out_dir,
+        specs=_build_stat_screen_threshold_specs(),
+        fname=fname,
+        panel_title="Auxiliary statistical screen by regime (G6 only, not part of twin validation)",
+        legend_lines=[
+            (
+                f"Stat screen: q_MMD > {TWIN_GATE_THRESHOLDS['stat_qval']:.02f} "
+                f"and q_Energy > {TWIN_GATE_THRESHOLDS['stat_qval']:.02f}"
+            ),
+            "This panel defines stat_screen_pass / validation_status_full, not validation_status_twin.",
+        ],
+    )
+    panel_plot = _plot_metric_panel(
+        df_summary,
+        out_dir,
+        specs=_STAT_SCREEN_PANEL_SPECS,
+        fname=fname.replace(".png", "_raw.png"),
+        panel_title="Auxiliary statistical-screen metrics by regime (MMD / Energy)",
+        ncols=2,
+    )
+    return ratio_plot or panel_plot
 
 
 def plot_residual_signature_overview(
@@ -1138,16 +1278,35 @@ def generate_all(df_summary: pd.DataFrame, out_dir: Path) -> List[Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     created: List[Path] = []
     try:
-        p = plot_eval_gate_threshold_heatmaps(
+        twin_plot = plot_eval_gate_threshold_heatmaps(
             df_summary,
             out_dir,
-            fname="heatmap_gate_metrics_by_regime.png",
+            fname="heatmap_twin_gate_metrics_by_regime.png",
         )
-        if p is None:
-            p = plot_gate_metric_heatmaps(df_summary, out_dir)
-        if p is not None:
-            created.append(p)
-            print(f"   📈 {p.name}")
+        if twin_plot is None:
+            twin_plot = plot_gate_metric_heatmaps(df_summary, out_dir)
+        if twin_plot is not None:
+            created.append(twin_plot)
+            print(f"   📈 {twin_plot.name}")
+            legacy_plot = plot_eval_gate_threshold_heatmaps(
+                df_summary,
+                out_dir,
+                fname="heatmap_gate_metrics_by_regime.png",
+            )
+            if legacy_plot is not None:
+                created.append(legacy_plot)
+        stat_plot = plot_eval_stat_screen_heatmaps(df_summary, out_dir)
+        if stat_plot is not None:
+            created.append(stat_plot)
+            print(f"   📈 {Path(stat_plot).name}")
+            raw_stat_plot = out_dir / "heatmap_stat_screen_by_regime_raw.png"
+            if raw_stat_plot.exists():
+                created.append(raw_stat_plot)
+                print(f"   📈 {raw_stat_plot.name}")
+        aux_plot = plot_eval_gate_supplementary_heatmaps(df_summary, out_dir)
+        if aux_plot is not None:
+            created.append(aux_plot)
+            print(f"   📈 {aux_plot.name}")
     except Exception as exc:
         print(f"⚠️  plot_gate_metric_heatmaps failed: {exc}")
     return created

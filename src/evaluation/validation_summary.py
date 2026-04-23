@@ -13,14 +13,18 @@ from src.evaluation.stat_tests import benjamini_hochberg
 
 
 TWIN_GATE_THRESHOLDS = {
-    "rel_evm_error": 0.10,
-    "rel_snr_error": 0.10,
-    "mean_rel_sigma": 0.10,
-    "cov_rel_var": 0.20,
-    "delta_psd_l2": 0.25,
-    "delta_skew_l2": 0.30,
-    "delta_kurt_l2": 1.25,
+    # Empirically tightened on 2026-04-11 from historically strong pass-regime
+    # pools. These thresholds define the main engineering validation status for
+    # the digital twin (G1..G5).
+    "rel_evm_error": 0.04,
+    "rel_snr_error": 0.03,
+    "mean_rel_sigma": 0.05,
+    "cov_rel_var": 0.15,
+    "delta_psd_l2": 0.18,
+    "delta_skew_l2": 0.12,
+    "delta_kurt_l2": 0.17,
     "delta_jb_stat_rel": 0.20,
+    # Keep q=0.05 as a statistical decision level, not an engineering threshold.
     "stat_qval": 0.05,
 }
 
@@ -132,6 +136,29 @@ SUMMARY_BY_REGIME_COLUMNS: List[str] = [
     "stat_n_samples",
     "stat_n_perm",
     "stat_mode",
+    "info_metrics_available",
+    "info_metrics_status",
+    "info_alphabet_size",
+    "info_bits_per_symbol",
+    "info_input_entropy_bits",
+    "info_avg_symbol_repeats",
+    "info_labeling_mode",
+    "info_aux_channel_mode",
+    "mi_aux_real_bits",
+    "mi_aux_pred_bits",
+    "mi_aux_gap_bits",
+    "mi_aux_gap_rel",
+    "gmi_aux_real_bits",
+    "gmi_aux_pred_bits",
+    "gmi_aux_gap_bits",
+    "gmi_aux_gap_rel",
+    "ngmi_aux_real",
+    "ngmi_aux_pred",
+    "ngmi_aux_gap",
+    "air_aux_real_bits",
+    "air_aux_pred_bits",
+    "air_aux_gap_bits",
+    "air_aux_gap_rel",
     "dist_metrics_source",
     "n_experiments_selected",
     "dist_target_m",
@@ -147,6 +174,9 @@ SUMMARY_BY_REGIME_COLUMNS: List[str] = [
     "gate_g4",
     "gate_g5",
     "gate_g6",
+    "stat_screen_pass",
+    "validation_status_twin",
+    "validation_status_full",
     "validation_status",
 ]
 
@@ -182,13 +212,19 @@ PROTOCOL_LEADERBOARD_COLUMNS: List[str] = [
     "n_fail",
     "n_partial",
     "all_regimes_passed",
+    "n_full_pass",
+    "n_full_fail",
+    "n_full_partial",
+    "all_regimes_full_passed",
     "gate_g1_pass",
     "gate_g2_pass",
     "gate_g3_pass",
     "gate_g4_pass",
     "gate_g5_pass",
     "gate_g6_pass",
+    "stat_screen_pass",
     "gate_pass_ratio",
+    "gate_pass_ratio_full",
     "mean_cvae_rel_evm_error",
     "mean_cvae_rel_snr_error",
     "mean_cvae_mean_rel_sigma",
@@ -200,6 +236,20 @@ PROTOCOL_LEADERBOARD_COLUMNS: List[str] = [
     "mean_delta_jb_stat_rel",
     "mean_stat_mmd_qval",
     "mean_stat_energy_qval",
+    "info_metrics_available_regimes",
+    "mean_info_input_entropy_bits",
+    "mean_mi_aux_real_bits",
+    "mean_mi_aux_pred_bits",
+    "mean_mi_aux_gap_rel",
+    "mean_gmi_aux_real_bits",
+    "mean_gmi_aux_pred_bits",
+    "mean_gmi_aux_gap_rel",
+    "mean_ngmi_aux_real",
+    "mean_ngmi_aux_pred",
+    "mean_ngmi_aux_gap",
+    "mean_air_aux_real_bits",
+    "mean_air_aux_pred_bits",
+    "mean_air_aux_gap_rel",
     "protocol_score_v1",
 ]
 
@@ -214,6 +264,9 @@ RESIDUAL_SIGNATURE_COLUMNS: List[str] = [
     "train_status",
     "eval_status",
     "validation_status",
+    "validation_status_twin",
+    "validation_status_full",
+    "stat_screen_pass",
     "gate_g3",
     "gate_g5",
     "gate_g6",
@@ -417,14 +470,28 @@ def _gt(lhs: Any, rhs: Any) -> Any:
     return bool(a > b)
 
 
-def _validation_status(row: pd.Series) -> str:
-    gates = [row.get(f"gate_g{i}") for i in range(1, 7)]
+def _validation_status_from_gates(row: pd.Series, gate_cols: Iterable[str]) -> str:
+    gates = [row.get(col) for col in gate_cols]
     gate_values = [_safe_bool(v) for v in gates]
     if any(v is False for v in gate_values):
         return "fail"
     if all(v is True for v in gate_values):
         return "pass"
     return "partial"
+
+
+def _validation_status(row: pd.Series) -> str:
+    """Primary twin-validation status.
+
+    By design this excludes G6, which is retained as an auxiliary statistical
+    screen rather than a main engineering veto.
+    """
+    return _validation_status_from_gates(row, [f"gate_g{i}" for i in range(1, 6)])
+
+
+def _validation_status_full(row: pd.Series) -> str:
+    """Conservative status including the statistical screen G6."""
+    return _validation_status_from_gates(row, [f"gate_g{i}" for i in range(1, 7)])
 
 
 def _gate_all(*values: Any) -> Any:
@@ -594,6 +661,29 @@ def _build_row(result: Dict[str, Any]) -> Dict[str, Any]:
         "stat_n_samples": _safe_float(stat.get("n_samples")),
         "stat_n_perm": _safe_float(stat.get("n_perm")),
         "stat_mode": stat.get("stat_mode"),
+        "info_metrics_available": _safe_bool(metrics.get("info_metrics_available")),
+        "info_metrics_status": metrics.get("info_metrics_status"),
+        "info_alphabet_size": _safe_float(metrics.get("info_alphabet_size")),
+        "info_bits_per_symbol": _safe_float(metrics.get("info_bits_per_symbol")),
+        "info_input_entropy_bits": _safe_float(metrics.get("info_input_entropy_bits")),
+        "info_avg_symbol_repeats": _safe_float(metrics.get("info_avg_symbol_repeats")),
+        "info_labeling_mode": metrics.get("info_labeling_mode"),
+        "info_aux_channel_mode": metrics.get("info_aux_channel_mode"),
+        "mi_aux_real_bits": _safe_float(metrics.get("mi_aux_real_bits")),
+        "mi_aux_pred_bits": _safe_float(metrics.get("mi_aux_pred_bits")),
+        "mi_aux_gap_bits": _safe_float(metrics.get("mi_aux_gap_bits")),
+        "mi_aux_gap_rel": _safe_float(metrics.get("mi_aux_gap_rel")),
+        "gmi_aux_real_bits": _safe_float(metrics.get("gmi_aux_real_bits")),
+        "gmi_aux_pred_bits": _safe_float(metrics.get("gmi_aux_pred_bits")),
+        "gmi_aux_gap_bits": _safe_float(metrics.get("gmi_aux_gap_bits")),
+        "gmi_aux_gap_rel": _safe_float(metrics.get("gmi_aux_gap_rel")),
+        "ngmi_aux_real": _safe_float(metrics.get("ngmi_aux_real")),
+        "ngmi_aux_pred": _safe_float(metrics.get("ngmi_aux_pred")),
+        "ngmi_aux_gap": _safe_float(metrics.get("ngmi_aux_gap")),
+        "air_aux_real_bits": _safe_float(metrics.get("air_aux_real_bits")),
+        "air_aux_pred_bits": _safe_float(metrics.get("air_aux_pred_bits")),
+        "air_aux_gap_bits": _safe_float(metrics.get("air_aux_gap_bits")),
+        "air_aux_gap_rel": _safe_float(metrics.get("air_aux_gap_rel")),
         "dist_metrics_source": result.get("dist_metrics_source"),
         "n_experiments_selected": int(len(result.get("selected_experiments", []))),
         "dist_target_m": _safe_float(result.get("selection_criteria", {}).get("distance_m")),
@@ -727,7 +817,7 @@ def _apply_derived_metrics(df: pd.DataFrame) -> None:
     # Gate ladder for a digital-twin reading:
     # G1/G2 = direct signal fidelity to the measured channel.
     # G3/G4/G5 = residual-structure fidelity to the measured channel.
-    # G6 = formal distributional indistinguishability.
+    # G6 = auxiliary statistical screen for residual-distribution mismatch.
     #
     # Baseline columns remain in the canonical CSV as benchmark diagnostics only;
     # they do not participate in validation_status anymore.
@@ -760,7 +850,13 @@ def _apply_derived_metrics(df: pd.DataFrame) -> None:
         _gate_all(mmd_pass, energy_pass)
         for mmd_pass, energy_pass in zip(mmd_ok, energy_ok)
     ]
-    df["validation_status"] = df.apply(_validation_status, axis=1)
+    df["stat_screen_pass"] = df["gate_g6"]
+    df["validation_status_twin"] = df.apply(_validation_status, axis=1)
+    df["validation_status_full"] = df.apply(_validation_status_full, axis=1)
+    # Keep the legacy column name as the main twin-validation status so
+    # downstream consumers continue to work while benefiting from the new
+    # interpretation.
+    df["validation_status"] = df["validation_status_twin"]
 
 
 def _candidate_id(best_grid_tag: Any, model_run_dir: Any, model_scope: Any) -> str:
@@ -794,8 +890,7 @@ def _normalized_higher_better(series: pd.Series, threshold: float) -> pd.Series:
     return out.clip(lower=0.0, upper=100.0)
 
 
-def _gate_pass_ratio(df_group: pd.DataFrame) -> float:
-    gate_cols = [f"gate_g{i}" for i in range(1, 7)]
+def _gate_pass_ratio(df_group: pd.DataFrame, gate_cols: Iterable[str]) -> float:
     total = 0
     passed = 0
     for col in gate_cols:
@@ -887,6 +982,9 @@ def build_residual_signature_table(
             "train_status": result.get("train_status", ""),
             "eval_status": result.get("eval_status", ""),
             "validation_status": summary_row.get("validation_status", np.nan),
+            "validation_status_twin": summary_row.get("validation_status_twin", summary_row.get("validation_status", np.nan)),
+            "validation_status_full": summary_row.get("validation_status_full", np.nan),
+            "stat_screen_pass": summary_row.get("stat_screen_pass", summary_row.get("gate_g6", np.nan)),
             "gate_g3": summary_row.get("gate_g3", np.nan),
             "gate_g5": summary_row.get("gate_g5", np.nan),
             "gate_g6": summary_row.get("gate_g6", np.nan),
@@ -957,7 +1055,8 @@ def build_protocol_leaderboard(df_summary: pd.DataFrame) -> pd.DataFrame:
     for key, grp in df.groupby(group_cols, dropna=False, sort=False):
         candidate_id, best_grid_tag, model_run_dir, model_scope = key
         n_regimes = int(len(grp))
-        statuses = grp["validation_status"].astype(str)
+        twin_statuses = grp["validation_status"].astype(str)
+        full_statuses = grp["validation_status_full"].fillna(grp["validation_status"]).astype(str)
         gate_passes = {
             f"gate_g{i}_pass": int(sum(_safe_bool(v) is True for v in grp[f"gate_g{i}"].tolist()))
             for i in range(1, 7)
@@ -970,12 +1069,18 @@ def build_protocol_leaderboard(df_summary: pd.DataFrame) -> pd.DataFrame:
                 "model_scope": model_scope,
                 "n_studies": int(grp["study"].astype(str).nunique()),
                 "n_regimes": n_regimes,
-                "n_pass": int((statuses == "pass").sum()),
-                "n_fail": int((statuses == "fail").sum()),
-                "n_partial": int((statuses == "partial").sum()),
-                "all_regimes_passed": bool(n_regimes > 0 and (statuses == "pass").all()),
+                "n_pass": int((twin_statuses == "pass").sum()),
+                "n_fail": int((twin_statuses == "fail").sum()),
+                "n_partial": int((twin_statuses == "partial").sum()),
+                "all_regimes_passed": bool(n_regimes > 0 and (twin_statuses == "pass").all()),
+                "n_full_pass": int((full_statuses == "pass").sum()),
+                "n_full_fail": int((full_statuses == "fail").sum()),
+                "n_full_partial": int((full_statuses == "partial").sum()),
+                "all_regimes_full_passed": bool(n_regimes > 0 and (full_statuses == "pass").all()),
                 **gate_passes,
-                "gate_pass_ratio": _gate_pass_ratio(grp),
+                "stat_screen_pass": int(sum(_safe_bool(v) is True for v in grp["stat_screen_pass"].tolist())),
+                "gate_pass_ratio": _gate_pass_ratio(grp, [f"gate_g{i}" for i in range(1, 6)]),
+                "gate_pass_ratio_full": _gate_pass_ratio(grp, [f"gate_g{i}" for i in range(1, 7)]),
                 "mean_cvae_rel_evm_error": _finite_ratio(grp["cvae_rel_evm_error"]),
                 "mean_cvae_rel_snr_error": _finite_ratio(grp["cvae_rel_snr_error"]),
                 "mean_cvae_mean_rel_sigma": _finite_ratio(grp["cvae_mean_rel_sigma"]),
@@ -987,6 +1092,22 @@ def build_protocol_leaderboard(df_summary: pd.DataFrame) -> pd.DataFrame:
                 "mean_delta_jb_stat_rel": _finite_ratio(grp["delta_jb_stat_rel"]),
                 "mean_stat_mmd_qval": _finite_ratio(grp["stat_mmd_qval"]),
                 "mean_stat_energy_qval": _finite_ratio(grp["stat_energy_qval"]),
+                "info_metrics_available_regimes": int(
+                    sum(_safe_bool(v) is True for v in grp["info_metrics_available"].tolist())
+                ),
+                "mean_info_input_entropy_bits": _finite_ratio(grp["info_input_entropy_bits"]),
+                "mean_mi_aux_real_bits": _finite_ratio(grp["mi_aux_real_bits"]),
+                "mean_mi_aux_pred_bits": _finite_ratio(grp["mi_aux_pred_bits"]),
+                "mean_mi_aux_gap_rel": _finite_ratio(grp["mi_aux_gap_rel"]),
+                "mean_gmi_aux_real_bits": _finite_ratio(grp["gmi_aux_real_bits"]),
+                "mean_gmi_aux_pred_bits": _finite_ratio(grp["gmi_aux_pred_bits"]),
+                "mean_gmi_aux_gap_rel": _finite_ratio(grp["gmi_aux_gap_rel"]),
+                "mean_ngmi_aux_real": _finite_ratio(grp["ngmi_aux_real"]),
+                "mean_ngmi_aux_pred": _finite_ratio(grp["ngmi_aux_pred"]),
+                "mean_ngmi_aux_gap": _finite_ratio(grp["ngmi_aux_gap"]),
+                "mean_air_aux_real_bits": _finite_ratio(grp["air_aux_real_bits"]),
+                "mean_air_aux_pred_bits": _finite_ratio(grp["air_aux_pred_bits"]),
+                "mean_air_aux_gap_rel": _finite_ratio(grp["air_aux_gap_rel"]),
                 "protocol_score_v1": _protocol_score_v1(grp),
             }
         )
