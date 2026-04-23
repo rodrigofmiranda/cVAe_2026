@@ -1,30 +1,46 @@
 # Documentation Map
 
-This folder is organized by function so the public entrypoints, active working
-notes, reference material, and archive do not all compete at the same level.
+This repository now separates documentation into four canonical layers:
 
-## Public Entry Points
+- operations and governance
+- lineage of the two main research lines
+- benchmark/modulation documentation
+- thesis-curated synthesis in `../Tese/`
 
-Start with these if you are arriving from GitHub or onboarding into the repo:
+## Start Here
 
-- [../README.md](../README.md) - public repository overview
-- [BRANCH_GUIDE.md](BRANCH_GUIDE.md) - what each public branch is for
-- [../PROJECT_STATUS.md](../PROJECT_STATUS.md) - current codebase and scientific status
+- [../README.md](../README.md)
+- [../PROJECT_STATUS.md](../PROJECT_STATUS.md)
+- [BRANCH_GUIDE.md](BRANCH_GUIDE.md)
+- [operations/REPO_GOVERNANCE.md](operations/REPO_GOVERNANCE.md)
+- [operations/WORKTREE_BRANCH_POLICY.md](operations/WORKTREE_BRANCH_POLICY.md)
 
-## Internal Operations
+## Operations
 
-These are especially relevant for the shared lab server:
+- [operations/ADVISOR_REORGANIZATION_BRIEF_2026-04-22.md](operations/ADVISOR_REORGANIZATION_BRIEF_2026-04-22.md)
+- [operations/REPO_GOVERNANCE.md](operations/REPO_GOVERNANCE.md)
+- [operations/WORKTREE_BRANCH_POLICY.md](operations/WORKTREE_BRANCH_POLICY.md)
+- [operations/BENCHMARK_MODULATIONS_POLICY.md](operations/BENCHMARK_MODULATIONS_POLICY.md)
+- [operations/DATASET_LFS_UPLOAD.md](operations/DATASET_LFS_UPLOAD.md)
+- [operations/HOST_GPU_IDLE_DIAGNOSTIC.md](operations/HOST_GPU_IDLE_DIAGNOSTIC.md)
 
-- [active/INFRA_GUIDE.md](active/INFRA_GUIDE.md) - SSH, users, Docker, tmux, Git LFS
-- [operations/DATASET_LFS_UPLOAD.md](operations/DATASET_LFS_UPLOAD.md) - standardized dataset import and upload flow for Git LFS
+## Reference
 
-## Reference Docs
+- [reference/CANONICAL_REPO_LAYOUT.md](reference/CANONICAL_REPO_LAYOUT.md)
+- [reference/PROTOCOL.md](reference/PROTOCOL.md)
+- [reference/EXPERIMENT_WORKFLOW.md](reference/EXPERIMENT_WORKFLOW.md)
+- [reference/MODELING_ASSUMPTIONS.md](reference/MODELING_ASSUMPTIONS.md)
 
-- [PROTOCOL.md](PROTOCOL.md) - protocol runner, CLI, artifacts
-- [MODELING_ASSUMPTIONS.md](MODELING_ASSUMPTIONS.md) - modeling rationale
-- [DIAGNOSTIC_CHECKLIST.md](DIAGNOSTIC_CHECKLIST.md) - diagnostic workflow
-- [reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt](reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt) - acquisition-to-training path
+## Lineage
 
-## Archive
+- [lineage/full_square/README.md](lineage/full_square/README.md)
+- [lineage/full_circle/README.md](lineage/full_circle/README.md)
 
-- [archive/REFACTOR_PLAN_legacy.md](archive/REFACTOR_PLAN_legacy.md) - historical refactor context
+## Benchmark Modulations
+
+- [benchmarks/modulations/16qam/README.md](benchmarks/modulations/16qam/README.md)
+- [benchmarks/modulations/4qam/README.md](benchmarks/modulations/4qam/README.md)
+
+## Thesis Layer
+
+- [../Tese/README.md](../Tese/README.md)

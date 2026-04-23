@@ -285,7 +285,9 @@ def _load_protocol(path: Optional[str]) -> dict:
     if path is None:
         # try repo-relative default
         candidates = [
+            Path("configs/full_square/protocol_default.json"),
             Path("configs/protocol_default.json"),
+            Path(__file__).resolve().parent.parent.parent / "configs" / "full_square" / "protocol_default.json",
             Path(__file__).resolve().parent.parent.parent / "configs" / "protocol_default.json",
         ]
         for c in candidates:
@@ -294,7 +296,8 @@ def _load_protocol(path: Optional[str]) -> dict:
                 break
         if path is None:
             raise FileNotFoundError(
-                "No --protocol given and configs/protocol_default.json not found."
+                "No --protocol given and neither configs/full_square/protocol_default.json "
+                "nor configs/protocol_default.json was found."
             )
     proto = json.loads(Path(path).read_text(encoding="utf-8"))
 

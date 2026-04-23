@@ -1,5 +1,9 @@
 # Outputs / runs (gerados)
-outputs/
+outputs/**
+!outputs/
+!outputs/**/
+!outputs/README.md
+!outputs/**/README.md
 runs/
 logs/
 tables/
@@ -7,9 +11,17 @@ plots/
 events.out.tfevents.*
 
 # Datasets (large binary data) – only allow LFS-tracked content
-data/*
+data/**
+!data/
+!data/**/
+!data/README.md
+!data/**/README.md
 !data/dataset_*_organized/
+!data/dataset_*_organized/**
 !data/16qam/
+!data/16qam/**
+data/16qam/**/plots/
+data/16qam/**/plots/**
 
 # Backups locais (não versionar)
 backup/
