@@ -43,7 +43,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "eval_root",
         type=Path,
-        help="Path to eval_16qam_all_regimes_* root.",
+        help="Path to a canonical 16QAM eval root (for example outputs/architectures/<family>/<candidate>/16qam/<run_tag>).",
     )
     parser.add_argument(
         "--plots-dir",

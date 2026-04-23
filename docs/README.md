@@ -20,6 +20,7 @@ These are especially relevant for the shared lab server:
 - [active/INFRA_GUIDE.md](active/INFRA_GUIDE.md) - SSH, users, Docker, tmux, and the local-first dataset policy
 - [active/PROBABILISTIC_SHAPING_INVESTIGATION_2026-04-03.md](active/PROBABILISTIC_SHAPING_INVESTIGATION_2026-04-03.md) - current active note on shaping, support geometry, and digital-twin strategy
 - [operations/DATASET_LFS_UPLOAD.md](operations/DATASET_LFS_UPLOAD.md) - local-first dataset placement policy; Git LFS is exceptional only
+- [operations/OUTPUT_LAYOUT.md](operations/OUTPUT_LAYOUT.md) - canonical output tree for architecture and 16QAM artifacts
 
 ## Reference Docs
 
