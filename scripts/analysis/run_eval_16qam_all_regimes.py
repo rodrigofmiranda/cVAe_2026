@@ -25,6 +25,11 @@ import numpy as np
 
 from src.data.loading import discover_experiments, parse_dist_curr_from_path, read_metadata
 from src.evaluation.stat_tests import benjamini_hochberg
+from src.evaluation.output_layout import (
+    build_architecture_16qam_root,
+    build_local_16qam_root,
+    compact_16qam_run_tag,
+)
 from src.evaluation.engine import clear_evaluation_model_cache, evaluate_run
 
 def parse_args() -> argparse.Namespace:
@@ -54,6 +59,24 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=None,
         help="Output root for per-regime evaluation artifacts.",
+    )
+    parser.add_argument(
+        "--architecture_family",
+        type=str,
+        default=None,
+        help="Optional architecture family used to place outputs in outputs/architectures/<family>/...",
+    )
+    parser.add_argument(
+        "--candidate_name",
+        type=str,
+        default=None,
+        help="Optional candidate name used to place outputs in outputs/architectures/<family>/<candidate>/...",
+    )
+    parser.add_argument(
+        "--eval_tag",
+        type=str,
+        default="all_regimes",
+        help="Short run tag placed under the final 16QAM root.",
     )
     parser.add_argument(
         "--currents_mA",
@@ -101,6 +124,22 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _resolve_out_root(args: argparse.Namespace, repo: Path, model_run_dir: Path) -> Path:
+    if args.out_root is not None:
+        return args.out_root.resolve()
+
+    eval_tag = compact_16qam_run_tag(args.eval_tag)
+    if args.architecture_family and args.candidate_name:
+        return build_architecture_16qam_root(
+            repo_root=repo,
+            architecture_family=args.architecture_family,
+            candidate_name=args.candidate_name,
+            run_tag=eval_tag,
+        ).resolve()
+
+    return build_local_16qam_root(model_run_dir.parent, eval_tag).resolve()
+
+
 def main() -> None:
     args = parse_args()
     repo = args.repo_root.resolve()
@@ -110,11 +149,7 @@ def main() -> None:
         else (repo / 'data' / '16qam').resolve()
     )
     model_run_dir = args.model_run_dir.resolve()
-    out_root = (
-        args.out_root.resolve()
-        if args.out_root is not None
-        else (model_run_dir.parent / 'eval_16qam_all_regimes').resolve()
-    )
+    out_root = _resolve_out_root(args, repo, model_run_dir)
     out_root.mkdir(parents=True, exist_ok=True)
 
     print(f'[batch] dataset_root={dataset_root}')
