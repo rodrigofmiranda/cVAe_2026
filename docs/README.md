@@ -23,6 +23,9 @@ This repository now separates documentation into four canonical layers:
 - [operations/BENCHMARK_MODULATIONS_POLICY.md](operations/BENCHMARK_MODULATIONS_POLICY.md)
 - [operations/DATASET_LFS_UPLOAD.md](operations/DATASET_LFS_UPLOAD.md)
 - [operations/HOST_GPU_IDLE_DIAGNOSTIC.md](operations/HOST_GPU_IDLE_DIAGNOSTIC.md)
+- [operations/CANONICAL_DUAL_RUN_STANDARD.md](operations/CANONICAL_DUAL_RUN_STANDARD.md)
+- [operations/DUAL_RUN_MANDATORY_RULES.md](operations/DUAL_RUN_MANDATORY_RULES.md)
+- [operations/DUAL_RUN_HEAVY_LOAD_POSTMORTEM_2026-04-22.md](operations/DUAL_RUN_HEAVY_LOAD_POSTMORTEM_2026-04-22.md)
 
 ## Reference
 
