@@ -15,8 +15,8 @@ artefatos atuais.
 
 - [PROJECT_STATUS](/home/rodrigo/cVAe_2026_mdn_return/PROJECT_STATUS.md)
 - [FULL_SQUARE_LINEAGE_TO_SHAPE](/home/rodrigo/cVAe_2026_mdn_return/docs/active/FULL_SQUARE_LINEAGE_TO_SHAPE.md)
-- [gate_validation_audit](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/gate_validation_audit_2026-04-11.md)
-- [gate_threshold_calibration](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/gate_threshold_calibration_2026-04-11.md)
+- [gate_validation_audit](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/gate_validation_audit_2026-04-11.md)
+- [gate_threshold_calibration](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/gate_threshold_calibration_2026-04-11.md)
 
 ## Status do texto
 

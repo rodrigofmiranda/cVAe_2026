@@ -12,12 +12,12 @@ fina ainda pode crescer em versões futuras desta camada.
 
 ## Fontes canônicas usadas
 
-- [digital_twin_validation_foundation_table](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/digital_twin_validation_foundation_table_2026-04-11.md)
-- [full_circle_soft_radial_master_table](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/full_circle_soft_radial_master_table_2026-04-22.md)
+- [digital_twin_validation_foundation_table](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/digital_twin_validation_foundation_table_2026-04-11.md)
+- [full_circle_soft_radial_master_table](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/full_circle_soft_radial_master_table_2026-04-22.md)
 - [FULL_CIRCLE_VALIDATION_CHECKLIST](/home/rodrigo/cVAe_2026_shape_fullcircle/docs/active/FULL_CIRCLE_VALIDATION_CHECKLIST.md)
-- [crossline summary with soft-radial](/home/rodrigo/cVAe_2026_shape_fullcircle/outputs/analysis/eval_16qam_crossline_20260422_plus_soft_radial/crossline_summary/README.md)
+- [crossline summary with soft-radial](/home/rodrigo/cVAe_2026_full_circle/outputs/architectures/_crossline/16qam/eval_16qam_crossline_20260422_plus_soft_radial/README.md)
 - [DATASET_LFS_UPLOAD](/home/rodrigo/cVAe_2026_mdn_return/docs/operations/DATASET_LFS_UPLOAD.md)
-- [dataset 16QAM no shape repo](/home/rodrigo/cVAe_2026_shape/data/16qam)
+- [dataset 16QAM no worktree full_square](/home/rodrigo/cVAe_2026_full_square/data/16qam)
 
 ## Status do texto
 
@@ -57,8 +57,8 @@ Mas ele não deve ser tratado como:
 Até o momento, a validação externa em `16QAM` foi realizada de forma efetiva em
 duas camadas:
 
-- na linha `full_square/shape`, com os artefatos organizados em
-  [eval_16qam_sel4curr_review](/home/rodrigo/cVAe_2026_shape/outputs/analysis/eval_16qam_sel4curr_review/README.md)
+- na linha `full_square`, com um artefato historico `S27` rematerializado em
+  [eval_16qam_all_regimes_s27](/home/rodrigo/cVAe_2026_full_square/outputs/architectures/probabilistic_shaping/S27_historical/benchmarks/16qam/eval_16qam_all_regimes_s27/manifest_all_regimes_eval.csv)
 - na rodada comparativa crossline `full_square` versus `full_circle clean`
   versus `full_circle geometry-biased`, consolidada em
   `eval_16qam_crossline_20260420_clean`
@@ -88,7 +88,7 @@ linha `full_circle`, para permitir uma leitura comparativa direta:
 
 | linha | candidato | papel na comparação | evidência canônica |
 | --- | --- | --- | --- |
-| `full_square` | `S27cov_sciv1_lr0p00015` | melhor representante atual da linha `shape/full_square` | [protocol_leaderboard full_square](/home/rodrigo/cVAe_2026_shape/outputs/support_ablation/final_grid/e2_finalists_shortlist/exp_20260414_131231/tables/protocol_leaderboard.csv) |
+| `full_square` | `S27cov_sciv1_lr0p00015` | melhor representante atual da linha `full_square`; valores preservados na tabela crossline | artefato físico exato precisa ser restaurado ou rerodado; artefato local disponível: [S27_historical](/home/rodrigo/cVAe_2026_full_square/outputs/architectures/probabilistic_shaping/S27_historical/benchmarks/16qam/README.md) |
 | `full_circle clean` | `S27cov_fc_clean_lc0p25_t0p03_lat10` | baseline científica limpa, sem viés geométrico explícito | [protocol_leaderboard full_circle clean](/home/rodrigo/cVAe_2026_shape_fullcircle/outputs/full_circle/20260417_115140_clean_bs8192_lat10_100k_split_b/exp_20260417_115142/tables/protocol_leaderboard.csv) |
 | `full_circle geometry-biased` | `S27cov_lc0p25_tail95_t0p03_disk_geom3_bs8192` | linha operacional que favorece a hipótese geométrica circular | [protocol_leaderboard full_circle disk](/home/rodrigo/cVAe_2026_shape_fullcircle/outputs/full_circle/disk_bs8192_lat10_100k_split_a/exp_20260416_165643/tables/protocol_leaderboard.csv) |
 | `full_circle geometry-light` | `S27cov_fc_soft_rinf_local_lat10_a1p50_tau0p80_wmax3p0` | compromisso entre baseline limpa e viés geométrico forte, sem `geom3` e sem `disk_l2` | [protocol_leaderboard full_circle soft-radial](/home/rodrigo/cVAe_2026_shape_fullcircle/outputs/full_circle/20260420_233254_soft_radial_block_a_100k/exp_20260420_233256/tables/protocol_leaderboard.csv) |
@@ -134,15 +134,18 @@ Nesta comparação, dois roots canônicos devem ser citados em conjunto:
   `geometry-light` e traz o sumário comparativo atualizado
 
 - `full_square`
-  - [manifest_all_regimes_eval.csv](/home/rodrigo/cVAe_2026_shape/outputs/analysis/eval_16qam_crossline_20260420_clean/full_square_s27cov_sciv1_lr0p00015/manifest_all_regimes_eval.csv)
+  - [manifest_all_regimes_eval.csv](/home/rodrigo/cVAe_2026_full_square/outputs/architectures/probabilistic_shaping/S27_historical/benchmarks/16qam/eval_16qam_all_regimes_s27/manifest_all_regimes_eval.csv)
+  - observação: este é o artefato físico local disponível; a pasta exata
+    `full_square_s27cov_sciv1_lr0p00015` deve ser restaurada de backup ou
+    rerodada se for necessária como evidência bruta
 - `full_circle clean`
-  - [manifest_all_regimes_eval.csv](/home/rodrigo/cVAe_2026_shape_fullcircle/outputs/analysis/eval_16qam_crossline_20260420_clean/full_circle_clean_lat10/manifest_all_regimes_eval.csv)
+  - [manifest_all_regimes_eval.csv](/home/rodrigo/cVAe_2026_full_circle/outputs/architectures/clean_baseline/S27cov_fc_clean_lc0p25_t0p03_lat10/benchmarks/16qam/eval_16qam_crossline_20260420_clean/manifest_all_regimes_eval.csv)
 - `full_circle geometry-biased`
-  - [manifest_all_regimes_eval.csv](/home/rodrigo/cVAe_2026_shape_fullcircle/outputs/analysis/eval_16qam_crossline_20260420_clean/full_circle_disk_geom3/manifest_all_regimes_eval.csv)
+  - [manifest_all_regimes_eval.csv](/home/rodrigo/cVAe_2026_full_circle/outputs/architectures/disk_geom3/S27cov_lc0p25_tail95_t0p03_disk_geom3_bs8192/benchmarks/16qam/eval_16qam_crossline_20260420_clean/manifest_all_regimes_eval.csv)
 - `full_circle geometry-light`
-  - [manifest_all_regimes_eval.csv](/home/rodrigo/cVAe_2026_shape_fullcircle/outputs/analysis/eval_16qam_crossline_20260422_plus_soft_radial/full_circle_soft_rinf_local/manifest_all_regimes_eval.csv)
+  - [manifest_all_regimes_eval.csv](/home/rodrigo/cVAe_2026_full_circle/outputs/architectures/soft_rinf_local/S27cov_fc_soft_rinf_local_lat10_a1p50_tau0p80_wmax3p0/benchmarks/16qam/eval_16qam_crossline_20260422_plus_soft_radial/manifest_all_regimes_eval.csv)
 - sumário comparativo dos quatro braços
-  - [README.md](/home/rodrigo/cVAe_2026_shape_fullcircle/outputs/analysis/eval_16qam_crossline_20260422_plus_soft_radial/crossline_summary/README.md)
+  - [README.md](/home/rodrigo/cVAe_2026_full_circle/outputs/architectures/_crossline/16qam/eval_16qam_crossline_20260422_plus_soft_radial/README.md)
 
 ## Resultado estabilizado desta rodada
 
@@ -223,15 +226,18 @@ A leitura mais prudente, no estado atual, é:
 ## Evidências
 
 - O papel forte, mas auxiliar, da validação externa aparece em
-  [digital_twin_validation_foundation_table](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/digital_twin_validation_foundation_table_2026-04-11.md).
+  [digital_twin_validation_foundation_table](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/digital_twin_validation_foundation_table_2026-04-11.md).
 - A checklist `full_circle` já prevê explicitamente usar o modelo treinado como
   checagem externa em `16QAM`, em
   [FULL_CIRCLE_VALIDATION_CHECKLIST](/home/rodrigo/cVAe_2026_shape_fullcircle/docs/active/FULL_CIRCLE_VALIDATION_CHECKLIST.md).
-- A execução já consolidada da linha `full_square` pode ser auditada em
-  [eval_16qam_sel4curr_review](/home/rodrigo/cVAe_2026_shape/outputs/analysis/eval_16qam_sel4curr_review/README.md).
+- A execução física atualmente disponível da linha `full_square` pode ser
+  auditada em
+  [S27_historical](/home/rodrigo/cVAe_2026_full_square/outputs/architectures/probabilistic_shaping/S27_historical/benchmarks/16qam/README.md).
 - Os candidatos escolhidos para a rodada comparativa estão ancorados em seus
   respectivos leaderboards de protocolo:
-  [full_square](/home/rodrigo/cVAe_2026_shape/outputs/support_ablation/final_grid/e2_finalists_shortlist/exp_20260414_131231/tables/protocol_leaderboard.csv),
+  `full_square` teve seus valores preservados no sumário crossline, mas o
+  artefato físico exato precisa ser restaurado ou rerodado se for exigido como
+  evidência bruta,
   [full_circle clean](/home/rodrigo/cVAe_2026_shape_fullcircle/outputs/full_circle/20260417_115140_clean_bs8192_lat10_100k_split_b/exp_20260417_115142/tables/protocol_leaderboard.csv),
   [full_circle disk](/home/rodrigo/cVAe_2026_shape_fullcircle/outputs/full_circle/disk_bs8192_lat10_100k_split_a/exp_20260416_165643/tables/protocol_leaderboard.csv),
   [full_circle soft-radial](/home/rodrigo/cVAe_2026_shape_fullcircle/outputs/full_circle/20260420_233254_soft_radial_block_a_100k/exp_20260420_233256/tables/protocol_leaderboard.csv).

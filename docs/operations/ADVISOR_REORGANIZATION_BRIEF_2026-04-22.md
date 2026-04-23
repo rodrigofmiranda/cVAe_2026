@@ -78,9 +78,13 @@ Exemplos:
 - `knowledge/syntheses/full_square/`
 - `knowledge/syntheses/full_circle/`
 - `knowledge/syntheses/benchmarks/modulations/16qam/`
-- `outputs/lines/full_square/`
-- `outputs/lines/full_circle/`
-- `outputs/benchmarks/modulations/16qam/`
+
+Regra corrigida para outputs:
+
+- resultados de benchmark ficam junto da arquitetura/candidato avaliado
+- exemplo:
+  `outputs/architectures/<arquitetura>/<candidato>/benchmarks/16qam/`
+- o worktree `cVAe_2026` nao deve ser usado como novo deposito de resultados
 
 ## O que ja foi implementado
 
@@ -89,7 +93,8 @@ Exemplos:
 - criacao das branches `research/...` e `arch/...` iniciais
 - centralizacao da pasta `Tese/` no repositorio canonico
 - criacao da documentacao de governanca
-- criacao da arvore de benchmark transversal para modulacoes
+- criacao da documentacao e dos wrappers de benchmark transversal para
+  modulacoes
 - importacao dos documentos de linhagem principais de `full_square` e
   `full_circle`
 

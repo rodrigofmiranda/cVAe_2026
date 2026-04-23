@@ -18,7 +18,21 @@ Primeiro benchmark transversal oficial do projeto.
 
 ## Camadas associadas
 
-- `data/benchmarks/modulations/16qam/`
 - `scripts/benchmarks/modulations/16qam/`
 - `knowledge/syntheses/benchmarks/modulations/16qam/`
 - `Tese/06_validacao_do_gemeo/16qam/`
+
+## Onde ficam os resultados
+
+Os resultados nao ficam em um deposito central `outputs/benchmarks/...`.
+
+Cada avaliacao `16QAM` deve ficar junto da arquitetura/candidato que foi
+testado:
+
+```text
+/home/rodrigo/cVAe_2026_full_square/outputs/architectures/<arquitetura>/<candidato>/benchmarks/16qam/
+/home/rodrigo/cVAe_2026_full_circle/outputs/architectures/<arquitetura>/<candidato>/benchmarks/16qam/
+```
+
+Sumarios crossline podem existir como indices derivados, mas devem apontar para
+os manifests locais de cada candidato.

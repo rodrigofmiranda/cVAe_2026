@@ -12,9 +12,9 @@ metodologia final.
 
 ## Fontes canônicas usadas
 
-- [gate_threshold_calibration](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/gate_threshold_calibration_2026-04-11.md)
-- [tabela de calibração](/home/rodrigo/cVAe_2026_shape/outputs/analysis/gate_threshold_calibration_20260411/gate_threshold_calibration_table.csv)
-- [relatório de calibração](/home/rodrigo/cVAe_2026_shape/outputs/analysis/gate_threshold_calibration_20260411/gate_threshold_calibration_report.md)
+- [gate_threshold_calibration](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/gate_threshold_calibration_2026-04-11.md)
+- [tabela de calibração](/home/rodrigo/cVAe_2026_full_square/outputs/analysis/gate_threshold_calibration_20260411/gate_threshold_calibration_table.csv)
+- [relatório de calibração](/home/rodrigo/cVAe_2026_full_square/outputs/analysis/gate_threshold_calibration_20260411/gate_threshold_calibration_report.md)
 
 ## Status do texto
 
@@ -53,7 +53,7 @@ atingiam.
 ## Evidências
 
 - Os artefatos formais da calibração estão em
-  [gate_threshold_calibration](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/gate_threshold_calibration_2026-04-11.md)
+  [gate_threshold_calibration](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/gate_threshold_calibration_2026-04-11.md)
   e nos arquivos de análise associados.
 
 ## Implicações

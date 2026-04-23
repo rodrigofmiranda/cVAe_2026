@@ -12,7 +12,7 @@ varre automaticamente todos os plots existentes em `outputs/`.
 ## Fontes canônicas usadas
 
 - [figuras_e_tabelas_planejadas](../08_planejamento_da_redacao/figuras_e_tabelas_planejadas.md)
-- [PROTOCOL](/home/rodrigo/cVAe_2026_shape/docs/reference/PROTOCOL.md)
+- [PROTOCOL](/home/rodrigo/cVAe_2026_full_square/docs/reference/PROTOCOL.md)
 - [FULL_CIRCLE_EXECUTION_PLAN](/home/rodrigo/cVAe_2026_shape_fullcircle/docs/active/FULL_CIRCLE_EXECUTION_PLAN.md)
 
 ## Status do texto

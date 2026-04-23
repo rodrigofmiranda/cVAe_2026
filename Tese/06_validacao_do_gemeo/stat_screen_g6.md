@@ -11,9 +11,9 @@ ele significa e o que ele não significa.
 
 ## Fontes canônicas usadas
 
-- [gate_validation_audit](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/gate_validation_audit_2026-04-11.md)
-- [gate_threshold_calibration](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/gate_threshold_calibration_2026-04-11.md)
-- [PROTOCOL](/home/rodrigo/cVAe_2026_shape/docs/reference/PROTOCOL.md)
+- [gate_validation_audit](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/gate_validation_audit_2026-04-11.md)
+- [gate_threshold_calibration](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/gate_threshold_calibration_2026-04-11.md)
+- [PROTOCOL](/home/rodrigo/cVAe_2026_full_square/docs/reference/PROTOCOL.md)
 - [FULL_CIRCLE_VALIDATION_CHECKLIST](/home/rodrigo/cVAe_2026_shape_fullcircle/docs/active/FULL_CIRCLE_VALIDATION_CHECKLIST.md)
 
 ## Status do texto
@@ -51,10 +51,10 @@ threshold de engenharia calibrado.
 ## Evidências
 
 - A auditoria de significado de `G6` está em
-  [gate_validation_audit](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/gate_validation_audit_2026-04-11.md).
+  [gate_validation_audit](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/gate_validation_audit_2026-04-11.md).
 - A separação explícita entre `validation_status_twin` e `stat_screen_pass`
   aparece no
-  [PROTOCOL](/home/rodrigo/cVAe_2026_shape/docs/reference/PROTOCOL.md)
+  [PROTOCOL](/home/rodrigo/cVAe_2026_full_square/docs/reference/PROTOCOL.md)
   e na
   [FULL_CIRCLE_VALIDATION_CHECKLIST](/home/rodrigo/cVAe_2026_shape_fullcircle/docs/active/FULL_CIRCLE_VALIDATION_CHECKLIST.md).
 

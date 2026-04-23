@@ -13,9 +13,9 @@ aparecem depois em `full_square`, `full_circle` e validação.
 ## Fontes canônicas usadas
 
 - [FULL_SQUARE_LINEAGE_TO_SHAPE](/home/rodrigo/cVAe_2026_mdn_return/docs/active/FULL_SQUARE_LINEAGE_TO_SHAPE.md)
-- [vlc_probabilistic_shaping_strategy](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/vlc_probabilistic_shaping_strategy_2026-04-03.md)
-- [support_hyperparameter_scientific_screening](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/support_hyperparameter_scientific_screening_2026-04-08.md)
-- [digital_twin_validation_foundation_table](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/digital_twin_validation_foundation_table_2026-04-11.md)
+- [vlc_probabilistic_shaping_strategy](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/vlc_probabilistic_shaping_strategy_2026-04-03.md)
+- [support_hyperparameter_scientific_screening](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/support_hyperparameter_scientific_screening_2026-04-08.md)
+- [digital_twin_validation_foundation_table](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/digital_twin_validation_foundation_table_2026-04-11.md)
 
 ## Status do texto
 
@@ -56,7 +56,7 @@ aparecem depois em `full_square`, `full_circle` e validação.
   e
   [FULL_CIRCLE_EXECUTION_PLAN](/home/rodrigo/cVAe_2026_shape_fullcircle/docs/active/FULL_CIRCLE_EXECUTION_PLAN.md).
 - `H6` e `H7` aparecem explicitamente na auditoria de validação em
-  [digital_twin_validation_foundation_table](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/digital_twin_validation_foundation_table_2026-04-11.md).
+  [digital_twin_validation_foundation_table](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/digital_twin_validation_foundation_table_2026-04-11.md).
 
 ## Implicações
 

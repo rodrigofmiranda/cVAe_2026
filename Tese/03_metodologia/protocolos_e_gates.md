@@ -15,9 +15,9 @@ Este documento resume:
 
 ## Fontes canônicas usadas
 
-- [PROTOCOL](/home/rodrigo/cVAe_2026_shape/docs/reference/PROTOCOL.md)
-- [gate_validation_audit](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/gate_validation_audit_2026-04-11.md)
-- [gate_threshold_calibration](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/gate_threshold_calibration_2026-04-11.md)
+- [PROTOCOL](/home/rodrigo/cVAe_2026_full_square/docs/reference/PROTOCOL.md)
+- [gate_validation_audit](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/gate_validation_audit_2026-04-11.md)
+- [gate_threshold_calibration](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/gate_threshold_calibration_2026-04-11.md)
 - [FULL_CIRCLE_VALIDATION_CHECKLIST](/home/rodrigo/cVAe_2026_shape_fullcircle/docs/active/FULL_CIRCLE_VALIDATION_CHECKLIST.md)
 
 ## Status do texto
@@ -81,11 +81,11 @@ Após a calibração empírica de 2026-04-11, a leitura recomendada é:
 ## Evidências
 
 - A separação metodológica aparece literalmente em
-  [PROTOCOL](/home/rodrigo/cVAe_2026_shape/docs/reference/PROTOCOL.md)
+  [PROTOCOL](/home/rodrigo/cVAe_2026_full_square/docs/reference/PROTOCOL.md)
   e
   [FULL_CIRCLE_VALIDATION_CHECKLIST](/home/rodrigo/cVAe_2026_shape_fullcircle/docs/active/FULL_CIRCLE_VALIDATION_CHECKLIST.md).
 - A auditoria crítica do significado de `G6` está em
-  [gate_validation_audit](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/gate_validation_audit_2026-04-11.md).
+  [gate_validation_audit](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/gate_validation_audit_2026-04-11.md).
 
 ## Implicações
 

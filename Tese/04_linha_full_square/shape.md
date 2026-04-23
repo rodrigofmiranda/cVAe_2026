@@ -16,10 +16,10 @@ Este documento cobre:
 ## Fontes canônicas usadas
 
 - [FULL_SQUARE_LINEAGE_TO_SHAPE](/home/rodrigo/cVAe_2026_mdn_return/docs/active/FULL_SQUARE_LINEAGE_TO_SHAPE.md)
-- [support_ablation_e0_e3_comparison](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/support_ablation_e0_e3_comparison_2026-04-07.md)
-- [support_ablation_e3b_e4_followup](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/support_ablation_e3b_e4_followup_2026-04-07.md)
-- [support_hyperparameter_scientific_screening](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/support_hyperparameter_scientific_screening_2026-04-08.md)
-- [support_scientific_screen_master_table](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/support_scientific_screen_master_table_2026-04-10.md)
+- [support_ablation_e0_e3_comparison](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/support_ablation_e0_e3_comparison_2026-04-07.md)
+- [support_ablation_e3b_e4_followup](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/support_ablation_e3b_e4_followup_2026-04-07.md)
+- [support_hyperparameter_scientific_screening](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/support_hyperparameter_scientific_screening_2026-04-08.md)
+- [support_scientific_screen_master_table](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/support_scientific_screen_master_table_2026-04-10.md)
 
 ## Status do texto
 
@@ -68,7 +68,7 @@ O screening mudou a leitura da linha:
 - A leitura consolidada do pós-screening está explicitamente escrita em
   [FULL_SQUARE_LINEAGE_TO_SHAPE](/home/rodrigo/cVAe_2026_mdn_return/docs/active/FULL_SQUARE_LINEAGE_TO_SHAPE.md)
   e numericamente resumida em
-  [support_scientific_screen_master_table](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/support_scientific_screen_master_table_2026-04-10.md).
+  [support_scientific_screen_master_table](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/support_scientific_screen_master_table_2026-04-10.md).
 
 ## Implicações
 

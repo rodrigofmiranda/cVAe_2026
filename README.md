@@ -1,6 +1,6 @@
 # VLC Channel Digital Twin - Canonical Research Layout
 
-Canonical repository for the VLC channel digital-twin program.
+Integration and documentation worktree for the VLC channel digital-twin program.
 
 The project is now organized around two primary research lines:
 
@@ -25,8 +25,9 @@ Official local worktrees:
   - main worktree for the `full_circle` line
   - long-lived branch: `research/full-circle`
 
-Architecture work happens on `arch/...` branches. Benchmarking work happens in
-`benchmarks/modulations/...`.
+Architecture work happens on `arch/...` branches. Benchmark protocols and
+wrappers live under `benchmarks/modulations/...`, but benchmark outputs stay
+next to the architecture/candidate that was evaluated.
 
 ## Start Here
 
@@ -42,10 +43,10 @@ Architecture work happens on `arch/...` branches. Benchmarking work happens in
 ```text
 Tese/            Curated thesis-ready material
 configs/         Common, line-specific, and benchmark configuration layers
-data/            Runtime datasets and benchmark data roots
+data/            Integration notes only; active datasets live in line worktrees
 knowledge/       Notes and syntheses by line and by benchmark
 docs/            Operations, lineage, references, benchmark guides
-outputs/         Runtime artifacts split by line and by modulation benchmark
+outputs/         Historical leftovers only; do not use as a new benchmark sink
 scripts/         Common wrappers plus line-specific and benchmark entrypoints
 src/             Shared code plus line/benchmark logical namespaces
 tests/           Automated validation
@@ -58,6 +59,9 @@ tests/           Automated validation
 - `16QAM` is the first canonical external benchmark.
 - `4QAM` and later modulations enter the same benchmark layer without changing
   the repository shape.
+- physical `16QAM` outputs must be attached to the tested architecture/candidate
+  in `/home/rodrigo/cVAe_2026_full_square` or
+  `/home/rodrigo/cVAe_2026_full_circle`
 - the current staging branch for the canonical reorganization is
   `wip/canonical-reorg-base-20260422`
 
@@ -67,11 +71,11 @@ tests/           Automated validation
 - legacy root config paths remain available for compatibility
 - canonical `16QAM` benchmark scripts now live in
   `scripts/benchmarks/modulations/16qam/`
-- `data/` and `outputs/` now expose tracked README placeholders for the new
-  line/benchmark split without versioning runtime artifacts
+- `cVAe_2026` should not receive new runtime benchmark outputs
 
 ## Operational Note
 
-Legacy local clones such as `cVAe_2026_shape`, `cVAe_2026_shape_fullcircle`,
-and `cVAe_2026_mdn_return` remain available as migration sources, but they are
-no longer the intended canonical presentation layout.
+Historical names such as `cVAe_2026_shape`, `cVAe_2026_shape_fullcircle`, and
+`cVAe_2026_mdn_return` may still appear in older documents. New operational
+work should use the official worktrees `cVAe_2026_full_square` and
+`cVAe_2026_full_circle`.

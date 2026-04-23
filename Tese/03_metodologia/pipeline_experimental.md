@@ -13,8 +13,8 @@ grid ou script operacional.
 ## Fontes canônicas usadas
 
 - [VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING](/home/rodrigo/cVAe_2026_mdn_return/docs/reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt)
-- [PROTOCOL](/home/rodrigo/cVAe_2026_shape/docs/reference/PROTOCOL.md)
-- [vlc_shaping_experimental_methodology](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/vlc_shaping_experimental_methodology_2026-04-03.md)
+- [PROTOCOL](/home/rodrigo/cVAe_2026_full_square/docs/reference/PROTOCOL.md)
+- [vlc_shaping_experimental_methodology](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/vlc_shaping_experimental_methodology_2026-04-03.md)
 - [FULL_CIRCLE_EXECUTION_PLAN](/home/rodrigo/cVAe_2026_shape_fullcircle/docs/active/FULL_CIRCLE_EXECUTION_PLAN.md)
 
 ## Status do texto
@@ -74,7 +74,7 @@ O pipeline pode ser lido em seis estágios:
 - A organização do fluxo de dados aparece em
   [VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING](/home/rodrigo/cVAe_2026_mdn_return/docs/reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt).
 - O protocolo de avaliação e seus campos principais aparecem em
-  [PROTOCOL](/home/rodrigo/cVAe_2026_shape/docs/reference/PROTOCOL.md).
+  [PROTOCOL](/home/rodrigo/cVAe_2026_full_square/docs/reference/PROTOCOL.md).
 
 ## Implicações
 

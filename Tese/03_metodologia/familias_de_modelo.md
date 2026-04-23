@@ -14,7 +14,7 @@ famílias que depois reaparece nas linhas `full_square` e `full_circle`.
 
 - [FULL_SQUARE_LINEAGE_TO_SHAPE](/home/rodrigo/cVAe_2026_mdn_return/docs/active/FULL_SQUARE_LINEAGE_TO_SHAPE.md)
 - [WORKING_STATE](/home/rodrigo/cVAe_2026_mdn_return/docs/active/WORKING_STATE.md)
-- [support_hyperparameter_scientific_screening](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/support_hyperparameter_scientific_screening_2026-04-08.md)
+- [support_hyperparameter_scientific_screening](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/support_hyperparameter_scientific_screening_2026-04-08.md)
 
 ## Status do texto
 
@@ -52,7 +52,7 @@ ocorreu foi um refinamento sucessivo do problema:
 - A síntese histórica completa está em
   [FULL_SQUARE_LINEAGE_TO_SHAPE](/home/rodrigo/cVAe_2026_mdn_return/docs/active/FULL_SQUARE_LINEAGE_TO_SHAPE.md).
 - A etapa de screening científico das variantes `shape` está em
-  [support_hyperparameter_scientific_screening](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/support_hyperparameter_scientific_screening_2026-04-08.md).
+  [support_hyperparameter_scientific_screening](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/support_hyperparameter_scientific_screening_2026-04-08.md).
 
 ## Implicações
 

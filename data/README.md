@@ -1,9 +1,14 @@
 # Data Layout
 
-This tree separates line-specific datasets from transversal benchmark datasets.
+`cVAe_2026` is the integration/documentation worktree. Do not place new runtime
+benchmark datasets here.
 
-- `lines/full_square/`: datasets owned by the `full_square` line
-- `lines/full_circle/`: datasets owned by the `full_circle` line
-- `benchmarks/modulations/<mod>/`: external modulation benchmarks such as `16qam` and `4qam`
+Operational datasets must live in the active line worktree that uses them, for
+example:
 
-Large binary datasets remain outside git or under LFS when explicitly allowed.
+- `/home/rodrigo/cVAe_2026_full_square/data/...`
+- `/home/rodrigo/cVAe_2026_full_circle/data/...`
+
+External modulation datasets such as `16QAM` and `4QAM` are shared benchmark
+inputs, but their evaluated artifacts must be attached to the architecture/run
+that consumed them.

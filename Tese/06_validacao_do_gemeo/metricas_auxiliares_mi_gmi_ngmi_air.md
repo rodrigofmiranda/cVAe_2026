@@ -15,12 +15,12 @@ Este documento cobre:
 
 ## Fontes canônicas usadas
 
-- [PROTOCOL](/home/rodrigo/cVAe_2026_shape/docs/reference/PROTOCOL.md)
-- [information_metrics.py](/home/rodrigo/cVAe_2026_shape/src/evaluation/information_metrics.py)
-- [summary_plots.py](/home/rodrigo/cVAe_2026_shape/src/evaluation/summary_plots.py)
-- [digital_twin_validation_foundation_table](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/digital_twin_validation_foundation_table_2026-04-11.md)
-- [shu_2020_probabilistic_shaping_optical](/home/rodrigo/cVAe_2026_shape/knowledge/notes/shu_2020_probabilistic_shaping_optical.md)
-- [askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance](/home/rodrigo/cVAe_2026_shape/knowledge/notes/askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance.md)
+- [PROTOCOL](/home/rodrigo/cVAe_2026_full_square/docs/reference/PROTOCOL.md)
+- [information_metrics.py](/home/rodrigo/cVAe_2026_full_square/src/evaluation/information_metrics.py)
+- [summary_plots.py](/home/rodrigo/cVAe_2026_full_square/src/evaluation/summary_plots.py)
+- [digital_twin_validation_foundation_table](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/digital_twin_validation_foundation_table_2026-04-11.md)
+- [shu_2020_probabilistic_shaping_optical](/home/rodrigo/cVAe_2026_full_square/knowledge/notes/shu_2020_probabilistic_shaping_optical.md)
+- [askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance](/home/rodrigo/cVAe_2026_full_square/knowledge/notes/askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance.md)
 
 ## Status do texto
 
@@ -71,14 +71,14 @@ Elas não respondem sozinhas:
 
 - O protocolo declara explicitamente que essas métricas são auxiliares e não
   entram em `G1..G6`, em
-  [PROTOCOL](/home/rodrigo/cVAe_2026_shape/docs/reference/PROTOCOL.md).
+  [PROTOCOL](/home/rodrigo/cVAe_2026_full_square/docs/reference/PROTOCOL.md).
 - A implementação operacional está em
-  [information_metrics.py](/home/rodrigo/cVAe_2026_shape/src/evaluation/information_metrics.py).
+  [information_metrics.py](/home/rodrigo/cVAe_2026_full_square/src/evaluation/information_metrics.py).
 - A conexão técnica dessas métricas com shaping óptico e regimes discretos pode
   ser apoiada por
-  [shu_2020_probabilistic_shaping_optical](/home/rodrigo/cVAe_2026_shape/knowledge/notes/shu_2020_probabilistic_shaping_optical.md)
+  [shu_2020_probabilistic_shaping_optical](/home/rodrigo/cVAe_2026_full_square/knowledge/notes/shu_2020_probabilistic_shaping_optical.md)
   e, de forma mais ampla, por
-  [askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance](/home/rodrigo/cVAe_2026_shape/knowledge/notes/askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance.md).
+  [askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance](/home/rodrigo/cVAe_2026_full_square/knowledge/notes/askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance.md).
 
 ## Implicações
 

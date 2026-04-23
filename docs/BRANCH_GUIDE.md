@@ -60,6 +60,8 @@ If you want to work on one main scientific line:
 
 If you want to evaluate external modulations:
 
-1. stay in the canonical repo
-2. use the benchmark layer under `benchmarks/modulations/...`
-3. compare `full_square` and `full_circle` using the same modulation protocol
+1. work in the line worktree that owns the candidate
+2. use the shared benchmark wrapper/protocol under `benchmarks/modulations/...`
+3. write outputs under the tested architecture/candidate, e.g.
+   `outputs/architectures/<architecture>/<candidate>/benchmarks/16qam/`
+4. compare `full_square` and `full_circle` using those candidate-local manifests

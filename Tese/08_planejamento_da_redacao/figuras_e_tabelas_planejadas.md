@@ -11,8 +11,8 @@ Este documento lista figuras e tabelas prioritárias, não um inventário exaust
 ## Fontes canônicas usadas
 
 - [FULL_SQUARE_LINEAGE_TO_SHAPE](/home/rodrigo/cVAe_2026_mdn_return/docs/active/FULL_SQUARE_LINEAGE_TO_SHAPE.md)
-- [support_scientific_screen_master_table](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/support_scientific_screen_master_table_2026-04-10.md)
-- [gate_threshold_calibration](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/gate_threshold_calibration_2026-04-11.md)
+- [support_scientific_screen_master_table](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/support_scientific_screen_master_table_2026-04-10.md)
+- [gate_threshold_calibration](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/gate_threshold_calibration_2026-04-11.md)
 - [FULL_CIRCLE_EXECUTION_PLAN](/home/rodrigo/cVAe_2026_shape_fullcircle/docs/active/FULL_CIRCLE_EXECUTION_PLAN.md)
 
 ## Status do texto

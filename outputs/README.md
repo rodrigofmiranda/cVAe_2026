@@ -1,9 +1,14 @@
 # Outputs Layout
 
-Runtime artifacts are organized into:
+`cVAe_2026` is not the canonical location for new runtime outputs.
 
-- `lines/full_square/`
-- `lines/full_circle/`
-- `benchmarks/modulations/<mod>/`
+New benchmark artifacts must stay next to the architecture and candidate that
+were evaluated, in the corresponding active worktree, for example:
 
-Historical outputs may still exist elsewhere during migration, but new canonical runs should target this tree.
+```text
+/home/rodrigo/cVAe_2026_full_square/outputs/architectures/<architecture>/<candidate>/benchmarks/16qam/
+/home/rodrigo/cVAe_2026_full_circle/outputs/architectures/<architecture>/<candidate>/benchmarks/16qam/
+```
+
+This directory may contain historical leftovers during migration, but it should
+not be used as a new benchmark sink.

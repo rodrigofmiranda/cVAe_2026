@@ -5,19 +5,23 @@
 
 ## Estrutura canonica oficial
 
-O programa passa a ser apresentado como um repositorio canonico unico com duas
-linhas principais de pesquisa e uma camada transversal de benchmarks.
+O programa passa a ser apresentado com duas linhas principais de pesquisa e uma
+camada transversal de benchmarks. O worktree `cVAe_2026` e uma base de
+integracao/documentacao, nao um novo destino operacional de resultados.
 
 ### Linhas principais
 
 - `full_square`
 - `full_circle`
 
-### Camada transversal
+### Camada transversal metodologica
 
 - `benchmarks/modulations/16qam`
 - `benchmarks/modulations/4qam`
 - `benchmarks/modulations/future`
+
+Essa camada define protocolo, docs e scripts. Os resultados ficam junto da
+arquitetura/candidato que foi testado, no worktree da linha.
 
 ## Worktrees oficiais
 
@@ -71,15 +75,16 @@ A reorganizacao atual e nao-destrutiva.
 - a camada `Tese` foi centralizada no repositorio canonico
 - a documentacao passou a separar explicitamente `full_square`, `full_circle`
   e benchmark de modulacoes
+- o repo-base `cVAe_2026` nao deve receber novos outputs de benchmark
 
-## Clones legados agora tratados como apoio de migracao
+## Clones legados agora tratados como historico
 
-- `/home/rodrigo/cVAe_2026_shape`
 - `/home/rodrigo/cVAe_2026_shape_fullcircle`
 - `/home/rodrigo/cVAe_2026_mdn_return`
 
-Eles continuam uteis para rastreabilidade, mas nao devem mais ser apresentados
-como a organizacao canonica final do programa.
+O antigo `/home/rodrigo/cVAe_2026_shape` foi substituido pelo worktree oficial
+`/home/rodrigo/cVAe_2026_full_square`. Referencias novas devem apontar para o
+worktree oficial, nao para o nome legado.
 
 ## Benchmark transversal de modulacoes
 
@@ -91,6 +96,13 @@ Papel oficial:
 
 `16QAM` e o primeiro benchmark oficial dessa camada.
 `4QAM` ja possui a estrutura reservada para continuidade futura.
+
+Regra de armazenamento:
+
+```text
+/home/rodrigo/cVAe_2026_full_square/outputs/architectures/<arquitetura>/<candidato>/benchmarks/<modulacao>/
+/home/rodrigo/cVAe_2026_full_circle/outputs/architectures/<arquitetura>/<candidato>/benchmarks/<modulacao>/
+```
 
 ## Documentos de governanca
 

@@ -19,7 +19,7 @@ Este arquivo estabelece:
 - [Tese/README](../README.md)
 - [docs/README](/home/rodrigo/cVAe_2026_mdn_return/docs/README.md)
 - [PROJECT_STATUS](/home/rodrigo/cVAe_2026_mdn_return/PROJECT_STATUS.md)
-- [digital_twin_validation_foundation_table](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/digital_twin_validation_foundation_table_2026-04-11.md)
+- [digital_twin_validation_foundation_table](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/digital_twin_validation_foundation_table_2026-04-11.md)
 
 ## Status do texto
 
@@ -92,9 +92,9 @@ Todo novo documento desta pasta deve responder, no mínimo:
 
 - A separação `validation_status_twin` versus `stat_screen_pass` foi consolidada
   nas sínteses de validação em
-  [gate_validation_audit](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/gate_validation_audit_2026-04-11.md)
+  [gate_validation_audit](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/gate_validation_audit_2026-04-11.md)
   e
-  [gate_threshold_calibration](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/gate_threshold_calibration_2026-04-11.md).
+  [gate_threshold_calibration](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/gate_threshold_calibration_2026-04-11.md).
 
 ## Implicações
 

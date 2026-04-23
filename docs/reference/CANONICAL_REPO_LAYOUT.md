@@ -39,18 +39,20 @@ src/
   full_circle/
   benchmarks/modulations/
 data/
-  lines/
-  benchmarks/modulations/
+  README.md
 outputs/
-  lines/
-  benchmarks/modulations/
+  README.md
 ```
 
 ## Regra de separacao
 
 - hipoteses, execucao e sintese especificas de uma linha ficam em
   `full_square/` ou `full_circle/`
-- comparacoes externas por modulacao ficam em `benchmarks/modulations/...`
+- a metodologia das comparacoes externas por modulacao fica em
+  `benchmarks/modulations/...`
+- os artefatos de avaliacao por modulacao ficam junto da arquitetura/candidato
+  que foi testado, por exemplo
+  `outputs/architectures/<arquitetura>/<candidato>/benchmarks/16qam/`
 - infraestrutura compartilhada fica em `common/`
 - `mdn_return` passa a ser documentado como linhagem do `full_square`
 
@@ -62,3 +64,4 @@ outputs/
 - scripts de benchmark `16QAM` vivem em
   `scripts/benchmarks/modulations/16qam/`
 - caminhos antigos em `scripts/analysis/` permanecem como wrappers finos
+- `cVAe_2026` nao deve ser usado como novo destino de outputs de benchmark

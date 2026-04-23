@@ -40,11 +40,13 @@ benchmark. Elas nao definem uma linha principal separada.
 
 ## Clones legados
 
-Os clones abaixo sao mantidos como fontes de migracao e rastreabilidade:
+Os clones/nomes abaixo aparecem em material historico de migracao:
 
-- `/home/rodrigo/cVAe_2026_shape`
 - `/home/rodrigo/cVAe_2026_shape_fullcircle`
 - `/home/rodrigo/cVAe_2026_mdn_return`
+
+O antigo `/home/rodrigo/cVAe_2026_shape` foi substituido pelo worktree oficial
+`/home/rodrigo/cVAe_2026_full_square`.
 
 Esses clones nao devem ser usados como forma principal de apresentar a
 organizacao do projeto para novos colaboradores ou orientadores.

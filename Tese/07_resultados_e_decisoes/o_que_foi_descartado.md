@@ -12,8 +12,8 @@ Este documento reúne descartes conceituais e descartes de promoção de famíli
 ## Fontes canônicas usadas
 
 - [FULL_SQUARE_LINEAGE_TO_SHAPE](/home/rodrigo/cVAe_2026_mdn_return/docs/active/FULL_SQUARE_LINEAGE_TO_SHAPE.md)
-- [support_hyperparameter_scientific_screening](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/support_hyperparameter_scientific_screening_2026-04-08.md)
-- [support_scientific_screen_master_table](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/support_scientific_screen_master_table_2026-04-10.md)
+- [support_hyperparameter_scientific_screening](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/support_hyperparameter_scientific_screening_2026-04-08.md)
+- [support_scientific_screen_master_table](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/support_scientific_screen_master_table_2026-04-10.md)
 
 ## Status do texto
 

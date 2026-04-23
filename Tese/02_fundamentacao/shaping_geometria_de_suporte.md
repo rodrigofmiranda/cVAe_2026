@@ -14,10 +14,10 @@ da linha `shape` e da posterior linha `full_circle`.
 
 - [FULL_SQUARE_LINEAGE_TO_SHAPE](/home/rodrigo/cVAe_2026_mdn_return/docs/active/FULL_SQUARE_LINEAGE_TO_SHAPE.md)
 - [FULL_CIRCLE_NEXT_STEP](/home/rodrigo/cVAe_2026_mdn_return/docs/active/FULL_CIRCLE_NEXT_STEP.md)
-- [vlc_probabilistic_shaping_strategy](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/vlc_probabilistic_shaping_strategy_2026-04-03.md)
-- [support_ablation_e0_e3_comparison](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/support_ablation_e0_e3_comparison_2026-04-07.md)
-- [askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance](/home/rodrigo/cVAe_2026_shape/knowledge/notes/askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance.md)
-- [shu_2020_probabilistic_shaping_optical](/home/rodrigo/cVAe_2026_shape/knowledge/notes/shu_2020_probabilistic_shaping_optical.md)
+- [vlc_probabilistic_shaping_strategy](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/vlc_probabilistic_shaping_strategy_2026-04-03.md)
+- [support_ablation_e0_e3_comparison](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/support_ablation_e0_e3_comparison_2026-04-07.md)
+- [askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance](/home/rodrigo/cVAe_2026_full_square/knowledge/notes/askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance.md)
+- [shu_2020_probabilistic_shaping_optical](/home/rodrigo/cVAe_2026_full_square/knowledge/notes/shu_2020_probabilistic_shaping_optical.md)
 
 ## Status do texto
 
@@ -65,9 +65,9 @@ Por isso, a leitura correta é:
   [FULL_CIRCLE_NEXT_STEP](/home/rodrigo/cVAe_2026_mdn_return/docs/active/FULL_CIRCLE_NEXT_STEP.md).
 - A fundamentação técnica para não reduzir shaping a “ganho de marginal” está
   em
-  [askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance](/home/rodrigo/cVAe_2026_shape/knowledge/notes/askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance.md)
+  [askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance](/home/rodrigo/cVAe_2026_full_square/knowledge/notes/askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance.md)
   e
-  [shu_2020_probabilistic_shaping_optical](/home/rodrigo/cVAe_2026_shape/knowledge/notes/shu_2020_probabilistic_shaping_optical.md).
+  [shu_2020_probabilistic_shaping_optical](/home/rodrigo/cVAe_2026_full_square/knowledge/notes/shu_2020_probabilistic_shaping_optical.md).
 
 ## Implicações
 

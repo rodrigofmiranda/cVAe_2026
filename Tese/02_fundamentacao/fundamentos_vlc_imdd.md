@@ -15,12 +15,12 @@ Este texto cobre:
 
 ## Fontes canônicas usadas
 
-- [vlc_shaping_experimental_methodology](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/vlc_shaping_experimental_methodology_2026-04-03.md)
-- [vlc_probabilistic_shaping_strategy](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/vlc_probabilistic_shaping_strategy_2026-04-03.md)
-- [askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance](/home/rodrigo/cVAe_2026_shape/knowledge/notes/askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance.md)
-- [shu_2020_probabilistic_shaping_optical](/home/rodrigo/cVAe_2026_shape/knowledge/notes/shu_2020_probabilistic_shaping_optical.md)
-- [Askari e Lampe 2025 parsed](/home/rodrigo/cVAe_2026_shape/knowledge/papers/parsed/askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance/document.md)
-- [Shu e Zhang 2020 parsed](/home/rodrigo/cVAe_2026_shape/knowledge/papers/parsed/shu_2020_probabilistic_shaping_optical/document.md)
+- [vlc_shaping_experimental_methodology](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/vlc_shaping_experimental_methodology_2026-04-03.md)
+- [vlc_probabilistic_shaping_strategy](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/vlc_probabilistic_shaping_strategy_2026-04-03.md)
+- [askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance](/home/rodrigo/cVAe_2026_full_square/knowledge/notes/askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance.md)
+- [shu_2020_probabilistic_shaping_optical](/home/rodrigo/cVAe_2026_full_square/knowledge/notes/shu_2020_probabilistic_shaping_optical.md)
+- [Askari e Lampe 2025 parsed](/home/rodrigo/cVAe_2026_full_square/knowledge/papers/parsed/askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance/document.md)
+- [Shu e Zhang 2020 parsed](/home/rodrigo/cVAe_2026_full_square/knowledge/papers/parsed/shu_2020_probabilistic_shaping_optical/document.md)
 - [fundamentos do fluxo de dados](/home/rodrigo/cVAe_2026_mdn_return/docs/reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt)
 - [FULL_SQUARE_LINEAGE_TO_SHAPE](/home/rodrigo/cVAe_2026_mdn_return/docs/active/FULL_SQUARE_LINEAGE_TO_SHAPE.md)
 
@@ -73,12 +73,12 @@ práticas e geometria efetiva de transmissão.
   [FULL_SQUARE_LINEAGE_TO_SHAPE](/home/rodrigo/cVAe_2026_mdn_return/docs/active/FULL_SQUARE_LINEAGE_TO_SHAPE.md).
 - As sínteses de `probabilistic shaping` reforçam que sinais não uniformes e
   restrições de suporte alteram a física observada e a leitura de métricas, em
-  [vlc_probabilistic_shaping_strategy](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/vlc_probabilistic_shaping_strategy_2026-04-03.md).
+  [vlc_probabilistic_shaping_strategy](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/vlc_probabilistic_shaping_strategy_2026-04-03.md).
 - A base técnica mais direta para essa leitura, já curada em `knowledge`,
   aparece em
-  [askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance](/home/rodrigo/cVAe_2026_shape/knowledge/notes/askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance.md)
+  [askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance](/home/rodrigo/cVAe_2026_full_square/knowledge/notes/askari_lampe_2025_probabilistic_shaping_nonlinearity_tolerance.md)
   e
-  [shu_2020_probabilistic_shaping_optical](/home/rodrigo/cVAe_2026_shape/knowledge/notes/shu_2020_probabilistic_shaping_optical.md).
+  [shu_2020_probabilistic_shaping_optical](/home/rodrigo/cVAe_2026_full_square/knowledge/notes/shu_2020_probabilistic_shaping_optical.md).
 
 ## Implicações
 

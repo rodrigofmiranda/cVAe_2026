@@ -13,7 +13,7 @@ autoriza.
 
 - [FULL_SQUARE_LINEAGE_TO_SHAPE](/home/rodrigo/cVAe_2026_mdn_return/docs/active/FULL_SQUARE_LINEAGE_TO_SHAPE.md)
 - [FULL_CIRCLE_NEXT_STEP](/home/rodrigo/cVAe_2026_mdn_return/docs/active/FULL_CIRCLE_NEXT_STEP.md)
-- [support_ablation_e0_e3_comparison](/home/rodrigo/cVAe_2026_shape/knowledge/syntheses/support_ablation_e0_e3_comparison_2026-04-07.md)
+- [support_ablation_e0_e3_comparison](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/support_ablation_e0_e3_comparison_2026-04-07.md)
 
 ## Status do texto
 
