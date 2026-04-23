@@ -374,6 +374,10 @@ def _summarize_mini_protocol_rows(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     statuses = [str(row.get("validation_status_partial", "")) for row in rows]
     failed_g5 = [row for row in rows if row.get("gate_g5") is False]
     failed_g6 = [row for row in rows if row.get("gate_g6") is False]
+    failed_0p8m = [row for row in rows if str(row.get("regime_id", "")).startswith("dist_0p8m__")]
+    failed_0p8m_any = [row for row in failed_0p8m if row.get("validation_status_partial") == "fail"]
+    failed_0p8m_g5 = [row for row in failed_0p8m if row.get("gate_g5") is False]
+    failed_0p8m_g6 = [row for row in failed_0p8m if row.get("gate_g6") is False]
     failed = [row for row in rows if row.get("validation_status_partial") == "fail"]
     partial = [row for row in rows if row.get("validation_status_partial") == "partial"]
     passed = [row for row in rows if row.get("validation_status_partial") == "pass"]
@@ -383,8 +387,11 @@ def _summarize_mini_protocol_rows(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
         "mini_n_pass": int(len(passed)),
         "mini_n_partial": int(len(partial)),
         "mini_n_fail": int(len(failed)),
+        "mini_n_fail_0p8m": int(len(failed_0p8m_any)),
         "mini_n_g5_fail": int(len(failed_g5)),
         "mini_n_g6_fail": int(len(failed_g6)),
+        "mini_n_g5_fail_0p8m": int(len(failed_0p8m_g5)),
+        "mini_n_g6_fail_0p8m": int(len(failed_0p8m_g6)),
         "mini_mean_abs_delta_coverage_95": _mean("effective_abs_delta_coverage_95"),
         "mini_mean_delta_jb": _mean("effective_delta_jb_stat_rel"),
         "mini_mean_delta_psd_l2": _mean("delta_psd_l2"),

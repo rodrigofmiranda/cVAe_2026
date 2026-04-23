@@ -405,10 +405,14 @@ def _candidate_ranking_key(row: Dict[str, Any], ranking_mode: str) -> Tuple[floa
         return (
             status_penalty,
             _ranking_scalar(row.get("mini_n_fail")),
+            _ranking_scalar(row.get("mini_n_fail_0p8m")),
+            _ranking_scalar(row.get("mini_n_g5_fail_0p8m")),
+            _ranking_scalar(row.get("mini_n_g5_fail")),
             _ranking_scalar(row.get("mini_n_g6_fail")),
+            _ranking_scalar(row.get("mini_mean_delta_kurt_l2")),
+            _ranking_scalar(row.get("mini_mean_delta_psd_l2")),
             _ranking_scalar(row.get("mini_mean_abs_delta_coverage_95")),
             _ranking_scalar(row.get("mini_mean_delta_jb")),
-            _ranking_scalar(row.get("mini_mean_delta_psd_l2")),
             _ranking_scalar(row.get("score_v2")),
             _ranking_scalar(row.get("score_abs_delta")),
         )
@@ -1382,8 +1386,11 @@ def run_gridsearch(
                         "mini_n_pass": float("nan"),
                         "mini_n_partial": float("nan"),
                         "mini_n_fail": float("nan"),
+                        "mini_n_fail_0p8m": float("nan"),
                         "mini_n_g5_fail": float("nan"),
                         "mini_n_g6_fail": float("nan"),
+                        "mini_n_g5_fail_0p8m": float("nan"),
+                        "mini_n_g6_fail_0p8m": float("nan"),
                         "mini_mean_abs_delta_coverage_95": float("nan"),
                         "mini_mean_delta_jb": float("nan"),
                         "mini_mean_delta_psd_l2": float("nan"),
@@ -1551,8 +1558,11 @@ def run_gridsearch(
                     "mini_n_pass": float("nan"),
                     "mini_n_partial": float("nan"),
                     "mini_n_fail": float("nan"),
+                    "mini_n_fail_0p8m": float("nan"),
                     "mini_n_g5_fail": float("nan"),
                     "mini_n_g6_fail": float("nan"),
+                    "mini_n_g5_fail_0p8m": float("nan"),
+                    "mini_n_g6_fail_0p8m": float("nan"),
                     "mini_mean_abs_delta_coverage_95": float("nan"),
                     "mini_mean_delta_jb": float("nan"),
                     "mini_mean_delta_psd_l2": float("nan"),
@@ -1598,9 +1608,10 @@ def run_gridsearch(
                 "Item": "Ranking principal",
                 "Descrição": (
                     "mini_protocol_v1 = ordem lexicográfica por mini_n_fail, "
-                    "mini_n_g6_fail, mini_mean_abs_delta_coverage_95, "
-                    "mini_mean_delta_jb, mini_mean_delta_psd_l2 e score_v2 "
-                    "apenas como desempate final."
+                    "mini_n_fail_0p8m, mini_n_g5_fail_0p8m, mini_n_g5_fail, "
+                    "mini_n_g6_fail, mini_mean_delta_kurt_l2, "
+                    "mini_mean_delta_psd_l2, mini_mean_abs_delta_coverage_95, "
+                    "mini_mean_delta_jb e score_v2 apenas como desempate final."
                 ),
             }
         )

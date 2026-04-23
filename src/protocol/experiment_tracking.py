@@ -11,6 +11,7 @@ RUN_TYPE_PROTOCOL = "protocol_experiment"
 RUN_STATUS_RUNNING = "running"
 RUN_STATUS_COMPLETED = "completed"
 RUN_STATUS_FAILED = "failed"
+RUN_STATUS_INTERRUPTED = "interrupted"
 RUN_STATUS_INCOMPLETE = "incomplete"
 LATEST_COMPLETED_EXPERIMENT_JSON = "_latest_completed_experiment.json"
 
@@ -101,6 +102,8 @@ def inspect_protocol_experiment(exp_dir: str | Path) -> Dict[str, Any]:
         status = RUN_STATUS_COMPLETED if not missing else RUN_STATUS_INCOMPLETE
     elif raw_status == RUN_STATUS_FAILED:
         status = RUN_STATUS_FAILED
+    elif raw_status == RUN_STATUS_INTERRUPTED:
+        status = RUN_STATUS_INTERRUPTED
     elif raw_status == RUN_STATUS_RUNNING:
         status = RUN_STATUS_RUNNING
     elif manifest.get("error"):

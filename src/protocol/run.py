@@ -66,6 +66,7 @@ from src.evaluation.validation_summary import (
 from src.protocol.experiment_tracking import (
     RUN_STATUS_COMPLETED,
     RUN_STATUS_FAILED,
+    RUN_STATUS_INTERRUPTED,
     RUN_STATUS_RUNNING,
     RUN_TYPE_PROTOCOL,
     write_latest_completed_experiment_record,
@@ -988,6 +989,39 @@ def _write_protocol_running_manifest(
             for s in studies_meta
         ],
         "n_regimes": len(regimes),
+    }
+    return exp_paths.write_json("manifest.json", payload)
+
+
+def _write_protocol_terminal_manifest(
+    exp_paths: RunPaths,
+    *,
+    run_status: str,
+    protocol: Mapping[str, Any],
+    ts_start: datetime,
+    git_commit: Optional[str],
+    git_branch: Optional[str],
+    versions: Dict[str, Any],
+    manifest_args: Dict[str, Any],
+    execution_mode: str,
+    training_operational_artifacts: Dict[str, Any],
+    error: Optional[str] = None,
+) -> Path:
+    ts_end = datetime.now()
+    payload = {
+        "run_type": RUN_TYPE_PROTOCOL,
+        "run_status": run_status,
+        "protocol_version": protocol.get("protocol_version", "1.0"),
+        "timestamp_start": ts_start.isoformat(timespec="seconds"),
+        "timestamp_end": ts_end.isoformat(timespec="seconds"),
+        "duration_seconds": (ts_end - ts_start).total_seconds(),
+        "git_commit": git_commit,
+        "git_branch": git_branch,
+        "versions": versions,
+        "args": manifest_args,
+        "execution_mode": execution_mode,
+        "training_operational_artifacts": training_operational_artifacts,
+        "error": error,
     }
     return exp_paths.write_json("manifest.json", payload)
 
@@ -2053,395 +2087,410 @@ def main():
         "source_run_dir": None,
         "reused": False,
     }
-    if execution_mode == "train_once_eval_all":
-        print(f"\n{'='*70}")
-        if reused_model_run_dir is not None:
-            shared_model_run_dir = reused_model_run_dir
-            _reused_state = _read_train_state(shared_model_run_dir)
-            _reused_best_tag = _extract_best_grid_tag(_reused_state)
-            _reused_training_artifacts = _extract_training_operational_artifacts(shared_model_run_dir)
-            training_operational_artifacts = {
-                **_reused_training_artifacts,
-                "source_run_dir": str(shared_model_run_dir),
-                "reused": True,
-            }
-            exp_paths.write_json(
-                "logs/train/reused_model.json",
-                {
-                    "shared_model_run_dir": str(shared_model_run_dir),
-                    "best_grid_tag": _reused_best_tag,
-                    "state_run_present": bool(_reused_state),
-                    "grid_training_diagnostics_csv": _reused_training_artifacts["grid_training_diagnostics_csv"],
-                    "training_dashboard_png": _reused_training_artifacts["training_dashboard_png"],
-                },
-            )
-            print("🌐 GLOBAL MODEL REUSE (skip training, evaluate all regimes)")
-            print(f"📁 Reused model dir: {shared_model_run_dir}")
-            if _reused_best_tag:
-                print(f"🏷️  Reused best_grid_tag: {_reused_best_tag}")
-            print(f"{'='*70}")
-        else:
-            shared_model_run_dir = exp_dir / "train"
-            shared_train_overrides = dict(base_overrides_dict)
-            shared_train_overrides["_logs_dir"] = str((exp_dir / "logs" / "train").resolve())
-            print("🌐 GLOBAL MODEL TRAINING (train once, evaluate all regimes)")
-            print(f"📁 Shared model dir: {shared_model_run_dir}")
-            print(f"{'='*70}")
-            _shared_t0 = time.time()
-            try:
-                from src.training.engine import train_engine
-
-                _global_summary = train_engine(
-                    dataset_root=args.dataset_root,
-                    output_base=str(exp_dir),
-                    run_id="train",
-                    overrides=shared_train_overrides,
-                )
-                shared_model_run_dir = Path(
-                    _global_summary.get("run_dir", shared_model_run_dir)
-                ).resolve()
+    try:
+        if execution_mode == "train_once_eval_all":
+            print(f"\n{'='*70}")
+            if reused_model_run_dir is not None:
+                shared_model_run_dir = reused_model_run_dir
+                _reused_state = _read_train_state(shared_model_run_dir)
+                _reused_best_tag = _extract_best_grid_tag(_reused_state)
+                _reused_training_artifacts = _extract_training_operational_artifacts(shared_model_run_dir)
                 training_operational_artifacts = {
-                    **_extract_training_operational_artifacts(shared_model_run_dir),
+                    **_reused_training_artifacts,
                     "source_run_dir": str(shared_model_run_dir),
-                    "reused": False,
+                    "reused": True,
                 }
-                print(
-                    f"✅ Shared global model status={_global_summary.get('status', 'completed')} "
-                    f"| run_dir={shared_model_run_dir} "
-                    f"| time={time.time() - _shared_t0:.1f}s"
+                exp_paths.write_json(
+                    "logs/train/reused_model.json",
+                    {
+                        "shared_model_run_dir": str(shared_model_run_dir),
+                        "best_grid_tag": _reused_best_tag,
+                        "state_run_present": bool(_reused_state),
+                        "grid_training_diagnostics_csv": _reused_training_artifacts["grid_training_diagnostics_csv"],
+                        "training_dashboard_png": _reused_training_artifacts["training_dashboard_png"],
+                    },
                 )
-            except Exception as e:
-                err = f"global_train: {e}\n{traceback.format_exc()}"
-                manifest = {
-                    "run_type": RUN_TYPE_PROTOCOL,
-                    "run_status": RUN_STATUS_FAILED,
-                    "protocol_version": protocol.get("protocol_version", "1.0"),
-                    "timestamp_start": ts_start.isoformat(timespec="seconds"),
-                    "timestamp_end": datetime.now().isoformat(timespec="seconds"),
-                    "duration_seconds": (datetime.now() - ts_start).total_seconds(),
-                    "git_commit": git_commit,
-                    "git_branch": git_branch,
-                    "versions": versions,
-                    "args": manifest_args,
-                    "execution_mode": execution_mode,
-                    "training_operational_artifacts": training_operational_artifacts,
-                    "error": err,
-                }
-                exp_paths.write_json("manifest.json", manifest)
-                raise RuntimeError(f"Shared global training failed: {e}") from e
+                print("🌐 GLOBAL MODEL REUSE (skip training, evaluate all regimes)")
+                print(f"📁 Reused model dir: {shared_model_run_dir}")
+                if _reused_best_tag:
+                    print(f"🏷️  Reused best_grid_tag: {_reused_best_tag}")
+                print(f"{'='*70}")
+            else:
+                shared_model_run_dir = exp_dir / "train"
+                shared_train_overrides = dict(base_overrides_dict)
+                shared_train_overrides["_logs_dir"] = str((exp_dir / "logs" / "train").resolve())
+                print("🌐 GLOBAL MODEL TRAINING (train once, evaluate all regimes)")
+                print(f"📁 Shared model dir: {shared_model_run_dir}")
+                print(f"{'='*70}")
+                _shared_t0 = time.time()
+                try:
+                    from src.training.engine import train_engine
 
-    # ---- Run studies → regimes ----
-    results = []
-    for si, study_info in enumerate(studies_meta, 1):
-        sname = study_info["name"]
-        study_rids = set(study_info["regime_ids"])
-        study_regimes = [r for r in regimes if r["regime_id"] in study_rids]
+                    _global_summary = train_engine(
+                        dataset_root=args.dataset_root,
+                        output_base=str(exp_dir),
+                        run_id="train",
+                        overrides=shared_train_overrides,
+                    )
+                    shared_model_run_dir = Path(
+                        _global_summary.get("run_dir", shared_model_run_dir)
+                    ).resolve()
+                    training_operational_artifacts = {
+                        **_extract_training_operational_artifacts(shared_model_run_dir),
+                        "source_run_dir": str(shared_model_run_dir),
+                        "reused": False,
+                    }
+                    print(
+                        f"✅ Shared global model status={_global_summary.get('status', 'completed')} "
+                        f"| run_dir={shared_model_run_dir} "
+                        f"| time={time.time() - _shared_t0:.1f}s"
+                    )
+                except Exception as e:
+                    err = f"global_train: {e}\n{traceback.format_exc()}"
+                    _write_protocol_terminal_manifest(
+                        exp_paths,
+                        run_status=RUN_STATUS_FAILED,
+                        protocol=protocol,
+                        ts_start=ts_start,
+                        git_commit=git_commit,
+                        git_branch=git_branch,
+                        versions=versions,
+                        manifest_args=manifest_args,
+                        execution_mode=execution_mode,
+                        training_operational_artifacts=training_operational_artifacts,
+                        error=err,
+                    )
+                    raise RuntimeError(f"Shared global training failed: {e}") from e
 
-        # Regime output directory: exp_dir/eval[/<study>]/
-        regimes_dir = exp_dir / "eval"
-        study_logs_root = exp_dir / "logs" / "eval"
-        if n_studies > 1:
-            regimes_dir = regimes_dir / sname
-            study_logs_root = study_logs_root / sname
-        regimes_dir.mkdir(parents=True, exist_ok=True)
+        # ---- Run studies → regimes ----
+        results = []
+        for si, study_info in enumerate(studies_meta, 1):
+            sname = study_info["name"]
+            study_rids = set(study_info["regime_ids"])
+            study_regimes = [r for r in regimes if r["regime_id"] in study_rids]
 
-        print(f"\n{'='*70}")
-        print(f"= STUDY {si}/{len(studies_meta)}: {sname}")
-        print(f"= Split strategy: {study_info.get('split_strategy', 'per_experiment')}")
-        print(f"= Regimes dir:    {regimes_dir}")
-        print(f"{'='*70}")
+            # Regime output directory: exp_dir/eval[/<study>]/
+            regimes_dir = exp_dir / "eval"
+            study_logs_root = exp_dir / "logs" / "eval"
+            if n_studies > 1:
+                regimes_dir = regimes_dir / sname
+                study_logs_root = study_logs_root / sname
+            regimes_dir.mkdir(parents=True, exist_ok=True)
 
-        for ri, regime in enumerate(study_regimes, 1):
-            print(f"\n{'#'*70}")
-            print(f"# REGIME {ri}/{len(study_regimes)}: {regime['regime_id']}")
-            print(f"# Study: {sname}")
-            print(f"{'#'*70}")
-            r = run_regime(
-                regime=regime,
-                dataset_root=args.dataset_root,
-                base_overrides=base_overrides,
-                protocol_dir=regimes_dir,
-                logs_root=study_logs_root,
-                shared_model_run_dir=shared_model_run_dir,
-                run_cvae=run_cvae,
-                skip_eval=args.skip_eval,
-                run_baseline=not args.no_baseline,
-                run_dist_metrics=not args.no_dist_metrics,
-                run_stat_fidelity=args.stat_tests,
-                stat_mode=args.stat_mode,
-                stat_n_perm=args.stat_n_perm,
-                stat_seed=args.stat_seed,
-                stat_max_n=args.stat_max_n,
-            )
-            r["_study"] = sname
-            for _row in r.get("residual_signature_bins", []) or []:
-                _row["study"] = sname
-            results.append(r)
+            print(f"\n{'='*70}")
+            print(f"= STUDY {si}/{len(studies_meta)}: {sname}")
+            print(f"= Split strategy: {study_info.get('split_strategy', 'per_experiment')}")
+            print(f"= Regimes dir:    {regimes_dir}")
+            print(f"{'='*70}")
 
-    df_summary = build_summary_table(results)
+            for ri, regime in enumerate(study_regimes, 1):
+                print(f"\n{'#'*70}")
+                print(f"# REGIME {ri}/{len(study_regimes)}: {regime['regime_id']}")
+                print(f"# Study: {sname}")
+                print(f"{'#'*70}")
+                r = run_regime(
+                    regime=regime,
+                    dataset_root=args.dataset_root,
+                    base_overrides=base_overrides,
+                    protocol_dir=regimes_dir,
+                    logs_root=study_logs_root,
+                    shared_model_run_dir=shared_model_run_dir,
+                    run_cvae=run_cvae,
+                    skip_eval=args.skip_eval,
+                    run_baseline=not args.no_baseline,
+                    run_dist_metrics=not args.no_dist_metrics,
+                    run_stat_fidelity=args.stat_tests,
+                    stat_mode=args.stat_mode,
+                    stat_n_perm=args.stat_n_perm,
+                    stat_seed=args.stat_seed,
+                    stat_max_n=args.stat_max_n,
+                )
+                r["_study"] = sname
+                for _row in r.get("residual_signature_bins", []) or []:
+                    _row["study"] = sname
+                results.append(r)
 
-    summary_csv = exp_paths.write_table("tables/summary_by_regime.csv", df_summary)
-    print(f"\n📊 Summary table: {summary_csv}")
+        df_summary = build_summary_table(results)
 
-    try:
-        df_signature = build_residual_signature_table(results, df_summary)
-        if not df_signature.empty:
-            sig_csv = exp_paths.write_table("tables/residual_signature_by_regime.csv", df_signature)
-            print(f"🧬 Residual signature table: {sig_csv}")
-        else:
+        summary_csv = exp_paths.write_table("tables/summary_by_regime.csv", df_summary)
+        print(f"\n📊 Summary table: {summary_csv}")
+
+        try:
+            df_signature = build_residual_signature_table(results, df_summary)
+            if not df_signature.empty:
+                sig_csv = exp_paths.write_table("tables/residual_signature_by_regime.csv", df_signature)
+                print(f"🧬 Residual signature table: {sig_csv}")
+            else:
+                df_signature = None
+        except Exception as e:
             df_signature = None
-    except Exception as e:
-        df_signature = None
-        print(f"⚠️  Residual signature table failed: {e}")
+            print(f"⚠️  Residual signature table failed: {e}")
 
-    try:
-        df_signature_amp = build_residual_signature_amplitude_table(results)
-        if not df_signature_amp.empty:
-            sig_amp_csv = exp_paths.write_table(
-                "tables/residual_signature_by_amplitude_bin.csv",
-                df_signature_amp,
-            )
-            print(f"📶 Residual signature by amplitude bin: {sig_amp_csv}")
-        else:
+        try:
+            df_signature_amp = build_residual_signature_amplitude_table(results)
+            if not df_signature_amp.empty:
+                sig_amp_csv = exp_paths.write_table(
+                    "tables/residual_signature_by_amplitude_bin.csv",
+                    df_signature_amp,
+                )
+                print(f"📶 Residual signature by amplitude bin: {sig_amp_csv}")
+            else:
+                df_signature_amp = None
+        except Exception as e:
             df_signature_amp = None
-    except Exception as e:
-        df_signature_amp = None
-        print(f"⚠️  Residual signature by amplitude bin failed: {e}")
+            print(f"⚠️  Residual signature by amplitude bin failed: {e}")
 
-    try:
-        df_leaderboard = build_protocol_leaderboard(df_summary)
-        leaderboard_csv = exp_paths.write_table("tables/protocol_leaderboard.csv", df_leaderboard)
-        print(f"🏆 Protocol leaderboard: {leaderboard_csv}")
-    except Exception as e:
-        df_leaderboard = None
-        print(f"⚠️  Protocol leaderboard failed: {e}")
+        try:
+            df_leaderboard = build_protocol_leaderboard(df_summary)
+            leaderboard_csv = exp_paths.write_table("tables/protocol_leaderboard.csv", df_leaderboard)
+            print(f"🏆 Protocol leaderboard: {leaderboard_csv}")
+        except Exception as e:
+            df_leaderboard = None
+            print(f"⚠️  Protocol leaderboard failed: {e}")
 
-    # ---- Best-model heatmaps (derived from canonical summary table) ----
-    try:
-        from src.evaluation.summary_plots import generate_all as _summary_plots
-
-        _plot_dir = exp_dir / "plots" / "best_model"
-        _summary_created = _summary_plots(df_summary, _plot_dir)
-        if _summary_created:
-            print(f"📈 Best-model heatmaps ({len(_summary_created)}): {_plot_dir}")
-    except Exception as _se:
-        print(f"⚠️  Best-model heatmaps failed: {_se}")
-
-    try:
-        if df_signature is not None and not df_signature.empty:
-            from src.evaluation.summary_plots import plot_residual_signature_overview
+        # ---- Best-model heatmaps (derived from canonical summary table) ----
+        try:
+            from src.evaluation.summary_plots import generate_all as _summary_plots
 
             _plot_dir = exp_dir / "plots" / "best_model"
-            _plot_dir.mkdir(parents=True, exist_ok=True)
-            _sig_plot = plot_residual_signature_overview(df_signature, _plot_dir)
-            if _sig_plot is not None:
-                print(f"📈 Residual signature overview: {_sig_plot}")
-    except Exception as _se:
-        print(f"⚠️  Residual signature overview failed: {_se}")
+            _summary_created = _summary_plots(df_summary, _plot_dir)
+            if _summary_created:
+                print(f"📈 Best-model heatmaps ({len(_summary_created)}): {_plot_dir}")
+        except Exception as _se:
+            print(f"⚠️  Best-model heatmaps failed: {_se}")
 
-    try:
-        _diag_src = Path(shared_model_run_dir) / "logs" / "train" / "regime_diagnostics_history.csv" if shared_model_run_dir is not None else None
-        if _diag_src is not None and _diag_src.exists():
-            _diag_dst = exp_dir / "tables" / "train_regime_diagnostics_history.csv"
-            _diag_dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(_diag_src, _diag_dst)
-            print(f"📒 Copied train regime diagnostics history: {_diag_dst}")
-    except Exception as _se:
-        print(f"⚠️  Copy train regime diagnostics history failed: {_se}")
-
-    # ---- Etapa A2: Stat fidelity projection (derived from canonical summary) ----
-    if args.stat_tests:
         try:
-            df_sf = build_stat_fidelity_table(df_summary)
-            if not df_sf.empty:
-                sf_csv = exp_paths.write_table("tables/stat_fidelity_by_regime.csv", df_sf)
-                print(f"📊 Stat fidelity table (derived from summary): {sf_csv}")
+            if df_signature is not None and not df_signature.empty:
+                from src.evaluation.summary_plots import plot_residual_signature_overview
 
-                _stat_acceptance = build_stat_acceptance_summary(df_summary)
-            else:
-                _stat_acceptance = None
-                print("⚠️  No valid stat fidelity results to aggregate")
-        except Exception as e:
-            _stat_acceptance = None
-            print(f"⚠️  FDR aggregation failed: {e}")
-    else:
-        _stat_acceptance = None
+                _plot_dir = exp_dir / "plots" / "best_model"
+                _plot_dir.mkdir(parents=True, exist_ok=True)
+                _sig_plot = plot_residual_signature_overview(df_signature, _plot_dir)
+                if _sig_plot is not None:
+                    print(f"📈 Residual signature overview: {_sig_plot}")
+        except Exception as _se:
+            print(f"⚠️  Residual signature overview failed: {_se}")
 
-    # ---- Write manifest ----
-    ts_end = datetime.now()
-    _baseline_cfg = _effective_baseline_config(
-        base_overrides,
-        enabled=not args.no_baseline,
-        return_predictions=False,
-    )
-    _baseline_cfg.pop("return_predictions", None)
-    _dist_cfg = _effective_dist_metrics_config(
-        base_overrides,
-        enabled=not args.no_dist_metrics,
-    )
-    manifest = {
-        "run_type": RUN_TYPE_PROTOCOL,
-        "run_status": RUN_STATUS_COMPLETED,
-        "protocol_version": protocol.get("protocol_version", "1.0"),
-        "timestamp_start": ts_start.isoformat(timespec="seconds"),
-        "timestamp_end": ts_end.isoformat(timespec="seconds"),
-        "duration_seconds": (ts_end - ts_start).total_seconds(),
-        "git_commit": git_commit,
-        "git_branch": git_branch,
-        "versions": versions,
-        "args": manifest_args,
-        "execution_mode": execution_mode,
-        "baseline_config": _baseline_cfg,
-        "cvae_config": _effective_cvae_config(
-            base_overrides,
-            enabled=run_cvae,
-            execution_mode=execution_mode,
-        ),
-        "dist_metrics_config": _dist_cfg,
-        "stat_fidelity_config": {
-            "enabled": args.stat_tests,
-            "stat_mode": args.stat_mode,
-            "stat_n_perm": args.stat_n_perm,
-            "stat_seed": args.stat_seed,
-            "stat_max_n": args.stat_max_n,
-        },
-        "shared_model_run_dir": str(shared_model_run_dir) if shared_model_run_dir is not None else None,
-        "training_operational_artifacts": training_operational_artifacts,
-        "stat_acceptance": _stat_acceptance,
-        "protocol_leaderboard": (
-            {
-                "path": str(exp_dir / "tables" / "protocol_leaderboard.csv"),
-                "n_candidates": int(len(df_leaderboard)) if df_leaderboard is not None else 0,
-                "winner_candidate_id": (
-                    str(df_leaderboard.iloc[0]["candidate_id"])
-                    if df_leaderboard is not None and not df_leaderboard.empty
-                    else None
-                ),
-                "winner_best_grid_tag": (
-                    str(df_leaderboard.iloc[0]["best_grid_tag"])
-                    if df_leaderboard is not None and not df_leaderboard.empty
-                    else None
-                ),
-            }
-            if df_leaderboard is not None
-            else None
-        ),
-        "base_overrides": base_overrides_dict,
-        "n_studies": len(studies_meta),
-        "studies": [
-            {
-                "name": s["name"],
-                "split_strategy": s.get("split_strategy", "per_experiment"),
-                "n_regimes": len(s["regime_ids"]),
-                "regime_ids": s["regime_ids"],
-            }
-            for s in studies_meta
-        ],
-        "n_regimes": len(regimes),
-        "regimes": [
-            {
-                "regime_id": r["regime_id"],
-                "regime_label": r.get("regime_label", ""),
-                "study": r.get("_study", "within_regime"),
-                "run_id": r["run_id"],
-                "run_dir": r.get("run_dir", ""),
-                "model_run_dir": r.get("model_run_dir"),
-                "model_scope": r.get("model_scope"),
-                "train_status": r["train_status"],
-                "eval_status": r["eval_status"],
-                "best_grid_tag": r.get("best_grid_tag", ""),
-                "baseline_time_s": r.get("baseline_time_s", 0.0),
-                "cvae_time_s": r.get("cvae_time_s", 0.0),
-                "baseline_dist": r.get("baseline_dist", {}),
-                "cvae_dist": r.get("cvae_dist", {}),
-                "dist_metrics_source": r.get("dist_metrics_source"),
-                "stat_fidelity": r.get("stat_fidelity", {}),
-                "selected_experiments": r.get("selected_experiments", []),
-                "selection_criteria": r.get("selection_criteria", {}),
-                "error": r.get("error"),
-            }
-            for r in results
-        ],
-    }
-    manifest_path = exp_paths.write_json("manifest.json", manifest)
-    write_latest_completed_experiment_record(args.output_base, exp_dir)
-    print(f"📋 Manifest: {manifest_path}")
+        try:
+            _diag_src = Path(shared_model_run_dir) / "logs" / "train" / "regime_diagnostics_history.csv" if shared_model_run_dir is not None else None
+            if _diag_src is not None and _diag_src.exists():
+                _diag_dst = exp_dir / "tables" / "train_regime_diagnostics_history.csv"
+                _diag_dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(_diag_src, _diag_dst)
+                print(f"📒 Copied train regime diagnostics history: {_diag_dst}")
+        except Exception as _se:
+            print(f"⚠️  Copy train regime diagnostics history failed: {_se}")
 
-    # ---- Final summary to stdout ----
-    print(f"\n{'='*70}")
-    print(f"✅ Protocol complete — {len(studies_meta)} study(ies), {len(results)} regime(s)")
-    print(f"   Duration: {ts_end - ts_start}")
-    print(f"   Output:   {exp_dir}")
+        # ---- Etapa A2: Stat fidelity projection (derived from canonical summary) ----
+        if args.stat_tests:
+            try:
+                df_sf = build_stat_fidelity_table(df_summary)
+                if not df_sf.empty:
+                    sf_csv = exp_paths.write_table("tables/stat_fidelity_by_regime.csv", df_sf)
+                    print(f"📊 Stat fidelity table (derived from summary): {sf_csv}")
 
-    # Champion candidate
-    if df_leaderboard is not None and not df_leaderboard.empty:
-        _champ = df_leaderboard.iloc[0]
-        _champ_id = _champ.get("candidate_id", _champ.get("best_grid_tag", "?"))
-        _champ_pass = int(_champ.get("n_pass", 0))
-        _champ_partial = int(_champ.get("n_partial", 0))
-        _champ_fail = int(_champ.get("n_fail", 0))
-        _champ_total = _champ_pass + _champ_partial + _champ_fail
-        print(f"\n🏆 Champion: {_champ_id}")
-        print(f"   {_champ_pass}/{_champ_total} pass, "
-              f"{_champ_partial} partial, {_champ_fail} fail")
-
-    # Per-regime gate results from df_summary
-    _gate_cols = ["gate_g1", "gate_g2", "gate_g3", "gate_g4", "gate_g5", "gate_g6"]
-    _has_gates = (df_summary is not None and not df_summary.empty
-                  and any(c in df_summary.columns for c in _gate_cols))
-    if _has_gates:
-        print(f"\n{'─'*70}")
-        print(f"   {'regime':<30s}  G1  G2  G3  G4  G5  G6  status")
-        print(f"   {'─'*30}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*8}")
-        _total_pass = 0
-        _total_fail = 0
-        _total_partial = 0
-        for _, row in df_summary.iterrows():
-            _rid = str(row.get("regime_id", "?"))
-            _vs = str(row.get("validation_status", "?"))
-            _gates = []
-            for gc in _gate_cols:
-                v = row.get(gc)
-                if v is True:
-                    _gates.append(" ✓ ")
-                elif v is False:
-                    _gates.append(" ✗ ")
+                    _stat_acceptance = build_stat_acceptance_summary(df_summary)
                 else:
-                    _gates.append(" - ")
-            if _vs == "pass":
-                _total_pass += 1
-            elif _vs == "fail":
-                _total_fail += 1
-            else:
-                _total_partial += 1
-            print(f"   {_rid:<30s}  {'  '.join(_gates)}  {_vs}")
-        print(f"   {'─'*30}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*8}")
-        print(f"   TOTAL: {_total_pass} pass, {_total_partial} partial, {_total_fail} fail")
-    else:
-        # Fallback: per-regime one-liner from results dicts
-        for r in results:
-            slab = f"[{r.get('_study', '?')}] "
-            status = f"train={r['train_status']}, eval={r['eval_status']}"
-            delta = ""
-            _m = r.get("metrics", {})
-            cd = r.get("cvae_dist", {})
-            if _m.get("delta_evm_%") is not None:
-                delta = f" | ΔEVM={_m['delta_evm_%']:+.3f}pp"
-            if cd.get("delta_mean_l2") is not None:
-                delta += f" | cv_Δmean={cd['delta_mean_l2']:.4f}"
-            print(f"   • {slab}{r['regime_id']}: {status}{delta}")
+                    _stat_acceptance = None
+                    print("⚠️  No valid stat fidelity results to aggregate")
+            except Exception as e:
+                _stat_acceptance = None
+                print(f"⚠️  FDR aggregation failed: {e}")
+        else:
+            _stat_acceptance = None
 
-    print(f"{'='*70}")
+        # ---- Write manifest ----
+        ts_end = datetime.now()
+        _baseline_cfg = _effective_baseline_config(
+            base_overrides,
+            enabled=not args.no_baseline,
+            return_predictions=False,
+        )
+        _baseline_cfg.pop("return_predictions", None)
+        _dist_cfg = _effective_dist_metrics_config(
+            base_overrides,
+            enabled=not args.no_dist_metrics,
+        )
+        manifest = {
+            "run_type": RUN_TYPE_PROTOCOL,
+            "run_status": RUN_STATUS_COMPLETED,
+            "protocol_version": protocol.get("protocol_version", "1.0"),
+            "timestamp_start": ts_start.isoformat(timespec="seconds"),
+            "timestamp_end": ts_end.isoformat(timespec="seconds"),
+            "duration_seconds": (ts_end - ts_start).total_seconds(),
+            "git_commit": git_commit,
+            "git_branch": git_branch,
+            "versions": versions,
+            "args": manifest_args,
+            "execution_mode": execution_mode,
+            "baseline_config": _baseline_cfg,
+            "cvae_config": _effective_cvae_config(
+                base_overrides,
+                enabled=run_cvae,
+                execution_mode=execution_mode,
+            ),
+            "dist_metrics_config": _dist_cfg,
+            "stat_fidelity_config": {
+                "enabled": args.stat_tests,
+                "stat_mode": args.stat_mode,
+                "stat_n_perm": args.stat_n_perm,
+                "stat_seed": args.stat_seed,
+                "stat_max_n": args.stat_max_n,
+            },
+            "shared_model_run_dir": str(shared_model_run_dir) if shared_model_run_dir is not None else None,
+            "training_operational_artifacts": training_operational_artifacts,
+            "stat_acceptance": _stat_acceptance,
+            "protocol_leaderboard": (
+                {
+                    "path": str(exp_dir / "tables" / "protocol_leaderboard.csv"),
+                    "n_candidates": int(len(df_leaderboard)) if df_leaderboard is not None else 0,
+                    "winner_candidate_id": (
+                        str(df_leaderboard.iloc[0]["candidate_id"])
+                        if df_leaderboard is not None and not df_leaderboard.empty
+                        else None
+                    ),
+                    "winner_best_grid_tag": (
+                        str(df_leaderboard.iloc[0]["best_grid_tag"])
+                        if df_leaderboard is not None and not df_leaderboard.empty
+                        else None
+                    ),
+                }
+                if df_leaderboard is not None
+                else None
+            ),
+            "base_overrides": base_overrides_dict,
+            "n_studies": len(studies_meta),
+            "studies": [
+                {
+                    "name": s["name"],
+                    "split_strategy": s.get("split_strategy", "per_experiment"),
+                    "n_regimes": len(s["regime_ids"]),
+                    "regime_ids": s["regime_ids"],
+                }
+                for s in studies_meta
+            ],
+            "n_regimes": len(regimes),
+            "regimes": [
+                {
+                    "regime_id": r["regime_id"],
+                    "regime_label": r.get("regime_label", ""),
+                    "study": r.get("_study", "within_regime"),
+                    "run_id": r["run_id"],
+                    "run_dir": r.get("run_dir", ""),
+                    "model_run_dir": r.get("model_run_dir"),
+                    "model_scope": r.get("model_scope"),
+                    "train_status": r["train_status"],
+                    "eval_status": r["eval_status"],
+                    "best_grid_tag": r.get("best_grid_tag", ""),
+                    "baseline_time_s": r.get("baseline_time_s", 0.0),
+                    "cvae_time_s": r.get("cvae_time_s", 0.0),
+                    "baseline_dist": r.get("baseline_dist", {}),
+                    "cvae_dist": r.get("cvae_dist", {}),
+                    "dist_metrics_source": r.get("dist_metrics_source"),
+                    "stat_fidelity": r.get("stat_fidelity", {}),
+                    "selected_experiments": r.get("selected_experiments", []),
+                    "selection_criteria": r.get("selection_criteria", {}),
+                    "error": r.get("error"),
+                }
+                for r in results
+            ],
+        }
+        manifest_path = exp_paths.write_json("manifest.json", manifest)
+        write_latest_completed_experiment_record(args.output_base, exp_dir)
+        print(f"📋 Manifest: {manifest_path}")
 
-    try:
-        from src.evaluation.engine import clear_evaluation_model_cache
+        # ---- Final summary to stdout ----
+        print(f"\n{'='*70}")
+        print(f"✅ Protocol complete — {len(studies_meta)} study(ies), {len(results)} regime(s)")
+        print(f"   Duration: {ts_end - ts_start}")
+        print(f"   Output:   {exp_dir}")
 
-        clear_evaluation_model_cache()
-    except Exception:
-        pass
-    _clear_quick_pred_runtime_cache()
+        # Champion candidate
+        if df_leaderboard is not None and not df_leaderboard.empty:
+            _champ = df_leaderboard.iloc[0]
+            _champ_id = _champ.get("candidate_id", _champ.get("best_grid_tag", "?"))
+            _champ_pass = int(_champ.get("n_pass", 0))
+            _champ_partial = int(_champ.get("n_partial", 0))
+            _champ_fail = int(_champ.get("n_fail", 0))
+            _champ_total = _champ_pass + _champ_partial + _champ_fail
+            print(f"\n🏆 Champion: {_champ_id}")
+            print(f"   {_champ_pass}/{_champ_total} pass, "
+                  f"{_champ_partial} partial, {_champ_fail} fail")
 
-    print(f"{'='*70}")
+        # Per-regime gate results from df_summary
+        _gate_cols = ["gate_g1", "gate_g2", "gate_g3", "gate_g4", "gate_g5", "gate_g6"]
+        _has_gates = (df_summary is not None and not df_summary.empty
+                      and any(c in df_summary.columns for c in _gate_cols))
+        if _has_gates:
+            print(f"\n{'─'*70}")
+            print(f"   {'regime':<30s}  G1  G2  G3  G4  G5  G6  status")
+            print(f"   {'─'*30}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*8}")
+            _total_pass = 0
+            _total_fail = 0
+            _total_partial = 0
+            for _, row in df_summary.iterrows():
+                _rid = str(row.get("regime_id", "?"))
+                _vs = str(row.get("validation_status", "?"))
+                _gates = []
+                for gc in _gate_cols:
+                    v = row.get(gc)
+                    if v is True:
+                        _gates.append(" ✓ ")
+                    elif v is False:
+                        _gates.append(" ✗ ")
+                    else:
+                        _gates.append(" - ")
+                if _vs == "pass":
+                    _total_pass += 1
+                elif _vs == "fail":
+                    _total_fail += 1
+                else:
+                    _total_partial += 1
+                print(f"   {_rid:<30s}  {'  '.join(_gates)}  {_vs}")
+            print(f"   {'─'*30}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*3}  {'─'*8}")
+            print(f"   TOTAL: {_total_pass} pass, {_total_partial} partial, {_total_fail} fail")
+        else:
+            # Fallback: per-regime one-liner from results dicts
+            for r in results:
+                slab = f"[{r.get('_study', '?')}] "
+                status = f"train={r['train_status']}, eval={r['eval_status']}"
+                delta = ""
+                _m = r.get("metrics", {})
+                cd = r.get("cvae_dist", {})
+                if _m.get("delta_evm_%") is not None:
+                    delta = f" | ΔEVM={_m['delta_evm_%']:+.3f}pp"
+                if cd.get("delta_mean_l2") is not None:
+                    delta += f" | cv_Δmean={cd['delta_mean_l2']:.4f}"
+                print(f"   • {slab}{r['regime_id']}: {status}{delta}")
+    except KeyboardInterrupt as exc:
+        err = f"Interrupted by user: {exc.__class__.__name__}"
+        _write_protocol_terminal_manifest(
+            exp_paths,
+            run_status=RUN_STATUS_INTERRUPTED,
+            protocol=protocol,
+            ts_start=ts_start,
+            git_commit=git_commit,
+            git_branch=git_branch,
+            versions=versions,
+            manifest_args=manifest_args,
+            execution_mode=execution_mode,
+            training_operational_artifacts=training_operational_artifacts,
+            error=err,
+        )
+        print("\n⏹️  Protocol interrupted by user; manifest marked as interrupted.")
+        raise
+    finally:
+        print(f"{'='*70}")
+
+        try:
+            from src.evaluation.engine import clear_evaluation_model_cache
+
+            clear_evaluation_model_cache()
+        except Exception:
+            pass
+        _clear_quick_pred_runtime_cache()
+
+        print(f"{'='*70}")
 
 
 if __name__ == "__main__":

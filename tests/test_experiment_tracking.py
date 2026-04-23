@@ -6,6 +6,7 @@ from pathlib import Path
 
 from src.protocol.experiment_tracking import (
     RUN_STATUS_COMPLETED,
+    RUN_STATUS_INTERRUPTED,
     RUN_STATUS_RUNNING,
     inspect_protocol_experiment,
     latest_complete_protocol_experiment,
@@ -128,3 +129,23 @@ def test_write_latest_completed_record_keeps_git_identity_fields(tmp_path: Path)
 
     assert payload["git_commit"] == "abc123"
     assert payload["git_branch"] == "feat/test-branch"
+
+
+def test_inspect_protocol_experiment_preserves_interrupted_status(tmp_path: Path):
+    outputs = tmp_path / "outputs"
+    exp_dir = outputs / "exp_20260321_140000"
+    _write_json(
+        exp_dir / "manifest.json",
+        {
+            "run_type": "protocol_experiment",
+            "run_status": RUN_STATUS_INTERRUPTED,
+            "timestamp_start": "2026-03-21T14:00:00",
+            "timestamp_end": "2026-03-21T14:03:00",
+            "error": "Interrupted by user: KeyboardInterrupt",
+            "args": {"stat_tests": False},
+        },
+    )
+
+    info = inspect_protocol_experiment(exp_dir)
+
+    assert info["status"] == RUN_STATUS_INTERRUPTED

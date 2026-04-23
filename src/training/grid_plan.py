@@ -4638,6 +4638,28 @@ def _preset_best_compare_large() -> List[Dict[str, Any]]:
     return grid
 
 
+def _preset_protocol_faceoff_short(grid: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Compact compare block between the strongest concat-only protocol families."""
+    keep_tags = [
+        "G3_lat6_b0p001_fb0p10_lr0p0002_bs16384_anneal100_L128-256-512",
+        "G3_lat6_b0p002_fb0p10_lr0p0002_bs16384_anneal80_L128-256-512",
+        "G3_lat6_b0p002_fb0p10_lr0p0002_bs8192_anneal80_L128-256-512",
+        "G3_lat4_b0p002_fb0p10_lr0p0002_bs16384_anneal60_L128-256-512",
+        "G3_lat4_b0p001_fb0p10_lr0p0002_bs8192_anneal60_L128-256-512",
+        "G3_lat8_b0p003_fb0p10_lr0p0002_bs16384_anneal80_L128-256-512",
+        "G0_lat4_b0p001_fb0p10_lr0p0003_L128-256-512",
+        "G1_lat8_b0p003_fb0p10_do0p0_lr0p0003_L128-256-512",
+    ]
+    by_tag = {item["tag"]: item for item in grid}
+    selected: List[Dict[str, Any]] = []
+    for tag in keep_tags:
+        item = by_tag.get(tag)
+        if item is None:
+            continue
+        selected.append({**item, "group": "C6_protocol_faceoff_short"})
+    return selected
+
+
 def _preset_delta_residual_fast() -> List[Dict[str, Any]]:
     """Single-config delta_residual reference with kl_anneal_epochs=20."""
     return [
@@ -4799,6 +4821,8 @@ def select_grid(
             grid = _preset_seq_mdn_v2_a600_tail_explore_quick()
         elif preset_name == "best_compare_large":
             grid = _preset_best_compare_large()
+        elif preset_name == "protocol_faceoff_short":
+            grid = _preset_protocol_faceoff_short(grid)
         elif preset_name == "delta_residual_fast":
             grid = _preset_delta_residual_fast()
         else:
