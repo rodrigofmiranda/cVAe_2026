@@ -88,7 +88,7 @@ e não apenas as sínteses internas.
 - [03_metodologia](03_metodologia/pipeline_experimental.md): pipeline, protocolos, datasets e famílias de modelo.
 - [04_linha_full_square](04_linha_full_square/visao_geral.md): evolução histórica da linha principal no `full_square`.
 - [05_linha_full_circle](05_linha_full_circle/visao_geral.md): execução e leitura científica da linha `full_circle`.
-- [06_validacao_do_gemeo](06_validacao_do_gemeo/validacao_principal_g1_g5.md): metodologia validada do twin.
+- [06_validacao_do_gemeo](06_validacao_do_gemeo/validacao_principal_g1_g5.md): metodologia validada do twin, incluindo a leitura crossline em [comparacao_crossline_full_square_vs_full_circle_2026-04-23](06_validacao_do_gemeo/comparacao_crossline_full_square_vs_full_circle_2026-04-23.md).
 - [07_resultados_e_decisoes](07_resultados_e_decisoes/resultados_por_linha.md): síntese dos resultados e da matriz de decisão.
 - [08_planejamento_da_redacao](08_planejamento_da_redacao/esqueleto_capitulos.md): preparação para a escrita da tese.
 - [09_anexos](09_anexos/catalogo_de_runs.md): catálogos de runs, documentos e figuras.
