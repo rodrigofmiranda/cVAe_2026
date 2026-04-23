@@ -104,6 +104,28 @@ Observacao metodologica principal:
   `soft_rinf_local` e `soft_rinf_local_bs8192`, ambos com `6/12`
 - `tail98` e `covsoft` ficaram negativos e nao devem ser promovidos
 
+## Validacao Externa 16QAM
+
+- rodada original de tres bracos:
+  `outputs/analysis/eval_16qam_crossline_20260420_clean`
+- extensao com quarto braco geometry-light:
+  `outputs/analysis/eval_16qam_crossline_20260422_plus_soft_radial`
+- sumario comparativo de quatro bracos:
+  `outputs/analysis/eval_16qam_crossline_20260422_plus_soft_radial/crossline_summary/README.md`
+
+Leitura estabilizada da extensao:
+
+- `full_square` continua sendo o melhor balizador externo global
+- `full_circle geometry-light` fechou `12/12` regimes e entregou medias de
+  `|ΔEVM|=3.956 %`, `|ΔSNR|=0.871 dB`, `ΔPSD=0.103`, `MI_pred=2.099`,
+  `GMI_pred=2.015`, `NGMI_pred=0.504`
+- contra a baseline `full_circle clean`, o geometry-light foi melhor em
+  `8/12` regimes para `|ΔEVM|` e `|ΔSNR|`, e em `7/12` regimes para `ΔPSD`
+- ele venceu a baseline clean simultaneamente nos tres indicadores classicos em
+  `7/12` regimes, principalmente em `1.0 m` e `1.5 m`
+- isso torna `soft_rinf_local` o melhor compromisso externo dentro da familia
+  `full_circle`, mas ainda sem mudar a leitura global contra `full_square`
+
 ## Estado Operacional Ao Encerrar Esta Branch
 
 - o padrao de nome de saida com `RUN_STAMP` foi restaurado nos launchers novos
