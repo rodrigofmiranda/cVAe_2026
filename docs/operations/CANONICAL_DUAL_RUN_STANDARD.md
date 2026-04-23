@@ -13,6 +13,11 @@ O objetivo e evitar:
 - logs com nomes improvisados
 - runs disparados no repo errado
 
+Para a politica consolidada de carga, seguranca de GPU e o que deve ou nao ser
+tratado como arranjo canonico em host de GPU unica, ver tambem:
+
+- [DUAL_RUN_MANDATORY_RULES.md](/home/rodrigo/cVAe_2026_mdn_return/docs/operations/DUAL_RUN_MANDATORY_RULES.md)
+
 ## 1. Slots Canonicos
 
 Os dois slots permanentes sao:

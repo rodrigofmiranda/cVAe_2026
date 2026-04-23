@@ -32,7 +32,7 @@ validação do twin.
 | `full_circle` clean | melhor resultado clean observado: `5/12` | baseline científica ainda fraca |
 | `full_circle` geometry-light (`soft-radial`) | melhor resultado intermediário observado: `6/12` sem `geom3` e sem `disk_l2` | recupera parte do ganho com viés radial mais leve, mas ainda não alcança o teto geometry-biased |
 | validação do twin | `G1..G5` consolidados como validação principal; `G6` reposicionado como tela auxiliar | maturação metodológica importante |
-| validação externa | `16QAM` já consolidou a comparação `full_square` vs `full_circle clean` vs `full_circle geometry-biased`; `soft-radial` ainda não entrou nessa rodada | papel já estabelecido como árbitro externo de robustez |
+| validação externa | `16QAM` já consolidou a comparação `full_square` vs `full_circle clean` vs `full_circle geometry-biased` vs `full_circle geometry-light` | `full_square` permanece o melhor árbitro externo global; `geometry-light` melhora a baseline clean sem mudar o veredito final |
 
 ## Leitura integrada
 
