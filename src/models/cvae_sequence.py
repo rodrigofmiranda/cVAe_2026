@@ -46,7 +46,12 @@ the existing evaluation engine and protocol runner can locate them via
 
 from __future__ import annotations
 
-from typing import Dict, Tuple
+import ast
+import csv
+import json
+import zipfile
+from pathlib import Path
+from typing import Any, Dict, Tuple
 
 import tensorflow as tf
 from tensorflow.keras import layers, models
@@ -721,6 +726,99 @@ def create_seq_inference_model(
 # Save / load helper
 # ======================================================================
 
+def _peek_saved_model_name(path: Path) -> str:
+    """Best-effort read of the top-level model name from a `.keras` artifact."""
+    if path.suffix.lower() != ".keras" or not path.is_file():
+        return ""
+    try:
+        with zipfile.ZipFile(path, "r") as zf:
+            cfg = json.loads(zf.read("config.json"))
+    except Exception:
+        return ""
+    return str(cfg.get("config", {}).get("name", "")).strip()
+
+
+def _infer_train_run_dir_from_model_path(path: Path) -> Path:
+    """Resolve the train run dir from `.../train/models/best_model_full.keras`."""
+    model_path = Path(path).resolve()
+    if model_path.parent.name == "models":
+        return model_path.parent.parent
+    return model_path.parent
+
+
+def _coerce_legacy_cfg_value(key: str, value: str) -> Any:
+    """Parse gridsearch CSV values into the expected legacy build config types."""
+    if key == "layer_sizes":
+        parsed = ast.literal_eval(str(value))
+        return [int(v) for v in parsed]
+    if key in {"latent_dim", "batch_size", "kl_anneal_epochs"}:
+        return int(float(value))
+    if key in {"beta", "free_bits", "lr", "dropout"}:
+        return float(value)
+    return str(value)
+
+
+def _read_legacy_best_cfg_from_gridsearch(run_dir: Path) -> Dict[str, Any]:
+    """Read the top-ranked legacy config from `train/tables/gridsearch_results.csv`."""
+    grid_csv = Path(run_dir) / "tables" / "gridsearch_results.csv"
+    if not grid_csv.is_file():
+        raise FileNotFoundError(f"gridsearch_results.csv não encontrado: {grid_csv}")
+
+    with grid_csv.open("r", encoding="utf-8", newline="") as fh:
+        rows = list(csv.DictReader(fh))
+    if not rows:
+        raise ValueError(f"gridsearch_results.csv vazio: {grid_csv}")
+
+    def _rank_key(row: Dict[str, str]) -> Tuple[int, str]:
+        raw = str(row.get("rank", "")).strip()
+        try:
+            rank = int(float(raw))
+        except Exception:
+            rank = 10**9
+        return rank, str(row.get("tag", ""))
+
+    best_row = min(rows, key=_rank_key)
+    keys = [
+        "activation",
+        "arch_variant",
+        "layer_sizes",
+        "latent_dim",
+        "beta",
+        "free_bits",
+        "lr",
+        "batch_size",
+        "kl_anneal_epochs",
+        "dropout",
+    ]
+    cfg: Dict[str, Any] = {}
+    for key in keys:
+        raw = best_row.get(key)
+        if raw is None or str(raw).strip() == "":
+            continue
+        cfg[key] = _coerce_legacy_cfg_value(key, raw)
+
+    if str(cfg.get("arch_variant", "")).strip().lower() != "legacy_2025_zero_y":
+        raise ValueError(
+            "Fallback legacy loader recebeu um grid campeão não-legacy: "
+            f"{cfg.get('arch_variant')!r}"
+        )
+    return cfg
+
+
+def _load_legacy_2025_model_via_weights(path: str | Path) -> tf.keras.Model:
+    """Rebuild the legacy model from the winning grid row and load weights."""
+    model_path = Path(path).resolve()
+    run_dir = _infer_train_run_dir_from_model_path(model_path)
+    cfg = _read_legacy_best_cfg_from_gridsearch(run_dir)
+
+    from src.models.cvae_legacy_2025 import build_legacy_2025_cvae
+
+    model, _ = build_legacy_2025_cvae(cfg)
+    # `model.load_weights()` can read from a `.keras` archive even when the
+    # full `load_model()` path fails for this shared-nested legacy topology.
+    model.load_weights(str(model_path))
+    return model
+
 def load_seq_model(path: str) -> tf.keras.Model:
     """Load a saved cVAE model with correct custom_objects.
 
@@ -738,21 +836,31 @@ def load_seq_model(path: str) -> tf.keras.Model:
     keras.Model
         Loaded model with all custom layers resolved.
     """
-    return tf.keras.models.load_model(
-        str(path),
-        custom_objects={
-            "Sampling": Sampling,
-            "CondPriorDeltaVAELoss": CondPriorDeltaVAELoss,
-            "CondPriorVAELoss": CondPriorVAELoss,
-            "StdNormalHeteroscedasticVAELoss": StdNormalHeteroscedasticVAELoss,
-            "ExtractCenterFrame": ExtractCenterFrame,
-            "ClipValues": ClipValues,
-            "SliceFeatures": SliceFeatures,
-            "SupportGeometryFeatures": SupportGeometryFeatures,
-        },
-        # Our own saved models may contain Lambda layers (for example MDN
-        # sampling nodes), so evaluation/inference reloads must trust the
-        # project artifact instead of Keras' default safe-mode block.
-        safe_mode=False,
-        compile=False,
-    )
+    model_path = Path(path).resolve()
+    try:
+        return tf.keras.models.load_model(
+            str(model_path),
+            custom_objects={
+                "Sampling": Sampling,
+                "CondPriorDeltaVAELoss": CondPriorDeltaVAELoss,
+                "CondPriorVAELoss": CondPriorVAELoss,
+                "StdNormalHeteroscedasticVAELoss": StdNormalHeteroscedasticVAELoss,
+                "ExtractCenterFrame": ExtractCenterFrame,
+                "ClipValues": ClipValues,
+                "SliceFeatures": SliceFeatures,
+                "SupportGeometryFeatures": SupportGeometryFeatures,
+            },
+            # Our own saved models may contain Lambda layers (for example MDN
+            # sampling nodes), so evaluation/inference reloads must trust the
+            # project artifact instead of Keras' default safe-mode block.
+            safe_mode=False,
+            compile=False,
+        )
+    except ValueError as exc:
+        model_name = _peek_saved_model_name(model_path)
+        if (
+            model_name == "cvae_legacy_2025_zero_y"
+            or "legacy_core_dense_in" in str(exc)
+        ):
+            return _load_legacy_2025_model_via_weights(model_path)
+        raise
