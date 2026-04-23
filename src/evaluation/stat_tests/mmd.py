@@ -12,7 +12,7 @@ than the multi-threaded BLAS path on CPU.
 
 Public API
 ----------
-mmd_rbf(Y_real, Y_pred, *, n_perm=200, seed=42)
+mmd_rbf(Y_real, Y_pred, *, n_perm=200, seed=42, execution_backend="auto")
     → dict  {"mmd2": float, "pval": float, "bandwidth": float,
              "n_perm": int, "n_real": int, "n_pred": int}
 
@@ -41,6 +41,20 @@ def _check_gpu() -> bool:
         except Exception:
             _GPU_AVAILABLE = False
     return _GPU_AVAILABLE
+
+
+def _resolve_use_gpu(execution_backend: str) -> bool:
+    backend = str(execution_backend or "auto").strip().lower()
+    if backend not in {"auto", "cpu", "gpu"}:
+        raise ValueError(
+            f"Unsupported execution_backend='{execution_backend}'. "
+            "Use 'auto', 'cpu', or 'gpu'."
+        )
+    if backend == "cpu":
+        return False
+    if backend == "gpu":
+        return _check_gpu()
+    return _check_gpu()
 
 
 # ------------------------------------------------------------------
@@ -226,6 +240,7 @@ def mmd_rbf(
     *,
     n_perm: int = 200,
     seed: int = 42,
+    execution_backend: str = "auto",
 ) -> Dict[str, float]:
     """Two-sample MMD test with RBF kernel and permutation p-value.
 
@@ -237,6 +252,9 @@ def mmd_rbf(
         Number of permutations (200 = quick, 2000 = full).
     seed : int
         RNG seed for reproducibility.
+    execution_backend : {"auto", "cpu", "gpu"}
+        Backend preference for the permutation p-value. ``"cpu"`` is useful
+        for auxiliary diagnostics that must not perturb the main GPU state.
 
     Returns
     -------
@@ -263,7 +281,7 @@ def mmd_rbf(
     mmd2_obs = _mmd2_unbiased(Kxx, Kyy, Kxy)
 
     # Permutation p-value — GPU or CPU
-    use_gpu = _check_gpu()
+    use_gpu = _resolve_use_gpu(execution_backend)
     if use_gpu:
         try:
             pval = _perm_pval_gpu(K, m, n, n_perm, seed, mmd2_obs)

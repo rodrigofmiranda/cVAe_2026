@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import gc
 import json
+import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -84,6 +85,19 @@ def _autofind(path: Path, patterns):
         if matches:
             return matches[0]
     return None
+
+
+def _host_equivalent_path(path: Path) -> Optional[Path]:
+    """Map a container-mounted repo path back to the host path when known."""
+    container_root = os.environ.get("CVAE_TF25_WORKDIR", "").strip()
+    host_root = os.environ.get("CVAE_HOST_REPO_ROOT", "").strip()
+    if not container_root or not host_root:
+        return None
+    try:
+        rel = Path(path).resolve().relative_to(Path(container_root).resolve())
+    except Exception:
+        return None
+    return Path(host_root).resolve() / rel
 
 
 def _effective_stat_max_n(stat_mode: str, stat_max_n: Optional[int]) -> int:
@@ -498,8 +512,19 @@ def evaluate_run(
     ov = dict(runtime.overrides)
 
     print(f"📁 MODEL_RUN_DIR = {model_run_dir}")
+    model_run_dir_host = _host_equivalent_path(model_run_dir)
+    if model_run_dir_host is not None and model_run_dir_host != model_run_dir:
+        print(f"📁 MODEL_RUN_DIR_HOST = {model_run_dir_host}")
+
     print(f"📁 OUTPUT_RUN_DIR = {output_dir}")
+    output_dir_host = _host_equivalent_path(output_dir)
+    if output_dir_host is not None and output_dir_host != output_dir:
+        print(f"📁 OUTPUT_RUN_DIR_HOST = {output_dir_host}")
+
     print(f"📁 DATASET_ROOT = {runtime.dataset_root}")
+    dataset_root_host = _host_equivalent_path(Path(runtime.dataset_root))
+    if dataset_root_host is not None and dataset_root_host != Path(runtime.dataset_root):
+        print(f"📁 DATASET_ROOT_HOST = {dataset_root_host}")
 
     artifacts = runtime.state.get("artifacts", {})
     best_model_candidate = str(artifacts.get("best_model_full", "")).strip()

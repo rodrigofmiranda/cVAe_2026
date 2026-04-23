@@ -126,7 +126,7 @@ def main() -> int:
             else:
                 exp_dirs.append(p)
     else:
-        exp_dirs = sorted(Path("/workspace/2026/outputs").glob("exp_*"))
+        exp_dirs = sorted((ROOT / "outputs").glob("exp_*"))
 
     results = []
     for exp_dir in exp_dirs:

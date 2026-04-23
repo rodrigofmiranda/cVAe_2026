@@ -34,8 +34,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--repo_root",
         type=Path,
-        default=Path("/workspace/2026/feat_seq_bigru_residual_cvae"),
-        help="Repository root inside the container.",
+        default=ROOT,
+        help="Repository root. Defaults to the current repository.",
     )
     parser.add_argument(
         "--dataset_root",

@@ -330,6 +330,7 @@ def residual_signature_by_amplitude_bin(
     stat_mode: str = "quick",
     stat_n_perm: int = 200,
     stat_seed: int = 42,
+    stat_execution_backend: str = "cpu",
 ) -> List[Dict[str, Any]]:
     """Return amplitude-conditioned residual signature rows for one regime."""
     from src.evaluation.stat_tests import benjamini_hochberg, energy_test, mmd_rbf
@@ -421,15 +422,38 @@ def residual_signature_by_amplitude_bin(
             rr = rr[rng.choice(len(rr), n_cmp, replace=False)]
         if n_cmp < len(rp):
             rp = rp[rng.choice(len(rp), n_cmp, replace=False)]
-        sf_mmd = mmd_rbf(rr, rp, n_perm=int(stat_n_perm), seed=int(stat_seed) + bi)
-        sf_energy = energy_test(rr, rp, n_perm=int(stat_n_perm), seed=int(stat_seed) + bi)
-        row["stat_mmd_pval"] = float(sf_mmd["pval"])
-        row["stat_energy_pval"] = float(sf_energy["pval"])
-        row["stat_mmd_qval"] = float("nan")
-        row["stat_energy_qval"] = float("nan")
-        rows.append(row)
-        mmd_pvals.append(float(sf_mmd["pval"]))
-        energy_pvals.append(float(sf_energy["pval"]))
+        try:
+            sf_mmd = mmd_rbf(
+                rr,
+                rp,
+                n_perm=int(stat_n_perm),
+                seed=int(stat_seed) + bi,
+                execution_backend=stat_execution_backend,
+            )
+            sf_energy = energy_test(
+                rr,
+                rp,
+                n_perm=int(stat_n_perm),
+                seed=int(stat_seed) + bi,
+                execution_backend=stat_execution_backend,
+            )
+            row["stat_mmd_pval"] = float(sf_mmd["pval"])
+            row["stat_energy_pval"] = float(sf_energy["pval"])
+            row["stat_mmd_qval"] = float("nan")
+            row["stat_energy_qval"] = float("nan")
+            rows.append(row)
+            mmd_pvals.append(float(sf_mmd["pval"]))
+            energy_pvals.append(float(sf_energy["pval"]))
+        except Exception as exc:
+            print(
+                "⚠️  Residual signature amplitude-bin stat tests failed "
+                f"for regime '{regime_id}' bin={bi}: {exc}"
+            )
+            row["stat_mmd_pval"] = float("nan")
+            row["stat_energy_pval"] = float("nan")
+            row["stat_mmd_qval"] = float("nan")
+            row["stat_energy_qval"] = float("nan")
+            rows.append(row)
 
     if rows:
         valid_mmd_idx = [i for i, r in enumerate(rows) if np.isfinite(float(r.get("stat_mmd_pval", float("nan"))))]
@@ -466,6 +490,7 @@ def residual_signature_by_support_bin(
     stat_mode: str = "quick",
     stat_n_perm: int = 200,
     stat_seed: int = 42,
+    stat_execution_backend: str = "cpu",
 ) -> List[Dict[str, Any]]:
     """Return support-conditioned residual signature rows for one regime."""
     from src.evaluation.stat_tests import benjamini_hochberg, energy_test, mmd_rbf
@@ -561,15 +586,38 @@ def residual_signature_by_support_bin(
             rr = rr[rng.choice(len(rr), n_cmp, replace=False)]
         if n_cmp < len(rp):
             rp = rp[rng.choice(len(rp), n_cmp, replace=False)]
-        sf_mmd = mmd_rbf(rr, rp, n_perm=int(stat_n_perm), seed=int(stat_seed) + len(rows))
-        sf_energy = energy_test(rr, rp, n_perm=int(stat_n_perm), seed=int(stat_seed) + len(rows))
-        row["stat_mmd_pval"] = float(sf_mmd["pval"])
-        row["stat_mmd_qval"] = float("nan")
-        row["stat_energy_pval"] = float(sf_energy["pval"])
-        row["stat_energy_qval"] = float("nan")
-        rows.append(row)
-        valid_mmd_idx.append(len(rows) - 1)
-        valid_energy_idx.append(len(rows) - 1)
+        try:
+            sf_mmd = mmd_rbf(
+                rr,
+                rp,
+                n_perm=int(stat_n_perm),
+                seed=int(stat_seed) + len(rows),
+                execution_backend=stat_execution_backend,
+            )
+            sf_energy = energy_test(
+                rr,
+                rp,
+                n_perm=int(stat_n_perm),
+                seed=int(stat_seed) + len(rows),
+                execution_backend=stat_execution_backend,
+            )
+            row["stat_mmd_pval"] = float(sf_mmd["pval"])
+            row["stat_mmd_qval"] = float("nan")
+            row["stat_energy_pval"] = float(sf_energy["pval"])
+            row["stat_energy_qval"] = float("nan")
+            rows.append(row)
+            valid_mmd_idx.append(len(rows) - 1)
+            valid_energy_idx.append(len(rows) - 1)
+        except Exception as exc:
+            print(
+                "⚠️  Residual signature support-bin stat tests failed "
+                f"for regime '{regime_id}' axis='{axis_name}' bin={bin_index}: {exc}"
+            )
+            row["stat_mmd_pval"] = float("nan")
+            row["stat_mmd_qval"] = float("nan")
+            row["stat_energy_pval"] = float("nan")
+            row["stat_energy_qval"] = float("nan")
+            rows.append(row)
 
     for axis_name in ("r_l2_norm", "r_inf_norm"):
         values_real = np.asarray(feats_real[axis_name], dtype=np.float64)

@@ -13,7 +13,7 @@ than the multi-threaded BLAS path on CPU.
 
 Public API
 ----------
-energy_test(Y_real, Y_pred, *, n_perm=200, seed=42)
+energy_test(Y_real, Y_pred, *, n_perm=200, seed=42, execution_backend="auto")
     → dict  {"energy": float, "pval": float, "n_perm": int,
              "n_real": int, "n_pred": int}
 
@@ -44,27 +44,50 @@ def _check_gpu() -> bool:
     return _GPU_AVAILABLE
 
 
+def _resolve_use_gpu(execution_backend: str) -> bool:
+    backend = str(execution_backend or "auto").strip().lower()
+    if backend not in {"auto", "cpu", "gpu"}:
+        raise ValueError(
+            f"Unsupported execution_backend='{execution_backend}'. "
+            "Use 'auto', 'cpu', or 'gpu'."
+        )
+    if backend == "cpu":
+        return False
+    if backend == "gpu":
+        return _check_gpu()
+    return _check_gpu()
+
+
 # ------------------------------------------------------------------
 # Core statistic
 # ------------------------------------------------------------------
 
+def _pairwise_euclidean(A: np.ndarray, B: np.ndarray) -> np.ndarray:
+    """Return the full Euclidean distance matrix using only NumPy."""
+    A = np.asarray(A, dtype=np.float64)
+    B = np.asarray(B, dtype=np.float64)
+    aa = np.sum(A * A, axis=1, keepdims=True)
+    bb = np.sum(B * B, axis=1, keepdims=True).T
+    sq = np.maximum(aa + bb - 2.0 * (A @ B.T), 0.0)
+    return np.sqrt(sq, out=sq)
+
+
 def _energy_statistic(X: np.ndarray, Y: np.ndarray) -> float:
     """Compute the (unnormalised) energy distance between X and Y."""
     # E||X−Y||
-    # Using the identity: E||a−b|| over pairs via cdist
+    # Using a full pairwise Euclidean matrix built with NumPy only.
     # For moderate n we compute pairwise norms directly.
     # For large n we sub-sample to keep O(n²) tractable.
-    from scipy.spatial.distance import cdist
 
     m, n = len(X), len(Y)
 
-    dxy = cdist(X, Y, metric="euclidean")
+    dxy = _pairwise_euclidean(X, Y)
     mean_xy = dxy.mean()
 
-    dxx = cdist(X, X, metric="euclidean")
+    dxx = _pairwise_euclidean(X, X)
     mean_xx = dxx.mean()
 
-    dyy = cdist(Y, Y, metric="euclidean")
+    dyy = _pairwise_euclidean(Y, Y)
     mean_yy = dyy.mean()
 
     # Energy distance (scaled by mn/(m+n) for the test statistic)
@@ -209,6 +232,7 @@ def energy_test(
     n_perm: int = 200,
     seed: int = 42,
     max_pairs: int = 8000,
+    execution_backend: str = "auto",
 ) -> Dict[str, float]:
     """Two-sample energy distance test with permutation p-value.
 
@@ -222,6 +246,9 @@ def energy_test(
         RNG seed for reproducibility.
     max_pairs : int
         Sub-sample cap per set (controls O(n²) cost).
+    execution_backend : {"auto", "cpu", "gpu"}
+        Backend preference for the permutation p-value. ``"cpu"`` is useful
+        for auxiliary diagnostics that must not perturb the main GPU state.
 
     Returns
     -------
@@ -238,8 +265,6 @@ def energy_test(
     e_obs = _energy_statistic_fast(X, Y, max_pairs=max_pairs)
 
     # ----- Permutation null -----
-    from scipy.spatial.distance import cdist as _cdist
-
     rng = np.random.default_rng(seed)
     Z = np.concatenate([X, Y], axis=0)
     N = m + n
@@ -256,10 +281,10 @@ def energy_test(
         _ms, _ns = m, n
         Z_sub = Z
 
-    D = _cdist(Z_sub, Z_sub, metric="euclidean").astype(np.float64)
+    D = _pairwise_euclidean(Z_sub, Z_sub).astype(np.float64, copy=False)
 
     # GPU or CPU dispatch
-    use_gpu = _check_gpu()
+    use_gpu = _resolve_use_gpu(execution_backend)
     if use_gpu:
         try:
             pval = _perm_pval_gpu(D, _ms, _ns, n_perm, seed, e_obs)

@@ -217,7 +217,7 @@ def bootstrap_run(
     ----------
     output_base : Path or str, optional
         Root for all runs.  Falls back to ``$OUTPUT_BASE`` env-var,
-        then ``/workspace/2026/outputs``.
+        then ``<repo_root>/outputs``.
     run_id : str, optional
         Explicit run identifier (e.g. ``run_20260302_143000``).
         Falls back to ``$RUN_ID`` env-var, then auto-generates
@@ -231,7 +231,10 @@ def bootstrap_run(
         already created on disk.
     """
     if output_base is None:
-        output_base = Path(os.environ.get("OUTPUT_BASE", "/workspace/2026/outputs"))
+        repo_root = Path(__file__).resolve().parents[2]
+        default_output_base = repo_root / "outputs"
+        env_output_base = os.environ.get("OUTPUT_BASE", "").strip()
+        output_base = Path(env_output_base) if env_output_base else default_output_base
     else:
         output_base = Path(output_base)
 

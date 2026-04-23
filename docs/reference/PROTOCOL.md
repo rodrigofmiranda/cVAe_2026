@@ -13,7 +13,7 @@ This is the only supported public experiment entrypoint. The old
 ## Quick start
 
 ```bash
-cd /workspace/2026/feat_seq_bigru_residual_cvae
+cd /path/to/repo
 export PYTHONPATH="$PWD"
 
 # Default reduced 12-regime protocol (3 distances x 4 currents)
@@ -204,8 +204,8 @@ When a protocol contains `_selected_experiments`, the runner now matches them
 portably by dataset-relative suffix as well as absolute path. This keeps the
 same reduced protocol JSON usable across different clone roots, for example:
 
-- `/workspace/2026/feat_seq_bigru_residual_cvae/...`
-- `/mnt/clone_a/cVAe_2026/...`
+- `/home/rodrigo/cVAe_2026_shape_fullcircle/...`
+- `/mnt/clone_a/cVAe_2026_shape_fullcircle/...`
 
 without editing the protocol file.
 

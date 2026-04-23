@@ -1853,6 +1853,7 @@ def run_regime(
                     stat_mode=str(stat_mode),
                     stat_n_perm=_stat_n_perm_bins,
                     stat_seed=int(stat_seed),
+                    stat_execution_backend="cpu",
                 )
                 _support_cfg = result.get("support_config") or {}
                 _support_a_train = _support_cfg.get("a_train")
@@ -1877,6 +1878,7 @@ def run_regime(
                         stat_mode=str(stat_mode),
                         stat_n_perm=_stat_n_perm_bins,
                         stat_seed=int(stat_seed),
+                        stat_execution_backend="cpu",
                     )
                 del _pred_pack_sig, Y_pred_sig, X_tiled_sig, _D_tiled_sig, _C_tiled_sig
             del _X_va, _Y_va, _D_va, _C_va

@@ -10,7 +10,7 @@ Use it for two things:
 ## Canonical Entry Point
 
 ```bash
-cd /workspace/2026/feat_seq_bigru_residual_cvae
+cd /path/to/repo
 python -m src.protocol.run
 ```
 

@@ -295,8 +295,20 @@ def _collect_regime_diagnostic_rows(
             rr = rr[rng.choice(len(rr), n_cmp, replace=False)]
         if n_cmp < len(rp):
             rp = rp[rng.choice(len(rp), n_cmp, replace=False)]
-        sf_mmd = mmd_rbf(rr, rp, n_perm=int(stat_n_perm), seed=int(stat_seed) + int(seed_offset) + int(current_mA))
-        sf_energy = energy_test(rr, rp, n_perm=int(stat_n_perm), seed=int(stat_seed) + int(seed_offset) + int(current_mA) + 1)
+        sf_mmd = mmd_rbf(
+            rr,
+            rp,
+            n_perm=int(stat_n_perm),
+            seed=int(stat_seed) + int(seed_offset) + int(current_mA),
+            execution_backend="cpu",
+        )
+        sf_energy = energy_test(
+            rr,
+            rp,
+            n_perm=int(stat_n_perm),
+            seed=int(stat_seed) + int(seed_offset) + int(current_mA) + 1,
+            execution_backend="cpu",
+        )
 
         row: Dict[str, Any] = {
             "regime_id": RegimeDiagnosticsCallback._format_regime_id(distance_m, current_mA),

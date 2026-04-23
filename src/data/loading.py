@@ -170,9 +170,10 @@ def find_dataset_root(
     verbose : bool
         Print progress messages.
     """
+    repo_root = Path(__file__).resolve().parents[2]
     if dataset_root_hint is None:
         dataset_root_hint = Path(
-            os.environ.get("DATASET_ROOT", "/workspace/2026/dataset_fullsquare_organized")
+            os.environ.get("DATASET_ROOT", str(repo_root / "data" / marker_dirname))
         )
     else:
         dataset_root_hint = Path(dataset_root_hint)
@@ -183,7 +184,14 @@ def find_dataset_root(
         return dataset_root_hint
 
     workspace = Path("/workspace")
-    search_bases = [workspace / "2026", workspace / "2025", workspace]
+    search_bases = [
+        repo_root,
+        repo_root.parent,
+        Path.cwd(),
+        workspace / "2026",
+        workspace / "2025",
+        workspace,
+    ]
     search_bases = [p for p in search_bases if p.exists()]
 
     candidates = []
@@ -193,7 +201,10 @@ def find_dataset_root(
                 candidates.append(p)
     candidates = sorted(set(candidates))
     if not candidates:
-        raise FileNotFoundError(f"Não encontrei '{marker_dirname}' em /workspace (e o DATASET_ROOT do env não é válido).")
+        raise FileNotFoundError(
+            f"Não encontrei '{marker_dirname}' no repo atual, no cwd, nem em /workspace "
+            "(e o DATASET_ROOT do env não é válido)."
+        )
 
     best_root = None
     best_count = -1

@@ -84,6 +84,12 @@ class TestMMD:
         assert result["n_perm"] == 50
         assert result["n_real"] == len(Y1)
 
+    def test_cpu_backend_runs(self, same_samples):
+        Y1, Y2 = same_samples
+        result = mmd_rbf(Y1, Y2, n_perm=20, seed=3, execution_backend="cpu")
+        assert "pval" in result
+        assert result["n_perm"] == 20
+
 
 # ------------------------------------------------------------------
 # Energy distance tests
@@ -110,6 +116,12 @@ class TestEnergy:
         result = energy_test(Y1, Y2, n_perm=50, seed=0)
         for key in ("energy", "pval", "n_perm", "n_real", "n_pred"):
             assert key in result, f"Missing key: {key}"
+
+    def test_cpu_backend_runs(self, same_samples):
+        Y1, Y2 = same_samples
+        result = energy_test(Y1, Y2, n_perm=20, seed=5, execution_backend="cpu")
+        assert "pval" in result
+        assert result["n_perm"] == 20
 
 
 # ------------------------------------------------------------------

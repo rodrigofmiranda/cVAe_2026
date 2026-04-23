@@ -57,8 +57,8 @@ def _filter_selected_experiments(
     # - exact absolute match
     # - absolute prefix match (curr_100mA/ -> curr_100mA/full_square_...)
     # - dataset-relative suffix match so protocol JSONs remain portable across
-    #   different clone roots (e.g. /workspace/2026/feat_seq_bigru_residual_cvae
-    #   vs /mnt/clone_a/cVAe_2026).
+    #   different clone roots (e.g. /home/rodrigo/cVAe_2026_shape_fullcircle
+    #   vs /mnt/clone_a/cVAe_2026_shape_fullcircle).
     def _matches(exp_path: str) -> bool:
         exp_norm = str(exp_path).replace("\\", "/")
         exp_rel = _dataset_rel(exp_norm)

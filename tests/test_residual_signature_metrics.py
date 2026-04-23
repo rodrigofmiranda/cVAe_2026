@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
+import pytest
 
 from src.evaluation.metrics import (
     residual_distribution_metrics,
@@ -111,3 +112,36 @@ def test_residual_signature_by_support_bin_builds_axis_and_region_rows():
     assert {"center", "edge", "corner"} <= {row["support_region"] for row in rows}
     assert all("delta_wasserstein_I" in row for row in rows)
     assert all("stat_mmd_qval" in row for row in rows)
+
+
+def test_residual_signature_by_amplitude_bin_survives_stat_failures(monkeypatch):
+    import src.evaluation.stat_tests as stat_tests
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("synthetic stat failure")
+
+    monkeypatch.setattr(stat_tests, "mmd_rbf", _boom)
+    monkeypatch.setattr(stat_tests, "energy_test", _boom)
+
+    rng = np.random.default_rng(27)
+    n = 4096
+    x_real = rng.normal(scale=0.4, size=(n, 2))
+    y_real = x_real + rng.normal(scale=0.12, size=(n, 2))
+    x_pred = np.tile(x_real, (2, 1))
+    y_pred = x_pred + rng.normal(scale=0.14, size=x_pred.shape)
+
+    rows = residual_signature_by_amplitude_bin(
+        X_real=x_real,
+        Y_real=y_real,
+        X_pred=x_pred,
+        Y_pred=y_pred,
+        regime_id="dist_0p8m__curr_300mA",
+        amplitude_bins=4,
+        min_samples_per_bin=512,
+        stat_n_perm=8,
+        stat_seed=11,
+    )
+
+    assert len(rows) == 4
+    assert all(np.isnan(row["stat_mmd_pval"]) for row in rows)
+    assert all(np.isnan(row["stat_energy_pval"]) for row in rows)

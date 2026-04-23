@@ -7,7 +7,8 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 CONTAINER_NAME="${CVAE_TF25_CONTAINER_NAME:-cvae_tf25_gpu}"
 SESSION_NAME="${CVAE_TF25_TMUX_SESSION:-cvae_tf25_gpu}"
 IMAGE_NAME="${CVAE_TF25_IMAGE:-vlc/tf25-gpu-ready:1}"
-CONTAINER_WORKDIR="${CVAE_TF25_WORKDIR:-/workspace/2026/feat_seq_bigru_residual_cvae}"
+DEFAULT_CONTAINER_WORKDIR="${REPO_ROOT}"
+CONTAINER_WORKDIR="${CVAE_TF25_WORKDIR:-${DEFAULT_CONTAINER_WORKDIR}}"
 TF_CPP_MIN_LOG_LEVEL_VALUE="${CVAE_TF_CPP_MIN_LOG_LEVEL:-2}"
 TF_ENABLE_ONEDNN_OPTS_VALUE="${CVAE_TF_ENABLE_ONEDNN_OPTS:-0}"
 BOOTSTRAP_PLOT_DEPS="${CVAE_BOOTSTRAP_PLOT_DEPS:-1}"
@@ -48,6 +49,7 @@ cd $(printf '%q' "${REPO_ROOT}") && exec docker run --rm -it \
   -e TF_ENABLE_ONEDNN_OPTS=$(printf '%q' "${TF_ENABLE_ONEDNN_OPTS_VALUE}") \
   -e CVAE_BOOTSTRAP_PLOT_DEPS=$(printf '%q' "${BOOTSTRAP_PLOT_DEPS}") \
   -e CVAE_TF25_WORKDIR=$(printf '%q' "${CONTAINER_WORKDIR}") \
+  -e CVAE_HOST_REPO_ROOT=$(printf '%q' "${REPO_ROOT}") \
   -e HOME=$(printf '%q' "${CONTAINER_WORKDIR}") \
   -u $(printf '%q' "$(id -u):$(id -g)") \
   -v /etc/passwd:/etc/passwd:ro \
