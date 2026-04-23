@@ -4660,6 +4660,40 @@ def _preset_protocol_faceoff_short(grid: List[Dict[str, Any]]) -> List[Dict[str,
     return selected
 
 
+def _preset_seq_edgegap_recovery_short() -> List[Dict[str, Any]]:
+    """Compact S38 ablation for the remaining 0.8m edge-gap failures.
+
+    This preset shrinks the broader ``S38_fast_stage4_edgegap`` family into a
+    protocol-first decision block focused on the two hardest baseline regimes:
+
+      - ``dist_0p8m__curr_100mA``
+      - ``dist_0p8m__curr_300mA``
+
+    The intent is to isolate which lever helps most:
+
+      - control: wider architecture + sampled-residual MMD
+      - tail-only: stronger coverage/tail pressure
+      - conditioning-only: larger conditional embedding with residual fusion
+      - conditioning + moderate 0.8m weighting
+      - full aggressive combo
+    """
+    keep_tags = [
+        "S38A_smplmmd_cov30_t02_tail02-98_e48_base",
+        "S38B_smplmmd_cov35_t015_tail01-99_e48",
+        "S38C_smplmmd_cov30_t02_tail02-98_e96_emb3_resid",
+        "S38D_smplmmd_cov30_t02_tail02-98_e96_emb3_resid_w08x18",
+        "S38E_smplmmd_cov35_t015_tail01-99_e96_emb3_resid_w08x22",
+    ]
+    by_tag = {item["tag"]: item for item in _preset_seq_cond_embed_fast_stage4_edgegap()}
+    selected: List[Dict[str, Any]] = []
+    for tag in keep_tags:
+        item = by_tag.get(tag)
+        if item is None:
+            continue
+        selected.append({**item, "group": "C7_seq_edgegap_recovery_short"})
+    return selected
+
+
 def _preset_delta_residual_fast() -> List[Dict[str, Any]]:
     """Single-config delta_residual reference with kl_anneal_epochs=20."""
     return [
@@ -4819,6 +4853,8 @@ def select_grid(
             grid = _preset_seq_gaussian_reference_full()
         elif preset_name == "seq_mdn_v2_a600_tail_explore_quick":
             grid = _preset_seq_mdn_v2_a600_tail_explore_quick()
+        elif preset_name == "seq_edgegap_recovery_short":
+            grid = _preset_seq_edgegap_recovery_short()
         elif preset_name == "best_compare_large":
             grid = _preset_best_compare_large()
         elif preset_name == "protocol_faceoff_short":
