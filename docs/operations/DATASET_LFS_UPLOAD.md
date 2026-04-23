@@ -1,75 +1,87 @@
-# Dataset Upload to Git LFS
+# Dataset Placement Policy (Local Path First, Git LFS Only By Exception)
 
-This guide standardizes how to import a new acquisition dataset into the
-repository under `data/` and publish it with Git LFS.
+This guide standardizes how to place acquisition datasets under `data/` using
+the real local filesystem path on the active machine.
 
-## Naming Convention
+The filename is kept for backward compatibility, but the operational policy is
+now explicit:
 
-Use:
+- default flow: local copy into `data/`
+- default prohibition: do not publish full acquisition datasets via Git LFS
+- Git LFS is exceptional only, and requires explicit approval because it can
+  exhaust the shared data quota quickly
 
-- `data/dataset_<name>_organized/`
+## Mandatory Rule
+
+On the lab server and on active worktrees:
+
+- copy the dataset directly into the real local path under `data/`
+- do not treat `git add data/...` as the standard dataset workflow
+- do not use Git LFS for `full_square`, `full_circle`, `16QAM`, or similar full
+  acquisition trees unless there is an explicit archival/sharing decision
+
+## Canonical Local Dataset Roots
+
+Use these names inside the repository:
+
+- `data/dataset_fullsquare_organized`
+- `data/FULL_CIRCLE_2026`
+- `data/16qam`
+
+## Current Host Examples
+
+Current real-path copies already organized on this host include:
+
+- `/home/rodrigo/cVAe_2026_full_square/data/dataset_fullsquare_organized`
+- `/home/rodrigo/cVAe_2026_full_square/data/FULL_CIRCLE_2026`
+- `/home/rodrigo/cVAe_2026_full_square/data/16qam`
+- `/home/rodrigo/cVAe_2026_shape_fullcircle/data/FULL_CIRCLE_2026`
+- `/home/rodrigo/cVAe_2026_shape_fullcircle/data/16qam`
+
+## Recommended Local Copy Flow
+
+From repo root, copy by real path with `rsync` or `cp -a`.
 
 Examples:
 
-- `data/dataset_fullsquare_organized/`
-- `data/dataset_16qam_organized/`
-
-## Prerequisites
-
-From repo root:
-
 ```bash
-git lfs install --local
-git lfs version
+rsync -a --info=progress2 \
+  /home/rodrigo/cVAe_2026_full_square/data/dataset_fullsquare_organized/ \
+  data/dataset_fullsquare_organized/
+
+rsync -a --info=progress2 \
+  /home/rodrigo/cVAe_2026_full_square/data/FULL_CIRCLE_2026/ \
+  data/FULL_CIRCLE_2026/
+
+rsync -a --info=progress2 \
+  /home/rodrigo/cVAe_2026_full_square/data/16qam/ \
+  data/16qam/
 ```
 
-If your dataset is on Windows drive `H:`, in WSL the path is usually:
+Equivalent copy with `cp -a` is also acceptable when the source and target are
+on the same machine.
+
+## What Not To Do By Default
+
+Do not use this as the standard operational path:
 
 ```bash
-/mnt/h/...
-```
-
-## One-command Import (recommended)
-
-Use the helper script:
-
-```bash
-scripts/ops/import_dataset_lfs.sh "<source_dir>" "<dataset_dir_name>"
-```
-
-Example for the 16QAM dataset:
-
-```bash
-scripts/ops/import_dataset_lfs.sh \
-  "/mnt/h/Meu Drive/Doutorado/IA/1-Data/Dataset/16QAM_DATASET_2026" \
-  "dataset_16qam_organized"
-```
-
-What the script does:
-
-1. Validates source has `IQ_data` folders and expected sent/received `.npy`.
-2. Copies source into `data/<dataset_dir_name>/`.
-3. Prints summary and next git commands.
-
-## Commit and Push
-
-After import:
-
-```bash
-git add .gitattributes .gitignore data/dataset_16qam_organized
-git status --short
-git lfs ls-files | grep -E "dataset_16qam_organized|\\.npy|\\.png"
-git commit -m "data: add dataset_16qam_organized via Git LFS"
+git add data/...
+git commit
 git push
+git lfs push
 ```
+
+For the active datasets, this wastes quota and couples routine experimentation
+to repository storage limits.
 
 ## Sanity-check For Training/Evaluation
 
-Run with explicit dataset root:
+Run with explicit dataset root when needed:
 
 ```bash
 python -m src.protocol.run \
-  --dataset_root data/dataset_16qam_organized \
+  --dataset_root data/16qam \
   --output_base outputs \
   --protocol configs/all_regimes_full_dataset.json
 ```
@@ -77,12 +89,27 @@ python -m src.protocol.run \
 Or with wrapper:
 
 ```bash
-DATASET_ROOT="$PWD/data/dataset_16qam_organized" bash scripts/ops/train.sh
+DATASET_ROOT="$PWD/data/16qam" bash scripts/ops/train.sh
+```
+
+## Exceptional Git LFS Flow
+
+Use Git LFS only if there is an explicit decision to publish or archive a
+curated dataset snapshot through the repository.
+
+Only in that exceptional case should you use:
+
+```bash
+scripts/ops/import_dataset_lfs.sh "<source_dir>" "<dataset_dir_name>"
+git add .gitattributes .gitignore data/<dataset_dir_name>
+git lfs ls-files | grep -E "<dataset_dir_name>|\\.npy|\\.png"
+git commit -m "data: add <dataset_dir_name> via Git LFS"
+git push
 ```
 
 ## Notes
 
-- Keep `X.npy`/`Y.npy` (or legacy aliases) inside each `IQ_data/` folder.
+- Keep `IQ_data/`, `metadata.json`, and `report.json` inside each experiment leaf.
 - Keep `dist_*` and `curr_*` folder names for automatic regime parsing.
-- If `selected_experiments` is hardcoded in a protocol JSON for another
-  dataset root, remove/adjust that list for portability.
+- If `selected_experiments` is hardcoded in a protocol JSON for another dataset
+  root, remove or adjust that list for portability.

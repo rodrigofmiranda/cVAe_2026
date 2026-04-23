@@ -335,18 +335,31 @@ Logado como Eduardo:
 git clone git@github.com:rodrigofmiranda/cVAe_2026.git /home/eduardo/cVAe_2026
 ```
 
-Depois do clone, baixe os arquivos grandes do dataset com Git LFS:
+Depois do clone, nao use Git LFS como fluxo padrao para datasets de aquisicao.
+
+A regra operacional atual e `local-first`:
+
+- copiar o dataset pelo caminho real para dentro de `data/`
+- nao fazer `git add data/...` como rotina normal
+- so usar Git LFS com aprovacao explicita, porque o upload de datasets completos pode consumir a cota maxima rapidamente
+
+Exemplo no host atual, usando as copias locais ja organizadas:
 
 ```bash
-git -C /home/gabriele/cVAe_2026 lfs install --local
-git -C /home/gabriele/cVAe_2026 lfs pull
+rsync -a --info=progress2 \
+  /home/rodrigo/cVAe_2026_full_square/data/dataset_fullsquare_organized/ \
+  <TARGET_REPO>/data/dataset_fullsquare_organized/
 
-git -C /home/eduardo/cVAe_2026 lfs install --local
-git -C /home/eduardo/cVAe_2026 lfs pull
+rsync -a --info=progress2 \
+  /home/rodrigo/cVAe_2026_full_square/data/FULL_CIRCLE_2026/ \
+  <TARGET_REPO>/data/FULL_CIRCLE_2026/
+
+rsync -a --info=progress2 \
+  /home/rodrigo/cVAe_2026_full_square/data/16qam/ \
+  <TARGET_REPO>/data/16qam/
 ```
 
-Sem esse passo, a estrutura de `data/` aparece no clone, mas os arquivos grandes
-nao sao baixados de verdade. O sintoma tipico no treino e:
+Sem essa copia local, o sintoma tipico no treino continua sendo:
 
 ```bash
 ValueError: Nenhum dataset carregado com sucesso.

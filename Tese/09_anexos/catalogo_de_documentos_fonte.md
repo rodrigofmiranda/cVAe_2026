@@ -40,6 +40,7 @@ O catálogo está organizado por linha e por papel metodológico.
 | [Shu e Zhang 2020 parsed](/home/rodrigo/cVAe_2026_shape/knowledge/papers/parsed/shu_2020_probabilistic_shaping_optical/document.md) | artefato parseado do paper técnico usado como apoio primário |
 | [FULL_CIRCLE_EXECUTION_PLAN](/home/rodrigo/cVAe_2026_shape_fullcircle/docs/active/FULL_CIRCLE_EXECUTION_PLAN.md) | cronologia principal dos runs `full_circle` |
 | [FULL_CIRCLE_VALIDATION_CHECKLIST](/home/rodrigo/cVAe_2026_shape_fullcircle/docs/active/FULL_CIRCLE_VALIDATION_CHECKLIST.md) | checklist metodológico da validação `full_circle` |
+| [resumo_executivo_para_orientadores_2026-04-23](/home/rodrigo/cVAe_2026_mdn_return/Tese/09_anexos/resumo_executivo_para_orientadores_2026-04-23.md) | resumo curto para reunião com branches, commits, objetivos e artefatos principais |
 
 ## Implicações
 

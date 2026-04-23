@@ -91,7 +91,7 @@ e não apenas as sínteses internas.
 - [06_validacao_do_gemeo](06_validacao_do_gemeo/validacao_principal_g1_g5.md): metodologia validada do twin, incluindo a leitura crossline em [comparacao_crossline_full_square_vs_full_circle_2026-04-23](06_validacao_do_gemeo/comparacao_crossline_full_square_vs_full_circle_2026-04-23.md).
 - [07_resultados_e_decisoes](07_resultados_e_decisoes/resultados_por_linha.md): síntese dos resultados e da matriz de decisão.
 - [08_planejamento_da_redacao](08_planejamento_da_redacao/esqueleto_capitulos.md): preparação para a escrita da tese.
-- [09_anexos](09_anexos/catalogo_de_runs.md): catálogos de runs, documentos e figuras.
+- [09_anexos](09_anexos/catalogo_de_runs.md): catálogos de runs, documentos e figuras, incluindo o [resumo_executivo_para_orientadores_2026-04-23](09_anexos/resumo_executivo_para_orientadores_2026-04-23.md).
 
 ## Síntese
 
