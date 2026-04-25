@@ -15,9 +15,11 @@ recente.
 
 - [best_compare_large protocol leaderboard](/home/rodrigo/cVAe_2026_full_square/outputs/architectures/comparative/best_compare_large/full_data_sel4_overnight_20260423_040529/exp_20260423_040722/tables/protocol_leaderboard.csv)
 - [best_compare_large summary_by_regime](/home/rodrigo/cVAe_2026_full_square/outputs/architectures/comparative/best_compare_large/full_data_sel4_overnight_20260423_040529/exp_20260423_040722/tables/summary_by_regime.csv)
-- [best_compare_large 16QAM manifest](/home/rodrigo/cVAe_2026_full_square/outputs/architectures/comparative/best_compare_large/full_data_sel4_overnight_20260423_040529/benchmarks/16qam/eval_16qam_sel4_stats_20260423_040529/manifest_all_regimes_eval.csv)
-- [16QAM updated crossline summary](/home/rodrigo/cVAe_2026_full_square/outputs/analysis/eval_16qam_crossline_20260423_best_compare_vs_fullcircle/README.md)
-- [16QAM updated crossline summary with legacy clean rerun](/home/rodrigo/cVAe_2026_full_square/outputs/analysis/eval_16qam_crossline_20260423_with_legacy_clean/README.md)
+- [best_compare_large winner alias](/home/rodrigo/cVAe_2026_full_square/outputs/architectures/seq_bigru_residual/S2seq_W7_h64_lat4_b0p003_lmmd0p5_fb0p10_lr0p0003_L128-256-512/README.md)
+- [best_compare_large 16QAM manifest](/home/rodrigo/cVAe_2026_full_square/outputs/architectures/seq_bigru_residual/S2seq_W7_h64_lat4_b0p003_lmmd0p5_fb0p10_lr0p0003_L128-256-512/16qam/sel4_stats_20260423_040529/manifest_all_regimes_eval.csv)
+- [16QAM updated crossline summary](/home/rodrigo/cVAe_2026_full_square/outputs/architectures/_crossline/16qam/crossline_20260423_best_compare_vs_fullcircle/README.md)
+- [16QAM updated crossline summary with legacy clean rerun](/home/rodrigo/cVAe_2026_full_square/outputs/architectures/_crossline/16qam/crossline_20260423_with_legacy_clean/README.md)
+- [output bucket to architecture translation](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/output_bucket_to_architecture_translation_2026-04-23.md)
 - [full circle soft-radial master table](/home/rodrigo/cVAe_2026_full_square/knowledge/syntheses/full_circle_soft_radial_master_table_2026-04-22.md)
 - [full circle PROJECT_STATUS 16QAM section](/home/rodrigo/cVAe_2026_shape_fullcircle/PROJECT_STATUS.md)
 - [legacy2025 original protocol leaderboard with failed loader path](/home/rodrigo/cVAe_2026_full_square/outputs/architectures/legacy_2025_zero_y/legacy2025_large_sel4_overnight_20260423_035804/exp_20260423_040105/tables/protocol_leaderboard.csv)
@@ -37,7 +39,7 @@ recente.
 
 | Linha | Candidato / papel | Status | Protocolo principal | 16QAM externo | Leitura estabilizada |
 | --- | --- | --- | --- | --- | --- |
-| `full_square` | `best_compare_large` champion `S2seq_W7_h64_lat4_b0p003_lmmd0p5_fb0p10_lr0p0003_L128-256-512` | resolvido | `5/12` pass, `7/12` fail; `G1=8`, `G2=9`, `G3=8`, `G4=12`, `G5=5`, `G6=7` | `12/12` regimes completos; melhor média global entre os quatro braços comparados | hoje é o melhor comparador crossline do lado `full_square`: não é o melhor teto histórico interno da linha, mas é fortíssimo na validação externa |
+| `full_square` | mixed study `best_compare_large`, winner `seq_bigru_residual` `S2seq_W7_h64_lat4_b0p003_lmmd0p5_fb0p10_lr0p0003_L128-256-512` | resolvido | `5/12` pass, `7/12` fail; `G1=8`, `G2=9`, `G3=8`, `G4=12`, `G5=5`, `G6=7` | `12/12` regimes completos; melhor média global entre os quatro braços comparados | hoje é o melhor comparador crossline do lado `full_square`: o bucket é misto, mas o vencedor real pertence à família `seq_bigru_residual` |
 | `full_circle` | `clean baseline` | resolvido | `5/12` pass | `12/12`; pior que `best_compare_large` nas médias globais, mas ainda vence `3/12` regimes em `EVM/SNR/PSD` na comparação histórica | continua sendo a baseline científica honesta de `full_circle`, sem força suficiente para deslocar `full_square` |
 | `full_circle` | `soft_rinf_local` geometry-light | resolvido | `6/12` pass | `12/12`; melhora a baseline clean dentro da família `full_circle`, mas segue atrás de `best_compare_large` na leitura global | melhor compromisso científico atual dentro de `full_circle`; referência geometry-light legítima |
 | `full_circle` | `disk_geom3` ceiling | resolvido | `8/12` pass | `12/12`; não vence em `EVM/SNR/PSD` contra `best_compare_large`, embora retenha algumas vitórias em métricas de informação | deve ser mantido como teto operacional, não como baseline neutra |
@@ -66,7 +68,7 @@ Essa tensão não é ruído. Ela sugere que, no estado atual:
 
 A comparação agregada mais recente entre:
 
-- `full_square_best_compare_large`
+- `full_square_best_compare_large` (`seq_bigru_residual` winner imported from the mixed study)
 - `full_circle_clean`
 - `full_circle_disk`
 - `full_circle_soft_rinf_local`
