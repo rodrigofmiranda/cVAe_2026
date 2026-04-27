@@ -17,6 +17,7 @@ from src.protocol.run import (
     _protocol_execution_mode,
     _resolve_reuse_model_run_dir,
     _should_run_cvae,
+    _write_protocol_terminal_manifest,
     _write_protocol_running_manifest,
 )
 from src.training.logging import RunPaths
@@ -253,4 +254,28 @@ def test_write_protocol_running_manifest_includes_git_branch(tmp_path: Path):
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
 
     assert payload["git_commit"] == "abc123"
+    assert payload["git_branch"] == "feat/test-branch"
+
+
+def test_write_protocol_terminal_manifest_records_interrupted_status(tmp_path: Path):
+    exp_paths = RunPaths("exp_001", tmp_path / "exp_001")
+
+    manifest_path = _write_protocol_terminal_manifest(
+        exp_paths,
+        run_status="interrupted",
+        protocol={"protocol_version": "1.0"},
+        ts_start=pd.Timestamp("2026-04-02T12:00:00").to_pydatetime(),
+        git_commit="abc123",
+        git_branch="feat/test-branch",
+        versions={"python": "3.12.0"},
+        manifest_args={"dataset_root": "data/example"},
+        execution_mode="train_once_eval_all",
+        training_operational_artifacts={"source_run_dir": "/tmp/exp_001/train", "reused": False},
+        error="Interrupted by user: KeyboardInterrupt",
+    )
+
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    assert payload["run_status"] == "interrupted"
+    assert payload["error"] == "Interrupted by user: KeyboardInterrupt"
     assert payload["git_branch"] == "feat/test-branch"

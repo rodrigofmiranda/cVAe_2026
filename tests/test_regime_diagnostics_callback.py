@@ -148,7 +148,10 @@ def test_mini_protocol_reanalysis_callback_writes_summary_and_table(monkeypatch,
     assert summary["ranking_mode"] == "mini_protocol_v1"
     assert summary["mini_n_regimes"] == 2
     assert summary["mini_n_fail"] == 1
+    assert summary["mini_n_fail_0p8m"] == 1
     assert summary["mini_n_g5_fail"] == 1
     assert summary["mini_n_g6_fail"] == 1
+    assert summary["mini_n_g5_fail_0p8m"] == 1
+    assert summary["mini_n_g6_fail_0p8m"] == 1
     assert summary["scope"] == "all12"
     assert list(df["regime_id"]) == ["dist_0p8m__curr_100mA", "dist_1m__curr_300mA"]

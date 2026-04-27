@@ -116,6 +116,36 @@ def test_select_grid_best_compare_large_mixes_delta_and_seq_anchors():
     assert "S2seq_W7_h64_lat4_b0p001_lmmd1p0_fb0p10_lr0p0003_L128-256-512" in tags
 
 
+def test_select_grid_protocol_faceoff_short_returns_compact_compare_block():
+    grid = select_grid({"grid_preset": "protocol_faceoff_short"})
+
+    assert len(grid) == 8
+    assert {item["group"] for item in grid} == {"C6_protocol_faceoff_short"}
+    assert all(item["cfg"]["arch_variant"] == "concat" for item in grid)
+
+    tags = {item["tag"] for item in grid}
+    assert "G3_lat6_b0p001_fb0p10_lr0p0002_bs16384_anneal100_L128-256-512" in tags
+    assert "G3_lat4_b0p002_fb0p10_lr0p0002_bs16384_anneal60_L128-256-512" in tags
+    assert "G1_lat8_b0p003_fb0p10_do0p0_lr0p0003_L128-256-512" in tags
+
+
+def test_select_grid_seq_edgegap_recovery_short_returns_targeted_s38_ablation():
+    grid = select_grid({"grid_preset": "seq_edgegap_recovery_short"})
+
+    assert len(grid) == 5
+    assert {item["group"] for item in grid} == {"C7_seq_edgegap_recovery_short"}
+    assert all(item["cfg"]["arch_variant"] == "seq_bigru_residual" for item in grid)
+    assert all(item["cfg"]["decoder_distribution"] == "mdn" for item in grid)
+    assert all(item["cfg"]["mmd_mode"] == "sampled_residual" for item in grid)
+
+    tags = {item["tag"] for item in grid}
+    assert "S38A_smplmmd_cov30_t02_tail02-98_e48_base" in tags
+    assert "S38B_smplmmd_cov35_t015_tail01-99_e48" in tags
+    assert "S38C_smplmmd_cov30_t02_tail02-98_e96_emb3_resid" in tags
+    assert "S38D_smplmmd_cov30_t02_tail02-98_e96_emb3_resid_w08x18" in tags
+    assert "S38E_smplmmd_cov35_t015_tail01-99_e96_emb3_resid_w08x22" in tags
+
+
 def test_select_grid_seq_residual_nightly_builds_large_seq_only_sweep():
     grid = select_grid({"grid_preset": "seq_residual_nightly"})
 

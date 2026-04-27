@@ -1,31 +1,38 @@
-# Documentation Map
+# Mapa Da Documentação
 
-This folder is organized by function so the public entrypoints, active working
-notes, reference material, and archive do not all compete at the same level.
+Esta pasta é organizada por função para que entrypoints públicos, notas de
+trabalho ativas, material de referência e conteúdo arquivado não disputem o
+mesmo nível.
 
-## Public Entry Points
+## Entradas Públicas
 
-Start with these if you are arriving from GitHub or onboarding into the repo:
+Comece por aqui se você chegou pelo GitHub ou está entrando no repositório agora:
 
-- [../README.md](../README.md) - public repository overview
-- [BRANCH_GUIDE.md](BRANCH_GUIDE.md) - what each public branch is for
-- [../PROJECT_STATUS.md](../PROJECT_STATUS.md) - current codebase and scientific status
+- [../README.md](../README.md) - visão geral pública do repositório
+- [BRANCH_GUIDE.md](BRANCH_GUIDE.md) - para que serve cada branch pública
+- [../PROJECT_STATUS.md](../PROJECT_STATUS.md) - estado atual do código e da pesquisa
 
-## Internal Operations
+## Operação Interna
 
-These are especially relevant for the shared lab server:
+Especialmente relevante para o servidor compartilhado do laboratório:
 
-- [active/INFRA_GUIDE.md](active/INFRA_GUIDE.md) - SSH, users, Docker, tmux, Git LFS
-- [active/MULTI_PC_WORKFLOW.md](active/MULTI_PC_WORKFLOW.md) - worktree layout, two hot slots, and how to operate across PCs
-- [operations/DATASET_LFS_UPLOAD.md](operations/DATASET_LFS_UPLOAD.md) - standardized dataset import and upload flow for Git LFS
+- [active/INFRA_GUIDE.md](active/INFRA_GUIDE.md) - SSH, usuários, Docker, tmux, Git LFS
+- [active/MULTI_PC_WORKFLOW.md](active/MULTI_PC_WORKFLOW.md) - layout de worktrees, dois slots quentes e operação entre PCs
+- [operations/DATASET_LFS_UPLOAD.md](operations/DATASET_LFS_UPLOAD.md) - fluxo padronizado de import/upload de dataset com Git LFS
 
-## Reference Docs
+## Documentos De Referência
 
-- [PROTOCOL.md](PROTOCOL.md) - protocol runner, CLI, artifacts
-- [MODELING_ASSUMPTIONS.md](MODELING_ASSUMPTIONS.md) - modeling rationale
-- [DIAGNOSTIC_CHECKLIST.md](DIAGNOSTIC_CHECKLIST.md) - diagnostic workflow
-- [reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt](reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt) - acquisition-to-training path
+- [reference/PROTOCOL.md](reference/PROTOCOL.md) - runner de protocolo, CLI e artefatos
+- [reference/MODELING_ASSUMPTIONS.md](reference/MODELING_ASSUMPTIONS.md) - racional de modelagem
+- [archive/reference/DIAGNOSTIC_CHECKLIST.md](archive/reference/DIAGNOSTIC_CHECKLIST.md) - workflow diagnóstico histórico
+- [reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt](reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt) - caminho da aquisição ao treino
 
-## Archive
+## Runbooks Operacionais
 
-- [archive/REFACTOR_PLAN_legacy.md](archive/REFACTOR_PLAN_legacy.md) - historical refactor context
+- [operations/CONTAINER_FULL_TRAINING.md](operations/CONTAINER_FULL_TRAINING.md) - fluxo fim a fim de treino em container, da subida à revisão pós-run
+- [operations/TRAINING_STATUS_AND_PROJECT_OVERVIEW.md](operations/TRAINING_STATUS_AND_PROJECT_OVERVIEW.md) - resumo dos treinamentos recentes, baseline oficial, conceito de campeão e mapa do projeto
+- [operations/FAILURE_DEEP_DIVE_EXP_20260416_005055.md](operations/FAILURE_DEEP_DIVE_EXP_20260416_005055.md) - diagnostico dos 5 fails do baseline e proximo experimento recomendado
+
+## Arquivo Histórico
+
+- [archive/REFACTOR_PLAN_legacy.md](archive/REFACTOR_PLAN_legacy.md) - contexto histórico do refactor

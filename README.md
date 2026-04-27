@@ -1,59 +1,59 @@
-# VLC Channel Digital Twin - cVAE
+# Gêmeo Digital de Canal VLC - cVAE
 
-Public research repository for a data-driven digital twin of a Visible Light
-Communication (VLC) channel using Conditional Variational Autoencoders (cVAE)
-and related generative baselines.
+Repositório público de pesquisa para um gêmeo digital orientado a dados de um
+canal de Comunicação por Luz Visível (VLC), usando Autoencoders Variacionais
+Condicionais (cVAE) e baselines generativos relacionados.
 
-The central task is to learn the conditional channel distribution
+A tarefa central é aprender a distribuição condicional do canal
 
 $$p(y \mid x, d, c)$$
 
-from synchronized I/Q measurements, where:
+a partir de medições I/Q sincronizadas, em que:
 
-- `x` is the transmitted baseband sample
-- `y` is the received sample after the physical channel
-- `d` is LED-to-photodetector distance
-- `c` is LED drive current
+- `x` é a amostra de banda base transmitida
+- `y` é a amostra recebida após o canal físico
+- `d` é a distância LED-fotodetector
+- `c` é a corrente de acionamento do LED
 
-The goal is distributional fidelity, not only mean prediction.
+O objetivo é fidelidade distribucional, não apenas predição de média.
 
-## Start Here
+## Comece Por Aqui
 
-If you landed on this repository through GitHub and are not sure where to
-start, use this order:
+Se você chegou neste repositório pelo GitHub e não sabe por onde iniciar,
+use esta ordem:
 
-1. [docs/BRANCH_GUIDE.md](docs/BRANCH_GUIDE.md) - what each public branch is for
-2. [PROJECT_STATUS.md](PROJECT_STATUS.md) - current scientific and codebase status
-3. [docs/README.md](docs/README.md) - documentation map
-4. [docs/PROTOCOL.md](docs/PROTOCOL.md) - canonical experiment runner
-5. [docs/reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt](docs/reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt) - end-to-end acquisition-to-training data path
+1. [docs/BRANCH_GUIDE.md](docs/BRANCH_GUIDE.md) - para que serve cada branch pública
+2. [PROJECT_STATUS.md](PROJECT_STATUS.md) - estado científico e do código atualmente
+3. [docs/README.md](docs/README.md) - mapa da documentação
+4. [docs/reference/PROTOCOL.md](docs/reference/PROTOCOL.md) - runner canônico de experimentos
+5. [docs/reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt](docs/reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt) - fluxo fim a fim da aquisição ao treino
 
-Internal team members using the shared server should also read:
+Membros internos que usam o servidor compartilhado também devem ler:
 
-- [docs/active/INFRA_GUIDE.md](docs/active/INFRA_GUIDE.md) - SSH, Unix users, Docker, tmux, Git LFS
-- [docs/active/MULTI_PC_WORKFLOW.md](docs/active/MULTI_PC_WORKFLOW.md) - worktrees, two hot slots, and multi-PC operating rules
+- [docs/active/INFRA_GUIDE.md](docs/active/INFRA_GUIDE.md) - SSH, usuários Unix, Docker, tmux, Git LFS
+- [docs/active/MULTI_PC_WORKFLOW.md](docs/active/MULTI_PC_WORKFLOW.md) - worktrees, dois slots quentes e regras de operação multi-PC
 
-Important GitHub note:
+Observação importante sobre o GitHub:
 
-- the README shown on the GitHub website changes with the selected branch
-- the default public landing branch is currently `main`
-- if you want the latest coordinated research line, check the branch guide first
+- o README exibido no site do GitHub muda conforme a branch selecionada
+- a branch pública padrão atualmente é `main`
+- se você quer a linha de pesquisa coordenada mais recente, consulte primeiro o guia de branches
 
-## Which Branch Should I Use?
+## Qual Branch Devo Usar?
 
-For most people, there are only three meaningful starting points:
+Para a maioria das pessoas, existem apenas três pontos de partida realmente relevantes:
 
-| Branch | Use it when | Notes |
+| Branch | Use quando | Observações |
 |---|---|---|
-| `main` | you want the public landing page and a stable overview | default branch on GitHub |
-| `feat/mdn-g5-recovery-explore-remote` | you want the currently coordinated remote research line | best default choice for active collaboration right now |
-| `release/cvae-online` | you want a release-style snapshot instead of live experimentation | more conservative than the active research branch |
+| `main` | você quer a página pública inicial e uma visão estável | branch padrão no GitHub |
+| `feat/mdn-g5-recovery-explore-remote` | você quer a linha de pesquisa remota coordenada atualmente | melhor escolha padrão para colaboração ativa hoje |
+| `release/cvae-online` | você quer um snapshot em estilo release em vez de experimentação ao vivo | mais conservadora que a linha ativa de pesquisa |
 
-The full map of public branches is in [docs/BRANCH_GUIDE.md](docs/BRANCH_GUIDE.md).
+O mapa completo das branches públicas está em [docs/BRANCH_GUIDE.md](docs/BRANCH_GUIDE.md).
 
-## Clone The Current Active Work
+## Clone O Trabalho Ativo Atual
 
-To copy the current active remote work into a fresh local clone:
+Para copiar o trabalho remoto ativo atual em um clone local novo:
 
 ```bash
 git clone https://github.com/rodrigofmiranda/cVAe_2026.git
@@ -64,12 +64,12 @@ git lfs install --local
 git lfs pull
 ```
 
-Without `git lfs pull`, the dataset tree may exist but the large files will not
-actually be present.
+Sem `git lfs pull`, a árvore de dataset pode aparecer, mas os arquivos grandes
+não estarão realmente presentes.
 
-## Quick Run
+## Execução Rápida
 
-The canonical entrypoint is:
+O entrypoint canônico é:
 
 ```bash
 python -m src.protocol.run \
@@ -78,61 +78,61 @@ python -m src.protocol.run \
   --protocol configs/protocol_default.json
 ```
 
-For the sequential family `seq_bigru_residual`, also use:
+Para a família sequencial `seq_bigru_residual`, use também:
 
 ```bash
 --no_data_reduction
 ```
 
-because the default balanced-block reduction breaks temporal context.
+porque a redução padrão em blocos balanceados quebra o contexto temporal.
 
-## Modeling Summary
+## Resumo De Modelagem
 
-This repository currently keeps multiple model families behind a shared
-protocol/training path:
+Este repositório mantém múltiplas famílias de modelos sob um caminho compartilhado de
+protocolo/treino:
 
-- `concat` - original point-wise cVAE
-- `channel_residual` - point-wise residual decoder
-- `delta_residual` - point-wise residual-target family
-- `seq_bigru_residual` - sequence-aware residual family
-- `legacy_2025_zero_y` - historical notebook-era reference line
+- `concat` - cVAE original ponto a ponto
+- `channel_residual` - decoder residual ponto a ponto
+- `delta_residual` - família ponto a ponto com alvo residual
+- `seq_bigru_residual` - família residual com consciência sequencial
+- `legacy_2025_zero_y` - linha histórica de referência da era de notebooks
 
-In day-to-day research, architecture selection is usually done by
-`arch_variant`, `grid_tag`, or `grid_preset`, not by opening a separate repo.
+No dia a dia da pesquisa, a seleção de arquitetura geralmente é feita por
+`arch_variant`, `grid_tag` ou `grid_preset`, sem abrir um repositório separado.
 
-## Documentation
+## Documentação
 
-- [docs/BRANCH_GUIDE.md](docs/BRANCH_GUIDE.md) - public branch map
-- [docs/README.md](docs/README.md) - documentation index
-- [PROJECT_STATUS.md](PROJECT_STATUS.md) - current codebase and science status
-- [docs/PROTOCOL.md](docs/PROTOCOL.md) - protocol runner and artifacts
-- [docs/reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt](docs/reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt) - acquisition-to-training data path
-- [docs/MODELING_ASSUMPTIONS.md](docs/MODELING_ASSUMPTIONS.md) - modeling rationale
-- [docs/DIAGNOSTIC_CHECKLIST.md](docs/DIAGNOSTIC_CHECKLIST.md) - diagnostic workflow
-- [docs/active/INFRA_GUIDE.md](docs/active/INFRA_GUIDE.md) - internal server onboarding and isolation guide
+- [docs/BRANCH_GUIDE.md](docs/BRANCH_GUIDE.md) - mapa público de branches
+- [docs/README.md](docs/README.md) - índice da documentação
+- [PROJECT_STATUS.md](PROJECT_STATUS.md) - estado atual do código e da ciência
+- [docs/reference/PROTOCOL.md](docs/reference/PROTOCOL.md) - runner de protocolo e artefatos
+- [docs/reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt](docs/reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt) - fluxo da aquisição ao treino
+- [docs/reference/MODELING_ASSUMPTIONS.md](docs/reference/MODELING_ASSUMPTIONS.md) - racional de modelagem
+- [docs/archive/reference/DIAGNOSTIC_CHECKLIST.md](docs/archive/reference/DIAGNOSTIC_CHECKLIST.md) - workflow diagnóstico histórico
+- [docs/active/INFRA_GUIDE.md](docs/active/INFRA_GUIDE.md) - onboarding interno de servidor e guia de isolamento
 
-## Repository Layout
+## Estrutura Do Repositório
 
 ```text
-configs/        Protocol and grid configuration
-data/           Dataset stored with Git LFS
-docker/         Container build and runtime assets
-docs/           Public docs, internal guides, archive, references
-notebooks/      Exploratory notebooks
-outputs/        Experiment artifacts
-scripts/        Operational and analysis helpers
-src/            Core training, evaluation, protocol, and model code
-tests/          Unit and integration tests
+configs/        Configuração de protocolo e grid
+data/           Dataset armazenado com Git LFS
+docker/         Build e runtime de container
+docs/           Docs públicas, guias internos, arquivo histórico e referências
+notebooks/      Notebooks exploratórios
+outputs/        Artefatos de experimentos
+scripts/        Auxiliares operacionais e de análise
+src/            Código principal de treino, avaliação, protocolo e modelos
+tests/          Testes unitários e de integração
 ```
 
-## For New Collaborators
+## Para Novos Colaboradores
 
-If your goal is to understand the program and copy the current work:
+Se seu objetivo é entender o programa e reproduzir o trabalho atual:
 
-1. Read [docs/BRANCH_GUIDE.md](docs/BRANCH_GUIDE.md)
-2. Clone the repository and switch to `feat/mdn-g5-recovery-explore-remote`
-3. Run `git lfs pull`
-4. Read [PROJECT_STATUS.md](PROJECT_STATUS.md)
-5. Read [docs/PROTOCOL.md](docs/PROTOCOL.md)
-6. Read [docs/reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt](docs/reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt)
-7. If you are using the shared lab server, follow [docs/active/INFRA_GUIDE.md](docs/active/INFRA_GUIDE.md)
+1. Leia [docs/BRANCH_GUIDE.md](docs/BRANCH_GUIDE.md)
+2. Faça clone do repositório e troque para `feat/mdn-g5-recovery-explore-remote`
+3. Rode `git lfs pull`
+4. Leia [PROJECT_STATUS.md](PROJECT_STATUS.md)
+5. Leia [docs/reference/PROTOCOL.md](docs/reference/PROTOCOL.md)
+6. Leia [docs/reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt](docs/reference/VLC_DATA_FLOW_FROM_ACQUISITION_TO_TRAINING.txt)
+7. Se estiver usando o servidor compartilhado do laboratório, siga [docs/active/INFRA_GUIDE.md](docs/active/INFRA_GUIDE.md)

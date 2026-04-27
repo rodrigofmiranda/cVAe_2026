@@ -31,6 +31,8 @@ def test_build_training_runtime_applies_overrides_and_defaults():
     assert runtime.analysis_quick == AnalysisConfig.from_dict({}).to_dict()
     assert runtime.eval_protocol == EvalProtocolConfig.from_dict({}).to_dict()
     assert runtime.data_reduction_config["enabled"] is True
+    assert runtime.analysis_quick["mini_reanalysis_enabled"] is True
+    assert runtime.analysis_quick["grid_ranking_mode"] == "mini_protocol_v1"
 
 
 def test_build_training_runtime_can_disable_data_reduction():

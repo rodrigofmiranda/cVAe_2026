@@ -162,7 +162,11 @@ def test_candidate_ranking_key_mini_protocol_prioritizes_protocol_failures():
     better_protocol = {
         "status": "ok",
         "mini_n_fail": 1,
+        "mini_n_fail_0p8m": 1,
+        "mini_n_g5_fail_0p8m": 1,
+        "mini_n_g5_fail": 1,
         "mini_n_g6_fail": 0,
+        "mini_mean_delta_kurt_l2": 0.5,
         "mini_mean_abs_delta_coverage_95": 0.08,
         "mini_mean_delta_jb": 1.2,
         "mini_mean_delta_psd_l2": 0.2,
@@ -172,7 +176,11 @@ def test_candidate_ranking_key_mini_protocol_prioritizes_protocol_failures():
     better_score_only = {
         "status": "ok",
         "mini_n_fail": 2,
+        "mini_n_fail_0p8m": 0,
+        "mini_n_g5_fail_0p8m": 0,
+        "mini_n_g5_fail": 0,
         "mini_n_g6_fail": 0,
+        "mini_mean_delta_kurt_l2": 0.1,
         "mini_mean_abs_delta_coverage_95": 0.01,
         "mini_mean_delta_jb": 0.5,
         "mini_mean_delta_psd_l2": 0.1,
@@ -192,7 +200,11 @@ def test_sort_results_by_ranking_uses_score_v2_only_as_final_tiebreak():
                 "tag": "worse_score",
                 "status": "ok",
                 "mini_n_fail": 1,
+                "mini_n_fail_0p8m": 0,
+                "mini_n_g5_fail_0p8m": 0,
+                "mini_n_g5_fail": 0,
                 "mini_n_g6_fail": 0,
+                "mini_mean_delta_kurt_l2": 0.1,
                 "mini_mean_abs_delta_coverage_95": 0.05,
                 "mini_mean_delta_jb": 0.8,
                 "mini_mean_delta_psd_l2": 0.1,
@@ -203,7 +215,11 @@ def test_sort_results_by_ranking_uses_score_v2_only_as_final_tiebreak():
                 "tag": "better_score",
                 "status": "ok",
                 "mini_n_fail": 1,
+                "mini_n_fail_0p8m": 0,
+                "mini_n_g5_fail_0p8m": 0,
+                "mini_n_g5_fail": 0,
                 "mini_n_g6_fail": 0,
+                "mini_mean_delta_kurt_l2": 0.1,
                 "mini_mean_abs_delta_coverage_95": 0.05,
                 "mini_mean_delta_jb": 0.8,
                 "mini_mean_delta_psd_l2": 0.1,
@@ -216,3 +232,38 @@ def test_sort_results_by_ranking_uses_score_v2_only_as_final_tiebreak():
     out = _sort_results_by_ranking(df, "mini_protocol_v1")
 
     assert list(out["tag"]) == ["better_score", "worse_score"]
+
+
+def test_candidate_ranking_key_mini_protocol_prioritizes_0p8m_g5_and_kurtosis():
+    worse_0p8m = {
+        "status": "ok",
+        "mini_n_fail": 1,
+        "mini_n_fail_0p8m": 1,
+        "mini_n_g5_fail_0p8m": 1,
+        "mini_n_g5_fail": 1,
+        "mini_n_g6_fail": 0,
+        "mini_mean_delta_kurt_l2": 0.4,
+        "mini_mean_abs_delta_coverage_95": 0.03,
+        "mini_mean_delta_jb": 0.5,
+        "mini_mean_delta_psd_l2": 0.05,
+        "score_v2": 0.5,
+        "score_abs_delta": 0.1,
+    }
+    better_0p8m = {
+        "status": "ok",
+        "mini_n_fail": 1,
+        "mini_n_fail_0p8m": 0,
+        "mini_n_g5_fail_0p8m": 0,
+        "mini_n_g5_fail": 0,
+        "mini_n_g6_fail": 1,
+        "mini_mean_delta_kurt_l2": 0.8,
+        "mini_mean_abs_delta_coverage_95": 0.10,
+        "mini_mean_delta_jb": 3.0,
+        "mini_mean_delta_psd_l2": 0.20,
+        "score_v2": 5.0,
+        "score_abs_delta": 1.0,
+    }
+
+    assert _candidate_ranking_key(
+        better_0p8m, "mini_protocol_v1"
+    ) < _candidate_ranking_key(worse_0p8m, "mini_protocol_v1")

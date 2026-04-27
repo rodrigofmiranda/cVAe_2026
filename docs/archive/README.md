@@ -1,24 +1,25 @@
-# Archive
+# Arquivo Histórico
 
-Archived docs are kept for traceability, not as active execution guides.
+Documentos arquivados são mantidos para rastreabilidade, não como guias ativos
+de execução.
 
-## Archive Buckets
+## Blocos Do Arquivo
 
 - `agents/`
-  Secondary-AI handoff material replaced by the active
+  Material de handoff com IA secundária, substituído pelo guia ativo
   [AI_AGENT_GUIDE.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/agents/AI_AGENT_GUIDE.md)
 - `branching/`
-  Old branch-planning notes that no longer match the unified worktree
+  Notas antigas de planejamento de branches que já não refletem o worktree unificado
 - `ideas/`
-  Deferred ideas kept as backlog, not as active plans
+  Ideias adiadas mantidas como backlog, não como plano ativo
 - `legacy_2025/`
-  Historical model-line documents for retired or legacy-only protocols
+  Documentos históricos de linhas de modelo aposentadas ou apenas legadas
 - `refactor/`
-  Refactor planning material from an older repository phase
+  Material de planejamento de refactor de uma fase anterior do repositório
 - `sessions/`
-  Snapshot files from old work sessions
+  Snapshots de sessões antigas de trabalho
 
-## Rule
+## Regra
 
-If a task depends on an archived doc, compare it first against the active map in
-[docs/README.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/README.md).
+Se uma tarefa depender de um documento arquivado, compare primeiro com o mapa
+ativo em [docs/README.md](/workspace/2026/feat_seq_bigru_residual_cvae/docs/README.md).

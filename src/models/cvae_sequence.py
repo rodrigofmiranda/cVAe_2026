@@ -671,16 +671,35 @@ def load_seq_model(path: str) -> tf.keras.Model:
     keras.Model
         Loaded model with all custom layers resolved.
     """
-    return tf.keras.models.load_model(
-        str(path),
-        custom_objects={
-            "Sampling": Sampling,
-            "CondPriorDeltaVAELoss": CondPriorDeltaVAELoss,
-            "CondPriorVAELoss": CondPriorVAELoss,
-            "StdNormalHeteroscedasticVAELoss": StdNormalHeteroscedasticVAELoss,
-            "ExtractCenterFrame": ExtractCenterFrame,
-            "ClipValues": ClipValues,
-            "SliceFeatures": SliceFeatures,
-        },
-        compile=False,
-    )
+    custom_objects = {
+        "Sampling": Sampling,
+        "CondPriorDeltaVAELoss": CondPriorDeltaVAELoss,
+        "CondPriorVAELoss": CondPriorVAELoss,
+        "StdNormalHeteroscedasticVAELoss": StdNormalHeteroscedasticVAELoss,
+        "ExtractCenterFrame": ExtractCenterFrame,
+        "ClipValues": ClipValues,
+        "SliceFeatures": SliceFeatures,
+    }
+    try:
+        return tf.keras.models.load_model(
+            str(path),
+            custom_objects=custom_objects,
+            compile=False,
+        )
+    except Exception as exc:
+        msg = str(exc)
+        lambda_safe_mode_block = (
+            "Lambda layer" in msg and "safe_mode" in msg
+        ) or "disallowed by default" in msg
+        if not lambda_safe_mode_block:
+            raise
+        print(
+            "⚠️  Keras safe_mode bloqueou a desserialização de uma Lambda layer; "
+            f"recarregando modelo confiável com safe_mode=False: {path}"
+        )
+        return tf.keras.models.load_model(
+            str(path),
+            custom_objects=custom_objects,
+            compile=False,
+            safe_mode=False,
+        )
