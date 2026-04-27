@@ -1,75 +1,70 @@
-# Scripts Map
+# Mapa De Scripts
 
-This folder is split by operational status instead of keeping every helper at
-the same level.
+Esta pasta foi dividida por status operacional, em vez de manter todos os
+helpers no mesmo nível.
 
-## Active
+## Ativos
 
 - `ops/`
-  Host and workflow wrappers used in the current project flow.
+  Wrappers de host e fluxo usados no caminho atual do projeto.
 - `analysis/`
-  Stable post-run helpers that still apply to current experiment layouts.
+  Helpers pós-run estáveis que ainda se aplicam aos layouts atuais.
 - `knowledge/`
-  Local paper ingestion and retrieval tooling.
+  Ferramentas locais de ingestão e recuperação de papers.
 
-## Archived
+## Arquivados
 
 - `archive/`
-  One-off diagnostics, historical smokes, or analysis helpers tied to older
-  bugs, layouts, or decision branches.
+  Diagnósticos pontuais, smokes históricos ou helpers de análise vinculados a
+  bugs, layouts ou ramificações de decisão antigas.
 
-## File-by-file Status
+## Status Arquivo A Arquivo
 
 - `ops/train.sh`
-  Current wrapper for `src.protocol.run --train_once_eval_all`.
+  Wrapper atual para `src.protocol.run --train_once_eval_all`.
 - `ops/eval.sh`
-  Current wrapper for `src.evaluation.evaluate`.
+  Wrapper atual para `src.evaluation.evaluate`.
 - `ops/import_dataset_lfs.sh`
-  Current helper to import a new dataset into `data/` with structure checks and
-  Git LFS-ready workflow output.
+  Helper atual para importar novo dataset em `data/` com checagens de estrutura
+  e saída pronta para workflow com Git LFS.
 - `ops/run_tf25_gpu.sh`
-  Current persistent GPU container launcher. Bootstraps persistent Python plot
-  deps into repo-local `.pydeps` on container start (can disable with
-  `CVAE_BOOTSTRAP_PLOT_DEPS=0`).
+  Launcher atual de container GPU persistente. Faz bootstrap de dependências
+  Python persistentes para plots em `.pydeps` local ao iniciar (pode desativar
+  com `CVAE_BOOTSTRAP_PLOT_DEPS=0`).
 - `ops/enter_tf25_gpu.sh`
-  Current tmux/container attach helper.
+  Helper atual para attach em tmux/container.
 - `ops/stop_tf25_gpu.sh`
-  Current tmux/container stop helper.
+  Helper atual para parar tmux/container.
 - `ops/container_bootstrap_python.sh`
-  Container-side Python bootstrap (sets `PYTHONNOUSERSITE=1`, writable
-  `MPLCONFIGDIR`, and persistent `.pydeps` with `numpy<2` + `matplotlib`).
+  Bootstrap Python do lado do container (define `PYTHONNOUSERSITE=1`,
+  `MPLCONFIGDIR` gravável e `.pydeps` persistente com `numpy<2` + `matplotlib`).
 - `ops/prune_incomplete_experiments.py`
-  Kept as an active maintenance utility for cleaning stale incomplete runs.
+  Mantido como utilitário ativo de manutenção para limpar runs incompletos antigos.
 - `analysis/summarize_experiment.py`
-  Kept as the main compact run summarizer used in current docs.
+  Mantido como sumarizador compacto principal de runs usado na documentação atual.
 - `analysis/compare_protocol_finalists.py`
-  Kept as a tested comparison helper for candidate tags inside a protocol run.
+  Mantido como helper testado para comparar tags candidatas dentro de um run de protocolo.
 - `analysis/recompute_validation_gates.py`
-  Kept as an active backfill tool when validation-gate logic changes.
+  Mantido como ferramenta ativa de backfill quando a lógica de gates de validação muda.
 - `knowledge/ingest_papers_docling.py`
-  Kept as the current PDF ingestion entrypoint for the knowledge base.
+  Mantido como entrypoint atual de ingestão de PDFs para base de conhecimento.
 - `knowledge/index_knowledge_chroma.py`
-  Kept as the current local indexing entrypoint for the knowledge base.
+  Mantido como entrypoint atual de indexação local para base de conhecimento.
 - `archive/benchmark_batchsize_throughput.py`
-  Archived because it was a one-off throughput study and is not part of the
-  current experiment workflow.
+  Arquivado porque foi um estudo pontual de throughput e não faz parte do fluxo atual.
 - `archive/check_kurt_pred.py`
-  Archived because it targeted a specific kurtosis diagnostic during the G5/G6
-  investigation.
+  Arquivado porque foi direcionado a um diagnóstico específico de curtose na investigação G5/G6.
 - `archive/cross_reference_grid_history.py`
-  Archived because it summarizes historical grid history rather than current
-  operational work.
+  Arquivado porque resume histórico de grid, e não o trabalho operacional atual.
 - `archive/diag_g6_full.py`
-  Archived because it is a focused G6 incident diagnostic for a historical run.
+  Arquivado porque é um diagnóstico focado em incidente G6 de um run histórico.
 - `archive/eval_final_model.py`
-  Archived because it is a one-off re-evaluation script for a specific model
-  snapshot.
+  Arquivado porque é um script pontual de reavaliação para um snapshot específico.
 - `archive/smoke_dist_metrics.sh`
-  Archived because it validates an older smoke path and older layout concerns.
+  Arquivado porque valida um caminho de smoke antigo e preocupações de layout legado.
 - `archive/test_dist1m_2grid.py`
-  Archived because it is a one-off exploratory launcher for a retired test
-  slice.
+  Arquivado porque é um launcher exploratório pontual para um recorte de teste aposentado.
 - `archive/verify_mc_predict.py`
-  Archived because it targeted a specific MC prediction bug investigation.
+  Arquivado porque foi focado em investigação específica de bug de predição MC.
 - `archive/verify_pipeline_fixes.py`
-  Archived because it verifies a completed historical pipeline-fix checklist.
+  Arquivado porque verifica um checklist histórico já concluído de correções de pipeline.

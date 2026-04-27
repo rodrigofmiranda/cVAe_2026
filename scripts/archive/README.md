@@ -1,16 +1,16 @@
-# Archived Scripts
+# Scripts Arquivados
 
-These scripts are kept for traceability and occasional forensic work, but they
-are not part of the current operational workflow.
+Estes scripts são mantidos para rastreabilidade e, ocasionalmente, para
+análise forense, mas não fazem parte do fluxo operacional atual.
 
-Typical reasons a script ends up here:
+Motivos típicos para um script vir para cá:
 
-- it targeted a one-off bug investigation
-- it assumes an older experiment layout or historical run directory
-- it was useful for a past decision branch but is no longer part of the active
-  README / status workflow
+- ele foi criado para investigar um bug pontual
+- ele assume layout antigo de experimento ou diretório histórico de run
+- ele foi útil em uma linha de decisão passada, mas não faz mais parte do
+  fluxo ativo de README / status
 
-Before reviving one of these scripts, compare it against:
+Antes de reativar um desses scripts, compare com:
 
 - `/workspace/2026/feat_seq_bigru_residual_cvae/scripts/README.md`
 - `/workspace/2026/feat_seq_bigru_residual_cvae/PROJECT_STATUS.md`

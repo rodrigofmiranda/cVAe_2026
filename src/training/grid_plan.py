@@ -4242,6 +4242,123 @@ def _preset_seq_cond_embed_fast_stage4_edgegap() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_seq_edgegap_targeted_short() -> List[Dict[str, Any]]:
+    """Targeted follow-up after the failed broad S38/S38E recovery attempt.
+
+    Scientific intent:
+
+      - keep the best recent edge-gap control (`S38D`) in the grid
+      - test the training-diagnostics recommendation to lower the initial LR
+      - target only the structurally hard `0.8m` low-current regimes instead of
+        overweighting all `0.8m`
+
+    This preset is intentionally small: 1 control + 2 focused variants.
+    """
+    analysis_quick_overrides = {
+        "train_regime_diagnostics_enabled": True,
+        "train_regime_diagnostics_every": 10,
+        "train_regime_diagnostics_mc_samples": 4,
+        "train_regime_diagnostics_max_samples_per_regime": 4096,
+        "train_regime_diagnostics_amplitude_bins": 4,
+        "train_regime_diagnostics_focus_only_0p8m": True,
+        "mini_reanalysis_enabled": True,
+        "mini_reanalysis_scope": "all12",
+        "mini_reanalysis_max_samples_per_regime": 4096,
+        "grid_ranking_mode": "mini_protocol_v1",
+        "batch_infer": 16384,
+    }
+
+    def _weights_0p8m_all(mult: float) -> Dict[str, float]:
+        return {
+            "dist_0p8m__curr_100mA": float(mult),
+            "dist_0p8m__curr_300mA": float(mult),
+            "dist_0p8m__curr_500mA": float(mult),
+            "dist_0p8m__curr_700mA": float(mult),
+        }
+
+    def _weights_0p8m_low_current(mult: float) -> Dict[str, float]:
+        return {
+            "dist_0p8m__curr_100mA": float(mult),
+            "dist_0p8m__curr_300mA": float(mult),
+        }
+
+    _base = dict(
+        arch_variant="seq_bigru_residual",
+        layer_sizes=[192, 384, 768],
+        latent_dim=8,
+        beta=0.0015,
+        free_bits=0.10,
+        lr=1.2e-4,
+        batch_size=16384,
+        kl_anneal_epochs=80,
+        window_size=9,
+        window_stride=1,
+        window_pad_mode="edge",
+        seq_hidden_size=128,
+        seq_num_layers=2,
+        seq_bidirectional=True,
+        seq_gru_unroll=False,
+        lambda_mmd=0.25,
+        mmd_mode="sampled_residual",
+        lambda_axis=0.01,
+        lambda_psd=0.0,
+        lambda_coverage=0.30,
+        coverage_levels=[0.50, 0.80, 0.95],
+        tail_levels=[0.02, 0.98],
+        coverage_temperature=0.02,
+        lambda_kurt=0.0,
+        decoder_distribution="mdn",
+        mdn_components=3,
+        cond_embed_dim=96,
+        cond_embed_layers=3,
+        cond_embed_residual=True,
+        shuffle_train_batches=True,
+        patience=80,
+    )
+
+    def _variant(overrides: Dict[str, Any]) -> Dict[str, Any]:
+        cfg = dict(_base)
+        cfg.update(overrides)
+        return _cfg(**cfg)
+
+    return [
+        dict(
+            group="C8_seq_edgegap_targeted_short",
+            tag="S39A_edgegap_ctrl_s38d",
+            cfg=_variant(
+                {
+                    "train_regime_resample_weights": _weights_0p8m_all(1.8),
+                }
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="C8_seq_edgegap_targeted_short",
+            tag="S39B_edgegap_lowlr_all08_w18_p120",
+            cfg=_variant(
+                {
+                    "lr": 8e-5,
+                    "patience": 120,
+                    "train_regime_resample_weights": _weights_0p8m_all(1.8),
+                }
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="C8_seq_edgegap_targeted_short",
+            tag="S39C_edgegap_lowlr_lowcurr_w24_p120",
+            cfg=_variant(
+                {
+                    "lr": 8e-5,
+                    "patience": 120,
+                    "train_regime_resample_weights": _weights_0p8m_low_current(2.4),
+                }
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+    ]
+
+
 def _preset_seq_mdn_v2_0p8m_isolation() -> List[Dict[str, Any]]:
     """Diagnostic: MDN v2 lat8 trained ONLY on 0.8m data.
 
@@ -4855,6 +4972,8 @@ def select_grid(
             grid = _preset_seq_mdn_v2_a600_tail_explore_quick()
         elif preset_name == "seq_edgegap_recovery_short":
             grid = _preset_seq_edgegap_recovery_short()
+        elif preset_name == "seq_edgegap_targeted_short":
+            grid = _preset_seq_edgegap_targeted_short()
         elif preset_name == "best_compare_large":
             grid = _preset_best_compare_large()
         elif preset_name == "protocol_faceoff_short":
