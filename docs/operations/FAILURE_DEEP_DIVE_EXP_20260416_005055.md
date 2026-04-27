@@ -21,7 +21,7 @@ As falhas restantes se dividem em dois grupos:
 - Grupo A: `0.8m / 100mA` e `0.8m / 300mA` falham em `G3`, `G5` e `G6`.
 - Grupo B: `0.8m / 500mA`, `1.0m / 100mA` e `1.5m / 500mA` falham apenas em `G6`.
 
-A proxima acao recomendada e atacar primeiro o Grupo A, porque ele indica erro
+A proxima acao recomendada é atacar primeiro o Grupo A, porque ele indica erro
 estrutural de forma/covariancia residual, nao apenas rejeicao estatistica formal.
 
 ## Thresholds Relevantes

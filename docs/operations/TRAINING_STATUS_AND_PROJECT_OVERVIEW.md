@@ -1,6 +1,6 @@
 # Training Status And Project Overview
 
-Data de referencia: 2026-04-23.
+Data de referencia: 2026-04-27.
 
 Este documento consolida o que foi feito nos treinamentos recentes, qual e o
 melhor resultado atual, o que significa "campeao" no projeto e como as partes
@@ -8,7 +8,7 @@ principais do repositorio se conectam.
 
 ## Resumo Executivo
 
-O melhor ponto conhecido ate agora e:
+O melhor ponto conhecido ate agora é:
 
 - experimento: `outputs/exp_20260416_005055`
 - campeao: `G3_lat6_b0p001_fb0p10_lr0p0002_bs16384_anneal100_L128-256-512`
@@ -16,11 +16,22 @@ O melhor ponto conhecido ate agora e:
 - origem do modelo: `outputs/exp_20260415_161029/train`
 - comando conceitual: reavaliacao do modelo treinado anteriormente com `--stat_tests --stat_mode quick`
 
-As tentativas posteriores testaram treino focado, protocolos intermediarios e
-novos criterios de ranking. Nenhuma superou esse baseline. A recomendacao atual
-e congelar `exp_20260416_005055` como baseline oficial e parar de relancar
-variações de `protocol_faceoff_short` ate haver uma mudanca de modelagem/loss ou
-uma analise mais especifica dos regimes de `0.8m`.
+As tentativas posteriores testaram treino focado, protocolos intermediarios,
+novos criterios de ranking, uma linha `edgegap` mais agressiva e uma rodada
+targeted mais promissora. Nenhuma superou esse baseline de forma
+cientificamente conclusiva. A situacao atual e:
+
+- manter `exp_20260416_005055` como baseline oficial;
+- tratar `exp_20260424_122014` como melhor sinal estrutural recente;
+- tratar `exp_20260425_162033` e `exp_20260425_180613` como evidencia de que
+  `200k/exp` e agressivo demais para servir como proxy cientifico confiavel;
+- nao abrir novo grid agora;
+- esperar uma janela segura de GPU e rerodar apenas `S39B` com full data +
+  `stat_tests`.
+
+O objetivo final continua sendo chegar a `12/12 pass`, mas esse marco so vale
+se vier em avaliacao protocolar com `stat_tests` e com comportamento
+reproduzivel, nao apenas como um unico draw favoravel.
 
 ## O Que Este Projeto Faz
 
@@ -238,6 +249,21 @@ Um regime so vira `pass` quando os gates necessarios passam. Se faltam testes
 estatisticos, o regime pode ficar como `partial`; quando `--stat_tests` e
 executado, `G6` passa a decidir de forma mais completa.
 
+## Qual E O Objetivo Final
+
+Sim: o objetivo cientifico final e obter `12/12 pass`.
+
+Mas, na pratica, o criterio correto nao e "qualquer 12/12". O alvo real e:
+
+- `12/12 pass` no protocolo de 12 regimes;
+- com `--stat_tests` ativo, para que `G6` seja de fato avaliado;
+- sem regressao em `G1/G2/G4`;
+- com estabilidade suficiente para nao parecer apenas variancia favoravel de
+  inicializacao.
+
+Por isso, runs que terminam como `partial` podem ser um bom sinal estrutural,
+mas ainda nao contam como vitoria cientifica final.
+
 ## Linha Do Tempo Dos Treinamentos Recentes
 
 | Run | Papel | Status | Campeao | Resultado |
@@ -249,6 +275,10 @@ executado, `G6` passa a decidir de forma mais completa.
 | `exp_20260417_130146` | Treino 12 regimes com mini protocol defaults | `completed` | `G3_lat4_b0p002_fb0p10_lr0p0002_bs16384_anneal60_L128-256-512` | `6 pass / 0 partial / 6 fail` |
 | `exp_20260417_232746` | Faceoff curto antes do ranking reforcado | `completed` | `G3_lat8_b0p003_fb0p10_lr0p0002_bs16384_anneal80_L128-256-512` | `4 pass / 0 partial / 8 fail` |
 | `exp_20260418_021327` | Faceoff curto com ranking reforcado | `completed` | `G3_lat6_b0p002_fb0p10_lr0p0002_bs8192_anneal80_L128-256-512` | `3 pass / 0 partial / 9 fail` |
+| `exp_20260423_174212` | Edgegap recovery curto full-data | `completed` | `S38D_smplmmd_cov30_t02_tail02-98_e96_emb3_resid_w08x18` | `0 pass / 8 partial / 4 fail` |
+| `exp_20260424_122014` | Edgegap targeted short full-data | `completed` | `S39B_edgegap_lowlr_all08_w18_p120` | `0 pass / 11 partial / 1 fail` |
+| `exp_20260425_162033` | Reavaliacao de `S39B` com `200k/exp` + `stat_tests` | `completed` | `S39B_edgegap_lowlr_all08_w18_p120` | `0 pass / 0 partial / 12 fail` |
+| `exp_20260425_180613` | Benchmark do baseline oficial com `200k/exp` + `stat_tests` | `completed` | `G3_lat6_b0p001_fb0p10_lr0p0002_bs16384_anneal100_L128-256-512` | `2 pass / 0 partial / 10 fail` |
 
 ## Melhor Baseline Atual
 
@@ -257,6 +287,26 @@ O baseline oficial recomendado e:
 ```text
 outputs/exp_20260416_005055
 ```
+
+Leitura atual dos tres pontos mais importantes:
+
+- `exp_20260416_005055`:
+  - melhor baseline protocolar oficial ate agora
+  - `7 pass / 0 partial / 5 fail`
+- `exp_20260424_122014`:
+  - melhor sinal estrutural recente
+  - `0 pass / 11 partial / 1 fail`
+  - melhora forte em `G1..G5`, mas sem `stat_tests`
+- `exp_20260425_162033`:
+  - teste rapido com `max_samples_per_exp=200000`
+  - durou menos de 1 hora
+  - colapsou para `0 pass / 0 partial / 12 fail`
+  - indica que esse candidato nao sustenta o protocolo final com o cap `200k`
+- `exp_20260425_180613`:
+  - benchmark do baseline oficial no mesmo cap `200k/exp`
+  - tambem colapsou para `2 pass / 10 fail`
+  - indica que `200k/exp` nao e apenas um problema da linha `S39B`
+  - reforca que esse cap nao deve ser tratado como substituto do treino full
 
 Ele reavaliou o modelo treinado em:
 
@@ -403,23 +453,27 @@ cd ~/cVAe_2026/scripts/ops
 
 ## Recomendacao Atual
 
-Nao rodar outro treino grande imediatamente.
+Seguir uma estrategia conservadora.
 
-Proximo passo recomendado:
+O que isso significa agora:
 
-1. Congelar `exp_20260416_005055` como baseline oficial.
-2. Usar esse baseline como referencia em qualquer paper/relatorio/proximo PR.
-3. Fazer analise especifica dos regimes `0.8m / 100mA` e `0.8m / 300mA`.
-4. Propor mudanca de modelagem/loss para `G3/G5/G6`, em vez de apenas mudar ranking.
-5. So depois abrir nova rodada curta para testar a hipotese.
+1. Manter `exp_20260416_005055` como baseline oficial.
+2. Tratar `exp_20260424_122014` como melhor evidencia estrutural recente.
+3. Tratar `exp_20260425_162033` e `exp_20260425_180613` como evidencia negativa
+   para `200k/exp` como proxy de decisao cientifica.
+4. Nao abrir novo grid ate haver nova evidencia.
+5. Na proxima janela segura de GPU, rerodar apenas:
+   - `S39B_edgegap_lowlr_all08_w18_p120`
+   - com full data
+   - com `stat_tests` ativos
 
-Hipoteses candidatas para a proxima fase:
+Leitura operacional:
 
-- loss auxiliar para caudas/kurtosis/residual shape;
-- tratamento condicional mais forte para distancia/corrente;
-- amostragem/ponderacao de treino mais sutil, sem remover contexto global;
-- arquitetura que preserve melhor variancia e caudas em baixa corrente;
-- avaliacao isolada do motivo de `0.8m` degradar quando o ranking escolhe modelos aparentemente estaveis.
+- o gargalo cientifico continua em `0.8m`, especialmente baixa corrente;
+- a linha `S39B` foi a melhor melhoria estrutural recente;
+- o cap `200k/exp` foi rapido, mas agressivo demais para o protocolo final;
+- portanto, a proxima rodada nao deve ser "mais um grid", e sim uma rerodada
+  unica e cara de um candidato ja afunilado.
 
 ## Comandos Uteis
 
@@ -449,3 +503,15 @@ less outputs/exp_20260416_005055/tables/stat_fidelity_by_regime.csv
 less outputs/exp_20260416_005055/tables/protocol_leaderboard.csv
 ```
 
+Proxima rodada recomendada (`S39B` full data + `stat_tests`):
+
+```bash
+python3 -u -m src.protocol.run \
+  --dataset_root data/dataset_fullsquare_organized \
+  --output_base outputs \
+  --protocol configs/protocol_default.json \
+  --train_once_eval_all \
+  --grid_tag S39B_edgegap_lowlr_all08_w18_p120 \
+  --no_data_reduction \
+  --stat_tests --stat_mode quick
+```
