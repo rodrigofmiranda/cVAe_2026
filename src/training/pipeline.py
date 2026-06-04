@@ -199,8 +199,29 @@ def run_training_pipeline(
     print(f"🏷️  RUN_ID            = {run_paths.run_id}")
     print(f"📌 RUN_DIR            = {run_paths.run_dir}")
 
-    np.random.seed(int(runtime.training_config["seed"]))
-    tf.random.set_seed(int(runtime.training_config["seed"]))
+    _seed = int(runtime.training_config["seed"])
+    np.random.seed(_seed)
+    tf.random.set_seed(_seed)
+    import os as _os
+    if _os.environ.get("CVAE_DETERMINISTIC", "0") == "1":
+        import random as _random
+        _random.seed(_seed)
+        _os.environ["PYTHONHASHSEED"] = str(_seed)
+        # Sub-flags allow isolating which knob is responsible for behaviour/errors.
+        if _os.environ.get("CVAE_DET_SETSEED", "1") == "1":
+            try:
+                tf.keras.utils.set_random_seed(_seed)
+            except Exception:
+                pass
+        if _os.environ.get("CVAE_DET_OPDET", "1") == "1":
+            # Force deterministic GPU kernels / reduction order (TF 2.17). This is
+            # the piece missing originally: seeds fix the RNG, not float-reduction
+            # order on GPU.
+            tf.config.experimental.enable_op_determinism()
+        print(
+            f"🔒 determinism: setseed={_os.environ.get('CVAE_DET_SETSEED','1')} "
+            f"opdet={_os.environ.get('CVAE_DET_OPDET','1')} seed={_seed}"
+        )
 
     print("\n🔎 Localizando dataset...")
     resolved_dataset_root = find_dataset_root(

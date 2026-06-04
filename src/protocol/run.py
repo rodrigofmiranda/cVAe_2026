@@ -44,6 +44,17 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
+# --- optional full determinism (opt-in via CVAE_DETERMINISTIC=1) ----------------
+# Must run before TensorFlow is imported anywhere (pipeline.py imports tf at its
+# module top), so these env flags take effect at GPU/cuDNN init. Pairs with
+# tf.config.experimental.enable_op_determinism() called at seed time in
+# src/training/pipeline.py. Off by default: deterministic kernels are ~2-3x slower
+# and some ops lack a deterministic GPU implementation.
+if os.environ.get("CVAE_DETERMINISTIC", "0") == "1" and os.environ.get("CVAE_DET_ENV", "1") == "1":
+    os.environ["TF_DETERMINISTIC_OPS"] = "1"
+    os.environ["TF_CUDNN_DETERMINISTIC"] = "1"
+# --------------------------------------------------------------------------------
+
 from src.config.overrides import RunOverrides
 from src.config.gpu_guard import warn_if_no_gpu_and_confirm
 from src.config.runtime_env import (
