@@ -4356,7 +4356,142 @@ def _preset_seq_edgegap_targeted_short() -> List[Dict[str, Any]]:
             ),
             analysis_quick_overrides=analysis_quick_overrides,
         ),
+        # --- twin tail-fix variants (target 0.8m G5 kurtosis overshoot) ---------
+        # One axis changed from the S39B champion (lr=8e-5, patience=120, 0.8m all=1.8).
+        dict(
+            group="C8_seq_edgegap_targeted_short",
+            tag="S39B_tailfix_kurt05",
+            cfg=_variant(
+                {
+                    "lr": 8e-5,
+                    "patience": 120,
+                    "lambda_kurt": 0.5,
+                    "train_regime_resample_weights": _weights_0p8m_all(1.8),
+                }
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="C8_seq_edgegap_targeted_short",
+            tag="S39B_tailfix_kurt10",
+            cfg=_variant(
+                {
+                    "lr": 8e-5,
+                    "patience": 120,
+                    "lambda_kurt": 1.0,
+                    "train_regime_resample_weights": _weights_0p8m_all(1.8),
+                }
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="C8_seq_edgegap_targeted_short",
+            tag="S39B_tailfix_mdn5",
+            cfg=_variant(
+                {
+                    "lr": 8e-5,
+                    "patience": 120,
+                    "mdn_components": 5,
+                    "train_regime_resample_weights": _weights_0p8m_all(1.8),
+                }
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="C8_seq_edgegap_targeted_short",
+            tag="S39B_tailfix_mdn2",
+            cfg=_variant(
+                {
+                    "lr": 8e-5,
+                    "patience": 120,
+                    "mdn_components": 2,
+                    "train_regime_resample_weights": _weights_0p8m_all(1.8),
+                }
+            ),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
     ]
+
+
+def _preset_twin_sweep() -> List[Dict[str, Any]]:
+    """Broad ONE-axis sweep off the S39B champion for the digital-twin search.
+
+    Each tag changes exactly one axis from S39B so the effect is attributable.
+    Intended to be driven config-by-config (deterministic, per-config seed-retry)
+    by scripts/twin_search/variant_driver.sh, ranked by mini_protocol_v1 gates.
+    """
+    analysis_quick_overrides = {
+        "train_regime_diagnostics_enabled": True,
+        "train_regime_diagnostics_every": 10,
+        "train_regime_diagnostics_mc_samples": 4,
+        "train_regime_diagnostics_max_samples_per_regime": 4096,
+        "train_regime_diagnostics_amplitude_bins": 4,
+        "train_regime_diagnostics_focus_only_0p8m": True,
+        "mini_reanalysis_enabled": True,
+        "mini_reanalysis_scope": "all12",
+        "mini_reanalysis_max_samples_per_regime": 4096,
+        "grid_ranking_mode": "mini_protocol_v1",
+        "batch_infer": 16384,
+    }
+    w = {f"dist_0p8m__curr_{c}mA": 1.8 for c in (100, 300, 500, 700)}
+    base = dict(
+        arch_variant="seq_bigru_residual", layer_sizes=[192, 384, 768], latent_dim=8,
+        beta=0.0015, free_bits=0.10, lr=8e-5, batch_size=16384, kl_anneal_epochs=80,
+        window_size=9, window_stride=1, window_pad_mode="edge", seq_hidden_size=128,
+        seq_num_layers=2, seq_bidirectional=True, seq_gru_unroll=False, lambda_mmd=0.25,
+        mmd_mode="sampled_residual", lambda_axis=0.01, lambda_psd=0.0, lambda_coverage=0.30,
+        coverage_levels=[0.50, 0.80, 0.95], tail_levels=[0.02, 0.98], coverage_temperature=0.02,
+        lambda_kurt=0.0, decoder_distribution="mdn", mdn_components=3, cond_embed_dim=96,
+        cond_embed_layers=3, cond_embed_residual=True, shuffle_train_batches=True, patience=120,
+        train_regime_resample_weights=w,
+    )
+    variants = {
+        "twin_base": {},
+        # loss weights
+        "twin_kurt05": {"lambda_kurt": 0.5},
+        "twin_kurt10": {"lambda_kurt": 1.0},
+        "twin_mmd15": {"lambda_mmd": 0.15},
+        "twin_mmd40": {"lambda_mmd": 0.40},
+        "twin_mmdmean": {"mmd_mode": "mean_residual"},
+        "twin_cov15": {"lambda_coverage": 0.15},
+        "twin_cov45": {"lambda_coverage": 0.45},
+        "twin_axis02": {"lambda_axis": 0.02},
+        # latent regularization
+        "twin_beta001": {"beta": 0.001},
+        "twin_beta003": {"beta": 0.003},
+        "twin_fb05": {"free_bits": 0.05},
+        "twin_fb15": {"free_bits": 0.15},
+        "twin_kl120": {"kl_anneal_epochs": 120},
+        "twin_lat6": {"latent_dim": 6},
+        "twin_lat10": {"latent_dim": 10},
+        # capacity
+        "twin_mdn2": {"mdn_components": 2},
+        "twin_mdn5": {"mdn_components": 5},
+        "twin_h192": {"seq_hidden_size": 192},
+        "twin_emb128": {"cond_embed_dim": 128},
+        # window / sequence
+        "twin_w7": {"window_size": 7},
+        "twin_w11": {"window_size": 11},
+        "twin_l3": {"seq_num_layers": 3},
+        # convergence-escape: target the ~-3.9 plateau / partial KL collapse seen
+        # on this machine (recon stuck while KL shrinks). Higher free_bits & lower
+        # beta force latent usage; higher lr escapes the plateau; unroll=True is a
+        # different (non-cuDNN) GRU path.
+        "twin_fb50": {"free_bits": 0.5},
+        "twin_fb100": {"free_bits": 1.0},
+        "twin_beta0008": {"beta": 0.0008},
+        "twin_lr2e4": {"lr": 2e-4},
+        "twin_lr3e4": {"lr": 3e-4},
+        "twin_unroll": {"seq_gru_unroll": True},
+        "twin_escape": {"beta": 0.0008, "free_bits": 0.5, "lr": 2e-4},
+    }
+    out = []
+    for tag, ov in variants.items():
+        cfg = dict(base)
+        cfg.update(ov)
+        out.append(dict(group="TWIN_sweep", tag=tag, cfg=_cfg(**cfg),
+                        analysis_quick_overrides=analysis_quick_overrides))
+    return out
 
 
 def _preset_seq_mdn_v2_0p8m_isolation() -> List[Dict[str, Any]]:
@@ -4974,6 +5109,8 @@ def select_grid(
             grid = _preset_seq_edgegap_recovery_short()
         elif preset_name == "seq_edgegap_targeted_short":
             grid = _preset_seq_edgegap_targeted_short()
+        elif preset_name == "twin_sweep":
+            grid = _preset_twin_sweep()
         elif preset_name == "best_compare_large":
             grid = _preset_best_compare_large()
         elif preset_name == "protocol_faceoff_short":
