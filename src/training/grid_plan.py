@@ -4413,6 +4413,84 @@ def _preset_seq_edgegap_targeted_short() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_v3_g6_aligned() -> List[Dict[str, Any]]:
+    """G6-aligned distributional loss for the V3 (5-LED) digital-twin line.
+
+    Scientific intent (V3 12-regime baseline: G1-G5 pass 9/12 but G6 fails
+    11/12, with tiny per-regime effect sizes outside near-field):
+
+      - the training MMD pools residuals from all regimes under ONE
+        median-heuristic bandwidth, while the G6 gate tests each regime with
+        its own bandwidth (~50x spread across distances). `mmd_kernel=multibw`
+        averages RBF MMD^2 over bandwidth factors around the median so every
+        regime scale gets gradient pressure;
+      - `lambda_energy` adds the eval's second G6 statistic (energy distance,
+        kernel-free, Euclidean norms) directly as a differentiable loss term;
+      - uniform regime sampling (no 0.8m keys — V3 grid has no 0.8m).
+
+    Single tag: one 3.5h run answers whether aligning the training objective
+    with the G6 statistic closes the small distributional gaps.
+    """
+    analysis_quick_overrides = {
+        "train_regime_diagnostics_enabled": True,
+        "train_regime_diagnostics_every": 10,
+        "train_regime_diagnostics_mc_samples": 4,
+        "train_regime_diagnostics_max_samples_per_regime": 4096,
+        "train_regime_diagnostics_amplitude_bins": 4,
+        "train_regime_diagnostics_focus_only_0p8m": False,
+        "mini_reanalysis_enabled": True,
+        "mini_reanalysis_scope": "all12",
+        "mini_reanalysis_max_samples_per_regime": 4096,
+        "grid_ranking_mode": "mini_protocol_v1",
+        "batch_infer": 16384,
+    }
+
+    _base = dict(
+        arch_variant="seq_bigru_residual",
+        layer_sizes=[192, 384, 768],
+        latent_dim=8,
+        beta=0.0015,
+        free_bits=0.10,
+        lr=8e-5,
+        batch_size=16384,
+        kl_anneal_epochs=80,
+        window_size=9,
+        window_stride=1,
+        window_pad_mode="edge",
+        seq_hidden_size=128,
+        seq_num_layers=2,
+        seq_bidirectional=True,
+        seq_gru_unroll=False,
+        lambda_mmd=0.5,
+        mmd_mode="sampled_residual",
+        mmd_kernel="multibw",
+        lambda_energy=0.5,
+        lambda_axis=0.01,
+        lambda_psd=0.0,
+        lambda_coverage=0.30,
+        coverage_levels=[0.50, 0.80, 0.95],
+        tail_levels=[0.02, 0.98],
+        coverage_temperature=0.02,
+        lambda_kurt=0.0,
+        decoder_distribution="mdn",
+        mdn_components=3,
+        cond_embed_dim=96,
+        cond_embed_layers=3,
+        cond_embed_residual=True,
+        shuffle_train_batches=True,
+        patience=120,
+    )
+
+    return [
+        dict(
+            group="V3G6_aligned",
+            tag="V3G6A_s39b_multibw_energy_lmmd05_le05",
+            cfg=_cfg(**_base),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+    ]
+
+
 def _preset_twin_sweep() -> List[Dict[str, Any]]:
     """Broad ONE-axis sweep off the S39B champion for the digital-twin search.
 
@@ -5109,6 +5187,8 @@ def select_grid(
             grid = _preset_seq_edgegap_recovery_short()
         elif preset_name == "seq_edgegap_targeted_short":
             grid = _preset_seq_edgegap_targeted_short()
+        elif preset_name == "v3_g6_aligned":
+            grid = _preset_v3_g6_aligned()
         elif preset_name == "twin_sweep":
             grid = _preset_twin_sweep()
         elif preset_name == "best_compare_large":

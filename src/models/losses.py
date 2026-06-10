@@ -204,6 +204,118 @@ def mmd2_tf(
     return term_xx + term_yy - 2.0 * term_xy
 
 
+def mmd2_multibw_tf(
+    r_real: tf.Tensor,
+    r_gen: tf.Tensor,
+    n_sub: int = 512,
+    bw_factors: tuple[float, ...] = (0.125, 0.5, 1.0, 2.0, 8.0),
+) -> tf.Tensor:
+    """Unbiased mini-batch MMD² with a mixture of RBF kernels (multi-bandwidth).
+
+    The protocol's G6 gate tests each regime separately with its own
+    median-heuristic bandwidth; per-regime bandwidths span ~50x across the
+    distance grid. A single pooled bandwidth (``mmd2_tf``) is blind to scales
+    far from the batch median, so this variant averages unbiased MMD² over
+    ``bw_factors`` x median, covering the per-regime scale spread inside the
+    pooled batch.
+
+    Returns the MEAN over kernels so the loss magnitude stays comparable to
+    ``mmd2_tf`` and existing ``lambda_mmd`` values remain meaningful.
+    """
+    N = tf.shape(r_real)[0]
+    n = tf.minimum(n_sub, N)
+
+    idx_r = tf.random.shuffle(tf.range(N))[:n]
+    idx_g = tf.random.shuffle(tf.range(N))[:n]
+    x = tf.cast(tf.gather(r_real, idx_r), tf.float32)
+    y = tf.cast(tf.gather(r_gen,  idx_g), tf.float32)
+
+    def _sq_dists(a: tf.Tensor, b: tf.Tensor) -> tf.Tensor:
+        aa = tf.reduce_sum(tf.square(a), axis=1, keepdims=True)
+        bb = tf.reduce_sum(tf.square(b), axis=1, keepdims=True)
+        ab = tf.matmul(a, b, transpose_b=True)
+        return tf.maximum(aa + tf.transpose(bb) - 2.0 * ab, 0.0)
+
+    d2_xx = _sq_dists(x, x)
+    d2_yy = _sq_dists(y, y)
+    d2_xy = _sq_dists(x, y)
+
+    # Median heuristic on cross-set distances (same as mmd2_tf)
+    flat = tf.reshape(d2_xy, [-1])
+    mid = tf.cast(tf.shape(flat)[0] // 2, tf.int32)
+    bw_med = tf.maximum(tf.sort(flat)[mid], 1e-3)
+
+    nf = tf.cast(n, tf.float32)
+    mask = 1.0 - tf.eye(n)
+
+    total = tf.constant(0.0, dtype=tf.float32)
+    for factor in bw_factors:
+        bw = bw_med * tf.constant(float(factor), dtype=tf.float32)
+        kxx = tf.exp(-d2_xx / (2.0 * bw))
+        kyy = tf.exp(-d2_yy / (2.0 * bw))
+        kxy = tf.exp(-d2_xy / (2.0 * bw))
+        term_xx = tf.reduce_sum(kxx * mask) / (nf * (nf - 1.0))
+        term_yy = tf.reduce_sum(kyy * mask) / (nf * (nf - 1.0))
+        term_xy = tf.reduce_sum(kxy) / (nf * nf)
+        total = total + (term_xx + term_yy - 2.0 * term_xy)
+    return total / float(len(bw_factors))
+
+
+def energy_distance_tf(
+    r_real: tf.Tensor,
+    r_gen: tf.Tensor,
+    n_sub: int = 512,
+) -> tf.Tensor:
+    """Differentiable mini-batch energy distance, matched to the G6 eval test.
+
+    Same statistic as ``src.evaluation.stat_tests.energy._energy_statistic``:
+
+        E = 2*E||X - Y|| - E||X - X'|| - E||Y - Y'||   (Euclidean norms)
+
+    Kernel-free (no bandwidth choice), sensitive to all moments. ``sqrt`` is
+    stabilised with a small epsilon so the gradient is finite at zero distance.
+    """
+    N = tf.shape(r_real)[0]
+    n = tf.minimum(n_sub, N)
+
+    idx_r = tf.random.shuffle(tf.range(N))[:n]
+    idx_g = tf.random.shuffle(tf.range(N))[:n]
+    x = tf.cast(tf.gather(r_real, idx_r), tf.float32)
+    y = tf.cast(tf.gather(r_gen,  idx_g), tf.float32)
+
+    def _dists(a: tf.Tensor, b: tf.Tensor) -> tf.Tensor:
+        aa = tf.reduce_sum(tf.square(a), axis=1, keepdims=True)
+        bb = tf.reduce_sum(tf.square(b), axis=1, keepdims=True)
+        ab = tf.matmul(a, b, transpose_b=True)
+        d2 = tf.maximum(aa + tf.transpose(bb) - 2.0 * ab, 0.0)
+        return tf.sqrt(d2 + 1e-12)
+
+    nf = tf.cast(n, tf.float32)
+    mask = 1.0 - tf.eye(n)
+    mean_xy = tf.reduce_mean(_dists(x, y))
+    mean_xx = tf.reduce_sum(_dists(x, x) * mask) / (nf * (nf - 1.0))
+    mean_yy = tf.reduce_sum(_dists(y, y) * mask) / (nf * (nf - 1.0))
+    return 2.0 * mean_xy - mean_xx - mean_yy
+
+
+def _resolve_mmd_kernel(kernel: str | None) -> str:
+    """Return the canonical training-MMD kernel choice."""
+    kernel_norm = str(kernel or "rbf").strip().lower()
+    aliases = {
+        "rbf": "rbf",
+        "single": "rbf",
+        "multibw": "multibw",
+        "multi_bandwidth": "multibw",
+        "mixture": "multibw",
+    }
+    if kernel_norm not in aliases:
+        raise ValueError(
+            "mmd_kernel must be one of {'rbf', 'multibw'}; "
+            f"got {kernel!r}"
+        )
+    return aliases[kernel_norm]
+
+
 def _resolve_mmd_mode(mode: str | None) -> str:
     """Return the canonical MMD residual-matching mode."""
     mode_norm = str(mode or "mean_residual").strip().lower()
@@ -482,6 +594,8 @@ class CondPriorVAELoss(layers.Layer):
         decoder_distribution: str = "gaussian",
         mdn_components: int = 1,
         mmd_bandwidth: float | None = None,
+        mmd_kernel: str = "rbf",
+        lambda_energy: float = 0.0,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -502,6 +616,8 @@ class CondPriorVAELoss(layers.Layer):
         self.decoder_distribution = _resolve_decoder_distribution(decoder_distribution)
         self.mdn_components = int(mdn_components)
         self.mmd_bandwidth = mmd_bandwidth
+        self.mmd_kernel = _resolve_mmd_kernel(mmd_kernel)
+        self.lambda_energy = float(lambda_energy)
         self.beta = tf.Variable(
             self.beta_init, trainable=False, dtype=tf.float32, name="beta",
         )
@@ -509,6 +625,8 @@ class CondPriorVAELoss(layers.Layer):
         self.kl_loss_tracker = tf.keras.metrics.Mean(name="kl_loss")
         if self.lambda_mmd > 0.0:
             self.mmd_loss_tracker = tf.keras.metrics.Mean(name="mmd_loss")
+        if self.lambda_energy > 0.0:
+            self.energy_loss_tracker = tf.keras.metrics.Mean(name="energy_loss")
         if self.lambda_axis > 0.0:
             self.axis_loss_tracker = tf.keras.metrics.Mean(name="axis_loss")
         if self.lambda_psd > 0.0:
@@ -557,15 +675,25 @@ class CondPriorVAELoss(layers.Layer):
 
         total = compute_total_loss(recon, kl, self.beta)
 
-        if self.lambda_mmd > 0.0 and x_center is not None:
+        if (self.lambda_mmd > 0.0 or self.lambda_energy > 0.0) and x_center is not None:
             r_real = tf.stop_gradient(y_true - x_center)
             if self.mmd_mode == "sampled_residual":
                 r_gen = _ensure_sample() - x_center
             else:
                 r_gen = y_mean - x_center
-            mmd2 = mmd2_tf(r_real, r_gen, n_sub=512, bandwidth=self.mmd_bandwidth)
-            self.mmd_loss_tracker.update_state(mmd2)
-            total = total + self.lambda_mmd * mmd2
+            if self.lambda_mmd > 0.0:
+                if self.mmd_kernel == "multibw":
+                    mmd2 = mmd2_multibw_tf(r_real, r_gen, n_sub=512)
+                else:
+                    mmd2 = mmd2_tf(
+                        r_real, r_gen, n_sub=512, bandwidth=self.mmd_bandwidth
+                    )
+                self.mmd_loss_tracker.update_state(mmd2)
+                total = total + self.lambda_mmd * mmd2
+            if self.lambda_energy > 0.0:
+                energy = energy_distance_tf(r_real, r_gen, n_sub=512)
+                self.energy_loss_tracker.update_state(energy)
+                total = total + self.lambda_energy * energy
 
         if (
             self.lambda_axis > 0.0
@@ -618,6 +746,8 @@ class CondPriorVAELoss(layers.Layer):
         m = [self.recon_loss_tracker, self.kl_loss_tracker]
         if self.lambda_mmd > 0.0:
             m.append(self.mmd_loss_tracker)
+        if self.lambda_energy > 0.0:
+            m.append(self.energy_loss_tracker)
         if self.lambda_axis > 0.0:
             m.append(self.axis_loss_tracker)
         if self.lambda_psd > 0.0:
@@ -648,6 +778,8 @@ class CondPriorVAELoss(layers.Layer):
             "decoder_distribution": self.decoder_distribution,
             "mdn_components": self.mdn_components,
             "mmd_bandwidth": self.mmd_bandwidth,
+            "mmd_kernel": self.mmd_kernel,
+            "lambda_energy": self.lambda_energy,
         })
         return cfg
 

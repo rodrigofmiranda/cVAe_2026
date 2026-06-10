@@ -1,0 +1,54 @@
+{
+  "protocol_version": "1.0",
+  "description": "V3 FULLSQUARE reduced 12-regime grid (champion-comparable): 3 distances (0.75, 1.0, 1.5 m) x 4 currents (100, 300, 500, 700 mA). Mirrors the S39B 12-regime default but on the V3 campaign (no 0.8m; 0.75m is the near-field analog). Uniform reweight.",
+  "global_settings": {
+    "_selected_experiments": [
+      "/data/Dataset/V3/FULLSQUARE_2026_V3_ORGANIZED/dist_0.75m/curr_100mA",
+      "/data/Dataset/V3/FULLSQUARE_2026_V3_ORGANIZED/dist_0.75m/curr_300mA",
+      "/data/Dataset/V3/FULLSQUARE_2026_V3_ORGANIZED/dist_0.75m/curr_500mA",
+      "/data/Dataset/V3/FULLSQUARE_2026_V3_ORGANIZED/dist_0.75m/curr_700mA",
+      "/data/Dataset/V3/FULLSQUARE_2026_V3_ORGANIZED/dist_1.0m/curr_100mA",
+      "/data/Dataset/V3/FULLSQUARE_2026_V3_ORGANIZED/dist_1.0m/curr_300mA",
+      "/data/Dataset/V3/FULLSQUARE_2026_V3_ORGANIZED/dist_1.0m/curr_500mA",
+      "/data/Dataset/V3/FULLSQUARE_2026_V3_ORGANIZED/dist_1.0m/curr_700mA",
+      "/data/Dataset/V3/FULLSQUARE_2026_V3_ORGANIZED/dist_1.5m/curr_100mA",
+      "/data/Dataset/V3/FULLSQUARE_2026_V3_ORGANIZED/dist_1.5m/curr_300mA",
+      "/data/Dataset/V3/FULLSQUARE_2026_V3_ORGANIZED/dist_1.5m/curr_500mA",
+      "/data/Dataset/V3/FULLSQUARE_2026_V3_ORGANIZED/dist_1.5m/curr_700mA"
+    ]
+  },
+  "regimes": [
+    { "regime_id": "dist_0p75m__curr_100mA", "description": "0.75 m / 100 mA", "distance_m": 0.75, "current_mA": 100, "_study": "within_regime", "_split_strategy": "per_experiment" },
+    { "regime_id": "dist_0p75m__curr_300mA", "description": "0.75 m / 300 mA", "distance_m": 0.75, "current_mA": 300, "_study": "within_regime", "_split_strategy": "per_experiment" },
+    { "regime_id": "dist_0p75m__curr_500mA", "description": "0.75 m / 500 mA", "distance_m": 0.75, "current_mA": 500, "_study": "within_regime", "_split_strategy": "per_experiment" },
+    { "regime_id": "dist_0p75m__curr_700mA", "description": "0.75 m / 700 mA", "distance_m": 0.75, "current_mA": 700, "_study": "within_regime", "_split_strategy": "per_experiment" },
+    { "regime_id": "dist_1m__curr_100mA", "description": "1.0 m / 100 mA", "distance_m": 1.0, "current_mA": 100, "_study": "within_regime", "_split_strategy": "per_experiment" },
+    { "regime_id": "dist_1m__curr_300mA", "description": "1.0 m / 300 mA", "distance_m": 1.0, "current_mA": 300, "_study": "within_regime", "_split_strategy": "per_experiment" },
+    { "regime_id": "dist_1m__curr_500mA", "description": "1.0 m / 500 mA", "distance_m": 1.0, "current_mA": 500, "_study": "within_regime", "_split_strategy": "per_experiment" },
+    { "regime_id": "dist_1m__curr_700mA", "description": "1.0 m / 700 mA", "distance_m": 1.0, "current_mA": 700, "_study": "within_regime", "_split_strategy": "per_experiment" },
+    { "regime_id": "dist_1p5m__curr_100mA", "description": "1.5 m / 100 mA", "distance_m": 1.5, "current_mA": 100, "_study": "within_regime", "_split_strategy": "per_experiment" },
+    { "regime_id": "dist_1p5m__curr_300mA", "description": "1.5 m / 300 mA", "distance_m": 1.5, "current_mA": 300, "_study": "within_regime", "_split_strategy": "per_experiment" },
+    { "regime_id": "dist_1p5m__curr_500mA", "description": "1.5 m / 500 mA", "distance_m": 1.5, "current_mA": 500, "_study": "within_regime", "_split_strategy": "per_experiment" },
+    { "regime_id": "dist_1p5m__curr_700mA", "description": "1.5 m / 700 mA", "distance_m": 1.5, "current_mA": 700, "_study": "within_regime", "_split_strategy": "per_experiment" }
+  ],
+  "_studies": [
+    {
+      "name": "within_regime",
+      "split_strategy": "per_experiment",
+      "regime_ids": [
+        "dist_0p75m__curr_100mA",
+        "dist_0p75m__curr_300mA",
+        "dist_0p75m__curr_500mA",
+        "dist_0p75m__curr_700mA",
+        "dist_1m__curr_100mA",
+        "dist_1m__curr_300mA",
+        "dist_1m__curr_500mA",
+        "dist_1m__curr_700mA",
+        "dist_1p5m__curr_100mA",
+        "dist_1p5m__curr_300mA",
+        "dist_1p5m__curr_500mA",
+        "dist_1p5m__curr_700mA"
+      ]
+    }
+  ]
+}

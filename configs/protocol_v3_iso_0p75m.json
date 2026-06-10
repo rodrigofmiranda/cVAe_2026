@@ -1,0 +1,30 @@
+{
+  "protocol_version": "1.0",
+  "description": "V3 FULLSQUARE near-field ISOLATION diagnostic: train ONLY on 0.75m x {100,300,500,700} mA and evaluate the same 4 regimes. Mirrors the S26iso 0.8m isolation rationale: if the specialist passes gates the 12-regime global model fails (G1/G3/G5 at 0.75m/300-700), the failure is inter-regime conditioning conflict, not architecture capacity. Uniform reweight.",
+  "global_settings": {
+    "_selected_experiments": [
+      "/data/Dataset/V3/FULLSQUARE_2026_V3_ORGANIZED/dist_0.75m/curr_100mA",
+      "/data/Dataset/V3/FULLSQUARE_2026_V3_ORGANIZED/dist_0.75m/curr_300mA",
+      "/data/Dataset/V3/FULLSQUARE_2026_V3_ORGANIZED/dist_0.75m/curr_500mA",
+      "/data/Dataset/V3/FULLSQUARE_2026_V3_ORGANIZED/dist_0.75m/curr_700mA"
+    ]
+  },
+  "regimes": [
+    { "regime_id": "dist_0p75m__curr_100mA", "description": "0.75 m / 100 mA", "distance_m": 0.75, "current_mA": 100, "_study": "within_regime", "_split_strategy": "per_experiment" },
+    { "regime_id": "dist_0p75m__curr_300mA", "description": "0.75 m / 300 mA", "distance_m": 0.75, "current_mA": 300, "_study": "within_regime", "_split_strategy": "per_experiment" },
+    { "regime_id": "dist_0p75m__curr_500mA", "description": "0.75 m / 500 mA", "distance_m": 0.75, "current_mA": 500, "_study": "within_regime", "_split_strategy": "per_experiment" },
+    { "regime_id": "dist_0p75m__curr_700mA", "description": "0.75 m / 700 mA", "distance_m": 0.75, "current_mA": 700, "_study": "within_regime", "_split_strategy": "per_experiment" }
+  ],
+  "_studies": [
+    {
+      "name": "within_regime",
+      "split_strategy": "per_experiment",
+      "regime_ids": [
+        "dist_0p75m__curr_100mA",
+        "dist_0p75m__curr_300mA",
+        "dist_0p75m__curr_500mA",
+        "dist_0p75m__curr_700mA"
+      ]
+    }
+  ]
+}
