@@ -233,6 +233,153 @@ def decoder_sensitivity(
     }
 
 
+def mdn_decomposition_audit(
+    prior_net,
+    decoder_net,
+    Xb: np.ndarray,
+    Db: np.ndarray,
+    Cb: np.ndarray,
+    Yb: Optional[np.ndarray] = None,
+    n_mc_z: int = 4,
+    batch_size: int = 4096,
+    arch_variant: str = "concat",
+) -> Dict[str, Any]:
+    """Audit the MDN head: mixture weights, mean separation and the residual
+    variance decomposition, per axis (I, Q).
+
+    Unlike :func:`decoder_sensitivity` (variance of the expected mean under z
+    sampling), this reads the raw ``logits``/``comp_mean``/``comp_log_var``
+    and decomposes the predicted residual variance as
+
+        total ≈ E[Σ_k π_k σ_k²]  (intra-component blur)
+              + E[Var_π(μ_k)]    (within-sample component separation)
+              + Var(E[y|x,z]−x)  (conditional-mean structure)
+
+    plus clamp-binding fractions against ``DECODER_LOGVAR_CLAMP_LO/HI``.
+    A Gaussian head (out_dim==4) is treated as a 1-component mixture.
+    """
+    from src.config.defaults import (
+        DECODER_LOGVAR_CLAMP_HI,
+        DECODER_LOGVAR_CLAMP_LO,
+    )
+
+    mu_p, lv_p = prior_net.predict([Xb, Db, Cb], batch_size=batch_size, verbose=0)
+    lv_p = np.clip(lv_p, -10, 10)
+    std_p = np.exp(0.5 * lv_p)
+    n_decoder_inputs = len(decoder_net.inputs)
+    is_seq = n_decoder_inputs == 4
+    if is_seq:
+        if np.asarray(Xb).ndim != 3:
+            return {"status": "unsupported_seq_input"}
+        x_center = np.asarray(Xb)[:, np.asarray(Xb).shape[1] // 2, :]
+        decoder_inputs = lambda z: [z, x_center, Db, Cb]
+    elif n_decoder_inputs == 2:
+        cond = np.concatenate([Xb, Db, Cb], axis=1)
+        decoder_inputs = lambda z: [z, cond]
+        x_center = np.asarray(Xb)
+    else:
+        return {"status": "unsupported_decoder_interface"}
+
+    is_delta_residual = str(arch_variant or "").strip().lower() == "delta_residual"
+    lo = float(DECODER_LOGVAR_CLAMP_LO)
+    hi = float(DECODER_LOGVAR_CLAMP_HI)
+    eps_bind = 1e-3
+
+    intra_sum = np.zeros(2, dtype=np.float64)
+    inter_sum = np.zeros(2, dtype=np.float64)
+    sep_sigma_sum = np.zeros(2, dtype=np.float64)
+    sigma_w_sum = np.zeros(2, dtype=np.float64)
+    r_means = []
+    pi_max_sum = 0.0
+    pi_ent_sum = 0.0
+    at_lo = 0
+    at_hi = 0
+    n_lv = 0
+    k_out = 0
+
+    for _ in range(int(n_mc_z)):
+        eps = np.random.randn(*mu_p.shape).astype(np.float32)
+        z = mu_p + std_p * eps
+        out = decoder_net.predict(decoder_inputs(z), batch_size=batch_size, verbose=0)
+        out_dim = int(out.shape[-1])
+        if out_dim == 4:
+            k = 1
+            probs = np.ones((out.shape[0], 1), dtype=np.float64)
+            comp_mean = out[:, :2].reshape((-1, 1, 2)).astype(np.float64)
+            comp_lv = out[:, 2:].reshape((-1, 1, 2)).astype(np.float64)
+        elif out_dim > 4 and out_dim % 5 == 0:
+            k = out_dim // 5
+            logits = out[:, :k].astype(np.float64)
+            logits = logits - logits.max(axis=1, keepdims=True)
+            probs = np.exp(logits)
+            probs = probs / probs.sum(axis=1, keepdims=True)
+            comp_mean = out[:, k : k + 2 * k].reshape((-1, k, 2)).astype(np.float64)
+            comp_lv = out[:, k + 2 * k : k + 4 * k].reshape((-1, k, 2)).astype(np.float64)
+        else:
+            return {"status": "unsupported_output_params"}
+        k_out = k
+
+        at_lo += int(np.sum(comp_lv <= lo + eps_bind))
+        at_hi += int(np.sum(comp_lv >= hi - eps_bind))
+        n_lv += int(comp_lv.size)
+
+        var_k = np.exp(np.clip(comp_lv, lo, hi))      # (N,k,2)
+        w = probs[:, :, None]                          # (N,k,1)
+        intra = np.sum(w * var_k, axis=1)              # (N,2)
+        cmean = np.sum(w * comp_mean, axis=1)          # (N,2)
+        inter = np.maximum(
+            np.sum(w * comp_mean**2, axis=1) - cmean**2, 0.0
+        )
+
+        intra_sum += intra.mean(axis=0)
+        inter_sum += inter.mean(axis=0)
+        sep_sigma_sum += np.mean(np.sqrt(inter) / np.sqrt(intra + 1e-12), axis=0)
+        sigma_w_sum += np.sum(w * np.sqrt(var_k), axis=1).mean(axis=0)
+        pi_max_sum += float(np.mean(probs.max(axis=1)))
+        pi_ent_sum += float(np.mean(-np.sum(probs * np.log(probs + 1e-12), axis=1)))
+
+        r_means.append(cmean if is_delta_residual else cmean - x_center)
+
+    m = float(n_mc_z)
+    intra_mean = intra_sum / m
+    inter_mean = inter_sum / m
+    struct_var = np.var(np.concatenate(r_means, axis=0), axis=0)
+    total_pred = intra_mean + inter_mean + struct_var
+
+    result: Dict[str, Any] = {
+        "status": "ok",
+        "mdn_components": int(k_out),
+        "n_samples": int(np.asarray(Xb).shape[0]),
+        "n_mc_z": int(n_mc_z),
+        "clamp_lo": lo,
+        "clamp_hi": hi,
+        "frac_logvar_at_lo": float(at_lo / max(n_lv, 1)),
+        "frac_logvar_at_hi": float(at_hi / max(n_lv, 1)),
+        "pi_max_mean": float(pi_max_sum / m),
+        "pi_entropy_mean": float(pi_ent_sum / m),
+        "pi_eff_components": float(np.exp(pi_ent_sum / m)),
+    }
+    for i, ax in enumerate(("I", "Q")):
+        tot = float(total_pred[i]) if total_pred[i] > 0 else float("nan")
+        result[f"intra_var_{ax}"] = float(intra_mean[i])
+        result[f"inter_comp_var_{ax}"] = float(inter_mean[i])
+        result[f"struct_var_{ax}"] = float(struct_var[i])
+        result[f"total_pred_var_{ax}"] = float(total_pred[i])
+        result[f"frac_intra_{ax}"] = float(intra_mean[i] / tot)
+        result[f"frac_inter_comp_{ax}"] = float(inter_mean[i] / tot)
+        result[f"frac_struct_{ax}"] = float(struct_var[i] / tot)
+        result[f"sigma_weighted_mean_{ax}"] = float(sigma_w_sum[i] / m)
+        result[f"mean_sep_sigma_ratio_{ax}"] = float(sep_sigma_sum[i] / m)
+    if Yb is not None:
+        real_res = np.asarray(Yb, dtype=np.float64) - x_center
+        for i, ax in enumerate(("I", "Q")):
+            rv = real_res[:, i]
+            zc = (rv - rv.mean()) / (rv.std() + 1e-12)
+            result[f"real_res_var_{ax}"] = float(np.var(rv))
+            result[f"real_res_kurt_{ax}"] = float(np.mean(zc**4) - 3.0)
+    return result
+
+
 # ---------------------------------------------------------------------------
 # History loader helper
 # ---------------------------------------------------------------------------

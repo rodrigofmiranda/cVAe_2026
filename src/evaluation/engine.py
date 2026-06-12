@@ -714,6 +714,24 @@ def evaluate_run(
     )
     run_paths.write_json("logs/decoder_sensitivity.json", sens)
 
+    try:
+        from src.evaluation.report import mdn_decomposition_audit
+
+        mdn_aud = mdn_decomposition_audit(
+            prior,
+            decoder,
+            Xv_in[:nb],
+            Dv[:nb],
+            Cv[:nb],
+            Yb=Yv[:nb],
+            n_mc_z=4,
+            batch_size=batch_infer,
+            arch_variant=arch_variant,
+        )
+    except Exception as exc:  # instrumentation only — must never break the eval path
+        mdn_aud = {"status": f"error: {exc}"}
+    run_paths.write_json("logs/mdn_audit.json", mdn_aud)
+
     summary_text = build_summary_text(
         run_id=output_dir.name,
         split_mode=split_mode,
