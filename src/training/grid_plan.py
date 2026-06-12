@@ -4553,11 +4553,47 @@ def _preset_v3_g6_aligned_s35c() -> List[Dict[str, Any]]:
         patience=80,
     )
 
+    _qsw = dict(_base)
+    _qsw["lambda_quantile"] = 0.5
+
+    # Ablation arms: attribute the hybrid's gain to its two loss components.
+    _mmd_only = dict(_base)
+    _mmd_only["lambda_energy"] = 0.0
+    _energy_only = dict(_base)
+    _energy_only["lambda_mmd"] = 0.0
+
     return [
         dict(
             group="V3G6_aligned_s35c",
             tag="S35CG6A_multibw_energy_lmmd05_le05",
             cfg=_cfg(**_base),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="V3G6_aligned_s35c",
+            # Hybrid + per-axis sorted-quantile (1D Wasserstein) shape loss on
+            # the sampled residual. Targets the remaining near-field G5/G6
+            # marginal-shape gap WITHOUT touching the logvar clamp (the LO=-9
+            # test showed the floor is a structural prior; this loss adds
+            # shape pressure through the sampling path instead).
+            # RESULT 2026-06-12: NEGATIVE at lambda=0.5 pooled-batch — the
+            # pooled sort is dominated by far-field scale (std 0.42 vs 0.07),
+            # so near-field shape is invisible; G1 regressed at 0.75m. A v2
+            # would need per-regime grouping/normalisation.
+            tag="S35CG6A_qsw05",
+            cfg=_cfg(**_qsw),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="V3G6_aligned_s35c",
+            tag="S35CG6A_mmdonly_lmmd05",
+            cfg=_cfg(**_mmd_only),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="V3G6_aligned_s35c",
+            tag="S35CG6A_energyonly_le05",
+            cfg=_cfg(**_energy_only),
             analysis_quick_overrides=analysis_quick_overrides,
         ),
     ]

@@ -298,6 +298,28 @@ def energy_distance_tf(
     return 2.0 * mean_xy - mean_xx - mean_yy
 
 
+def quantile_residual_distance_tf(
+    r_real: tf.Tensor,
+    r_gen: tf.Tensor,
+) -> tf.Tensor:
+    """Per-axis 1D Wasserstein-1 distance between equal-size residual samples.
+
+    Sorts each axis (I, Q) independently and averages ``|q_real - q_gen|``
+    over the full quantile grid — exact W1 for equal sample counts.
+    Differentiable through the fixed sort permutation. Unlike moment-targeted
+    losses (skew/kurt), this matches the entire marginal curve per axis
+    (peak, shoulders and tails simultaneously), which is the V3 near-field
+    failure mode (platykurtic real vs Gaussianised prediction). Uses the
+    full batch (no subsampling): sorting is cheap and the quantile estimate
+    benefits from every sample.
+    """
+    x = tf.cast(r_real, tf.float32)
+    y = tf.cast(r_gen, tf.float32)
+    xs = tf.sort(x, axis=0)
+    ys = tf.sort(y, axis=0)
+    return tf.reduce_mean(tf.abs(xs - ys))
+
+
 def _resolve_mmd_kernel(kernel: str | None) -> str:
     """Return the canonical training-MMD kernel choice."""
     kernel_norm = str(kernel or "rbf").strip().lower()
@@ -596,6 +618,7 @@ class CondPriorVAELoss(layers.Layer):
         mmd_bandwidth: float | None = None,
         mmd_kernel: str = "rbf",
         lambda_energy: float = 0.0,
+        lambda_quantile: float = 0.0,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -618,6 +641,7 @@ class CondPriorVAELoss(layers.Layer):
         self.mmd_bandwidth = mmd_bandwidth
         self.mmd_kernel = _resolve_mmd_kernel(mmd_kernel)
         self.lambda_energy = float(lambda_energy)
+        self.lambda_quantile = float(lambda_quantile)
         self.beta = tf.Variable(
             self.beta_init, trainable=False, dtype=tf.float32, name="beta",
         )
@@ -627,6 +651,8 @@ class CondPriorVAELoss(layers.Layer):
             self.mmd_loss_tracker = tf.keras.metrics.Mean(name="mmd_loss")
         if self.lambda_energy > 0.0:
             self.energy_loss_tracker = tf.keras.metrics.Mean(name="energy_loss")
+        if self.lambda_quantile > 0.0:
+            self.quantile_loss_tracker = tf.keras.metrics.Mean(name="quantile_loss")
         if self.lambda_axis > 0.0:
             self.axis_loss_tracker = tf.keras.metrics.Mean(name="axis_loss")
         if self.lambda_psd > 0.0:
@@ -675,7 +701,11 @@ class CondPriorVAELoss(layers.Layer):
 
         total = compute_total_loss(recon, kl, self.beta)
 
-        if (self.lambda_mmd > 0.0 or self.lambda_energy > 0.0) and x_center is not None:
+        if (
+            self.lambda_mmd > 0.0
+            or self.lambda_energy > 0.0
+            or self.lambda_quantile > 0.0
+        ) and x_center is not None:
             r_real = tf.stop_gradient(y_true - x_center)
             if self.mmd_mode == "sampled_residual":
                 r_gen = _ensure_sample() - x_center
@@ -694,6 +724,10 @@ class CondPriorVAELoss(layers.Layer):
                 energy = energy_distance_tf(r_real, r_gen, n_sub=512)
                 self.energy_loss_tracker.update_state(energy)
                 total = total + self.lambda_energy * energy
+            if self.lambda_quantile > 0.0:
+                qw = quantile_residual_distance_tf(r_real, r_gen)
+                self.quantile_loss_tracker.update_state(qw)
+                total = total + self.lambda_quantile * qw
 
         if (
             self.lambda_axis > 0.0
@@ -748,6 +782,8 @@ class CondPriorVAELoss(layers.Layer):
             m.append(self.mmd_loss_tracker)
         if self.lambda_energy > 0.0:
             m.append(self.energy_loss_tracker)
+        if self.lambda_quantile > 0.0:
+            m.append(self.quantile_loss_tracker)
         if self.lambda_axis > 0.0:
             m.append(self.axis_loss_tracker)
         if self.lambda_psd > 0.0:
@@ -780,6 +816,7 @@ class CondPriorVAELoss(layers.Layer):
             "mmd_bandwidth": self.mmd_bandwidth,
             "mmd_kernel": self.mmd_kernel,
             "lambda_energy": self.lambda_energy,
+            "lambda_quantile": self.lambda_quantile,
         })
         return cfg
 
