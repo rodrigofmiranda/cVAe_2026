@@ -1,0 +1,378 @@
+{
+  "protocol_version": "1.0",
+  "description": "16QAM_2026_V3_ORGANIZED cross-dist TRAIN: dists [0.75, 1.0, 1.35, 1.5] x 9 currents (all data).",
+  "global_settings": {
+    "_selected_experiments": [
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_0.75m/curr_100mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_0.75m/curr_200mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_0.75m/curr_300mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_0.75m/curr_400mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_0.75m/curr_500mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_0.75m/curr_600mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_0.75m/curr_700mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_0.75m/curr_800mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_0.75m/curr_900mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_1.0m/curr_100mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_1.0m/curr_200mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_1.0m/curr_300mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_1.0m/curr_400mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_1.0m/curr_500mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_1.0m/curr_600mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_1.0m/curr_700mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_1.0m/curr_800mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_1.0m/curr_900mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_1.35m/curr_100mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_1.35m/curr_200mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_1.35m/curr_300mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_1.35m/curr_400mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_1.35m/curr_500mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_1.35m/curr_600mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_1.35m/curr_700mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_1.35m/curr_800mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_1.35m/curr_900mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_1.5m/curr_100mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_1.5m/curr_200mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_1.5m/curr_300mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_1.5m/curr_400mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_1.5m/curr_500mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_1.5m/curr_600mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_1.5m/curr_700mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_1.5m/curr_800mA",
+      "/data/Dataset/V3/16QAM_2026_V3_ORGANIZED/dist_1.5m/curr_900mA"
+    ]
+  },
+  "regimes": [
+    {
+      "regime_id": "dist_0p75m__curr_100mA",
+      "description": "0.75 m / 100 mA",
+      "distance_m": 0.75,
+      "current_mA": 100,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_0p75m__curr_200mA",
+      "description": "0.75 m / 200 mA",
+      "distance_m": 0.75,
+      "current_mA": 200,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_0p75m__curr_300mA",
+      "description": "0.75 m / 300 mA",
+      "distance_m": 0.75,
+      "current_mA": 300,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_0p75m__curr_400mA",
+      "description": "0.75 m / 400 mA",
+      "distance_m": 0.75,
+      "current_mA": 400,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_0p75m__curr_500mA",
+      "description": "0.75 m / 500 mA",
+      "distance_m": 0.75,
+      "current_mA": 500,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_0p75m__curr_600mA",
+      "description": "0.75 m / 600 mA",
+      "distance_m": 0.75,
+      "current_mA": 600,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_0p75m__curr_700mA",
+      "description": "0.75 m / 700 mA",
+      "distance_m": 0.75,
+      "current_mA": 700,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_0p75m__curr_800mA",
+      "description": "0.75 m / 800 mA",
+      "distance_m": 0.75,
+      "current_mA": 800,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_0p75m__curr_900mA",
+      "description": "0.75 m / 900 mA",
+      "distance_m": 0.75,
+      "current_mA": 900,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1m__curr_100mA",
+      "description": "1.0 m / 100 mA",
+      "distance_m": 1.0,
+      "current_mA": 100,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1m__curr_200mA",
+      "description": "1.0 m / 200 mA",
+      "distance_m": 1.0,
+      "current_mA": 200,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1m__curr_300mA",
+      "description": "1.0 m / 300 mA",
+      "distance_m": 1.0,
+      "current_mA": 300,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1m__curr_400mA",
+      "description": "1.0 m / 400 mA",
+      "distance_m": 1.0,
+      "current_mA": 400,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1m__curr_500mA",
+      "description": "1.0 m / 500 mA",
+      "distance_m": 1.0,
+      "current_mA": 500,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1m__curr_600mA",
+      "description": "1.0 m / 600 mA",
+      "distance_m": 1.0,
+      "current_mA": 600,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1m__curr_700mA",
+      "description": "1.0 m / 700 mA",
+      "distance_m": 1.0,
+      "current_mA": 700,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1m__curr_800mA",
+      "description": "1.0 m / 800 mA",
+      "distance_m": 1.0,
+      "current_mA": 800,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1m__curr_900mA",
+      "description": "1.0 m / 900 mA",
+      "distance_m": 1.0,
+      "current_mA": 900,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1p35m__curr_100mA",
+      "description": "1.35 m / 100 mA",
+      "distance_m": 1.35,
+      "current_mA": 100,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1p35m__curr_200mA",
+      "description": "1.35 m / 200 mA",
+      "distance_m": 1.35,
+      "current_mA": 200,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1p35m__curr_300mA",
+      "description": "1.35 m / 300 mA",
+      "distance_m": 1.35,
+      "current_mA": 300,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1p35m__curr_400mA",
+      "description": "1.35 m / 400 mA",
+      "distance_m": 1.35,
+      "current_mA": 400,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1p35m__curr_500mA",
+      "description": "1.35 m / 500 mA",
+      "distance_m": 1.35,
+      "current_mA": 500,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1p35m__curr_600mA",
+      "description": "1.35 m / 600 mA",
+      "distance_m": 1.35,
+      "current_mA": 600,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1p35m__curr_700mA",
+      "description": "1.35 m / 700 mA",
+      "distance_m": 1.35,
+      "current_mA": 700,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1p35m__curr_800mA",
+      "description": "1.35 m / 800 mA",
+      "distance_m": 1.35,
+      "current_mA": 800,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1p35m__curr_900mA",
+      "description": "1.35 m / 900 mA",
+      "distance_m": 1.35,
+      "current_mA": 900,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1p5m__curr_100mA",
+      "description": "1.5 m / 100 mA",
+      "distance_m": 1.5,
+      "current_mA": 100,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1p5m__curr_200mA",
+      "description": "1.5 m / 200 mA",
+      "distance_m": 1.5,
+      "current_mA": 200,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1p5m__curr_300mA",
+      "description": "1.5 m / 300 mA",
+      "distance_m": 1.5,
+      "current_mA": 300,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1p5m__curr_400mA",
+      "description": "1.5 m / 400 mA",
+      "distance_m": 1.5,
+      "current_mA": 400,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1p5m__curr_500mA",
+      "description": "1.5 m / 500 mA",
+      "distance_m": 1.5,
+      "current_mA": 500,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1p5m__curr_600mA",
+      "description": "1.5 m / 600 mA",
+      "distance_m": 1.5,
+      "current_mA": 600,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1p5m__curr_700mA",
+      "description": "1.5 m / 700 mA",
+      "distance_m": 1.5,
+      "current_mA": 700,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1p5m__curr_800mA",
+      "description": "1.5 m / 800 mA",
+      "distance_m": 1.5,
+      "current_mA": 800,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    },
+    {
+      "regime_id": "dist_1p5m__curr_900mA",
+      "description": "1.5 m / 900 mA",
+      "distance_m": 1.5,
+      "current_mA": 900,
+      "_study": "within_regime",
+      "_split_strategy": "per_experiment"
+    }
+  ],
+  "_studies": [
+    {
+      "name": "within_regime",
+      "split_strategy": "per_experiment",
+      "regime_ids": [
+        "dist_0p75m__curr_100mA",
+        "dist_0p75m__curr_200mA",
+        "dist_0p75m__curr_300mA",
+        "dist_0p75m__curr_400mA",
+        "dist_0p75m__curr_500mA",
+        "dist_0p75m__curr_600mA",
+        "dist_0p75m__curr_700mA",
+        "dist_0p75m__curr_800mA",
+        "dist_0p75m__curr_900mA",
+        "dist_1m__curr_100mA",
+        "dist_1m__curr_200mA",
+        "dist_1m__curr_300mA",
+        "dist_1m__curr_400mA",
+        "dist_1m__curr_500mA",
+        "dist_1m__curr_600mA",
+        "dist_1m__curr_700mA",
+        "dist_1m__curr_800mA",
+        "dist_1m__curr_900mA",
+        "dist_1p35m__curr_100mA",
+        "dist_1p35m__curr_200mA",
+        "dist_1p35m__curr_300mA",
+        "dist_1p35m__curr_400mA",
+        "dist_1p35m__curr_500mA",
+        "dist_1p35m__curr_600mA",
+        "dist_1p35m__curr_700mA",
+        "dist_1p35m__curr_800mA",
+        "dist_1p35m__curr_900mA",
+        "dist_1p5m__curr_100mA",
+        "dist_1p5m__curr_200mA",
+        "dist_1p5m__curr_300mA",
+        "dist_1p5m__curr_400mA",
+        "dist_1p5m__curr_500mA",
+        "dist_1p5m__curr_600mA",
+        "dist_1p5m__curr_700mA",
+        "dist_1p5m__curr_800mA",
+        "dist_1p5m__curr_900mA"
+      ]
+    }
+  ]
+}
