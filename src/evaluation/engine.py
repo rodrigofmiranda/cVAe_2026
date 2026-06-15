@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import gc
 import json
+import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -578,6 +579,20 @@ def evaluate_run(
         X_dist = np.tile(Xv_center, (int(mc_samples), 1))
         Y_dist = np.tile(Yv, (int(mc_samples), 1))
         var_mc = float(np.mean(np.var(Ys, axis=0)))
+
+    # Optional dump of (X, Y_real, Y_twin) for downstream BER / modulation
+    # comparison (env-gated; no-op by default). Capped to bound disk.
+    if os.environ.get("CVAE_DUMP_YPRED"):
+        try:
+            _cap = int(os.environ.get("CVAE_DUMP_YPRED_CAP", "300000"))
+            np.savez_compressed(
+                str(output_dir / "ypred_dump.npz"),
+                X=np.asarray(Xv_center)[:_cap].astype(np.float32),
+                Y_real=np.asarray(Yv)[:_cap].astype(np.float32),
+                Y_twin=np.asarray(Yp)[:_cap].astype(np.float32),
+            )
+        except Exception as _exc:  # never break eval for a dump
+            print(f"⚠ ypred dump falhou: {_exc}")
 
     # Visualization arrays: in MC mode, use one stochastic draw per sample so
     # constellation visuals preserve natural spread without MC-mean smoothing.
