@@ -4556,6 +4556,13 @@ def _preset_v3_g6_aligned_s35c() -> List[Dict[str, Any]]:
     _qsw = dict(_base)
     _qsw["lambda_quantile"] = 0.5
 
+    # v2: scale-invariant quantile loss (standardize residual by per-sample
+    # predicted std). Fixes the v1 failure where the pooled-batch sort was
+    # dominated by far-field scale and blind to near-field shape.
+    _qsw2 = dict(_base)
+    _qsw2["lambda_quantile"] = 0.5
+    _qsw2["quantile_mode"] = "standardized"
+
     # Ablation arms: attribute the hybrid's gain to its two loss components.
     _mmd_only = dict(_base)
     _mmd_only["lambda_energy"] = 0.0
@@ -4582,6 +4589,15 @@ def _preset_v3_g6_aligned_s35c() -> List[Dict[str, Any]]:
             # would need per-regime grouping/normalisation.
             tag="S35CG6A_qsw05",
             cfg=_cfg(**_qsw),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="V3G6_aligned_s35c",
+            # v2 da shape-loss: W1 INVARIANTE À ESCALA (padroniza o resíduo pelo
+            # σ predito por amostra). Conserta o fracasso da v1 (sort pooled
+            # dominado pela escala far-field). Alvo: G5/G6 near-field 0.75m.
+            tag="S35CG6A_qsw2_std05",
+            cfg=_cfg(**_qsw2),
             analysis_quick_overrides=analysis_quick_overrides,
         ),
         dict(

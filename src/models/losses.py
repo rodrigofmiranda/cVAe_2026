@@ -433,6 +433,28 @@ def _mdn_expected_mean(logits: tf.Tensor, comp_mean: tf.Tensor) -> tf.Tensor:
     return tf.reduce_sum(tf.expand_dims(probs, axis=-1) * comp_mean, axis=1)
 
 
+def _mdn_std(logits, comp_mean, comp_log_var):
+    """Per-axis predicted std of a diagonal-Gaussian mixture, shape (N, 2)."""
+    probs = tf.expand_dims(tf.nn.softmax(logits, axis=-1), axis=-1)  # (N,k,1)
+    cv = tf.clip_by_value(comp_log_var, DECODER_LOGVAR_CLAMP_LO, DECODER_LOGVAR_CLAMP_HI)
+    var_k = tf.exp(cv)
+    mean = tf.reduce_sum(probs * comp_mean, axis=1)
+    ex2 = tf.reduce_sum(probs * (var_k + tf.square(comp_mean)), axis=1)
+    return tf.sqrt(tf.maximum(ex2 - tf.square(mean), 1e-8))
+
+
+def quantile_residual_distance_std_tf(r_real, r_gen, std):
+    """Scale-invariant per-axis 1D Wasserstein-1: standardize residuals by the
+    per-sample predicted std before sorting. This fixes the v1 failure where the
+    pooled sort over a multi-regime batch was dominated by the far-field scale
+    (std ~0.42) and was blind to near-field shape (std ~0.07). Standardizing per
+    sample puts every regime on the same footing -> the W1 measures SHAPE."""
+    s = tf.stop_gradient(std) + 1e-6
+    xr = tf.sort(tf.cast(r_real, tf.float32) / s, axis=0)
+    xg = tf.sort(tf.cast(r_gen, tf.float32) / s, axis=0)
+    return tf.reduce_mean(tf.abs(xr - xg))
+
+
 def _sample_mdn(
     logits: tf.Tensor,
     comp_mean: tf.Tensor,
@@ -619,6 +641,7 @@ class CondPriorVAELoss(layers.Layer):
         mmd_kernel: str = "rbf",
         lambda_energy: float = 0.0,
         lambda_quantile: float = 0.0,
+        quantile_mode: str = "pooled",
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -642,6 +665,7 @@ class CondPriorVAELoss(layers.Layer):
         self.mmd_kernel = _resolve_mmd_kernel(mmd_kernel)
         self.lambda_energy = float(lambda_energy)
         self.lambda_quantile = float(lambda_quantile)
+        self.quantile_mode = str(quantile_mode).strip().lower()
         self.beta = tf.Variable(
             self.beta_init, trainable=False, dtype=tf.float32, name="beta",
         )
@@ -725,7 +749,12 @@ class CondPriorVAELoss(layers.Layer):
                 self.energy_loss_tracker.update_state(energy)
                 total = total + self.lambda_energy * energy
             if self.lambda_quantile > 0.0:
-                qw = quantile_residual_distance_tf(r_real, r_gen)
+                if (self.quantile_mode == "standardized"
+                        and self.decoder_distribution == "mdn"):
+                    _std = _mdn_std(logits, comp_mean, comp_log_var)
+                    qw = quantile_residual_distance_std_tf(r_real, r_gen, _std)
+                else:
+                    qw = quantile_residual_distance_tf(r_real, r_gen)
                 self.quantile_loss_tracker.update_state(qw)
                 total = total + self.lambda_quantile * qw
 
@@ -817,6 +846,7 @@ class CondPriorVAELoss(layers.Layer):
             "mmd_kernel": self.mmd_kernel,
             "lambda_energy": self.lambda_energy,
             "lambda_quantile": self.lambda_quantile,
+            "quantile_mode": self.quantile_mode,
         })
         return cfg
 

@@ -525,6 +525,7 @@ def build_seq_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
     mmd_kernel = str(cfg.get("mmd_kernel", "rbf"))
     lambda_energy = float(cfg.get("lambda_energy", 0.0))
     lambda_quantile = float(cfg.get("lambda_quantile", 0.0))
+    quantile_mode = str(cfg.get("quantile_mode", "pooled"))
     decoder_distribution = str(cfg.get("decoder_distribution", "gaussian"))
     mdn_components = int(cfg.get("mdn_components", 1))
     loss_layer = CondPriorVAELoss(
@@ -544,6 +545,7 @@ def build_seq_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
         mmd_kernel=mmd_kernel,
         lambda_energy=lambda_energy,
         lambda_quantile=lambda_quantile,
+        quantile_mode=quantile_mode,
         decoder_distribution=decoder_distribution,
         mdn_components=mdn_components,
         name="condprior_loss",

@@ -12,16 +12,34 @@ import pandas as pd
 from src.evaluation.stat_tests import benjamini_hochberg
 
 
+# V3-recalibrated ruler (2026-06-13), adopted as the official engineering ruler.
+# Derived by calibrate_twin_gate_thresholds.py on the V3 pool (positive=good-basin
+# runs' pass regimes; envelope ×1.10). It is TIGHTER than the old loose ruler in
+# every gate, yet the champion hybrid stays 9/12 (ruler-robust); it only sharpens
+# the rejection of bad-basin runs (S39B 2→0). Old loose ruler kept here for
+# provenance: evm .10 / snr .10 / sigma .10 / cov .20 / psd .25 / skew .30 /
+# kurt 1.25 / jb .20. See TESE/06_validacao_do_gemeo/auditoria_de_gates_e_regua_v3.
 TWIN_GATE_THRESHOLDS = {
-    "rel_evm_error": 0.10,
-    "rel_snr_error": 0.10,
-    "mean_rel_sigma": 0.10,
-    "cov_rel_var": 0.20,
-    "delta_psd_l2": 0.25,
-    "delta_skew_l2": 0.30,
-    "delta_kurt_l2": 1.25,
-    "delta_jb_stat_rel": 0.20,
+    "rel_evm_error": 0.036,
+    "rel_snr_error": 0.027,
+    "mean_rel_sigma": 0.040,
+    "cov_rel_var": 0.110,
+    "delta_psd_l2": 0.057,
+    "delta_skew_l2": 0.049,
+    "delta_kurt_l2": 0.150,
+    "delta_jb_stat_rel": 0.200,
     "stat_qval": 0.05,
+}
+
+# Promoted auxiliary gates (2026-06-16). Computed and reported; gate_hetero and
+# gate_acf are full gates (data present in summary). gate_coverage is the
+# e2e-proxy primary metric but coverage_95 is not yet plumbed into the summary
+# CSV (it lives in metricas_globais_reanalysis.json) — the gate activates
+# automatically once a `coverage_95` column is present.
+PROMOTED_GATE_THRESHOLDS = {
+    "abs_delta_rho_hetero": 0.10,   # |rho_pred - rho_real| — signal-dependent noise law
+    "delta_acf_l2": 0.10,           # temporal ACF beyond PSD (deferred G7)
+    "abs_coverage_95_err": 0.05,    # |coverage_95 - 0.95| — conditional-density calibration (e2e)
 }
 
 
@@ -147,7 +165,10 @@ SUMMARY_BY_REGIME_COLUMNS: List[str] = [
     "gate_g4",
     "gate_g5",
     "gate_g6",
+    "gate_hetero",
+    "gate_acf",
     "stat_screen_pass",
+    "validation_status_e2e",
     "validation_status",
     "validation_status_twin",
     "validation_status_full",
@@ -788,8 +809,34 @@ def _apply_derived_metrics(df: pd.DataFrame) -> None:
         for mmd_pass, energy_pass in zip(mmd_ok, energy_ok)
     ]
     df["stat_screen_pass"] = df["gate_g6"]
+
+    # Promoted auxiliary gates (2026-06-16).
+    df["gate_hetero"] = [
+        _lt(abs(p - r), PROMOTED_GATE_THRESHOLDS["abs_delta_rho_hetero"])
+        for p, r in zip(df["cvae_rho_hetero_pred"], df["cvae_rho_hetero_real"])
+    ]
+    if "cvae_delta_acf_l2" in df.columns:
+        df["gate_acf"] = [_lt(v, PROMOTED_GATE_THRESHOLDS["delta_acf_l2"]) for v in df["cvae_delta_acf_l2"]]
+    # gate_coverage: e2e-proxy primary metric; activates when coverage_95 is
+    # plumbed into the summary. Until then the column is absent (not False).
+    if "coverage_95" in df.columns:
+        df["gate_coverage"] = [
+            _lt(abs(float(v) - 0.95), PROMOTED_GATE_THRESHOLDS["abs_coverage_95_err"])
+            for v in df["coverage_95"]
+        ]
+
     df["validation_status_twin"] = df.apply(_validation_status, axis=1)
     df["validation_status_full"] = df.apply(_validation_status_full, axis=1)
+    # e2e-proxy validation: twin (G1-G5) AND conditional-density calibration
+    # (coverage). Coverage is the metric that guards proxy use; when it is not
+    # yet plumbed, this falls back to the twin status.
+    if "gate_coverage" in df.columns:
+        df["validation_status_e2e"] = [
+            "pass" if (t == "pass" and bool(c)) else "fail"
+            for t, c in zip(df["validation_status_twin"], df["gate_coverage"])
+        ]
+    else:
+        df["validation_status_e2e"] = df["validation_status_twin"]
     # Legacy column keeps the main twin semantics (G1..G5), matching the
     # canonical FULLSQUARE methodology; G6 is reported via stat_screen_pass
     # and the conservative validation_status_full.
