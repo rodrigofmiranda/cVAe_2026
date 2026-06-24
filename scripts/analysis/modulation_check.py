@@ -3,8 +3,8 @@
 
 Loads the saved channel twin ONCE, generates a stochastic Y_twin ~ p(y|x,d,c)
 for each QAM regime (one realisation, with noise — comparable to the single real
-measurement), and reports BER/EVM real-vs-twin plus a constellation overlay
-image. Memory-light: model held once, one capped regime at a time. Avoids the
+measurement), and reports BER/EVM real-vs-twin plus a matched-AWGN baseline.
+Memory-light: model held once, one capped regime at a time. Avoids the
 heavy per-regime eval (dashboard/stat/reanalysis) that OOM'd.
 
 Scientific intent: the channel is physical (Hammerstein), independent of the
@@ -72,7 +72,6 @@ def main():
 
     np.random.seed(args.seed); tf.random.set_seed(args.seed)
     os.makedirs(args.out, exist_ok=True)
-    os.makedirs(os.path.join(args.out, "overlays"), exist_ok=True)
 
     model_path = os.path.join(args.model, "models", "best_model_full.keras")
     vae = load_seq_model(model_path)
@@ -106,27 +105,30 @@ def main():
                               Cn.reshape(-1, 1).astype(np.float32)], batch_size=16384, verbose=0)
             Yt = np.asarray(Yt)[:, :2].astype(np.float32)
             br = qam_ber(X, Yr); bt = qam_ber(X, Yt)
+
+            # Matched AWGN
+            from scripts.analysis.compute_ber import equalize_axis
+            a_I = equalize_axis(X[:, 0], Yr[:, 0])
+            a_Q = equalize_axis(X[:, 1], Yr[:, 1])
+            err_I = a_I * Yr[:, 0] - X[:, 0]
+            err_Q = a_Q * Yr[:, 1] - X[:, 1]
+            # Reproducible noise generation per regime
+            rng_reg = np.random.default_rng(args.seed + int(round(d * 100)) + c)
+            noise_I = rng_reg.normal(0.0, np.std(err_I), len(X))
+            noise_Q = rng_reg.normal(0.0, np.std(err_Q), len(X))
+            Ya = np.column_stack([X[:, 0] + noise_I, X[:, 1] + noise_Q]).astype(np.float32)
+            ba = qam_ber(X, Ya)
+
             row = {"label": args.label, "modulation": args.modulation.split("_")[0],
                    "dist_m": d, "curr_mA": c, "n": len(X),
                    "ber_real": round(br["ber"], 5), "ber_twin": round(bt["ber"], 5),
+                   "ber_awgn": round(ba["ber"], 5),
                    "ber_abs_err": round(abs(br["ber"] - bt["ber"]), 5),
                    "evm_real_pct": round(_evm(X, Yr), 3), "evm_twin_pct": round(_evm(X, Yt), 3)}
             rows.append(row)
-            print(f"  {ds}m/{c}mA: BER real={row['ber_real']:.4f} twin={row['ber_twin']:.4f} "
+            print(f"  {ds}m/{c}mA: BER real={row['ber_real']:.5f} twin={row['ber_twin']:.5f} awgn={row['ber_awgn']:.5f} "
                   f"| EVM real={row['evm_real_pct']:.1f}% twin={row['evm_twin_pct']:.1f}%")
-
-            # overlay: real vs twin constellation (subsample for plot)
-            s = np.random.default_rng(0).choice(len(X), size=min(4000, len(X)), replace=False)
-            fig, ax = plt.subplots(1, 2, figsize=(9, 4.4), sharex=True, sharey=True)
-            ax[0].plot(Yr[s, 0], Yr[s, 1], ".", ms=1, alpha=.3, color="#1f77b4")
-            ax[0].set_title(f"{row['modulation']} REAL — {ds}m/{c}mA\nBER={row['ber_real']:.4f}")
-            ax[1].plot(Yt[s, 0], Yt[s, 1], ".", ms=1, alpha=.3, color="#d62728")
-            ax[1].set_title(f"cVAE {args.label} twin\nBER={row['ber_twin']:.4f}")
-            for a in ax: a.set_aspect("equal"); a.grid(alpha=.2)
-            plt.tight_layout()
-            plt.savefig(os.path.join(args.out, "overlays", f"{row['modulation']}_{ds}m_{c}mA_{args.label}.png"), dpi=110)
-            plt.close()
-            del X, Yr, Xw, Yt
+            del X, Yr, Xw, Yt, Ya
 
     if rows:
         with open(os.path.join(args.out, f"ber_table_{args.label}_{rows[0]['modulation']}.csv"), "w", newline="") as f:

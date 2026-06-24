@@ -1,0 +1,8 @@
+label,dist_m,curr_mA,seen,input_whiteness,xcorr_l2_I,peak_lag_err_I,xcorr_l2_Q,peak_lag_err_Q
+FC,0.75,500,treinada,0.0043,0.00072,0,0.0008,0
+FC,0.9,500,NAO-vista,0.0039,0.00102,0,0.00109,0
+FC,1.0,500,treinada,0.0034,0.0014,0,0.0014,0
+FC,1.16,500,NAO-vista,0.0038,0.00215,0,0.00208,0
+FC,1.25,500,NAO-vista,0.004,0.00265,0,0.00271,0
+FC,1.35,500,treinada,0.004,0.0035,0,0.00346,0
+FC,1.5,500,treinada,0.004,0.00487,0,0.00482,0

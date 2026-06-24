@@ -4491,6 +4491,140 @@ def _preset_v3_g6_aligned() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_v3_g6_aligned_s35c_gauss() -> List[Dict[str, Any]]:
+    """E1: GAUSSIAN-decoder retrain, two arms (light control + heavy capacity).
+
+    Tests the macro-diagnostic verdict (comparison_v3/macro_diagnostics): the
+    per-regime real residual is ~Gaussian and ~homoscedastic (variance budget
+    ~85% linear gain / ~0% nonlinear / ~15% Gaussian noise, kurt_nl~=0), so MDN
+    tail capacity should be redundant. Two arms (run both with regex
+    ``--grid_tag GAUSS_e1``):
+
+      * ``..._light_...`` — byte-identical to ``_preset_v3_g6_aligned_s35c``
+        except decoder MDN(3)->gaussian. Clean control: "is MDN redundant on
+        the V3 light net?"
+      * ``..._heavy_...`` — Eduardo's proven heavy backbone (W9/h128/2 layers/
+        [192,384,768]/batch16384/lr8e-5/beta0.0015/patience120/cond96x3, the
+        S39B-family recipe that saturates the GPU) + the V3 s35c distributional
+        loss + gaussian decoder. Tests "does the V3 line underperform because
+        the light net lacks conditional-mean capacity?" (the diagnostic's
+        Problem A/B lever, and why eduardo's runs hit ~100% GPU util).
+    """
+    analysis_quick_overrides = {
+        "train_regime_diagnostics_enabled": True,
+        "train_regime_diagnostics_every": 10,
+        "train_regime_diagnostics_mc_samples": 4,
+        "train_regime_diagnostics_max_samples_per_regime": 4096,
+        "train_regime_diagnostics_amplitude_bins": 4,
+        "train_regime_diagnostics_focus_only_0p8m": False,
+        "mini_reanalysis_enabled": True,
+        "mini_reanalysis_scope": "all12",
+        "mini_reanalysis_max_samples_per_regime": 4096,
+        "grid_ranking_mode": "mini_protocol_v1",
+        "batch_infer": 16384,
+    }
+    # Shared V3 G6-aligned distributional loss (s35c)
+    _loss = dict(
+        lambda_mmd=0.5,
+        mmd_mode="sampled_residual",
+        mmd_kernel="multibw",
+        lambda_energy=0.5,
+        lambda_axis=0.01,
+        lambda_psd=0.0,
+        lambda_coverage=0.25,
+        coverage_levels=[0.50, 0.80, 0.95],
+        tail_levels=[0.05, 0.95],
+        coverage_temperature=0.03,
+        lambda_kurt=0.0,
+        decoder_distribution="gaussian",
+        mdn_components=1,
+        free_bits=0.10,
+        window_stride=1,
+        window_pad_mode="edge",
+        seq_bidirectional=True,
+        seq_gru_unroll=False,
+        shuffle_train_batches=True,
+    )
+    # Light arm: exact s35c backbone/training (only decoder differs from champion)
+    _light = dict(
+        _loss,
+        arch_variant="seq_bigru_residual",
+        layer_sizes=[128, 256, 512],
+        latent_dim=8,
+        beta=0.002,
+        lr=2e-4,
+        batch_size=8192,
+        kl_anneal_epochs=80,
+        window_size=7,
+        seq_hidden_size=64,
+        seq_num_layers=1,
+        cond_embed_dim=64,
+        cond_embed_layers=2,
+        cond_embed_residual=False,
+        patience=80,
+    )
+    # Heavy arm: Eduardo's S39B-family heavy backbone + V3 loss + gaussian decoder
+    _heavy = dict(
+        _loss,
+        arch_variant="seq_bigru_residual",
+        layer_sizes=[192, 384, 768],
+        latent_dim=8,
+        beta=0.0015,
+        lr=8e-5,
+        batch_size=16384,
+        kl_anneal_epochs=80,
+        window_size=9,
+        seq_hidden_size=128,
+        seq_num_layers=2,
+        cond_embed_dim=96,
+        cond_embed_layers=3,
+        cond_embed_residual=True,
+        patience=120,
+    )
+    return [
+        dict(
+            group="V3G6_aligned_s35c_gauss_e1",
+            tag="S35CG6A_GAUSS_e1_light_lmmd05_le05",
+            cfg=_cfg(**_light),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+        dict(
+            group="V3G6_aligned_s35c_gauss_e1",
+            tag="S35CG6A_GAUSS_e1_heavy_lmmd05_le05",
+            cfg=_cfg(**_heavy),
+            analysis_quick_overrides=analysis_quick_overrides,
+        ),
+    ]
+
+
+def _preset_v3_g6_aligned_s35c_gauss_relloss() -> List[Dict[str, Any]]:
+    """E3 / Fix A1: s35c gaussian LIGHT arm + relative-error loss term.
+
+    Byte-identical to the LIGHT arm of ``_preset_v3_g6_aligned_s35c_gauss``
+    except it sets ``lambda_rel > 0`` — the per-sample relative reconstruction
+    error (``src/models/losses.relative_reconstruction_loss``), normalised by
+    signal power and aligned with the G1 relative-EVM gate. Targets the
+    near-field 0.75 m relative-precision failure (REDESIGN_PLAN Problem A).
+    Run with 2 seeds to separate the A1 effect from the non-deterministic basin
+    draw. Single light arm (no heavy) to keep the run cheap.
+    """
+    LAMBDA_REL = 7.0
+    light = next(
+        d for d in _preset_v3_g6_aligned_s35c_gauss() if "_light_" in d["tag"]
+    )
+    cfg = dict(light["cfg"])
+    cfg["lambda_rel"] = LAMBDA_REL
+    lrel_tag = str(LAMBDA_REL).replace(".", "p")
+    return [
+        dict(
+            group="V3G6_aligned_s35c_gauss_relA1",
+            tag=f"S35CG6A_GAUSS_relA1_lrel{lrel_tag}",
+            cfg=cfg,
+            analysis_quick_overrides=light["analysis_quick_overrides"],
+        ),
+    ]
+
+
 def _preset_v3_g6_aligned_s35c() -> List[Dict[str, Any]]:
     """G6-aligned loss on the S35C backbone (V3 reduced-campaign hybrid).
 
@@ -5315,6 +5449,10 @@ def select_grid(
             grid = _preset_v3_g6_aligned()
         elif preset_name == "v3_g6_aligned_s35c":
             grid = _preset_v3_g6_aligned_s35c()
+        elif preset_name == "v3_g6_aligned_s35c_gauss":
+            grid = _preset_v3_g6_aligned_s35c_gauss()
+        elif preset_name == "v3_g6_aligned_s35c_gauss_relloss":
+            grid = _preset_v3_g6_aligned_s35c_gauss_relloss()
         elif preset_name == "twin_sweep":
             grid = _preset_twin_sweep()
         elif preset_name == "best_compare_large":

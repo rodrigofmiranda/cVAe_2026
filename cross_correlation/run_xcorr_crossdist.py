@@ -109,24 +109,56 @@ def main():
         with open(os.path.join(args.out, f"xcorr_table_{args.label}.csv"), "w", newline="") as f:
             w = csv.DictWriter(f, fieldnames=list(rows[0].keys())); w.writeheader(); w.writerows(rows)
 
-    # figure: R_xy real vs twin per distance (axis I), unseen highlighted
+    # figure: R_xy real vs twin per distance (axis I), unseen highlighted, plus residual error
     if curves:
         lags = np.arange(-L, L + 1)
         nd = len(curves)
-        fig, axes = plt.subplots(1, nd, figsize=(2.6 * nd, 3.2), sharey=True)
-        if nd == 1: axes = [axes]
-        for axp, d in zip(axes, sorted(curves)):
+        fig, axes = plt.subplots(2, nd, figsize=(2.6 * nd, 5.8), sharex=True)
+        if nd == 1:
+            axes = np.expand_dims(axes, axis=1)
+
+        # Row 1: R_xy curves
+        for col, d in enumerate(sorted(curves)):
             rr, rt, seen = curves[d]
+            axp = axes[0, col]
             axp.plot(lags, rr, color="#1f77b4", lw=1.5, label="real")
             axp.plot(lags, rt, color="#d62728", lw=1.2, ls="--", label="twin")
             ttl = f"{d:g} m" + ("  (NAO-vista)" if seen != "treinada" else "")
-            axp.set_title(ttl, fontsize=9, color=("#b00" if seen != "treinada" else "k"))
-            axp.grid(alpha=.2); axp.set_xlabel("lag")
-        axes[0].set_ylabel("R_xy(τ)"); axes[0].legend(fontsize=8)
-        plt.suptitle(f"Cross-correlation entrada-saida R_xy(τ) — {args.label} (real vs twin)\n"
-                     f"twin reproduz a resposta linear do canal?", fontsize=11)
-        plt.tight_layout(rect=[0, 0, 1, 0.9])
-        plt.savefig(os.path.join(args.out, f"xcorr_curves_{args.label}.png"), dpi=120)
+            axp.set_title(ttl, fontsize=9.5, fontweight="bold", color=("#b00" if seen != "treinada" else "k"))
+            axp.grid(alpha=.2)
+            if col == 0:
+                axp.set_ylabel("R_xy(τ)", fontsize=10, fontweight="bold")
+                axp.legend(fontsize=8)
+
+        # Row 2: Residual error (Real - Twin)
+        error_axes = axes[1, :]
+        for col, d in enumerate(sorted(curves)):
+            rr, rt, seen = curves[d]
+            axp = error_axes[col]
+            err = rr - rt
+            axp.plot(lags, err, color="#e36209", lw=1.2, label="erro")
+            axp.axhline(0.0, color="#6a737d", lw=0.8, ls=":")
+            axp.grid(alpha=.2)
+            axp.set_xlabel("lag", fontsize=9)
+            if col == 0:
+                axp.set_ylabel("Erro (Real - Twin)", fontsize=10, fontweight="bold")
+            # Show L2 value in panel
+            l2_val = np.sqrt(np.mean(err**2))
+            axp.text(0.05, 0.08, f"L2: {l2_val:.5f}", transform=axp.transAxes,
+                     fontsize=8.5, color="#586069", fontweight="bold",
+                     bbox=dict(facecolor="#f6f8fa", alpha=0.8, edgecolor="none"))
+
+        # Set shared y-limit for the error subplots so their amplitudes are comparable
+        max_err = max(np.max(np.abs(curves[d][0] - curves[d][1])) for d in curves)
+        ylim = max(1.15 * max_err, 0.002)
+        for axp in error_axes:
+            axp.set_ylim(-ylim, ylim)
+
+        plt.suptitle(f"Cross-correlation entrada-saída R_xy(τ) e Erro Residual — {args.label}\n"
+                     f"twin reproduz a resposta linear; o erro cresce de forma contínua com a distância",
+                     fontsize=12, fontweight="bold", y=0.98)
+        plt.tight_layout(rect=[0, 0, 1, 0.94])
+        plt.savefig(os.path.join(args.out, f"xcorr_curves_{args.label}.png"), dpi=130)
         plt.close()
     print(f"\nescrito: {args.out} ({len(rows)} regimes)")
 

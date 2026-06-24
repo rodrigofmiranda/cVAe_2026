@@ -525,6 +525,7 @@ def build_seq_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
     mmd_kernel = str(cfg.get("mmd_kernel", "rbf"))
     lambda_energy = float(cfg.get("lambda_energy", 0.0))
     lambda_quantile = float(cfg.get("lambda_quantile", 0.0))
+    lambda_rel = float(cfg.get("lambda_rel", 0.0))
     quantile_mode = str(cfg.get("quantile_mode", "pooled"))
     decoder_distribution = str(cfg.get("decoder_distribution", "gaussian"))
     mdn_components = int(cfg.get("mdn_components", 1))
@@ -545,13 +546,14 @@ def build_seq_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
         mmd_kernel=mmd_kernel,
         lambda_energy=lambda_energy,
         lambda_quantile=lambda_quantile,
+        lambda_rel=lambda_rel,
         quantile_mode=quantile_mode,
         decoder_distribution=decoder_distribution,
         mdn_components=mdn_components,
         name="condprior_loss",
     )
     loss_inputs = [y_in, out_params, z_mean_q, z_log_var_q, z_mean_p, z_log_var_p]
-    if any(v > 0.0 for v in (lambda_mmd, lambda_energy, lambda_quantile, lambda_axis, lambda_psd, lambda_coverage, lambda_kurt)):
+    if any(v > 0.0 for v in (lambda_mmd, lambda_energy, lambda_quantile, lambda_rel, lambda_axis, lambda_psd, lambda_coverage, lambda_kurt)):
         loss_inputs.append(x_center)
     y_mean_out = loss_layer(loss_inputs)
 

@@ -71,12 +71,15 @@ def main():
     ap.add_argument("--right-label", default="R")
     ap.add_argument("--out", required=True, help="output prefix (writes .csv and .png)")
     ap.add_argument("--unseen", default="", help="comma distances tinted as inference targets")
+    ap.add_argument("--filter-dists", default="", help="comma distances to INCLUDE (omit = all)")
     ap.add_argument("--title", default=None)
     args = ap.parse_args()
 
     unseen = {float(x) for x in args.unseen.split(",") if x.strip()}
+    filter_dists = {float(x) for x in args.filter_dists.split(",") if x.strip()}
     L, R = _load(args.left), _load(args.right)
-    keys = sorted(set(L) | set(R))
+    all_keys = sorted(set(L) | set(R))
+    keys = [k for k in all_keys if not filter_dists or k[0] in filter_dists]
     Ll, Rl = args.left_label, args.right_label
 
     # CSV

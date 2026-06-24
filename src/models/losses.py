@@ -67,6 +67,42 @@ def reconstruction_loss(
     return tf.reduce_mean(nll)
 
 
+def relative_reconstruction_loss(
+    y_true: tf.Tensor,
+    y_mean: tf.Tensor,
+    x_center: tf.Tensor,
+    eps: float = 1e-6,
+) -> tf.Tensor:
+    """Batch-normalised relative reconstruction error (EVM²) of the mean.
+
+    Equals total mean-error power over total signal power across the batch —
+    i.e. EVM². NORMALISING by the batch-aggregate signal power (not per-sample)
+    avoids the numerical blow-up of ``1/‖x‖²`` when an individual centred sample
+    is near zero, while still giving high-SNR / small-residual regimes (e.g.
+    near-field 0.75 m) gradient proportional to their *relative* — not
+    absolute — error. Targets the G1/G3 gates (relative EVM, mean/dispersion
+    rel. to scale), which the cross-champion macro showed are the universal
+    failing gates. Complements the heteroscedastic NLL.
+
+    Parameters
+    ----------
+    y_true   : (N, 2)
+    y_mean   : (N, 2) — decoder conditional mean.
+    x_center : (N, 2) — centred input signal (batch signal scale).
+    eps      : floor on the signal power denominator.
+
+    Returns
+    -------
+    scalar Tensor — batch EVM = sqrt(mean(‖y−μ‖²) / mean(‖x‖²)). The sqrt keeps
+    the term in a narrow ~14x range across training (init→converged) so a single
+    ``lambda_rel`` calibrates well, and gives stronger relative gradient as the
+    error shrinks (the near-field high-SNR target).
+    """
+    err2 = tf.reduce_mean(tf.reduce_sum(tf.square(y_true - y_mean), axis=-1))
+    sig2 = tf.reduce_mean(tf.reduce_sum(tf.square(x_center), axis=-1))
+    return tf.sqrt(err2 / (sig2 + eps) + 1e-8)
+
+
 def kl_divergence(
     z_mean_q: tf.Tensor,
     z_log_var_q: tf.Tensor,
@@ -641,6 +677,7 @@ class CondPriorVAELoss(layers.Layer):
         mmd_kernel: str = "rbf",
         lambda_energy: float = 0.0,
         lambda_quantile: float = 0.0,
+        lambda_rel: float = 0.0,
         quantile_mode: str = "pooled",
         **kwargs,
     ):
@@ -665,6 +702,7 @@ class CondPriorVAELoss(layers.Layer):
         self.mmd_kernel = _resolve_mmd_kernel(mmd_kernel)
         self.lambda_energy = float(lambda_energy)
         self.lambda_quantile = float(lambda_quantile)
+        self.lambda_rel = float(lambda_rel)
         self.quantile_mode = str(quantile_mode).strip().lower()
         self.beta = tf.Variable(
             self.beta_init, trainable=False, dtype=tf.float32, name="beta",
@@ -677,6 +715,8 @@ class CondPriorVAELoss(layers.Layer):
             self.energy_loss_tracker = tf.keras.metrics.Mean(name="energy_loss")
         if self.lambda_quantile > 0.0:
             self.quantile_loss_tracker = tf.keras.metrics.Mean(name="quantile_loss")
+        if self.lambda_rel > 0.0:
+            self.rel_loss_tracker = tf.keras.metrics.Mean(name="rel_loss")
         if self.lambda_axis > 0.0:
             self.axis_loss_tracker = tf.keras.metrics.Mean(name="axis_loss")
         if self.lambda_psd > 0.0:
@@ -724,6 +764,11 @@ class CondPriorVAELoss(layers.Layer):
         kl = tf.reduce_mean(kl_fb)
 
         total = compute_total_loss(recon, kl, self.beta)
+
+        if self.lambda_rel > 0.0 and x_center is not None:
+            rel = relative_reconstruction_loss(y_true, y_mean, x_center)
+            self.rel_loss_tracker.update_state(rel)
+            total = total + self.lambda_rel * rel
 
         if (
             self.lambda_mmd > 0.0
@@ -813,6 +858,8 @@ class CondPriorVAELoss(layers.Layer):
             m.append(self.energy_loss_tracker)
         if self.lambda_quantile > 0.0:
             m.append(self.quantile_loss_tracker)
+        if self.lambda_rel > 0.0:
+            m.append(self.rel_loss_tracker)
         if self.lambda_axis > 0.0:
             m.append(self.axis_loss_tracker)
         if self.lambda_psd > 0.0:
@@ -846,6 +893,7 @@ class CondPriorVAELoss(layers.Layer):
             "mmd_kernel": self.mmd_kernel,
             "lambda_energy": self.lambda_energy,
             "lambda_quantile": self.lambda_quantile,
+            "lambda_rel": self.lambda_rel,
             "quantile_mode": self.quantile_mode,
         })
         return cfg
