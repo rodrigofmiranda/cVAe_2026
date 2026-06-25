@@ -19,12 +19,20 @@ from pathlib import Path
 
 OUTPUTS = Path("/home/rodrigo/cVAe_2026_full_square_v3det/outputs")
 
-# FC-line near-champions (user pick). name -> summary_by_regime.csv
-CHAMPIONS = {
+# All available near-champions w/ eval63 + per-regime gates. name -> summary_by_regime.csv
+_PATHS = {
     "base_FC_mdn":    OUTPUTS / "v3fc_crossdist_20260613/exp_20260614_144009/tables/summary_by_regime.csv",
+    "base_FS_mdn":    OUTPUTS / "v3fs_crossdist_20260613/exp_20260614_143056/tables/summary_by_regime.csv",
     "E1_light_gauss": OUTPUTS / "v3fc_e1light_eval63_20260624/exp_20260624_032850/tables/summary_by_regime.csv",
     "E1_heavy_gauss": OUTPUTS / "v3fc_e1gauss_20260617/exp_20260618_054004/tables/summary_by_regime.csv",
     "seed7_gauss":    OUTPUTS / "v3fc_e1gauss_seed7_full_20260617/exp_20260618_175253/tables/summary_by_regime.csv",
+    "E2_densified":   OUTPUTS / "v3fc_e2gauss_20260620/exp_20260621_064919/tables/summary_by_regime.csv",
+}
+# Named sets (--set). E2 = NEGATIVE control (regressed 12/63), não é campeão; FS = contraste de geometria.
+CHAMPION_SETS = {
+    "fc_line": ["base_FC_mdn", "E1_light_gauss", "E1_heavy_gauss", "seed7_gauss"],
+    "good5":   ["base_FC_mdn", "base_FS_mdn", "E1_light_gauss", "E1_heavy_gauss", "seed7_gauss"],
+    "all":     ["base_FC_mdn", "base_FS_mdn", "E1_light_gauss", "E1_heavy_gauss", "seed7_gauss", "E2_densified"],
 }
 GATES = ["gate_g1", "gate_g2", "gate_g3", "gate_g4", "gate_g5", "gate_g6", "stat_screen_pass"]
 
@@ -59,10 +67,12 @@ def _load(path: Path) -> dict:
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--set", default="fc_line", choices=list(CHAMPION_SETS))
     ap.add_argument("--out-dir", default=None)
     args = ap.parse_args()
+    CHAMPIONS = {n: _PATHS[n] for n in CHAMPION_SETS[args.set]}
     stamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
-    out_dir = Path(args.out_dir or f"/home/rodrigo/comparison_v3/macro_diagnostics/runs/{stamp}_champion_set")
+    out_dir = Path(args.out_dir or f"/home/rodrigo/comparison_v3/macro_diagnostics/runs/{stamp}_champion_set_{args.set}")
     out_dir.mkdir(parents=True, exist_ok=True)
 
     data = {name: _load(p) for name, p in CHAMPIONS.items()}
@@ -116,7 +126,7 @@ def main():
 
     # ---- REPORT ----
     lines = []
-    lines.append("# Comparação Macro Cross-Champion — FC-line near-champions\n")
+    lines.append(f"# Comparação Macro Cross-Champion — set '{args.set}'\n")
     lines.append(f"Gerado: {stamp} UTC · fonte: `summary_by_regime.csv` (coluna `validation_status`, régua V3 twin).\n")
     lines.append(f"Modelos ({N}): " + ", ".join(f"`{n}`" for n in names) + ".")
     if missing:
