@@ -162,12 +162,23 @@
     as 4. δ=0.1 (d é **min-max [0,1]** com D_min=0.75/D_max=1.5; não-vistas em 0.2/0.547/0.667).
     Preset `v3_g6_aligned_s35c_gauss_smoothloss` (tag `smoothB3`, λ_smooth=100, bem-escalado vs aux).
     **Smoke OK (06-26)**: monta, smooth_loss engata (contrib 0.0074), **save+reload do modelo full +
-    inference OK** (serialização das layers novas). **ENFILEIRADO** atrás do A4 seed7
-    (`launch_v3fc_b3smooth.sh`, 2 seeds). Mira G3 em 1.16/1.25m. **Aposta**: o modelo decora 4 âncoras;
-    suavidade pode levar ao valor certo (física: ganho suave/monótono) OU a um suave-mas-errado.
+    inference OK** (serialização das layers novas). **RODANDO** (seed33, 06-26, val_recon −4.19 rumo à
+    bacia boa, sem instabilidade) — `launch_v3fc_b3smooth.sh`, 2 seeds. Mira G3 em 1.16/1.25m. **Teto
+    realista ~40/63** (só os não-vistos PERTO; 0.9m+0.75m seguem difíceis). **Sinal amarelo**: no treino
+    real o `smooth_loss` é minúsculo (~5e-6) → a curvatura de μ(d) já é naturalmente baixa; se o modelo
+    já interpola "suave mas errado", o prior tem pouco o que empurrar — o eval63 dirá. Watcher detached
+    (`watch_b3_seed33.sh`) avisa o veredito por ntfy. **Aposta**: suavidade leva ao valor certo (física:
+    ganho suave/monótono) OU a um suave-mas-errado. Próximo macro = sobre o B3 SE bater o baseline.
   - A2, A3, B2 = NÃO feitos (B2 re-espaçar = fallback se B3 não bastar; B1=E2 já regrediu).
-- **Pipeline macro**: `comparison_v3/macro_diagnostics/` (7 camadas, `--fast`/`--full`);
-  `champion_set_compare.py` compara N campeões. Re-rodar após cada treino.
+- **Pipeline macro**: `comparison_v3/macro_diagnostics/` (7 camadas, `--fast`/`--full`/`--regen-upstream`).
+  **REORGANIZADO 06-26 → runs AUTO-CONTIDOS**: cada run = UMA pasta `runs/<stamp>__<label>/` com
+  `0_census 1_xcorr 2_awgn 3_gates 4_crossdist 5_modulations/` + `REPORT.md` (seção "Figuras" linka
+  tudo). As pastas espalhadas (`awgn/`,`cross_correlation/`,`fs_vs_fc_crossdist/`,`modulations*/`)
+  foram REMOVIDAS; `build_macro_report.py --in-dir` lê o layout N_*/. **Modulações UNIFICADAS**: o
+  modelo não treina em modulação nenhuma (só FC/FS no canal) → SEM split trained/unseen; `5_modulations/`
+  flat, `ber_table` por modulação cobre as 7 distâncias, 1 figura por tipo (`run_modulations.sh` único
+  substitui os 2 `run_modulations_{all,unseen}.sh`). champion_set → `champion_comparisons/`. Run canônico
+  atual = `runs/20260626_161122__fc_fs_base/`. `champion_set_compare.py` compara N campeões.
 - Fontes: REDESIGN_PLAN.md, [[project-macro-diagnostics-pipeline]].
 
 ## 7. Infra / hábitos

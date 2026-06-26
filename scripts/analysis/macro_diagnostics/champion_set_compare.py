@@ -72,7 +72,7 @@ def main():
     args = ap.parse_args()
     CHAMPIONS = {n: _PATHS[n] for n in CHAMPION_SETS[args.set]}
     stamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
-    out_dir = Path(args.out_dir or f"/home/rodrigo/comparison_v3/macro_diagnostics/runs/{stamp}_champion_set_{args.set}")
+    out_dir = Path(args.out_dir or f"/home/rodrigo/comparison_v3/macro_diagnostics/champion_comparisons/{stamp}_champion_set_{args.set}")
     out_dir.mkdir(parents=True, exist_ok=True)
 
     data = {name: _load(p) for name, p in CHAMPIONS.items()}

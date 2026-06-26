@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-# Roda a verificação leve das modulações: FS e FC × 4/16/64-QAM, distâncias
-# treinadas × 9 correntes. Sequencial, container único, RAM-limitado. Copia
-# resultados para comparison_v3/modulations/ e avisa no ntfy.
+# Verificação das modulações (UNIFICADA): FS e FC × 4/16/64-QAM em TODAS as 7
+# distâncias × 9 correntes, num passo só. O modelo NUNCA treina em modulação
+# (o treino é só FC/FS no canal) — modulação é 100% inferência, então não há
+# distinção "treinada/não-vista" para a modulação; a distância é só uma variável.
+# Gera UMA figura por tipo (ber_comparison.png / ber_fidelity.png, + _adaptive).
+# Escreve em comparison_v3/modulations/ (scratch coletado pelo macro) e avisa no ntfy.
 set -u
 REPO=/home/rodrigo/cVAe_2026_full_square_v3det
 WORKDIR=/workspace/2026/feat_seq_bigru_residual_cvae
@@ -32,27 +35,27 @@ docker run --rm --name cvae_modulations \
         echo "===== $LBL × $MOD ====="
         python -u scripts/analysis/modulation_check.py \
           --model "$MODEL" --modulation ${MOD}_2026_V3_ORGANIZED \
-          --dists 0.75,1.0,1.35,1.5 --currents 100,200,300,400,500,600,700,800,900 \
+          --dists 0.75,0.9,1.0,1.16,1.25,1.35,1.5 \
+          --currents 100,200,300,400,500,600,700,800,900 \
           --n-cap 50000 --label $LBL \
           --out outputs/v3_modulations/${LBL}_${MOD} 2>&1 \
           | grep -E "modelo|BER real|escrito|sem dados|Error|Traceback" | grep -vE "ptx85"
       done
     done
 
-    echo "===== Plotting BER Comparison ====="
+    echo "===== Plotting BER Comparison (unificado) ====="
     python3 scripts/analysis/plot_ber_comparison.py \
       --dir outputs/v3_modulations \
-      --out outputs/v3_modulations/ber_comparison_trained.png \
-      --title "Comparação de BER (Real vs cVAE vs AWGN) — Distâncias Treinadas"
+      --out outputs/v3_modulations/ber_comparison.png \
+      --title "Comparação de BER (Real vs cVAE vs AWGN) — todas as distâncias (inferência)"
 
-    echo "===== Plotting BER Fidelity ====="
+    echo "===== Plotting BER Fidelity (unificado) ====="
     python3 scripts/analysis/plot_ber_fidelity.py \
       --dir outputs/v3_modulations \
-      --out outputs/v3_modulations/ber_fidelity_trained.png \
-      --title "Fidelidade de BER (Discrepância Absoluta contra o Real) — Distâncias Treinadas"
-  ' > /home/rodrigo/run_modulations_all.log 2>&1
+      --out outputs/v3_modulations/ber_fidelity.png \
+      --title "Fidelidade de BER (Discrepância Absoluta contra o Real) — todas as distâncias (inferência)"
+  ' > /home/rodrigo/run_modulations.log 2>&1
 
-# copiar para comparison_v3
 cp -r "$REPO/outputs/v3_modulations/." "$DEST/" 2>/dev/null
 N=$(find "$DEST" -name "ber_table_*.csv" 2>/dev/null | wc -l)
-send "📊 Modulações FS/FC × QAM prontas" "comparison_v3/modulations/ — ${N} tabelas BER, gráfico ber_comparison_trained.png gerado."
+send "📊 Modulações FS/FC × QAM (7 distâncias) prontas" "comparison_v3/modulations/ — ${N} tabelas BER, ber_comparison.png unificado."

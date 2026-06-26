@@ -38,6 +38,34 @@ MODELS = ("FC", "FS")
 GATE_COLS = ("G1", "G2", "G3", "G4", "G5", "stat")
 TRAINED_DISTS = (0.75, 1.0, 1.35, 1.5)
 
+# Data-source subdirs relative to ``root``. Default = legacy scattered folders;
+# ``--in-dir`` swaps these to the self-contained per-run layout (N_*/ subfolders),
+# so a single run folder holds AWGN + cross-dist + modulations + everything.
+SRC = {
+    "gates": "fs_vs_fc_crossdist",
+    "awgn": "awgn",
+    "xcorr": "cross_correlation",
+    "mod": ("modulations", "modulations_unseen"),
+    "census": ".",
+}
+SRC_RUN = {
+    "gates": "3_gates",
+    "awgn": "2_awgn",
+    "xcorr": "1_xcorr",
+    # modulações são 100% inferência (o treino é só FC/FS no canal) — sem split trained/unseen
+    "mod": ("5_modulations",),
+    "census": "0_census",
+}
+# Human titles for the self-contained figure index.
+FIG_SECTIONS = (
+    ("0_census", "Camada 0 — Censo / ruído (LED, cauda, decomposição)"),
+    ("1_xcorr", "Camada 1 — Resposta linear (xcorr)"),
+    ("2_awgn", "Camada 2 — AWGN vs cVAE (heterocedasticidade, SNR, radar)"),
+    ("3_gates", "Gates (trained)"),
+    ("4_crossdist", "Inferência em outras distâncias (gates unseen/crossdist)"),
+    ("5_modulations", "Modulações 4/16/64-QAM (BER — inferência, todas as distâncias)"),
+)
+
 
 # --------------------------------------------------------------------------
 # small helpers
@@ -88,7 +116,7 @@ def _minmax_norm(values: dict[Any, float]) -> dict[Any, float]:
 # --------------------------------------------------------------------------
 def parse_gates(root: Path) -> dict[tuple, dict[str, Any]]:
     """Wide gate table -> melt to (model, dist, curr)."""
-    rows = _read_csv(root / "fs_vs_fc_crossdist" / "gates_summary_FS_vs_FC_crossdist.csv")
+    rows = _read_csv(root / SRC["gates"] / "gates_summary_FS_vs_FC_crossdist.csv")
     out: dict[tuple, dict[str, Any]] = {}
     for r in rows:
         dist = _dist_from_label(r.get("distance", ""))
@@ -112,7 +140,7 @@ def parse_metrics(root: Path) -> dict[tuple, dict[str, float]]:
     """awgn/<m>/metrics_table.csv -> distributional fidelity (cvae) + awgn contrast."""
     out: dict[tuple, dict[str, float]] = {}
     for model, sub in (("FC", "fc"), ("FS", "fs")):
-        rows = _read_csv(root / "awgn" / sub / "metrics_table.csv")
+        rows = _read_csv(root / SRC["awgn"] / sub / "metrics_table.csv")
         by_key: dict[tuple, dict[str, dict]] = {}
         for r in rows:
             k = (model, *_key(_f(r.get("dist_m")), _f(r.get("curr_mA"))))
@@ -140,7 +168,7 @@ def parse_shot_noise(root: Path) -> dict[tuple, dict[str, float]]:
     """shot_noise_coefficients_*.csv -> het slope a for real vs cvae."""
     out: dict[tuple, dict[str, float]] = {}
     for model, suffix in (("FC", "FC"), ("FS", "FS")):
-        rows = _read_csv(root / "awgn" / f"shot_noise_coefficients_{suffix}.csv")
+        rows = _read_csv(root / SRC["awgn"] / f"shot_noise_coefficients_{suffix}.csv")
         by_key: dict[tuple, dict[str, float]] = {}
         for r in rows:
             k = (model, *_key(_f(r.get("dist_m")), _f(r.get("curr_mA"))))
@@ -156,7 +184,7 @@ def parse_shot_noise(root: Path) -> dict[tuple, dict[str, float]]:
 def parse_ber(root: Path) -> dict[tuple, dict[str, float]]:
     """All ber_table_*.csv (trained + unseen) -> mean |BER err| + 64QAM err per regime."""
     out: dict[tuple, list[tuple[str, float]]] = {}
-    for folder in ("modulations", "modulations_unseen"):
+    for folder in SRC["mod"]:
         for path in (root / folder).glob("*/ber_table_*.csv"):
             for r in _read_csv(path):
                 model = str(r.get("label", "")).strip().upper()
@@ -179,7 +207,7 @@ def parse_xcorr(root: Path) -> dict[tuple, float]:
     """xcorr_table_*.csv -> linear-response L2 per (model, dist) (curr 500 only)."""
     out: dict[tuple, float] = {}
     for model in MODELS:
-        for r in _read_csv(root / "cross_correlation" / f"xcorr_table_{model}.csv"):
+        for r in _read_csv(root / SRC["xcorr"] / f"xcorr_table_{model}.csv"):
             dist = _f(r.get("dist_m"))
             l2 = max(_f(r.get("xcorr_l2_I"), 0.0), _f(r.get("xcorr_l2_Q"), 0.0))
             out[(model, round(dist, 4))] = l2
@@ -188,7 +216,8 @@ def parse_xcorr(root: Path) -> dict[tuple, float]:
 
 def parse_census(out_dir: Path, root: Path) -> dict[tuple, dict[str, float]]:
     """regime_census.csv (model-free real stats) if it was precomputed."""
-    for cand in (out_dir / "regime_census.csv", root / "macro_diagnostics" / "regime_census.csv"):
+    for cand in (out_dir / "regime_census.csv", out_dir / SRC["census"] / "regime_census.csv",
+                 root / "macro_diagnostics" / "regime_census.csv"):
         rows = _read_csv(cand)
         if rows:
             out: dict[tuple, dict[str, float]] = {}
@@ -306,7 +335,8 @@ def _pass_rate_by(rows: list[dict], model: str, key: str) -> list[tuple[Any, int
     return [(k, sum(v), len(v)) for k, v in sorted(buckets.items())]
 
 
-def write_report(rows: list[dict[str, Any]], sources: dict[str, bool], path: Path) -> None:
+def write_report(rows: list[dict[str, Any]], sources: dict[str, bool], path: Path,
+                 run_dir: Path | None = None) -> None:
     L: list[str] = []
     L.append("# Relatório Macro de Diagnóstico Pós-Modelagem — cVAE V3 (FS & FC)\n")
     L.append(f"Gerado: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}  ")
@@ -464,6 +494,26 @@ def write_report(rows: list[dict[str, Any]], sources: dict[str, bool], path: Pat
     L.append("- **Generalização** (advisory): distâncias não-vistas 0.9/1.16/1.25 m — nunca no treino.\n")
     L.append("> A separação proposta NÃO altera o dataset nem retreina; entrega o mapa + a ação.\n")
 
+    # figuras auto-contidas (layout N_*/) — links relativos ao run folder
+    if run_dir is not None:
+        L.append("## Figuras\n")
+        any_fig = False
+        for sub, title in FIG_SECTIONS:
+            d = run_dir / sub
+            if not d.is_dir():
+                continue
+            pngs = sorted(d.rglob("*.png"))
+            if not pngs:
+                continue
+            any_fig = True
+            L.append(f"### {title}\n")
+            for p in pngs:
+                rel = p.relative_to(run_dir)
+                L.append(f"- [{rel.as_posix()}]({rel.as_posix()})")
+            L.append("")
+        if not any_fig:
+            L.append("_(nenhuma figura coletada neste run)_\n")
+
     path.write_text("\n".join(L), encoding="utf-8")
 
 
@@ -471,19 +521,30 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--root", default=str(COMPARISON_V3), help="comparison_v3 root")
     ap.add_argument("--out-dir", default=None, help="output dir (default: macro_diagnostics/runs/<stamp>)")
+    ap.add_argument("--in-dir", default=None,
+                    help="self-contained run dir (N_*/ layout): read sources from it, "
+                         "write REPORT inside it, and index its figures")
     args = ap.parse_args()
 
-    root = Path(args.root).resolve()
-    if args.out_dir:
-        out_dir = Path(args.out_dir).resolve()
+    run_dir = None
+    if args.in_dir:
+        # self-contained run: everything lives under the run dir in the N_*/ layout
+        SRC.update(SRC_RUN)
+        run_dir = Path(args.in_dir).resolve()
+        root = run_dir
+        out_dir = run_dir
     else:
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        out_dir = root / "macro_diagnostics" / "runs" / stamp
+        root = Path(args.root).resolve()
+        if args.out_dir:
+            out_dir = Path(args.out_dir).resolve()
+        else:
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+            out_dir = root / "macro_diagnostics" / "runs" / stamp
     out_dir.mkdir(parents=True, exist_ok=True)
 
     rows, sources = build_master(root, out_dir)
     write_master_csv(rows, out_dir / "summary_master.csv")
-    write_report(rows, sources, out_dir / "REPORT.md")
+    write_report(rows, sources, out_dir / "REPORT.md", run_dir=run_dir)
     (out_dir / "manifest.json").write_text(json.dumps({
         "generated_utc": datetime.now(timezone.utc).isoformat(),
         "root": str(root), "sources_present": sources,
