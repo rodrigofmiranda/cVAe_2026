@@ -135,6 +135,74 @@ class SliceFeatures(tf.keras.layers.Layer):
         return {**super().get_config(), "start": self.start, "end": self.end}
 
 
+@tf.keras.utils.register_keras_serializable(package="seq_cvae")
+class SmoothProbeDistances(tf.keras.layers.Layer):
+    """Random probe distances for the conditional-smoothness penalty (B3).
+
+    Given any reference tensor (used only for batch shape), returns the triple
+    ``(d_lo, d0, d_hi) = (d0-δ, d0, d0+δ)`` where ``d0 ~ U[δ, 1-δ]`` — one draw
+    per sample, in the **normalised** distance space ``[0,1]`` (min-max over the
+    trained anchors). Probing at random ``d0`` — not at the 4 training anchors —
+    enforces smoothness of ``μ(d)`` across the WHOLE distance axis, including the
+    unseen interpolation midpoints (1.16 m→0.547, 1.25 m→0.667 normalised), which
+    is where the gain bias (G3) lives. Training-only; not used at inference.
+    """
+
+    def __init__(self, delta: float = 0.1, **kwargs):
+        super().__init__(**kwargs)
+        self.delta = float(delta)
+
+    def call(self, ref):
+        b = tf.shape(ref)[0]
+        d0 = tf.random.uniform((b, 1), minval=self.delta, maxval=1.0 - self.delta)
+        return [d0 - self.delta, d0, d0 + self.delta]
+
+    def compute_output_shape(self, input_shape):
+        return [(input_shape[0], 1)] * 3
+
+    def get_config(self):
+        return {**super().get_config(), "delta": self.delta}
+
+
+@tf.keras.utils.register_keras_serializable(package="seq_cvae")
+class ConditionalSmoothnessPenalty(tf.keras.layers.Layer):
+    """Curvature (2nd-difference) penalty on the decoder mean μ(d) wrt distance.
+
+    Inputs: ``[out_params, op_lo, op0, op_hi]`` where ``op_*`` are the decoder
+    outputs at probe distances ``d0±δ`` / ``d0`` (same z, x_center, c). The mean
+    is the first two channels. The penalty is the mean squared second difference
+    ``‖μ(d0+δ) - 2μ(d0) + μ(d0-δ)‖²`` → pushes ``μ(d)`` toward LOW curvature
+    (smooth/≈linear in normalised d), so the conditional gain interpolates
+    between trained anchors instead of overfitting the 4 of them (the cross-dist
+    failure: trained anchors 27/27, unseen midpoints fail G3-mean). The physical
+    prior holds: gain/SNR vary smoothly & monotonically with distance. Returns
+    ``out_params`` unchanged (passthrough) so it stays on the model's output path.
+    """
+
+    def __init__(self, lambda_smooth: float = 0.0, **kwargs):
+        super().__init__(**kwargs)
+        self.lambda_smooth = float(lambda_smooth)
+        self.smooth_loss_tracker = tf.keras.metrics.Mean(name="smooth_loss")
+
+    def call(self, inputs):
+        out_params, op_lo, op0, op_hi = inputs
+        mu_lo = op_lo[:, :2]
+        mu_0 = op0[:, :2]
+        mu_hi = op_hi[:, :2]
+        curv = mu_hi - 2.0 * mu_0 + mu_lo
+        smooth = tf.reduce_mean(tf.reduce_sum(tf.square(curv), axis=-1))
+        self.smooth_loss_tracker.update_state(smooth)
+        self.add_loss(self.lambda_smooth * smooth)
+        return out_params
+
+    @property
+    def metrics(self):
+        return [self.smooth_loss_tracker]
+
+    def get_config(self):
+        return {**super().get_config(), "lambda_smooth": self.lambda_smooth}
+
+
 # ======================================================================
 # Internal helpers
 # ======================================================================
@@ -509,6 +577,21 @@ def build_seq_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
     # Decode: p(y | z, x_center, d, c)
     out_params = decoder([z, x_center, d_in, c_in])
 
+    # Fix B3: conditional-smoothness penalty — curvature of μ(d) at random probe
+    # distances, re-using the (cheap, MLP) decoder. Forces smooth interpolation of
+    # the conditional gain across the distance axis (the unseen midpoints fail
+    # G3-mean even though the trained anchors are 27/27). Training-only term.
+    lambda_smooth = float(cfg.get("lambda_smooth", 0.0))
+    if lambda_smooth > 0.0:
+        smooth_delta_d = float(cfg.get("smooth_delta_d", 0.1))
+        d_lo, d0, d_hi = SmoothProbeDistances(smooth_delta_d, name="smooth_probe_d")(d_in)
+        op_lo = decoder([z, x_center, d_lo, c_in])
+        op0 = decoder([z, x_center, d0, c_in])
+        op_hi = decoder([z, x_center, d_hi, c_in])
+        out_params = ConditionalSmoothnessPenalty(
+            lambda_smooth, name="cond_smooth",
+        )([out_params, op_lo, op0, op_hi])
+
     # KL + reconstruction loss (beta starts at 0 for annealing)
     lambda_mmd = float(cfg.get("lambda_mmd", 0.0))
     lambda_axis = float(cfg.get("lambda_axis", 0.0))
@@ -526,6 +609,7 @@ def build_seq_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
     lambda_energy = float(cfg.get("lambda_energy", 0.0))
     lambda_quantile = float(cfg.get("lambda_quantile", 0.0))
     lambda_rel = float(cfg.get("lambda_rel", 0.0))
+    lambda_het = float(cfg.get("lambda_het", 0.0))
     quantile_mode = str(cfg.get("quantile_mode", "pooled"))
     decoder_distribution = str(cfg.get("decoder_distribution", "gaussian"))
     mdn_components = int(cfg.get("mdn_components", 1))
@@ -547,13 +631,14 @@ def build_seq_cvae(cfg: Dict) -> Tuple[tf.keras.Model, "KLAnnealingCallback"]:
         lambda_energy=lambda_energy,
         lambda_quantile=lambda_quantile,
         lambda_rel=lambda_rel,
+        lambda_het=lambda_het,
         quantile_mode=quantile_mode,
         decoder_distribution=decoder_distribution,
         mdn_components=mdn_components,
         name="condprior_loss",
     )
     loss_inputs = [y_in, out_params, z_mean_q, z_log_var_q, z_mean_p, z_log_var_p]
-    if any(v > 0.0 for v in (lambda_mmd, lambda_energy, lambda_quantile, lambda_rel, lambda_axis, lambda_psd, lambda_coverage, lambda_kurt)):
+    if any(v > 0.0 for v in (lambda_mmd, lambda_energy, lambda_quantile, lambda_rel, lambda_het, lambda_axis, lambda_psd, lambda_coverage, lambda_kurt)):
         loss_inputs.append(x_center)
     y_mean_out = loss_layer(loss_inputs)
 

@@ -37,6 +37,13 @@ precisão** na ponta de alto SNR. Fixes (do mais barato ao mais estrutural):
 - **A1 — loss com peso relativo / normalizado por regime**: penalizar erro
   relativo (não absoluto), para que regimes de alto SNR não sejam afogados pelo
   bulk de baixo SNR. *Barato, primeiro a testar.*
+  > **❌ TESTADO 06-25 — NEGATIVO (reprodutível, 2 seeds).** EVM batch-norm λ=7
+  > (`v3fc_e3relloss_recal_s{33,7}`). O termo engatou e foi minimizado 12×
+  > (rel_loss 0.072→0.0059, val_recon -4.77 bacia boa), mas **0.75 m ficou 0/9** e
+  > o global caiu p/ **29/63** (vs 30/63 do E1 sem o termo). Como a média ficou
+  > mais precisa e os gates não moveram, **o gargalo do 0.75 m é a dispersão/σ, não
+  > a média** (G3 = média *e* dispersão; coverage cov95≈0.77-0.81 = σ pequeno).
+  > → próximo alvo = **A4 calibração de σ / loss de coverage**, antes de A2/A3.
 - **A2 — oversample por necessidade de precisão**: peso de amostragem ∝ 1/σ(d,c)
   (alto SNR pesa mais), NÃO ∝ cauda.
 - **A3 — especialista near-field vs global**: treinar um modelo dedicado a
@@ -54,6 +61,15 @@ Grid de treino atual `{0.75, 1.0, 1.35, 1.5}` tem **gap de 0.35m entre 1.0 e
 - **B3 — prior de suavidade/monotonicidade** em `a(d,c)` e `σ(d,c)`: o ganho e a
   escala variam monotonicamente com a distância (SNR cai 17.9→2.7 dB monotônico),
   então impor suavidade no condicionamento ajuda a interpolar.
+- **B4 — loss de heterocedasticidade (escolhido 06-25, RODANDO)**: a Camada 1 mostra
+  que o **ganho linear já interpola** (<1% xcorr) — a falha das não-vistas é
+  **distribucional**: o twin erra **72.8%** no slope `Var(δ)~|X|` (Camada 2). A loss
+  `losses.heteroscedastic_slope_loss` casa esse slope (gerado vs real), keyando o ruído
+  na **amplitude observada** (não no rótulo `d`, que o modelo decora). Preset
+  `v3_g6_aligned_s35c_gauss_hetloss` (tag `hetA4`, λ=5); 2 seeds
+  (`launch_v3fc_e4hetloss.sh`). É a recomendação #1 do macro ("condicionamento em
+  amplitude"). Smoke OK (het train 0.0017 / val 0.41 → as não-vistas é que quebram).
+  Fallback se não generalizar: condicionar σ em |x| pela ARQUITETURA (σ-head=f(|x|)).
 
 ## Governança dos dados (papéis — lacuna #1 da síntese de validação)
 

@@ -103,6 +103,59 @@ def relative_reconstruction_loss(
     return tf.sqrt(err2 / (sig2 + eps) + 1e-8)
 
 
+def heteroscedastic_slope_loss(
+    r_real: tf.Tensor,
+    r_gen: tf.Tensor,
+    x_center: tf.Tensor,
+    eps: float = 1e-6,
+) -> tf.Tensor:
+    """Match the twin's noise-variance-vs-power slope to the real residual's.
+
+    The macro 'Camada 2' discriminator (``regime_census._het_slope``) bins samples
+    by transmitted power ``|X|²``, measures ``Var(residual)`` per power bin, and
+    fits the *slope* of that variance vs power — the heteroscedastic signature of
+    the LED gain map (``Var(Y−X) ∝ |X|²``) that a flat/homoscedastic twin cannot
+    reproduce (the base FC twin is **72.8% off**). The cross-distance gates fail
+    distributionally on the unseen interpolation distances (0.9/1.16/1.25 m) even
+    though the linear gain interpolates (<1% xcorr): the residual *scale* does
+    not. This term adds explicit pressure so the generated residual energy grows
+    with power like the real one — keyed on the *observed* amplitude, so it
+    generalises across distance (the label ``d`` is what the model overfits).
+
+    Differentiable batch surrogate of the binned fit: the ordinary-least-squares
+    slope ``cov(v, p) / var(p)`` of squared-residual energy ``v`` vs power ``p``,
+    computed in **per-axis normalised (scale-free) space** so a single
+    ``lambda_het`` behaves across regimes and the term shapes the power-*dependence*
+    only — the absolute level stays the job of the NLL/MMD. The real residual's
+    slope is the stop-gradient target.
+
+    Parameters
+    ----------
+    r_real   : (N, 2) — real residual ``y_true − x_center`` (stop-gradient at call).
+    r_gen    : (N, 2) — generated residual ``sample − x_center`` (carries μ and σ).
+    x_center : (N, 2) — centred input signal; power ``p = |x_center|²``.
+
+    Returns
+    -------
+    scalar Tensor — ``(slope_gen − slope_real)²`` in normalised slope space.
+    """
+    power = tf.reduce_sum(tf.square(x_center), axis=-1)            # |X|²            (N,)
+    v_gen = tf.reduce_sum(tf.square(r_gen), axis=-1)              # gen resid energy (N,)
+    v_real = tf.stop_gradient(tf.reduce_sum(tf.square(r_real), axis=-1))
+
+    p = power / (tf.reduce_mean(power) + eps)                     # unit-mean, scale-free
+    pc = p - tf.reduce_mean(p)
+    var_p = tf.reduce_mean(tf.square(pc)) + eps
+
+    g = v_gen / (tf.reduce_mean(v_gen) + eps)
+    r = v_real / (tf.reduce_mean(v_real) + eps)
+    slope_gen = tf.reduce_mean(pc * (g - tf.reduce_mean(g))) / var_p
+    slope_real = tf.stop_gradient(
+        tf.reduce_mean(pc * (r - tf.reduce_mean(r))) / var_p
+    )
+    return tf.square(slope_gen - slope_real)
+
+
 def kl_divergence(
     z_mean_q: tf.Tensor,
     z_log_var_q: tf.Tensor,
@@ -678,6 +731,7 @@ class CondPriorVAELoss(layers.Layer):
         lambda_energy: float = 0.0,
         lambda_quantile: float = 0.0,
         lambda_rel: float = 0.0,
+        lambda_het: float = 0.0,
         quantile_mode: str = "pooled",
         **kwargs,
     ):
@@ -703,6 +757,7 @@ class CondPriorVAELoss(layers.Layer):
         self.lambda_energy = float(lambda_energy)
         self.lambda_quantile = float(lambda_quantile)
         self.lambda_rel = float(lambda_rel)
+        self.lambda_het = float(lambda_het)
         self.quantile_mode = str(quantile_mode).strip().lower()
         self.beta = tf.Variable(
             self.beta_init, trainable=False, dtype=tf.float32, name="beta",
@@ -717,6 +772,8 @@ class CondPriorVAELoss(layers.Layer):
             self.quantile_loss_tracker = tf.keras.metrics.Mean(name="quantile_loss")
         if self.lambda_rel > 0.0:
             self.rel_loss_tracker = tf.keras.metrics.Mean(name="rel_loss")
+        if self.lambda_het > 0.0:
+            self.het_loss_tracker = tf.keras.metrics.Mean(name="het_loss")
         if self.lambda_axis > 0.0:
             self.axis_loss_tracker = tf.keras.metrics.Mean(name="axis_loss")
         if self.lambda_psd > 0.0:
@@ -769,6 +826,13 @@ class CondPriorVAELoss(layers.Layer):
             rel = relative_reconstruction_loss(y_true, y_mean, x_center)
             self.rel_loss_tracker.update_state(rel)
             total = total + self.lambda_rel * rel
+
+        if self.lambda_het > 0.0 and x_center is not None:
+            r_real_h = tf.stop_gradient(y_true - x_center)
+            r_gen_h = _ensure_sample() - x_center
+            het = heteroscedastic_slope_loss(r_real_h, r_gen_h, x_center)
+            self.het_loss_tracker.update_state(het)
+            total = total + self.lambda_het * het
 
         if (
             self.lambda_mmd > 0.0
@@ -860,6 +924,8 @@ class CondPriorVAELoss(layers.Layer):
             m.append(self.quantile_loss_tracker)
         if self.lambda_rel > 0.0:
             m.append(self.rel_loss_tracker)
+        if self.lambda_het > 0.0:
+            m.append(self.het_loss_tracker)
         if self.lambda_axis > 0.0:
             m.append(self.axis_loss_tracker)
         if self.lambda_psd > 0.0:
@@ -894,6 +960,7 @@ class CondPriorVAELoss(layers.Layer):
             "lambda_energy": self.lambda_energy,
             "lambda_quantile": self.lambda_quantile,
             "lambda_rel": self.lambda_rel,
+            "lambda_het": self.lambda_het,
             "quantile_mode": self.quantile_mode,
         })
         return cfg

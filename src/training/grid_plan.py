@@ -4625,6 +4625,71 @@ def _preset_v3_g6_aligned_s35c_gauss_relloss() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_v3_g6_aligned_s35c_gauss_hetloss() -> List[Dict[str, Any]]:
+    """E4 / Fix A4: s35c gaussian LIGHT arm + heteroscedastic-slope loss term.
+
+    Byte-identical to the LIGHT arm of ``_preset_v3_g6_aligned_s35c_gauss``
+    except it sets ``lambda_het > 0`` — the heteroscedastic-slope matching loss
+    (``src/models/losses.heteroscedastic_slope_loss``) that pushes the generated
+    residual energy to grow with transmitted power ``|X|²`` like the real one.
+    Targets the macro 'Camada 2' finding (base FC twin 72.8% off on the
+    ``Var(δ)~|X|`` slope), which drives the DISTRIBUTIONAL failure on the unseen
+    interpolation distances 0.9/1.16/1.25 m even though the linear gain
+    interpolates <1% (REDESIGN_PLAN Problem B; macro recommendation
+    'condicionamento em amplitude'). Run with 2 seeds to separate the A4 effect
+    from the non-deterministic basin draw. Single light arm to keep it cheap.
+    """
+    LAMBDA_HET = 5.0
+    light = next(
+        d for d in _preset_v3_g6_aligned_s35c_gauss() if "_light_" in d["tag"]
+    )
+    cfg = dict(light["cfg"])
+    cfg["lambda_het"] = LAMBDA_HET
+    lhet_tag = str(LAMBDA_HET).replace(".", "p")
+    return [
+        dict(
+            group="V3G6_aligned_s35c_gauss_hetA4",
+            tag=f"S35CG6A_GAUSS_hetA4_lhet{lhet_tag}",
+            cfg=cfg,
+            analysis_quick_overrides=light["analysis_quick_overrides"],
+        ),
+    ]
+
+
+def _preset_v3_g6_aligned_s35c_gauss_smoothloss() -> List[Dict[str, Any]]:
+    """B3 / Fix interpolação: s35c gaussian LIGHT arm + conditional-smoothness loss.
+
+    Byte-identical to the LIGHT arm of ``_preset_v3_g6_aligned_s35c_gauss`` except
+    it sets ``lambda_smooth > 0`` — the curvature penalty on the conditional mean
+    μ(d) wrt distance (``cvae_sequence.ConditionalSmoothnessPenalty``, probed at
+    random normalised distances). Targets the cross-distance INTERPOLATION failure
+    (REDESIGN_PLAN Problem B): trained anchors are 27/27 but the unseen midpoints
+    (0.9/1.16/1.25 m) fail — and the per-gate margin (06-26) shows the SOLE blocker
+    at 1.16/1.25 m is G3 (mean/σ) at ~1.8-2.0×, i.e. a small conditional-mean bias
+    at interpolated distance. Loss-on-output fixes (A1 relative, A4 het) hit the
+    wall because they can't change interpolation; a smoothness PRIOR on the gain
+    function can. Run with 2 seeds. ``smooth_delta_d`` = probe half-width in
+    normalised distance space (D_min/D_max over trained anchors).
+    """
+    LAMBDA_SMOOTH = 100.0
+    SMOOTH_DELTA_D = 0.1
+    light = next(
+        d for d in _preset_v3_g6_aligned_s35c_gauss() if "_light_" in d["tag"]
+    )
+    cfg = dict(light["cfg"])
+    cfg["lambda_smooth"] = LAMBDA_SMOOTH
+    cfg["smooth_delta_d"] = SMOOTH_DELTA_D
+    lsm_tag = str(LAMBDA_SMOOTH).replace(".", "p")
+    return [
+        dict(
+            group="V3G6_aligned_s35c_gauss_smoothB3",
+            tag=f"S35CG6A_GAUSS_smoothB3_lsm{lsm_tag}",
+            cfg=cfg,
+            analysis_quick_overrides=light["analysis_quick_overrides"],
+        ),
+    ]
+
+
 def _preset_v3_g6_aligned_s35c() -> List[Dict[str, Any]]:
     """G6-aligned loss on the S35C backbone (V3 reduced-campaign hybrid).
 
@@ -5453,6 +5518,10 @@ def select_grid(
             grid = _preset_v3_g6_aligned_s35c_gauss()
         elif preset_name == "v3_g6_aligned_s35c_gauss_relloss":
             grid = _preset_v3_g6_aligned_s35c_gauss_relloss()
+        elif preset_name == "v3_g6_aligned_s35c_gauss_hetloss":
+            grid = _preset_v3_g6_aligned_s35c_gauss_hetloss()
+        elif preset_name == "v3_g6_aligned_s35c_gauss_smoothloss":
+            grid = _preset_v3_g6_aligned_s35c_gauss_smoothloss()
         elif preset_name == "twin_sweep":
             grid = _preset_twin_sweep()
         elif preset_name == "best_compare_large":

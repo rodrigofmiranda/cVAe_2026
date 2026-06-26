@@ -90,8 +90,11 @@
     (held-out 1.0m já mostrara EVM 57-107%). Gap de 0.35 m entre 1.0 e 1.35.
   - **`gate_g3` é o culpado UNIVERSAL** (falha em 100% dos regimes de falha-robusta;
     G6/stat ~99%). G3 = média/dispersão do resíduo rel. à escala.
-- **Coverage = ameaça e2e que os gates NÃO veem**: cov95 ≈ 0.77-0.81 (alvo 0.95)
-  em TODOS os regimes, inclusive os que passam G1-G6 (twin superconfiante).
+- **Coverage = ameaça e2e que os gates NÃO veem**: cov95 ≈ 0.77-0.82 (alvo 0.95)
+  em TODOS os regimes, inclusive os que passam G1-G6 e os com var_ratio≈1.0. **CUIDADO**:
+  cov95 baixo é UNIFORME e NÃO se correlaciona com a dispersão — NÃO concluir "σ pequena"
+  dele (no 0.75 m σ é GRANDE demais, var_ratio 1.41; ver §6). cov95 baixo provavelmente
+  vem de viés de média / forma, não de σ subdimensionado. Não é o discriminador do 0.75 m.
 - **E2 (densificar grid) REGREDIU** (12/63 vs 30/63) — fix B1 sozinho não ajudou.
 - Fontes: `comparison_v3/macro_diagnostics/runs/.../REPORT.md`,
   `.../runs/<stamp>_champion_set/REPORT_champion_set.md`, REDESIGN_PLAN.md.
@@ -107,8 +110,62 @@
   - `v3fc_e1gauss_20260617` = Gaussiano (light+heavy), SEM loss relativo → **30/63**.
   - `v3fc_e2gauss_20260620` = fix **B1** densificado (54 regimes) → **12/63** (negativo).
   - `v3fc_e3relloss_recal_s{33,7}` = fix **A1** loss relativo (= a parte que faltava
-    do "E1" do plano; o nome "e3" é só do arquivo). EVM batch-norm, λ=7. **Rodando.**
-  - A2, A3, B2, B3, E4(prior) = NÃO feitos.
+    do "E1" do plano; o nome "e3" é só do arquivo). EVM batch-norm, λ=7.
+    **NEGATIVO e reprodutível (06-25)**: 2 seeds idênticas → train 27/36, eval **29/63**,
+    **0.75 m fica 0/9**. O `rel_loss` ENGATOU e foi minimizado 12× (0.072→0.0059, 304 ep,
+    val_recon -4.77 bacia boa) — ou seja, a média ficou mais precisa e mesmo assim os
+    gates não moveram. **Leitura**: o gargalo do 0.75 m **não é a média, é a dispersão/σ**.
+    **DIREÇÃO VERIFICADA por-regime (06-25, reanalysis do A1)**: o 0.75 m é **SUPER-disperso**
+    — `var_ratio`(pred/real) = **1.41** [1.03-1.54], σ_pred 0.070 > σ_real 0.060, ΔSNR −1.32 dB;
+    todas as outras dist têm var_ratio≈1.00-1.07 e o clamp LO (σ_min 0.037) NÃO prende.
+    Ou seja **σ está GRANDE demais SÓ no 0.75 m** (borda do domínio + maior SNR). → o fix é
+    **ENCOLHER σ no 0.75 m, NÃO inflar**. Loss de coverage inflaria σ → PIORARIA. A1 descartado.
+  - **DECISÃO (Rodrigo, 06-25): largar o 0.75 m como alvo e focar a INTERPOLAÇÃO geral.**
+    Breakdown por dist (A1 eval63): treinadas 1.0/1.35/1.5 = **9/9 cada (27/27)**, só o
+    canto 0.75 m falha (1 de 7, sinal limpo demais, gates relativos brutais). Todo o resto
+    que falta = as **não-vistas 0.9/1.16/1.25 m = 2/27** (interpolação). Bloqueadores fora
+    do 0.75 m: G3 (23/25), G6 (22/25), stat (22/25).
+  - `v3fc_e4hetloss_s{33,7}_20260625` = fix **A4** loss de heterocedasticidade (= casar o
+    slope `Var(δ)~|X|`). **Por quê (macro Camada 1+2)**: o ganho linear JÁ interpola (<1%
+    xcorr), a falha das não-vistas é DISTRIBUCIONAL — o twin erra **72.8%** no slope
+    `Var(δ)~|X|` (`regime_census._het_slope`: bina por potência |X|², mede Var por bin,
+    fita o slope). É a recomendação #1 do próprio macro ("condicionamento em amplitude"),
+    pois a amplitude é observada no eval (o rótulo d é o que o modelo decora). Impl.:
+    `losses.heteroscedastic_slope_loss` (slope OLS normalizado, gerado vs real stop-grad),
+    `lambda_het` plumbado, preset `v3_g6_aligned_s35c_gauss_hetloss` (tag `hetA4`, λ=5,
+    bem-escalado vs mmd/energy). **NEGATIVO (seed33, 06-26; seed7 pendente)**: a het loss
+    FUNCIONOU no seu alvo — val_het **0.41→0.0004** (~1000×), bacia boa (val_recon −4.767) —
+    mas **os GATES não se moveram**: **29/63** (= A1, −1 vs E1). **seed7 DIVERGIU** (bacia ruim:
+    val_recon −3.58 oscilando, **0/63**, até as treinadas 0/9) → o sorteio de bacia VOLTOU com a
+    loss extra (instabilidade); o veredito A4 é o seed33 (29/63) + flag de instabilidade. Não-vistas: 0.9m 0/9 (var_ratio
+    PIOROU 1.01→1.41, contaminou a unseen perto), 1.16m 1/9 (era 2), 1.25m 1/9 (era 2). Mesmo
+    com var_ratio≈1.0 em 1.16/1.25, **G3 ainda falha 8/9** (+G6:7, stat:7) → como a dispersão
+    casou, **G3 trava pela MÉDIA** (resíduo médio rel. à escala), não pela dispersão. A1 já
+    tinha falhado em mover G3 pela média. **CONCLUSÃO (E1+A1+A4, mesmo muro 29-30/63)**: nas
+    distâncias não-vistas a **distribuição condicional inteira** (média *e* forma) está errada,
+    e **NENHUMA loss treinada nos dados VISTOS conserta** o que o modelo produz numa distância
+    que nunca viu. É um **muro de generalização**, não de ajuste de loss. Loss-tuning encerrado
+    nesta linha.
+  - **MARGEM por-gate (06-26, refina o "muro")**: não é muro uniforme. Nas não-vistas LONGE
+    (1.16/1.25m) o G1(EVM)/G2(SNR) **já passam ou quase** e o **ÚNICO bloqueador é o G3 a ~1.8-2.0x**
+    o limiar (`cvae_mean_rel_sigma` 0.073-0.081 vs thr 0.040). Como var_ratio≈1.0 (dispersão ok),
+    o G3 trava pela **MÉDIA condicional levemente enviesada na distância interpolada** (~8% de σ).
+    0.9m é o caso feio (todos os gates 4x+, contaminado pelo 0.75m). → o prêmio realista =
+    1.16+1.25m (18 regimes), bloqueados por UM gate, PERTO.
+  - **DECISÃO (Rodrigo, 06-26): a interpolação É requisito** (o twin deve funcionar em distâncias
+    não treinadas). Como as losses de SAÍDA (A1/A4) não mudam interpolação, o lever é a
+    **representação do condicionamento**.
+  - `v3fc_b3smooth_s{33,7}_20260626` = fix **B3** prior de SUAVIDADE da média condicional.
+    Impl.: `cvae_sequence.ConditionalSmoothnessPenalty` + `SmoothProbeDistances` — penaliza a
+    **curvatura** `‖μ(d+δ)−2μ(d)+μ(d−δ)‖²` em **d aleatório normalizado** (reinvoca o decoder, que
+    é MLP barato, 3x), forçando μ(d) suave/≈linear → ganho interpola entre âncoras em vez de decorar
+    as 4. δ=0.1 (d é **min-max [0,1]** com D_min=0.75/D_max=1.5; não-vistas em 0.2/0.547/0.667).
+    Preset `v3_g6_aligned_s35c_gauss_smoothloss` (tag `smoothB3`, λ_smooth=100, bem-escalado vs aux).
+    **Smoke OK (06-26)**: monta, smooth_loss engata (contrib 0.0074), **save+reload do modelo full +
+    inference OK** (serialização das layers novas). **ENFILEIRADO** atrás do A4 seed7
+    (`launch_v3fc_b3smooth.sh`, 2 seeds). Mira G3 em 1.16/1.25m. **Aposta**: o modelo decora 4 âncoras;
+    suavidade pode levar ao valor certo (física: ganho suave/monótono) OU a um suave-mas-errado.
+  - A2, A3, B2 = NÃO feitos (B2 re-espaçar = fallback se B3 não bastar; B1=E2 já regrediu).
 - **Pipeline macro**: `comparison_v3/macro_diagnostics/` (7 camadas, `--fast`/`--full`);
   `champion_set_compare.py` compara N campeões. Re-rodar após cada treino.
 - Fontes: REDESIGN_PLAN.md, [[project-macro-diagnostics-pipeline]].
