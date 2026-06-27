@@ -124,6 +124,35 @@ Se a lei física **acerta as não-vistas**, a tese está confirmada → vale con
 gray-box completo. Se errar, a física não é `1/d²` simples e o problema é mais
 profundo (multipath / geometria) — e aí o veredito é honesto antes de gastar GPU.
 
+### Resultado (2026-06-27) — **CONFIRMADO** (forte)
+Rodado em CPU sobre os dados FC reais (`physics_interp_test.py`, 7 distâncias × 9
+correntes, n_cap 60k; saída em `comparison_v3/macro_diagnostics/physics_test/`).
+**Correção de premissa**: os dados **NÃO** são normalizados no ganho — `a=<X,Y>/<X,X>`
+varia **[0.20, 1.05]** e **cai com a distância** (≈1.0 em 0.75m → ~0.20–0.30 em 1.5m).
+**A atenuação `1/d²` está nos dados, vive no GANHO**; o que é constante é o σ.
+
+| alvo | const | linear | **power `K·d^p`** | interp. linear (proxy MLP) |
+|---|---|---|---|---|
+| `a(d,c)` (ganho) | 23.6% | 14.9% | **1.4%** ⭐ | 4.3% |
+| `σ(d,c)` (ruído) | 1.4% | 1.4% | 1.5% | 1.2% |
+| `SNR(d,c)` | 63.2% | 45.1% | **5.6%** ⭐ | 10.2% |
+
+Leitura (erro mediano nos held-out, todas as correntes):
+- **O ganho segue lei de potência quase-`1/d²` e interpola as não-vistas a 1.4% —
+  3× melhor que o interpolador linear (4.3%)** que aproxima o que o MLP caixa-preta
+  faz. A física **existe e é previsível**; o held-out **está** num manifold suave.
+- **σ é distância-independente (~0.053)** → toda a ação está no ganho; o resíduo é o
+  ruído benigno (confirma o diagnóstico). O gray-box pode ter `σ(d,c)≈σ₀` simples.
+- **Separabilidade Hammerstein confirmada**: `a(d,c) ≈ K·h_LED(c)·d^p`, com `h_LED(c)`
+  pico ~300–400 mA (saturação do LED) e `d^p` (p≈−2) a propagação. Exatamente
+  `dang_2022`.
+
+**Quantificação do muro**: o cVAE erra `a(d,c)` nas não-vistas em ~4–10% (≥ interp.
+linear); como o sinal `a·X` tem amplitude ~0.3–1.0 e σ≈0.053, um erro de 4–10% no
+ganho vira viés de média ~0.02–0.05 ≈ **0.4–1.0σ** → é **exatamente** o G3 ~2× que
+trava as não-vistas. Um gray-box com `a=K·h_LED(c)·d^p` (1.4%) corta esse viés ~3–7×
+→ **deve** liberar o G3. **Veredito: vale construir o gray-box.**
+
 ## 9. Perguntas em aberto / a validar
 - Forma exata de `a(d)`: `1/d²` LOS puro, ou há termo de ângulo/FOV/near-field?
 - `h_LED(c)`: a saturação do LED é estática (Hammerstein) e separável de `d`?
