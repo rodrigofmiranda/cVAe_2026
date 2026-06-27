@@ -4690,6 +4690,37 @@ def _preset_v3_g6_aligned_s35c_gauss_smoothloss() -> List[Dict[str, Any]]:
     ]
 
 
+def _preset_v3_g6_aligned_s35c_gauss_physgain() -> List[Dict[str, Any]]:
+    """Gray-box OWC: s35c gaussian LIGHT arm + physical conditional gain a(d,c).
+
+    Byte-identical to the LIGHT arm of ``_preset_v3_g6_aligned_s35c_gauss`` except it
+    sets ``physical_gain=True``: the decoder mean becomes ``y = a(d,c)·x_center + δ(z,x)``
+    with ``a = g(c)·d_m^p`` (``cvae_sequence.DistancePowerLaw``, p learnable init −2) and
+    the residual head δ blind to (d,c). Targets the cross-distance INTERPOLATION wall
+    that beat every loss/prior fix (E1 30 / A1 29 / A4 29 / B3 26): the physics test
+    measured ``a(d,c)≈g(c)·d^p`` predicts the held-out distances at 1.4% (vs 4.3% for the
+    free MLP proxy), so making the gain physical should clear G3 at 1.16/1.25 m. Gaussian
+    only. Run with 2 seeds. See docs/REPROJETO_GRAYBOX_OWC.md.
+    """
+    G_HIDDEN = 16
+    P_INIT = -2.0
+    light = next(
+        d for d in _preset_v3_g6_aligned_s35c_gauss() if "_light_" in d["tag"]
+    )
+    cfg = dict(light["cfg"])
+    cfg["physical_gain"] = True
+    cfg["g_hidden"] = G_HIDDEN
+    cfg["p_init"] = P_INIT
+    return [
+        dict(
+            group="V3G6_aligned_s35c_gauss_physGB",
+            tag="S35CG6A_GAUSS_physGB",
+            cfg=cfg,
+            analysis_quick_overrides=light["analysis_quick_overrides"],
+        ),
+    ]
+
+
 def _preset_v3_g6_aligned_s35c() -> List[Dict[str, Any]]:
     """G6-aligned loss on the S35C backbone (V3 reduced-campaign hybrid).
 
@@ -5522,6 +5553,8 @@ def select_grid(
             grid = _preset_v3_g6_aligned_s35c_gauss_hetloss()
         elif preset_name == "v3_g6_aligned_s35c_gauss_smoothloss":
             grid = _preset_v3_g6_aligned_s35c_gauss_smoothloss()
+        elif preset_name == "v3_g6_aligned_s35c_gauss_physgain":
+            grid = _preset_v3_g6_aligned_s35c_gauss_physgain()
         elif preset_name == "twin_sweep":
             grid = _preset_twin_sweep()
         elif preset_name == "best_compare_large":

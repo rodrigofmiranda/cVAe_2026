@@ -136,6 +136,52 @@ class SliceFeatures(tf.keras.layers.Layer):
 
 
 @tf.keras.utils.register_keras_serializable(package="seq_cvae")
+class DistancePowerLaw(tf.keras.layers.Layer):
+    """Physical distance gain factor ``d_m^p`` with a learnable exponent (gray-box OWC).
+
+    Input is the **normalised** distance ``d_norm ∈ [0,1]`` (min-max over the trained
+    anchors). The layer un-normalises to metres ``d_m = d_min + d_norm·(d_max-d_min)``
+    (>0 always, so ``d_m^p`` is well-defined for ``p<0``) and returns ``d_m^p`` with
+    ``p`` a single trainable scalar (init ``p_init``, default −2 = Lambertian LOS
+    ``1/d²``). This is the distance factor of the separable OWC gain
+    ``a(d,c)=g(c)·d_m^p``, which lets the conditional mean interpolate to unseen
+    distances **by construction** (the physics test measured this law predicts the
+    held-out distances at 1.4%; see docs/REPROJETO_GRAYBOX_OWC.md). Un-normalising is
+    required because ``d_norm=0`` at the nearest anchor would make ``d_norm^p`` blow up.
+    Output shape == input shape ``(batch, 1)``.
+    """
+
+    def __init__(self, d_min: float = 0.75, d_max: float = 1.5,
+                 p_init: float = -2.0, **kwargs):
+        super().__init__(**kwargs)
+        self.d_min = float(d_min)
+        self.d_max = float(d_max)
+        self.p_init = float(p_init)
+
+    def build(self, input_shape):
+        self.p = self.add_weight(
+            name="p",
+            shape=(),
+            initializer=tf.keras.initializers.Constant(self.p_init),
+            trainable=True,
+        )
+        super().build(input_shape)
+
+    def call(self, d_norm):
+        d_m = self.d_min + d_norm * (self.d_max - self.d_min)
+        d_m = tf.maximum(d_m, 1e-3)  # guard log(0) for any out-of-range conditioning
+        return tf.exp(self.p * tf.math.log(d_m))
+
+    def get_config(self):
+        return {
+            **super().get_config(),
+            "d_min": self.d_min,
+            "d_max": self.d_max,
+            "p_init": self.p_init,
+        }
+
+
+@tf.keras.utils.register_keras_serializable(package="seq_cvae")
 class SmoothProbeDistances(tf.keras.layers.Layer):
     """Random probe distances for the conditional-smoothness penalty (B3).
 
@@ -474,13 +520,29 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
     cond_embed_dim = int(cfg.get("cond_embed_dim", 0))
     cond_embed_layers = max(1, int(cfg.get("cond_embed_layers", 2)))
     cond_embed_residual = bool(cfg.get("cond_embed_residual", False))
+    # Gray-box OWC physical gain a(d,c)=g(c)·d_m^p (opt-in; Gaussian only).
+    physical_gain = bool(cfg.get("physical_gain", False))
+    g_hidden = int(cfg.get("g_hidden", 16))
+    p_init = float(cfg.get("p_init", -2.0))
+    d_min = float(cfg.get("d_min", 0.75))
+    d_max = float(cfg.get("d_max", 1.5))
+    if physical_gain and decoder_distribution == "mdn":
+        raise ValueError(
+            "physical_gain is only supported with decoder_distribution='gaussian' "
+            "(the V3 channel residual is Gaussian; MDN gray-box is out of scope)."
+        )
 
     z_in      = layers.Input(shape=(latent,), name="z_input")
     x_cent_in = layers.Input(shape=(2,),      name="x_center_input")
     d_in      = layers.Input(shape=(1,),      name="d_input")
     c_in      = layers.Input(shape=(1,),      name="c_input")
 
-    if cond_embed_dim > 0:
+    if physical_gain:
+        # Gray-box: the residual head sees ONLY (z, x_center). All (d, c) dependence of
+        # the conditional MEAN is carried by the physical gain a(d,c) below, so distance
+        # interpolates by construction instead of via a free MLP of (d, c).
+        h = layers.Concatenate(name="dec_concat")([z_in, x_cent_in])
+    elif cond_embed_dim > 0:
         # Nonlinear regime embedding: (d, c) → cond_embed_layers-layer MLP → cond_embed_dim
         cond_raw = layers.Concatenate(name="dec_cond_raw")([d_in, c_in])
         cond_h = layers.Dense(cond_embed_dim, activation=act, name="dec_cond_emb_0")(cond_raw)
@@ -508,11 +570,23 @@ def build_seq_decoder(cfg: Dict) -> tf.keras.Model:
         y_mean_flat = layers.Reshape((2 * k,), name="y_mean_flat")(y_mean)
         out = layers.Concatenate(name="output_params")([logits, y_mean_flat, delta_lv_flat])
     else:
-        # Residual: predict (delta_mean, delta_log_var), then add x_center to mean
+        # Residual: predict (delta_mean, delta_log_var), then add the base mean
+        # (physical gain a(d,c)·x_center for gray-box, else identity x_center).
         raw_out = layers.Dense(4, name="output_params_raw")(h)
         delta_mean = SliceFeatures(0, 2, name="delta_mean")(raw_out)
         delta_lv = SliceFeatures(2, 4, name="delta_log_var")(raw_out)
-        y_mean = layers.Add(name="y_mean_residual")([x_cent_in, delta_mean])
+        if physical_gain:
+            # Physical OWC gain a(d,c) = g(c) · d_m^p  (separable Hammerstein). g(c) is a
+            # small MLP (current is fully observed); d_m^p interpolates distance.
+            gc = layers.Dense(g_hidden, activation="tanh", name="dec_gain_c_0")(c_in)
+            gc = layers.Dense(1, name="dec_gain_c_1")(gc)
+            g_c = layers.Activation("softplus", name="dec_gain_c_softplus")(gc)
+            dpow = DistancePowerLaw(d_min, d_max, p_init, name="dec_gain_dpow")(d_in)
+            a = layers.Multiply(name="dec_gain_a")([g_c, dpow])         # (batch, 1)
+            y_phys = layers.Multiply(name="y_phys")([a, x_cent_in])     # broadcast → (batch, 2)
+            y_mean = layers.Add(name="y_mean_physgain")([y_phys, delta_mean])
+        else:
+            y_mean = layers.Add(name="y_mean_residual")([x_cent_in, delta_mean])
         out = layers.Concatenate(name="output_params")([y_mean, delta_lv])
 
     return models.Model([z_in, x_cent_in, d_in, c_in], out, name="decoder")
