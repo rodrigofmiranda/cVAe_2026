@@ -162,14 +162,24 @@
     as 4. δ=0.1 (d é **min-max [0,1]** com D_min=0.75/D_max=1.5; não-vistas em 0.2/0.547/0.667).
     Preset `v3_g6_aligned_s35c_gauss_smoothloss` (tag `smoothB3`, λ_smooth=100, bem-escalado vs aux).
     **Smoke OK (06-26)**: monta, smooth_loss engata (contrib 0.0074), **save+reload do modelo full +
-    inference OK** (serialização das layers novas). **RODANDO** (seed33, 06-26, val_recon −4.19 rumo à
-    bacia boa, sem instabilidade) — `launch_v3fc_b3smooth.sh`, 2 seeds. Mira G3 em 1.16/1.25m. **Teto
-    realista ~40/63** (só os não-vistos PERTO; 0.9m+0.75m seguem difíceis). **Sinal amarelo**: no treino
-    real o `smooth_loss` é minúsculo (~5e-6) → a curvatura de μ(d) já é naturalmente baixa; se o modelo
-    já interpola "suave mas errado", o prior tem pouco o que empurrar — o eval63 dirá. Watcher detached
-    (`watch_b3_seed33.sh`) avisa o veredito por ntfy. **Aposta**: suavidade leva ao valor certo (física:
-    ganho suave/monótono) OU a um suave-mas-errado. Próximo macro = sobre o B3 SE bater o baseline.
-  - A2, A3, B2 = NÃO feitos (B2 re-espaçar = fallback se B3 não bastar; B1=E2 já regrediu).
+    inference OK** (serialização das layers novas). **NEGATIVO — e PIOR (seed33, 06-27)**: bacia BOA
+    (val_recon −4.612, resultado válido) mas **26/63** (E1 30, A1/A4 29). Interpolação NÃO se moveu
+    (1.16/1.25m seguiram 0/9, G3 ~2.2x/1.9x = igual; 0.9m piorou 4.3x) E custou 4 regimes que passavam.
+    **Confirma o sinal amarelo**: `smooth_loss` minúsculo (~5e-6) porque μ(d) JÁ é suave → o modelo já
+    interpola SUAVE, só que pro VALOR ERRADO; forçar suavidade só tirou capacidade. **Refuta a hipótese
+    "decora 4 âncoras"** — o viés de média nos não-vistos NÃO é curvatura/suavidade.
+  - **MURO DE INTERPOLAÇÃO confirmado (E1 30 / A1 29 / A4 29 / B3 26)**: 4 intervenções de treino
+    (baseline, loss relativa, loss het, prior de suavidade) e o G3 nos não-vistos 1.16/1.25m fica
+    **imóvel a ~2x**. O viés da média condicional numa distância NUNCA vista é **irredutível por
+    truque de treino** nas 4 âncoras. A linha "loss/prior nos dados vistos" está ESGOTADA.
+  - **DECISÃO/REFRAME (Rodrigo, 06-27)**: as não-vistas são a **PROVA** de generalização — densificar
+    o grid está FORA (destrói a prova). O usuário pediu repensar os conceitos. **Veredito fundamentado**:
+    um **cVAE caixa-preta NÃO resolve** (condicionamento MLP(d,c) sem física não interpola os momentos);
+    a via é **gray-box físico** — `μ=a(d,c)·X` com `a,σ` paramétricos (OWC: `a≈K·h_LED(c)/d²`), cVAE só
+    no resíduo Gaussiano benigno. Precedente: branches `feat/seq-imdd-graybox-mdn`/`feat/imdd-graybox-channel`.
+    **Fundamentação completa + próximo passo (validar `a(d)`∝1/d² nas não-vistas, CPU, antes de construir)
+    em [REPROJETO_GRAYBOX_OWC.md](REPROJETO_GRAYBOX_OWC.md).**
+  - A2, A3, B2 = abandonados (loss/dados-vistos é fútil dada a evidência). Próxima linha = gray-box.
 - **Pipeline macro**: `comparison_v3/macro_diagnostics/` (7 camadas, `--fast`/`--full`/`--regen-upstream`).
   **REORGANIZADO 06-26 → runs AUTO-CONTIDOS**: cada run = UMA pasta `runs/<stamp>__<label>/` com
   `0_census 1_xcorr 2_awgn 3_gates 4_crossdist 5_modulations/` + `REPORT.md` (seção "Figuras" linka
